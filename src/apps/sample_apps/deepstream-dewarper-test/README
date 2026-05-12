@@ -1,0 +1,218 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+*****************************************************************************
+                     deepstream-dewarper-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe the sample deepstream-dewarper-test application.
+This application demonstartes the the usage of dewarper plugin for various usecases :
+* To remove camera induced distortion
+* Convert views to feed to machine learning software
+* A use-case of parking garage 360 cameras with spots and ailes surfaces that use Pushbroom, Vertical cylindrical projections
+
+For more information on the general functionality and further examples see the
+DeepStream Plugin Development Guide.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-dewarper-app --config <config_filename> --sink <sink_type> --enc_type <encoder_type> [<uri1> <camera_id1>] [<uri2> <camera_id2>] ... [<uriN> <camera_idN>]
+  Call "deepstream-dewarper-app --help" to get information about command line parameters.
+  Following three command line parameters are optional :
+  1. --config <config_filename>
+      Configuration file that specifies the dewarping configuration.
+      If not specified, "config_dewarper.txt" in current directory is used by default.
+  2. --sink <sink_type>
+      Can take three values :
+      1:Fakesink, 2:Eglsink, 3:Filesink
+      Deafult value is 2 i.e. Eglsink
+      If 3:Filesink is specified, "out.mp4" output file gets created in current directory.
+  3. --enc_type <encoder_type>
+      Can take two values :
+      0:Hardware encoder, 1:Software encoder
+      Default values is 0 i.e. Hardware encoder.
+
+  At least one pair of [<uri> <camera_id>] shoud be specified where
+  uri - represents the input video stream
+
+  camera_id - source id/ camera id
+  If csv file is specified, it refers to the first column of the CSV files (i.e. csv_files/nvaisle_2M.csv & csv_files/nvspot_2M.csv)
+  The dewarping parameters for the given camera are read from CSV files and used
+  to generate dewarp surfaces (i.e. multiple aisle and spot surface) from 360d
+  input video stream. More details about the CSV file can be found in the last section of this document.
+
+  NOTE : The optional command line parameteres should be specified before the [<uri> <camera_id>]  pairs.
+
+e.g.
+  // Single Stream
+  $ deepstream-dewarper-app  file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_cam6.mp4 6
+
+  // Single Stream for Perspective Projection type
+  $ deepstream-dewarper-app --config config_dewarper_perspective.txt file:///opt/nvidia/deepstream/deepstream/samples/streams/yoga.mp4 0
+
+  // Multi Stream
+  $ deepstream-dewarper-app file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_cam6.mp4 6 file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_cam6.mp4 6
+
+  // Multi Stream for Perspective Projection type
+  $ deepstream-dewarper-app --config config_dewarper_perspective.txt file:///opt/nvidia/deepstream/deepstream/samples/streams/yoga.mp4 0 file:///opt/nvidia/deepstream/deepstream/samples/streams/yoga.mp4 0
+
+  // Fish eye distortion correction and perspective projetion
+  $ deepstream-dewarper-app --config config_dewarper_fish_dist_correction.txt  file:///opt/nvidia/deepstream/deepstream/samples/streams/fisheye_dist.mp4 0
+
+  // Example usage of rot-axes config to get a dewarped surface useful for inferencing applications
+  $ deepstream-dewarper-app --config  config_dewarper_rot_axes.txt  file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_office.mp4 6
+
+  // Example usage of rot-matrix config to use the conventional rotation matrix
+  $ deepstream-dewarper-app --config  config_dewarper_rot_matrix.txt  file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_office.mp4 6
+
+Five example configuration files are provided:
+   . config_dewarper.txt (default): tailors the 360 camera multi-surface use-case
+   . config_dewarper_perspective.txt: single-surface Perspective Projection use-case.
+   . config_dewarper_fish_dist_correction.txt: Fisheye to perspective projection with fisheye distortion correction use-case
+   . config_dewarper_rot_axes.txt: Fisheye to perspective projection useful as inferencing input use-case
+   . config_dewarper_rot_matrix.txt: Fisheye to fisheye projection with rotation use-case
+
+Note: Except for PushBroom & VertRadCyl projections, use of the CSV Files is not
+supported in any other projections. In other projections please provide the parameters under each [surface*]
+group.
+To change the number of surfaces in use change the property "num-batch-buffers".
+It should match the number of "surfaces" groups in the configuration file. So if
+you want two surfaces per buffer you should have "num-batch-buffers"=2 and two
+surfaces groups ([surface0] and [surface1]). Default value is 4.
+
+Output:
+For the default config file(config_dewarper.txt) there are total 4 surfaces generated by dewarper
+plugin based on the inputs from spot and aisle CSV files.
+Both these CSV files mentions 2 surfaces each. All 4 surfaces are scaled to
+common resolution i.e. 960x752.
+Example video stream(sample_cam6.mp4) contains 360d video recorded in Car Parking Area
+Aisle area is where vehicle moves
+Spot area is where cars get parked
+Surfaces generated by dewarper plugin are as per below sequence
+1) Spot Surface-1 - Spot surface generated by dewarper plugin is of 3886x666 resolution, then its been scaled to common
+   resolution i.e. 960x752 by keeping aspect ratio. This results into black pixel padding at the bottom of this surface
+2) Spot Surface-2 - Same as Spot Surface-1, only difference is different dewarp parameters used to generate this surface.
+3) Aisle Surface-1 - Aisle surface generated by dewarper plugin is of 1902x1500 resolution, then its been scaled to
+   common resolution i.e. 960x752 by keeping aspect ratio.
+4) Aisle Surface-2 - Same as Aisle Surface-1, only difference is different dewarp parameters used to generate this surface.
+Once all 4 surfaces are generated, these are grouped under NvBufSurface structure and passed to the downstream component
+for further processing.
+
+As mentioned, you can use this test for other examples (non-aisle/spot
+360 camera use-case). In this case the expected output is similar, except the
+number of output surfaces might be different and the csv_files are not used.
+
+Note:
+gst-nvdewarper plugin internally uses  NVIDIA proprietery NVWarp360 SDK library.
+For further details about the library functionality and interface, please refer to
+"NVIDIA_Warp360_Programming_Guide.pdf" present in this folder.
+
+For description of general dewarper parameters please visit the DeepStream
+Plugin Development Guide.
+
+===============================================================================
+5. Description of CSV File Fields:
+===============================================================================
+
+5.1) Common Fields
+
+serial - Serial number for each Aisle or Spot View Camera Entry
+sensorId - Sensor ID String
+camDesc	- Camera Description String
+cameraIDString	- Camera ID String
+dewarpTopAngle - Top Field of View Angle, in degrees
+dewarpBottomAngle - Bottom Field of View Angle, in degrees
+dewarpPitch	- Viewing parameter Pitch, in degrees
+dewarpYaw	- Viewing parameter Yaw, in degrees
+dewarpRoll - Viewing parameter Roll, in degrees
+dewarpFocalLength	- Focal Lenght of camera lens, in pixels per radian
+dewarpWidth	- dewarped surface width
+dewarpHeight - dewarped surface height
+
+5.2) Aisle View Specific Fields
+
+aisleId	- Aisle ID
+aisleName	- Aisle Name
+level	- Parking Level
+numROIPoints - Number of ROI co-ordinates
+ROI Co-ordinates-
+ROI_x0	ROI_y0, ROI_x1	ROI_y1, ROI_x2	ROI_y2, ...., ROI_x7	ROI_y7
+
+Global Co-ordinates
+gx0	gy0, gx1	gy1, gx2	gy2, gx3	gy3
+
+Camera Co-ordinates
+cx0	cy0, cx1	cy1, cx2	cy2, cx3	cy3
+
+Perspective Transformation Matrix genrated from
+Camera and Global Co-ordinates
+H0	H1	H2	H3	H4	H5	H6	H7	H8
+
+entry - 0 indicates no entry ROI, 1 indicates valid entry ROI
+Entry ROI Co-ordinates-
+entry_ROI_x0	entry_ROI_y0, entry_ROI_x1	entry_ROI_y1, entry_ROI_x2	entry_ROI_y2, entry_ROI_x3	entry_ROI_y3
+
+exit - 0 indicates no exit ROI, 1 indicates valid exit ROI
+Exit ROI Co-ordinates-
+exit_ROI_x0	exit_ROI_y0, exit_ROI_x1	exit_ROI_y1, exit_ROI_x2	exit_ROI_y2, exit_ROI_x3	exit_ROI_y3
+
+5.3) Spot View Specific Fields
+
+cameraId - Camera ID String
+spotId - Unique Spot ID
+type	- Level Type
+level	- Parking Level
+surfaceid	- Surface Index 0,1 corrosponding to Spot View
+spot_index - Spot Index
+
+Spot View horizontal line co-ordinates
+Horizon_x1	Horizon_y1,	Horizon_x2	Horizon_y2
+
+Spot View ROI co-ordinates
+spot_roi_x1	spot_roi_y1,	spot_roi_x2	spot_roi_y2
+
+Global Co-ordinates
+x0	y0,	x1	y1,	x2	y2,	x3	y3

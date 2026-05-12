@@ -1,0 +1,58 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+##  Triton GRPC Remote Inference deployment
+The gRPC based Triton server should run in the different docker container and terminal as to the client.
+
+Start DeepStream Triton docker as Triton server container.
+
+```
+    #start Triton docker.
+    $ docker run --gpus all -it  --ipc=host --net=host --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+      -e DISPLAY=$DISPLAY \
+      -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-lidar-inference-app \
+      ${DS_TRITON_IMG}
+```
+Generate inference engines in Triton server container.
+```
+    $ cd tritonserver/
+    $ sudo ./build_engine.sh       # this will take some time to build TensorRT engines
+```
+Start Tritonserver application program
+```
+    $ tritonserver --model-repository=./models --strict-model-config=false --grpc-infer-allocation-pool-size=16 --log-verbose=1
+```
+Start Another DeepStream Triton docker as Triton client container.
+```
+    $ docker run --gpus all -it --ipc=host --net=host --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -e DISPLAY=$DISPLAY -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-lidar-inference-app \
+    ${DS_TRITON_IMG}
+```
+Update `config_file` of `lidarfilter` in configuration `config_lidar_triton_infer.yaml`
+or `config_lidar_source_triton_render.yaml`.
+Switch from triton_mode_CAPI.txt to triton_mode_GRPC.txt for gRPC test:
+```
+    config_file: triton_mode_GRPC.txt
+```
+  Users could update grpc connection in triton_mode_GRPC.txt looks like:
+```
+    grpc {
+        url: "10.x.x.x:8001"
+    }
+```
+Note: DO NOT use `localhost` if starting server docker without "--net=host",
+`localhost` does not work well if both server & client are running on the same host.
+
+Check Tritonserver application status
+On the client side, run
+    $ curl -v IP:8000/v2/health/ready
+
+Jump to `Build and Run` to run the tests inside client container.

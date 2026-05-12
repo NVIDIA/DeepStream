@@ -1,0 +1,403 @@
+*****************************************************************************
+* Copyright (c) 2018-2026 NVIDIA Corporation.  All rights reserved.
+*
+* NVIDIA Corporation and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA Corporation is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-test4-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container. Please refer
+samples/configs/deepstream-app-triton/README for the steps to download the
+container image and setup model repository.
+
+#Deepstream msgbroker supports sending messages to Azure(mqtt) IOThub, kafka, AMQP broker(rabbitmq) and Redis
+
+Dependencies
+------------
+
+ Azure Iot:
+ ----------
+    Refer to the README files available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    for detailed documentation on prerequisites and usages of Azure protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ Kafka:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    for detailed documentation on prerequisites and usages of kafka protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ AMQP (rabbitmq):
+ ----------------
+    Install rabbitmq-c library
+    --------------------------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    for detailed documentation on prerequisites and usages of rabbitmq based
+    amqp protocol adaptor with the message broker plugin for sending messages to cloud.
+
+ Redis:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    for detailed documentation on prerequisites and usages of redis protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+SETUP:
+  1.Use --proto-lib or -p command line option to set the path of adaptor library.
+    Adaptor library can be found at /opt/nvidia/deepstream/deepstream/lib
+
+    kafka lib           - libnvds_kafka_proto.so
+    azure device client - libnvds_azure_proto.so
+    AMQP lib            - libnvds_amqp_proto.so
+    Redis lib           - libnvds_redis_proto.so
+
+  2.Use --conn-str command line option as required to set connection to backend server.
+    For Azure           - Full Azure connection string
+    For Kafka           - Connection string of format:  host;port
+    For Amqp            - Connection string of format:  host;port;username;password
+    For Redis           - Connection string of format:  host;port
+
+    Provide connection string under quotes. e.g. --conn-str="host;port;topic;password"
+
+  3.Use --topic or -t command line option to provide message topic
+
+  4.Use --schema or -s command line option to select the message schema (optional).
+    Json payload to send to cloud can be generated using different message schemas.
+    schema = 0; Full message schema with separate payload per object (Default)
+    schema = 1; Minimal message with multiple objects in single payload.
+    schema = 2; Protobuf encoded message with multiple objects in single payload.
+    Refer user guide to get more details about message schema.
+
+  5.Use --no-display to disable display.
+
+  6.Use --msg2p-meta to choose the metadata type to create payload (optional).
+    0=Event Msg meta(default), Create NVDS_EVENT_MSG_META type of meta and attach to buffer
+    1=nvdsmeta, Use the fields within NvDsFrameMeta/NvDsObjectMeta to populate payload
+
+  7.Use --frame-interval to specify frame interval to generate message payload
+    default value=30; Message payloads generated every 30 frames
+
+  8.Use --cfg-file or -c command line option to set adaptor configuration file.
+    This is optional if connection string has all relevent information.
+
+    For kafka: use /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt as reference.
+    This file is used to define the parition key field to be used while sending messages to the
+    kafka broker. Refer Kafka Protocol Adaptor section in the DeepStream Plugin Manual for
+    more details about using this config option. The partition-key setting within the cfg_kafka.txt
+    should be set based on the schema type selected using the --schema option. Set this to
+    "sensor.id" in case of Full message schema, and to "sensorId" in case of Minimal message schema
+
+
+    For Azure, use /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor/device_client/cfg_azure.txt as reference.
+    It has the following section:
+        [message-broker]
+        #connection_str = HostName=<my-hub>.azure-devices.net;DeviceId=<device_id>;SharedAccessKey=<my-policy-key>
+        #custom_msg_properties =  <key>=<value>;
+        #share-connection=1
+
+        Azure device connection string:
+        -------------------------------
+        You can provide the connection_str within cfg_azure.txt of format:
+        connection_str = HostName=<my-hub>.azure-devices.net;DeviceId=<device_id>;SharedAccessKey=<my-policy-key>
+
+        OR
+
+        you can pass in full connection string with --conn-str option
+
+    For AMQP, use /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor/cfg_amqp.txt as reference.
+    It has the following default options:
+        [message-broker]
+        password = guest
+        hostname = localhost
+        username = guest
+        port = 5672
+        exchange = amq.topic
+        topic = topicname
+        #share-connection=1
+
+        AMQP connection string:
+        ----------------------
+        Provide hostname, port, username, password details in the cfg_amqp.txt
+
+        OR
+
+        you can pass in full connection string with --conn-str option in format: "hostname;port;username;password"
+
+    For Redis, use /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor/cfg_redis.txt as reference.
+    It has the following default options:
+        [message-broker]
+        hostname=localhost
+        port=6379
+        consumergroup=mygroup
+        consumername=myname
+        streamsize=10000
+        share-connection = 1
+
+        Redis connection string:
+        ----------------------
+        Provide hostname, port details in the cfg_redis.txt
+
+        OR
+
+        you can pass in full connection string with --conn-str option in format: "hostname;port"
+
+  NOTE:
+    - DO NOT delete the line [message-broker] in cfg file. Its the section identifier used for parsing
+    - Share connection
+      ----------------
+      #share-connection=1
+      Uncomment the field share-connection in cfg_*.txt and set its value to 1
+      if you need to generate a connection signature. This signature is a unique string
+      which is generated by parsing all the connection related params used for making a connection.
+      Uncommenting this field signifies that the connection created can be shared
+      with other components within the same process.
+
+  7. Enable logging:
+       Go through the README to setup & enable logs for the messaging libraries(kafka, azure, amqp)
+         $ cat ../../../tools/nvds_logger/README
+
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample builds on top of the deepstream-test1 sample to demonstrate to use
+"nvmsgconv" and "nvmsgbroker" plugins in the pipeline. Create NVDS_EVENT_MSG_META
+type of meta and attach to buffer. NVDS_EVENT_MSG_META is used for different types
+ of objects e.g. vehicle, person etc.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  Two ways to run the application:
+
+  1.Run with command line arguments as shown below. In this method, user needs to modify the source
+    code of deepstream-test4-app to configure pipeline properties.
+
+    $ deepstream-test4-app -i <H264 filename> -p <Proto adaptor library> --conn-str=<Connection string> --topic=<topicname> -s <0/1>
+
+  2.Run with the yml file. In this method, user needs to update the yml file to configure
+    pipeline properties.
+
+    $ deepstream-test4-app <yml file>
+    e.g. $ deepstream-test4-app dstest4_config.yml
+
+    The GIE configuration group in the YAML configuration file of the application
+    can be used to set the inference plugin type (nvinfer or nvinferserver) and
+    corresponding plugin configuration file.
+
+  3.Send the image by the broker based on Kafka
+    1) Change the parameters of msgconv filed in the dstest4_config.yml
+    2) Run with the yml file
+        $ deepstream-test4-app <yml file>
+        e.g. $ deepstream-test4-app dstest4_config.yml
+    3) The format of the image message
+        Image message fields are separated by ";".
+        Specific Format:  "image;image_format;image_widthximage_height;time;encoded_data;"
+        For Example: "image;jpg;640x480;2023-07-31T10:20:13;xxxxxxxxxxx;"
+    4) How to decode the data encoded by base64 for consumer
+        C/C++ snippet code
+        -----------------
+        #include <glib.h>
+        gsize size = 0;
+        guchar *decoded_data = g_base64_decode (encoded_data, &size);
+        -----------------
+
+        Python snippet code
+        -----------------
+        import base64
+        decoded_data = base64.b64decode(encoded_data)
+        ----------------- 
+
+NOTE: More details about the message adapters can be found at README inside DS_PACKAGE_DIR/sources/libs/*_protocol_adaptor
+    Update the msgbroker properties, "proto-lib", "conn-str" and "topic" accordingly in the dstest4_config.yml before running
+    the application.
+
+Azure Iotedge runtime integration of deepstream-test4-app:
+----------------------------------------------------------
+# Refer to sections within DS_PACKAGE_DIR/sources/libs/azure_protocol_adaptor/module_client/README to:
+    1. Create azure IotHub
+    2. Register a new Azure IoT Edge device from the Azure portal
+    3. Setup and install Azure Iot Edge on your machine
+    4. Install dependencies
+    5. Specify connection string
+    6. Use cfg file (optional)
+    7. Install & setup nvidia-docker
+    8. Deploy a iotedge module
+    9. Start the edge runtime
+
+# On Azure iothub deployment page, use the information below as an example to use deepstream-test4-app using
+    * sample video stream (sample_720p.h264)
+    * send messages with minimal schema
+    * with display disabled
+    * Message topic = mytopic
+    (Note: Message topic cant be empty)
+
+ NOTE: Sign up & create a Nvidia GPU Cloud account to be to pull containers : https://ngc.nvidia.com/
+       Once you sign in goto Dashboard->Configuration->Get API key  (to get your nvcr.io Authentication details)
+
+ Deployment of a Module:
+ -----------------------
+
+  On the Azure portal, Click on the Iot edge device you have created and click Set Modules:
+
+  Container Registry Settings:
+        Name:       NGC
+        Address:    nvcr.io
+        User Name:  $oauthtoken
+        Password:   <password (or API key) from your NGC account>
+
+  Deployment modules:
+  Add new module:
+  - Name:    ds
+
+  - Image URI:
+        For x86 dockers:
+            docker pull nvcr.io/nvidia/deepstream:<tag>-devel
+            docker pull nvcr.io/nvidia/deepstream:<tag>-samples
+            docker pull nvcr.io/nvidia/deepstream:<tag>-iot
+            docker pull nvcr.io/nvidia/deepstream:<tag>-base
+            docker pull nvcr.io/nvidia/deepstream:<tag>-triton
+
+        For Jetson dockers:
+            docker pull nvcr.io/nvidia/deepstream-l4t:<tag>-samples
+            docker pull nvcr.io/nvidia/deepstream-l4t:<tag>-iot
+            docker pull nvcr.io/nvidia/deepstream-l4t:<tag>-base
+
+  - container Create options:
+         {
+           "HostConfig": {
+             "Runtime": "nvidia",
+           },
+           "WorkingDir": "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4",
+           "ENTRYPOINT":
+           [
+            "/opt/nvidia/deepstream/deepstream/bin/deepstream-test4-app",
+            "-i", "/opt/nvidia/deepstream/deepstream/ samples/streams/sample_720p.h264",
+            "-p",
+            "/opt/nvidia/deepstream/deepstream/lib/libnvds_azure_edge_proto.so",
+            "--no-display",
+            "-s",
+            "1",
+            "--topic",
+            "mytopic"
+           ]
+         }
+
+  - specify route options for the module:
+
+    option 1) Default route where every message from every module is sent upstream
+    {
+      "routes": {
+        "route": "FROM /messages/* INTO $upstream"
+      }
+    }
+
+    option 2)  you can mention specific routes where messages sent upstream based on topic name
+    ex: in the sample test programs, topic name "mytopic" is used for the module name ds
+    {
+      "routes": {
+        "route": "FROM /messages/modules/ds/outputs/mytopic INTO $upstream",
+      }
+    }
+#Start the edge runtime and verify if modules are running:
+---------------------------------------------------------
+
+  #Restart the iotedge on your system
+  sudo systemctl restart iotedge
+
+  #Give it a few seconds
+
+  #check edge runtime status
+  systemctl status iotedge
+
+  #List the modules running
+  sudo iotedge list
+
+  #check output from the modules
+  sudo iotedge logs ds
+
+This document shall describe about the sample deepstream-test4 application.
+
+This sample builds on top of the deepstream-test1 sample to demonstrate how to:
+
+* Use "nvmsgconv" and "nvmsgbroker" plugins in the pipeline.
+* Create NVDS_EVENT_MSG_META type of meta and attach to buffer.
+* Use NVDS_EVENT_MSG_META for different types of objects e.g. vehicle, person etc.
+* Provide copy / free functions if meta data is extended through "extMsg" field.
+* Use "msg_custom_meta" to send images.
+
+"nvmsgconv" plugin uses NVDS_EVENT_MSG_META type of metadata from the buffer
+and generates the "DeepStream Schema" payload in Json format. Static properties
+of schema are read from configuration file in the form of key-value pair.
+Check dstest4_msgconv_config.txt for reference. Generated payload is attached
+as NVDS_META_PAYLOAD type metadata to the buffer.
+
+"nvmsgbroker" plugin extracts NVDS_META_PAYLOAD type of metadata from the buffer
+and sends that payload to the server using APIs in nvmsgbroker C library.
+
+Generating custom metadata for different type of objects:
+In addition to common fields provided in NvDsEventMsgMeta structure, user can
+also create custom objects and attach to buffer as NVDS_EVENT_MSG_META metadata.
+To do that NvDsEventMsgMeta provides "extMsg" and "extMsgSize" fields. User can
+create custom structure, fill that structure and assign the pointer of that
+structure as "extMsg" and set the "extMsgSize" accordingly.
+If custom object contains fields that can't be simply mem copied then user should
+also provide function to copy and free those objects.
+
+Refer generate_event_msg_meta() to know how to use "extMsg" and "extMsgSize"
+fields for custom objects and how to provide copy/free function and attach that
+object to buffer as metadata.
+
+NOTE: This app by default sends message for first object of every 30th frame.
+Default option uses NVDS_EVENT_MSG_META type (--msg2p-meta 0 or -m 0)
+To change the frequency of messages, modify the following line in source code accordingly.
+if (is_first_object && !(frame_number % frame_interval)) should be changed to:
+if (!(frame_number % frame_interval))  //To get all objects of a single frame
+
+If NvDsMeta type is used (--msg2p-meta 1 or -m 1),
+every frame_interval, payload is generated and all objects in a frame are part of payload.

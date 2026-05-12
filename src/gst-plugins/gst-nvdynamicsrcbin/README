@@ -1,0 +1,135 @@
+################################################################################
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+
+Install using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
+
+--------------------------------------------------------------------------------
+Plugin Description:
+The nvdsdynamicsrcbin is a custom GStreamer element designed for high decoder 
+throughput scenarios. It creates a single pipeline that keeps the decoder active 
+at all times, eliminating decoder initialization overhead when switching between 
+multiple video streams.
+
+Key Features:
+- Single active decoder instance for multiple sources
+- Dynamic source addition and removal via signals
+- Custom events for source change tracking
+- Thread-safe source queue management
+- Hardware decoding with nvv4l2decoder
+- Automatic format detection with parsebin
+
+--------------------------------------------------------------------------------
+Element Architecture:
+The nvdsdynamicsrcbin element contains the following internal elements:
+- filesrc: Source element for reading video files
+- queue_filesrc: Buffering queue for source data
+- parsebin: Media format detection and parsing
+- queue_parsebin: Buffering queue for parsed data
+- nvv4l2decoder: Hardware decoder (kept active throughout)
+
+--------------------------------------------------------------------------------
+Supported Signals:
+
+1. add-source Signal:
+   Purpose: Adds a new video source to the dynamic source bin
+   Parameters: file_path (string), source_id (integer)
+   Usage: g_signal_emit_by_name(dynamicsrcbin, "add-source", "/path/to/video.mp4", source_id);
+   Behavior: Validates file path, prevents duplicate source IDs, stores mapping,
+             adds to internal queues, links elements for first source
+
+2. remove-source Signal:
+   Purpose: Removes a video source from the dynamic source bin
+   Parameters: source_id (integer)
+   Usage: g_signal_emit_by_name(dynamicsrcbin, "remove-source", source_id);
+   Behavior: Sends EOS for active sources, removes from tracking for queued sources,
+             cleans up data structures, posts file change message
+
+3. terminate Signal:
+   Purpose: Terminates the entire pipeline gracefully
+   Parameters: None
+   Usage: g_signal_emit_by_name(dynamicsrcbin, "terminate");
+   Behavior: Sends EOS event from decoder, posts termination message, cleans up resources
+
+--------------------------------------------------------------------------------
+Custom Events and Metadata:
+
+1. Custom Stream Start Event:
+   Event Name: "custom-stream-start-event"
+   Contains: source-id parameter
+   Purpose: Notifies downstream elements when a new source begins processing
+
+2. Custom EOS Event:
+   Event Name: "custom-eos-event"
+   Contains: source-id parameter
+   Purpose: Notifies when a source completes processing
+
+3. Source Metadata:
+   The element attaches custom metadata to each buffer containing:
+   - chunk_id: The source ID that generated the buffer
+   - frame_id: Sequential frame counter for the current source
+
+--------------------------------------------------------------------------------
+Properties:
+
+1. current-file (read-only):
+   Description: Current file being processed
+   Type: string
+
+2. current-id (read-only):
+   Description: Current id of the chunk being processed
+   Type: integer
+
+3. gpu-id (read-write):
+   Description: GPU Device ID to use for decoding
+   Type: unsigned integer
+   Default: 0
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate cuda version using CUDA_VER
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+--------------------------------------------------------------------------------
+How to test:
+
+Test with Sample Application:
+   $ cd ../../../apps/deepstream/sample_apps/deepstream-dynamicsrcbin-test
+   $ sudo make
+   $ ./deepstream-dynamicsrcbin-test-app
+
+--------------------------------------------------------------------------------
+Technical Notes:
+
+- The element uses GStreamer's parsebin for automatic format detection
+- Hardware decoding is performed using nvv4l2decoder
+- Custom metadata is attached to buffers for source tracking
+- Thread-safe operations ensure concurrent signal handling
+- The element posts application messages for source change notifications
+- Internal queues and maps track active sources and file paths
+- Mutex protection ensures thread-safe source operations
+
+--------------------------------------------------------------------------------
+Performance Benefits:
+
+- Eliminates decoder initialization overhead for each new stream
+- Maintains single active decoder instance
+- Reduces latency when switching between streams
+- Improves overall throughput for multi-stream scenarios
+- Enables rapid source switching without performance penalty

@@ -1,0 +1,120 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-gst-metadata-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container  for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-gst-metadata-test application.
+
+It demonstrates, how to set metadata before nvstreammux
+component, how to access it after nvstreammux component for DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-gst-metadata-app <h264_elementary_stream>
+    deepstream-gst-metadata-app /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-gst-metadata-app -t inferserver <h264_elementary_stream>
+  $ deepstream-gst-metadata-app -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+This sample creates instance of "nvinfer" or "nvinferserver" element. Instance of
+the "nvinfer" or "nvinferserver" uses TensorRT API to execute inferencing on a model.
+Using a correct configuration for a nvinfer/nvinferserver element instance is therefore very
+important as considerable behaviors of the instance are parameterized
+through these configs.
+
+For reference, here are the config files used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    dsmeta_pgie_config.txt or dsmeta_pgie_nvinferserver_config.txt
+
+In this sample, one instance of "nvinfer" or "nvinferserver" referred as the pgie, is created.
+This is a 4 class detector and it detects for "Vehicle , RoadSign, TwoWheeler,
+Person".
+
+In this sample, one instance of "nvv4l2decoder" is created.
+nvv4l2decoder element is present before nvstreammux element in the pipeline.
+nvdecoder_src_pad_buffer_probe() attaches dummy decoder metadata to gstreamer
+buffer on src pad. The decoder can not attach its metadata to NvDsBatchMeta
+metadata because batch level metadata is created by nvstreammux component.
+The metadata is attached using gstnvdsmeta API's. Refer to
+nvdecoder_src_pad_buffer_probe() function in source code.
+
+This sample also explains how nvv4l2decoder can propagate gst metadata attached before it.
+To demonstrate this, h264parse_src_pad_buffer_probe() attaches parser frame number as metadata
+to gstreamer buffer on src pad of h264parse element. Refer to h264parse_src_pad_buffer_probe()
+function in source code.
+
+nvstreammux component, upon receiving gst buffer at its sinkpad, transforms
+gst meta attached by decoder and h264parse elements into nvds user metadata at frame level.
+In this way we maintain the association of frame metadata attached before
+and after nvstreammux element.
+
+In the example, nvinfer_src_pad_buffer_probe() extracts the metadata
+received on nvinfer src pad.
+It demonstrates following
+a. The mechanism to access transformed decoder metadata.
+b. The mechanism to access the metadata attached before decoder. It is similar to (a).
+
+Expected output:
+gst Metadata attached on nvv4l2decoder source pad probe function should match with
+transformed nvds user metadata at frame level received on nvinfer src pad.
+
+gst Metadata attached on h264parse source pad probe function should match with
+transformed nvds user metadata at frame level received on nvinfer src pad.

@@ -1,0 +1,42 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+pytorch is required to run the test app. To install pytorch, run following commands:
+
+  $ pip3 install torch
+
+for Ubuntu 24.04, use:
+
+  $ pip3 install torch --break-system-packages
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+The sample app demonstrates how to create a BufferProvider for a Feeder class
+and how to create a BufferRetriever for a receiver class. A Feeder with customized
+BufferProvider can be used to inject user data to the DS pipeline, and a receiver
+with a customized BufferRetriever can be used to extract buffer data from the
+pipeline.
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+Ensure that you are using the expected diplay port like this (if required)
+  $ export DISPLAY=:0
+
+  $ python3 deepstream_appsrc_test.py file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4

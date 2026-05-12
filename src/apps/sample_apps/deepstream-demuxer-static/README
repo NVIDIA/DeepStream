@@ -1,0 +1,135 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-demuxer-static
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container. Please refer
+samples/configs/deepstream-app-triton/README for the steps to download the
+container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe the deepstream-demuxer-static application.
+
+It is meant for demonstration of how to dynamically add pads to a demuxer
+already linked in a DeepStream pipeline and extract meaningful insights
+from video streams with flexible stream management.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  Run with the yml file. In this method, user needs to update the yml file to configure
+    pipeline properties.
+
+    $ deepstream-demuxer-static <yml file>
+    e.g. deepstream-demuxer-static ds_static_demuxer_config.yml
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+This application accepts one or more H.264/H.265/RTSP video streams as input using the
+"nvmultiurisrcbin" element. It creates a source bin for each input and connects the bins
+to an instance of the "pgie" element for batched inferencing. The "nvstreamdemux" element
+is then used to separate the batched frames back into individual streams.
+
+For each source stream, the application dynamically creates a new processing branch connected
+to the corresponding source pad of the "nvstreamdemux" element. Each branch consists of a
+queue, followed by an "nvdsosd" element for on-screen display, and finally a sink element.
+
+Additionally, the application allows for a predefined list of URIs to be provided in the URI
+list for the demuxer, creating static source pads for those streams. For sources added through
+a REST API, pads are created dynamically, showcasing the flexibility of the DeepStream SDK in
+adapting to varying input sources.
+
+The key feature of this application is its ability to dynamically add pads to the demuxer while
+it is already statically linked in the pipeline. This demonstrates advanced stream management
+techniques, enabling users to modify the pipeline's behavior on-the-fly without reconstructing
+it entirely.
+
+NOTE:
+$ It is important not to add multiple sources at once through the REST API.
+$ When providing URIs in the uri-list, ensure there are no spaces between the URIs. The correct
+  format is <uri1>,<uri2>,<uri3> and not <uri1>, <uri2>, <uri3>. Spaces between URIs may cause
+  parsing errors and unexpected behavior.
+
+===============================================================================
+
+To add sources using the REST API, you can use the following curl command in a separate terminal:
+
+for ((i=1; i<={count}; i++))
+do
+  curl -XPOST 'http://localhost:9010/api/v1/stream/add' -d '{
+  "key": "sensor",
+  "value": {
+      "camera_id": "'"${i}"'",
+      "camera_url": "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4",
+      "change": "camera_add",
+      "metadata": {
+          "resolution": "1920 x1080",
+          "codec": "h264",
+          "framerate": 30
+      }
+  },
+  "headers": {
+      "source": "vst",
+      "created_at": "2021-06-01T14:34:13.417Z"
+  }
+}'
+
+sleep 5
+done
+
+Replace {count} with the number of sources you want to add. Make sure to adjust the max-batch-size 
+in the configuration file accordingly.
+
+NOTE: Run this curl command in a separate terminal while the main application is running.
+
+
+ToDo: Add fix in demuxer to support multiple stream addition at a time.
+
+
+

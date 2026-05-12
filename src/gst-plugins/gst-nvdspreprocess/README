@@ -1,0 +1,58 @@
+################################################################################
+# Copyright (c) 2021-2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+
+Install using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate cuda version using CUDA_VER
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+About:
+This plugin performs customs preprocessing using custom lib to the region of interest (ROI)
+provided in config file. User can provide custom group tranformation function and
+custom tensor preparation function from custom library in config file. The raw tensor
+is attached as user meta which is used by nvinfer for inferencing while skipping
+preprocessing there.
+
+NOTE:
+1. Custom Library needs to be compiled separately and provide the .so file here.
+2. For optimal performance, set nvdspreprocess batch-size (network-input-shape[0]) in config file same as
+   sum of total units(rois/full-frames) provided in nvdspreprocess config file.
+3. For optimal performance, set nvinfer batch-size in config file same as
+   the batch size of nvdspreprocess (network-input-shape[0]) in nvdspreprocess config file.
+4. Buff-Pool-Size(scaling/tensor) should be larger or equal to total number of units of all srcs divided by nvdspreprocess batch-size.
+5. Currently preprocessing of secondary gie only for classifier-async-mode=0 has been supported.
+6. Properties process-on-roi/process_on_all_objects should be mentioned before roi-params-src in a
+preprocess group inside the preprocess config file.
+
+Run:
+For X86 device:
+gst-launch-1.0 uridecodebin uri= file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! \
+m.sink_0 nvstreammux name=m batch-size=1 width=1920 height=1080 ! nvdspreprocess config-file=config_preprocess.txt  ! \
+nvinfer config-file-path= /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt \
+input-tensor-meta=1 batch-size=1 ! nvmultistreamtiler width=1920 height=1080 ! nvvideoconvert ! \
+nvdsosd ! nvvideoconvert ! nveglglessink
+
+For jetson device:
+gst-launch-1.0 uridecodebin uri= file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! \
+m.sink_0 nvstreammux name=m batch-size=1 width=1920 height=1080 ! nvdspreprocess config-file=config_preprocess.txt  ! \
+nvinfer config-file-path= /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt \
+input-tensor-meta=1 batch-size=1 ! nvmultistreamtiler width=1920 height=1080 ! nvvideoconvert ! \
+nvdsosd ! nvvideoconvert !  nv3dsink

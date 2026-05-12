@@ -1,0 +1,139 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+ */
+
+syntax = "proto3";
+package nvdsinferserver.config;
+
+import "nvdsinferserver_config.proto";
+
+/** Plugin Control settings for input / inference / output */
+message PluginControl {
+
+  /** Color values for Red/Green/Blue/Alpha, all values are in range [0, 1] */
+  message Color {
+      /** Red color value */
+      float r = 1;
+      /** Green color value */
+      float g = 2;
+      /** Blue color value */
+      float b = 3;
+      /** Alpha color value */
+      float a = 4;
+  }
+
+  /** Boudingbox filter */
+  message BBoxFilter {
+    /** Boudingbox minimum width */
+    uint32 min_width = 1;
+    /** Boudingbox minimum height */
+    uint32 min_height = 2;
+    /** Boudingbox maximum width */
+    uint32 max_width = 3;
+    /** Boudingbox maximum height */
+    uint32 max_height = 4;
+  }
+
+  /** Detection of classes filter */
+  message DetectClassFilter {
+    /** Detection Bounding box filter */
+    BBoxFilter  bbox_filter = 1;
+    /** Offset of the RoI from the top of the frame. Only objects within the
+     *  RoI are output */
+    uint32 roi_top_offset = 2;
+    /** Offset of the RoI from the bottom of the frame. Only objects within the
+     *  RoI are output */
+    uint32 roi_bottom_offset = 3;
+
+    /** Specify border color for detection bounding boxes */
+    Color border_color = 4;
+    /** Specify background color for detection bounding boxes */
+    Color bg_color = 5;
+  }
+
+  /** Output detection results control */
+  message OutputDetectionControl {
+    /** Default detection classes filter */
+    DetectClassFilter default_filter = 1;
+    /** specifies detection filters per class instead of default filter */
+    map<uint32, DetectClassFilter> specific_class_filters = 2;
+    /* Filter specified class IDs */
+    repeated int32 filter_out_class_ids = 4;
+  }
+
+  /** Input objects control */
+  message InputObjectControl {
+    /** Input bounding box of objects filter */
+    BBoxFilter bbox_filter = 1;
+  }
+
+  /** Processing Mode */
+  enum ProcessMode {
+    /** Processing Default Mode */
+    PROCESS_MODE_DEFAULT = 0;
+    /** Processing Full Frame Mode */
+    PROCESS_MODE_FULL_FRAME = 1;
+    /** Processing Object Clipping Mode */
+    PROCESS_MODE_CLIP_OBJECTS = 2;
+  }
+
+  /** Plugin input data control policy */
+  message InputControl {
+    /** Processing mode setting, optional */
+    ProcessMode process_mode = 1;
+    /** Unique ID of the GIE on whose metadata (bounding boxes) this GIE is to
+     *  operate on. It is used for secondary GIE only. */
+    int32 operate_on_gie_id = 2;
+    /** Class IDs of the parent GIE on which this GIE is to operate on.
+     *  It is used for secondary GIE only. */
+    repeated int32 operate_on_class_ids = 3;
+    /** Specifies the number of consecutive,  batches to be skipped for
+     *  inference. Default is 0. */
+    oneof inference_interval {
+      /* For primary inference */
+      uint32 interval = 4;
+      /* For secondary inferrence */
+      uint32 secondary_reinfer_interval = 7;
+    }
+    /** Enables inference on detected objects and asynchronous metadata
+     *  attachments. Works only when tracker-id is valid. It's used for
+     *  classifier with secondary GIE only. */
+    bool async_mode = 5;
+
+    /** Input object filter policy */
+    oneof object_filter {
+      /** input object control settings */
+      InputObjectControl object_control = 6;
+    }
+  }
+
+  /** Plugin output data control policy */
+  message OutputControl {
+    /* Enable attaching inference output tensor metadata */
+    bool output_tensor_meta = 1;
+    /* Postprocessing control policy */
+    oneof postprocess_control {
+      /* Detection results filter */
+      OutputDetectionControl detect_control = 2;
+    }
+    oneof ClassifierMeta {
+      /* Classifier type of a particular nvinferserver component. */
+      string classifier_type = 3;
+    }
+  }
+
+  /** Low-level libnvds_infer_server inference configuration settings */
+  InferenceConfig infer_config =1;
+  /** Control plugin input buffers, object filter before inference */
+  InputControl input_control = 2;
+  /** Control plugin output meta data after inference */
+  OutputControl output_control = 3;
+}

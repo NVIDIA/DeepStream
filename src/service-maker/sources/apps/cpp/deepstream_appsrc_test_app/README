@@ -1,0 +1,65 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-appsrc-test-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+Install cmake: https://cmake.org/download/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+The sample app demonstrates how to use sample_video_feeder plugin and sample_video_feeder
+in the pipeline with service maker APIs to inject raw video data to the appsrc
+and capture buffers from the appsink.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ mkdir build && cd build && cmake .. && make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Creating raw video streams from Encoded streams:
+Raw streams can be created using gst-launch-1.0. The pipeline is as follows:
+  $ gst-launch-1.0 uridecodebin uri=<URI of file> ! nvvideoconvert !
+      'video/x-raw, format=<Format of stream (example: I420, NV12, RGBA)>,
+      width=<Width of stream>, height=<height of stream>' ! filesink location=test.raw
+
+Ensure the directory where raw file needs to be saved has write permissions.
+i.e. /opt/nvidia/deepstream/deepstream/samples/streams/ needs write permissions before executing
+below sample pipeline.
+
+  $ gst-launch-1.0 uridecodebin \
+      uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
+      ! nvvideoconvert ! 'video/x-raw, format=I420, width=1280, height=720' \
+      ! filesink location= /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.i420
+
+$ ./deepstream-appsrc-test <Raw filename> <width> <height> <fps> <format(I420, NV12, RGBA)> [gpu]
+
+The sample app supports 3 formats for raw data and has a flag to enable using
+gpu buffer.
+

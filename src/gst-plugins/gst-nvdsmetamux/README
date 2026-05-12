@@ -1,0 +1,92 @@
+################################################################################
+# Copyright (c) 2024-2026, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+
+Install using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate cuda version using CUDA_VER
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+About:
+This plugin performs batch meta mux for the same source and the "same" frame.
+The "same" frame is based on the frame PTS. nvdsmetamux will try to find the
+nearest frame PTS of the same source. There is PTS diff tolerance between the
+PTS of the frame when search the nearest frame. Application can configure the
+PTS diff tolerance.
+Application can select the sink pad which video frame will be passed to src pad.
+Application also can configure to select the source ids which output from one
+model. The meta data will be merged if application select it.
+
+
+Properties:
+  active-pad          : Active sink pad which buffer will transfer to src pad
+                        flags: readable, writable
+                        String. Default: null
+  config-file         : Preprocess Config File
+                        flags: readable, writable
+                        String. Default: null
+  latency             : Additional latency in live mode to allow upstream to take longer to produce buffers for the current position (in nanoseconds)
+                        flags: readable, writable
+                        Unsigned Integer64. Range: 0 - 18446744073709551615 Default: 0
+  min-upstream-latency: When sources with a higher latency are expected to be plugged in dynamically after the aggregator has started playing, this allows overriding the minimum latency reported by the initial source(s). This is only taken into account when larger than the actually reported minimum latency. (nanoseconds)
+                        flags: readable, writable
+                        Unsigned Integer64. Range: 0 - 18446744073709551615 Default: 0
+  name                : The name of the object
+                        flags: readable, writable
+                        String. Default: "nvdsmetamux0"
+  parent              : The parent of the object
+                        flags: readable, writable
+                        Object of type "GstObject"
+  pts-tolerance       : Time diff tolerance when search the same frame of the same source id in microseconds
+                        flags: readable, writable
+                        Integer64. Range: -9223372036854775808 - 9223372036854775807 Default: 60000
+  start-time          : Start time to use if start-time-selection=set
+                        flags: readable, writable
+                        Unsigned Integer64. Range: 0 - 18446744073709551615 Default: 18446744073709551615
+  start-time-selection: Decides which start time is output
+                        flags: readable, writable
+                        Enum "GstAggregatorStartTimeSelection" Default: 0, "zero"
+                           (0): zero             - Start at 0 running time (default)
+                           (1): first            - Start at first observed input running time
+                           (2): set              - Set start time with start-time property
+
+
+Configuration properties:
+
+Group              config-key                  Description
+------------------------------------------------------------------------------------------------------------------------------------------------------
+[propert]          enable                      Enable the functions of MetaMux
+                   active-pad                  Use the source from this pad to synchronize the sources from the branches
+                   pts-tolerance               When the difference between the branch source and the base source is larger than tolerance value,
+                                               meatamux will not combine the metadata into current output
+[group]            src-ids-model               The source IDs list to be output for specified GIE. The GIE uique-id should be attached as the key
+                                               postfix. E.G. "src-ids-model-3: 0;1;3" means to output source 0, source 1 and source 3 inference result
+                                               from GIE with unique-id 3.
+
+Run:
+# download test model
+wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/actionrecognitionnet/deployable_onnx_v1.0/files?redirect=true&path=resnet18_2d_rgb_hmdb5_32.onnx' --output-document '/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/resnet18_2d_rgb_hmdb5_32.onnx'
+
+# mux batch meta which from different model.
+gst-launch-1.0 nvstreammux name=m batch-size=4 width=1920 height=1080 ! queue ! nvdspreprocess config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-preprocess-test/config_preprocess.txt ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt input-tensor-meta=1 batch-size=4 ! queue ! meta.sink_0 nvstreammux name=m2 batch-size=4 width=1920 height=1080 ! queue ! nvdspreprocess config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_preprocess_2d_custom.txt ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_infer_primary_2d_action.txt input-tensor-meta=1 batch-size=4 ! queue ! meta.sink_1 nvdsmetamux config-file=/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdsmetamux/config_metamux.txt name=meta ! nvmultistreamtiler width=1920 height=1080 ! nvvideoconvert ! nvdsosd ! queue ! nvvideoconvert ! queue ! x264enc ! queue ! rtph264pay config-interval=10 pt=96 ! udpsink host=10.19.225.205 port=5000 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_2 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_3 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m2.sink_0 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m2.sink_1 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m2.sink_2 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m2.sink_3
+
+# mux batch meta which from different model with tee.
+gst-launch-1.0 nvstreammux name=m batch-size=4 width=1920 height=1080 sync-inputs=0 batched-push-timeout= 100000 live-source=1 ! nvvideoconvert ! tee name=t t. ! nvvideoconvert ! 'video/x-raw(memory:NVMM),width=1920,height=1082' ! queue ! nvdspreprocess config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-preprocess-test/config_preprocess.txt ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt input-tensor-meta=1 batch-size=4 ! queue ! meta.sink_0 t. ! queue ! nvdspreprocess config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_preprocess_2d_custom.txt ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_infer_primary_2d_action.txt input-tensor-meta=1 batch-size=4 ! queue ! meta.sink_1 nvdsmetamux config-file=/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdsmetamux/config_metamux.txt name=meta ! nvmultistreamtiler width=1920 height=1080 ! nvvideoconvert ! nvdsosd ! queue ! nvvideoconvert ! queue ! nveglglessink filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4 ! qtdemux ! h265parse ! nvv4l2decoder ! m.sink_0 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_qHD.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_2 filesrc location = /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_3
+

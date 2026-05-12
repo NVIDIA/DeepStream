@@ -1,0 +1,76 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# The values in the config file are overridden by values set through GObject
+# properties.
+
+[property]
+enable=1
+target-unique-ids=1
+
+    # 0=process on objects 1=process on frames
+process-on-frame=1
+
+    # network-input-shape: batch, channel, sequence, height, width
+# 3D sequence of 64 images
+#network-input-shape= 4;3;64;224;224
+
+# 3D sequence of 32 images
+network-input-shape= 4;3;32;224;224
+
+    # 0=RGB, 1=BGR, 2=GRAY
+network-color-format=0
+    # 0=NCHW, 1=NHWC, 2=CUSTOM
+network-input-order=2
+    # 0=FP32, 1=UINT8, 2=INT8, 3=UINT32, 4=INT32, 5=FP16
+tensor-data-type=0
+tensor-name=input_rgb
+
+processing-width=224
+processing-height=224
+
+    # 0=NVBUF_MEM_DEFAULT 1=NVBUF_MEM_CUDA_PINNED 2=NVBUF_MEM_CUDA_DEVICE
+    # 3=NVBUF_MEM_CUDA_UNIFIED  4=NVBUF_MEM_SURFACE_ARRAY(Jetson)
+scaling-pool-memory-type=0
+
+    # 0=NvBufSurfTransformCompute_Default 1=NvBufSurfTransformCompute_GPU
+    # 2=NvBufSurfTransformCompute_VIC(Jetson)
+scaling-pool-compute-hw=0
+
+    # Scaling Interpolation method
+    # 0=NvBufSurfTransformInter_Nearest 1=NvBufSurfTransformInter_Bilinear 2=NvBufSurfTransformInter_Algo1
+    # 3=NvBufSurfTransformInter_Algo2 4=NvBufSurfTransformInter_Algo3 5=NvBufSurfTransformInter_Algo4
+    # 6=NvBufSurfTransformInter_Default
+scaling-filter=0
+
+    # model input tensor pool size
+tensor-buf-pool-size=8
+
+custom-lib-path=/opt/nvidia/deepstream/deepstream/lib/libnvds_custom_sequence_preprocess.so
+#custom-lib-path=./custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so
+custom-tensor-preparation-function=CustomSequenceTensorPreparation
+
+# 3D conv custom params
+[user-configs]
+channel-scale-factors=0.007843137;0.007843137;0.007843137
+channel-mean-offsets=127.5;127.5;127.5
+stride=1
+subsample=0
+
+[group-0]
+src-ids=0;1;2;3
+process-on-roi=1
+roi-params-src-0=0;0;1280;720
+roi-params-src-1=0;0;1280;720
+roi-params-src-2=0;0;1280;720
+roi-params-src-3=0;0;1280;720
+

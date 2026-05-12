@@ -1,0 +1,6 @@
+# Build outputs that land in source tree
+*.so
+*.a
+*.pb.cc
+*.pb.h
+.build/

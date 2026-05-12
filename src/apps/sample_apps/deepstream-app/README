@@ -1,0 +1,79 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                              deepstream-app
+                                 README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Follow these procedures to use the deepstream-app application for native
+compilation.
+
+You must have the following development packages installed
+
+    GStreamer-1.0
+    GStreamer-1.0 Base Plugins
+    GStreamer-1.0 gstrtspserver
+    X11 client-side library
+    Glib json library - json-glib-1.0
+    yaml-cpp
+    EGL graphics interface lib - libegl-mesa0
+
+1. To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev libjson-glib-dev libyaml-cpp-dev \
+   libgbm1 libglapi-mesa libgles2-mesa-dev
+
+Note:
+Minimum installation version for libgbm1, libglapi-mesa and libgles2-mesa-dev
+should be >= 23.0.4-0ubuntu1~22.04.1
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream application.
+
+The application demonstrates, how to use multiple sources for use
+cases like object detection, tracking, smart recording etc.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+  Run the application by executing the command:
+   deepstream-app -c <config-file>
+
+Please refer "../../apps-common/includes/deepstream_config.h" to modify
+application parameters like maximum number of sources etc.
+
+NOTE:
+1. Prerequisites to use nvdrmvideosink (Jetson only)
+   a. Ensure that X server is not running.
+      Command to stop X server:
+          $sudo service gdm stop
+          $sudo pkill -9 Xorg
+   b. If "Could not get EGL display connection" error is encountered,
+      use command $unset DISPLAY
+   c. Ensure that a display device is connected to the Jetson board.

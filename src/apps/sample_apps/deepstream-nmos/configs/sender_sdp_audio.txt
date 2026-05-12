@@ -1,0 +1,11 @@
+v=0
+o=- 955731720 0 IN IP4 192.0.2.2
+s=SMPTE ST2110-30 stream sender
+t=0 0
+a=x-nvds-id:sink-1
+m=audio 50006 RTP/AVP 97
+c=IN IP4 224.1.1.1/64
+a=x-nvds-iface-ip:192.0.2.4
+a=rtpmap:97 L24/48000/2
+a=fmtp:97 channel-order=SMPTE2110.(ST)
+a=ptime:1.000

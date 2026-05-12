@@ -1,0 +1,174 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-nmos-app
+                            README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the deepstream_sdk_release_package/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+Additionally you must have the following development packages installed
+
+    GStreamer-1.0
+    GStreamer-1.0 Base Plugins
+    Gstreamer-1.0 libav Plugins
+    avahi-compat-libdnssd
+
+To install these packages, execute the following command:
+    $ sudo apt-get update && sudo apt-get install \
+     libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+     gstreamer1.0-libav libavahi-compat-libdnssd-dev
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-nmos application.
+
+This application demonstrates how to create any Deepstream app as NMOS node.
+It uses a library (libnvds_nmos.so) which provides the APIs to create, destroy
+and internally manage the NMOS node.
+
+It also shows how to create various Video and Audio pipelines based on NMOS
+events and run them simultaneously.
+
+This application has three modes of operations -
+1) As NMOS Receiver (Default) -
+   In this mode, application will try to connect to NMOS configured streaming
+   client. e.g. any IP camera or NMOS sender. Received stream (Video / Audio)
+   will be rendered to local Video / Audio sinks after some processing (Object detection and Bounding box overlay in case of Video).
+2) As NMOS Sender -
+   In this mode, application will use videotestsrc and audiotestsrc for
+   streaming the data to NMOS configured address.
+3) As Both NMOS Receiver and Sender -
+   In this mode, application will receive the data from NMOS configured address
+   and will transmit to another NMOS configured address after processing the
+   data.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+$ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+$ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Run the following command to launch the deepstream nmos application.
+
+deepstream-nmos-app -c <config file>
+
+e.g.
+deepstream-nmos-app -c configs/recv_config.txt
+deepstream-nmos-app -c configs/sender_config.txt -m 1
+deepstream-nmos-app -c configs/recv_send_config.txt -m 2
+
+When performing the inference with nvinferserver, comment the plugin type & infer config path
+& uncomment the nvinferserver plugin type & config path in recv_config.txt/recv_send_config.txt
+plugin-type=0
+config-file=config_infer_primary.txt
+
+#plugin-type=1
+#config-file=config_inferserver_primary.txt
+
+NOTE:
+1) At the start application will search for NMOS registry and try to register
+   itself with the it. After registering successfully, app will wait for events
+   from NMOS client. Based on the events, it will start, stop or update the
+   video, audio streaming.
+2) By default application runs in Receiver mode.
+3) Application doesn't support compressed streams as input. It only works with
+   uncompressed Video and Audio streams.
+4) Similarly application transmits uncompressed Video and Audio data.
+5) Every receiver and sender should have unique id mentioned through "x-nvds-id"
+   attribute of sdp file.
+6) "x-nvds-id" attribute for sender must always start with "sink" as prefix.
+   e.g. sink-0, sink1 etc.
+7) Modify the sdp files to replace the default ip address with the actual ip
+   address of receiver and sender and also to replace the format of data to
+   send or receive.
+8) "x-nvds-iface-ip" attribute in sdp file corresponds to the ip address of
+   Mellanox NIC through which data will be sent or received.
+9) To run the application with nvdsudpsrc or nvdsudpsink components, it should
+   either have CAP_NET_RAW capabilities or run it with superuser priviledge.
+   CAP_NET_RAW capability can be set as follow.
+   sudo setcap CAP_NET_RAW=ep /opt/nvidia/deepstream/deepstream/bin/deepstream-nmos-app
+10) To use the nvdsudpsink for video stream. It is mandatory to set "packets-per-line"
+   and "payload-size" fields in config file.
+   Refer nvdsudpsrc or nvdsudpsink plugin guide for more details.
+
+===============================================================================
+5. Payload size and packets per line for some of common formats.
+===============================================================================
+
+To calculate the payload size and packets per line, use the following steps.
+step 1. Calculate line stride as follows.
+        line stride = (width * pgroup size) / pgroup coverage
+step 2. Divide this stride into number of packets having equal bytes.
+        This will be value of packet-per-line.
+step 3. Add 20 bytes to size of each packet calculated in step 2 for RTP +
+        Payload header. This will be value for payload-size.
+
+Note: It is assumed that there is only single Sample Row Data per RTP
+      packet and line stride is equally divisible.
+
+Following are values for some of the common formats.
+YCbCr-4:2:2 1920x1080 8 bit:  payload-size:1300, packets-per-line:3
+YCbCr-4:2:2 1920x1080 10 bit: payload-size:1220, packets-per-line:4
+YCbCr-4:2:0 1920x1080 8 bit:  payload-size:1460, packets-per-line:2
+YCbCr-4:2:0 1920x1080 10 bit: payload-size:1220, packets-per-line:3
+RGB 1920x1080 8 bit:  payload-size:1460, packets-per-line:4
+RGB 1920x1080 10 bit: payload-size:1220, packets-per-line:6
+
+Refer SMPTE ST 2110-20:2017 for more information.
+
+===============================================================================
+6. Using easy-nmos for NMOS controller and registry
+===============================================================================
+
+Application requires NMOS events for its operation. These events are generated
+by NMOS controller. easy-nmos is a simple and easy way to setup NMOS controller
+and registry. Follow the instructions below to setup NMOS registry and run the
+NMOS controller.
+
+NOTE:
+These instructions expect that docker and docker compose is already installed.
+If not then refer steps provided here - https://docs.docker.com/engine/install/
+and https://docs.docker.com/compose/install/.
+OR quick instructions here - https://github.com/rhastie/easy-nmos/blob/master/install_docker.md
+
+1) Clone the git repository as follows.
+git clone https://github.com/rhastie/easy-nmos.git
+
+2) Modify the docker-compose.yml to replace the values of "ipv4_address" fields
+of each container accordingly.
+
+3) Start the docker containers as follows.
+docker-compose up
+
+Once setup is complete, NMOS controller should be running on following address.
+http://nmos-registry.local/admin
+
+Refer https://github.com/rhastie/easy-nmos for detailed instructions for setup.
+Refer https://www.amwa.tv/easy-nmos-videos for details on easy-nmos.
+Refer https://specs.amwa.tv/nmos/ for details about the NMOS specifications.

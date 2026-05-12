@@ -1,0 +1,122 @@
+*****************************************************************************
+* Copyright (c) 2021-2026 NVIDIA Corporation.  All rights reserved.
+*
+* NVIDIA Corporation and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA Corporation is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-preprocess-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
+and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container  for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample app builds on top of the deepstream-test3 sample app to demonstrate
+how to:
+
+* Use multiple sources in the pipeline.
+* Use a uridecodebin so that any type of input (e.g. RTSP/File), any GStreamer
+  supported container format, and any codec can be used as input.
+* Configure the stream-muxer to generate a batch of frames and infer on the
+  batch for better resource utilization.
+* Extract the stream metadata, which contains useful information about the
+  frames in the batched buffer.
+* Per group custom preprocessing on ROIs provided
+* Prepares raw tensor for inferencing
+* nvinfer skips preprocessing and infer from input tensor meta
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+This app requires the following libraries which are built as part of the
+DeepStream build (build.sh):
+  - libnvdsgst_preprocess.so  (from gst-plugins/gst-nvdspreprocess)
+  - libcustom2d_preprocess.so (from gst-plugins/gst-nvdspreprocess/nvdspreprocess_lib)
+
+Both are installed automatically to
+  /opt/nvidia/deepstream/deepstream-<version>/lib/gst-plugins/
+when running build.sh. No separate build step is required.
+
+To compile only this app individually:
+  $ cd deepstream/src/apps/sample_apps/deepstream-preprocess-test
+  $ make CUDA_VER=<version> && make install
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-preprocess-test <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
+e.g.
+  $ deepstream-preprocess-test config_preprocess.txt config_infer.txt file:///video1.mp4 file:///video2.mp4
+  $ deepstream-preprocess-test config_preprocess.txt config_infer.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-preprocess-test -t inferserver <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
+e.g.
+  $ deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt file:///video1.mp4 file:///video2.mp4
+  $ deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
+
+NOTE:
+1. For optimal performance, set nvdspreprocess batch-size (network-input-shape[0]) in config file same as
+   sum of total units(rois/full-frames) provided in nvdspreprocess config file.
+2. For optimal performance, set nvinfer batch-size in config file same as
+   the batch size of nvdspreprocess (network-input-shape[0]) in nvdspreprocess config file.
+3. Buff-Pool-Size(scaling/tensor) should be larger or equal to total number of units of all srcs divided by nvdspreprocess batch-size.
+4. Currently preprocessing of secondary gie only for classifier-async-mode=0 has been supported.
+5. Modify config_preprocess.txt for as per use case.
+
+Refer to the deepstream-test3 sample documentation for an example of simple
+multi-stream inference, bounding-box overlay, and rendering.
+
+This sample accepts one or more H.264/H.265 video streams as input. It creates
+a source bin for each input and connects the bins to an instance of the
+"nvstreammux" element, which forms the batch of frames.
+
+Then, "nvdspreprocess" plugin preprocessed the batched frames and prepares a raw
+tensor for inferencing, which is attached as user meta at batch level. User can
+provide custom preprocessing library having custom per group transformation
+functions and custom tensor preparation function.
+
+This sample creates instance of either "nvinfer" or "nvinferserver" element
+for inference. The "nvinfer" element uses TensorRT API to infer
+on frames/objects. The "nvinferserver" element uses the Triton Inference
+Server to infer on frames/objects.
+The batched buffer is composited into a 2D tile array using "nvmultistreamtiler."
+
+The rest of the pipeline is similar to the deepstream-test3 sample.
+
+NOTE: To reuse engine files generated in previous runs, update the
+model-engine-file parameter in the pgie config file to an existing engine file

@@ -1,0 +1,58 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# - pts(ms): filepath
+
+---
+#fps=20/1
+#interval=50ms
+source-list:
+  - 0: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000000-LIDAR_TOP.bin
+  - 50: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000001-LIDAR_TOP.bin
+  - 100: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000002-LIDAR_TOP.bin
+  - 150: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000003-LIDAR_TOP.bin
+  - 200: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000004-LIDAR_TOP.bin
+  - 250: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000005-LIDAR_TOP.bin
+  - 300: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000006-LIDAR_TOP.bin
+  - 350: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000007-LIDAR_TOP.bin
+  - 400: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000008-LIDAR_TOP.bin
+  - 450: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000009-LIDAR_TOP.bin
+  - 500: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000010-LIDAR_TOP.bin
+  - 550: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000011-LIDAR_TOP.bin
+  - 600: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000012-LIDAR_TOP.bin
+  - 650: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000013-LIDAR_TOP.bin
+  - 700: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000014-LIDAR_TOP.bin
+  - 750: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000015-LIDAR_TOP.bin
+  - 800: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000016-LIDAR_TOP.bin
+  - 850: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000017-LIDAR_TOP.bin
+  - 900: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000018-LIDAR_TOP.bin
+  - 950: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000019-LIDAR_TOP.bin
+  - 1000: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000020-LIDAR_TOP.bin
+  - 1050: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000021-LIDAR_TOP.bin
+  - 1100: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000022-LIDAR_TOP.bin
+  - 1150: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000023-LIDAR_TOP.bin
+  - 1200: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000024-LIDAR_TOP.bin
+  - 1250: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000025-LIDAR_TOP.bin
+  - 1300: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000026-LIDAR_TOP.bin
+  - 1350: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000027-LIDAR_TOP.bin
+  - 1400: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000028-LIDAR_TOP.bin
+  - 1450: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000029-LIDAR_TOP.bin
+  - 1500: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000030-LIDAR_TOP.bin
+  - 1550: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000031-LIDAR_TOP.bin
+  - 1600: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000032-LIDAR_TOP.bin
+  - 1650: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000033-LIDAR_TOP.bin
+  - 1700: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000034-LIDAR_TOP.bin
+  - 1750: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000035-LIDAR_TOP.bin
+  - 1800: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000036-LIDAR_TOP.bin
+  - 1850: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000037-LIDAR_TOP.bin
+  - 1900: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000038-LIDAR_TOP.bin

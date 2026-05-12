@@ -1,0 +1,21 @@
+################################################################################
+# Copyright (c) 2019-2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the "nvinfer"
+plugin and "NvDsInfer" API.
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

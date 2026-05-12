@@ -1,0 +1,234 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+
+syntax = "proto3";
+
+package dsmeta;
+
+message nvdsbasemeta
+{
+    uint32 meta_type = 1;
+}
+
+message nvdsbatchmeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 max_frames_in_batch = 2;
+    uint32 num_frames_in_batch = 3;
+    repeated nvdsframemeta frame_meta_list = 4;
+    repeated nvdsusermeta batch_user_meta_list = 5;
+    repeated int64 misc_batch_info = 6;
+    repeated int64 reserve = 7;
+}
+message nvdsframemeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 pad_index = 2;
+    uint32 batch_id = 3;
+    int32 frame_num = 4;
+    uint64 buf_pts = 5;
+    uint64 ntp_timestamp = 6;
+    uint32 source_id = 7;
+    int32 num_surfaces_per_frame = 8;
+    uint32 source_frame_width = 9;
+    uint32 source_frame_height = 10;
+    uint32 surface_type = 11;
+    uint32 surface_index = 12;
+    uint32 num_obj_meta = 13;
+    bool binferdone = 14;
+    repeated nvdsobjectmeta obj_meta_list = 15;
+    repeated nvdsdisplaymeta display_meta_list = 16;
+    repeated nvdsusermeta frame_user_meta_list = 17;
+    repeated int64 misc_frame_info = 18;
+    uint32 pipeline_width = 19;
+    uint32 pipeline_height = 20;
+    repeated int64 reserve = 21;
+}
+
+message nvbboxcoords
+{
+    float left = 1;
+    float top = 2;
+    float width = 3;
+    float height = 4;
+}
+
+message nvdscompbboxinfo
+{
+    nvbboxcoords org_bbox_coords = 1;
+}
+
+message nvosdcolorparams
+{
+    double red = 1;
+    double green = 2;
+    double blue = 3;
+    double alpha = 4;
+}
+
+message nvosdrectparams
+{
+    float left = 1;
+    float top = 2;
+    float width = 3;
+    float height = 4;
+    uint32 border_width = 5;
+    nvosdcolorparams border_color = 6;
+    uint32 has_bg_color = 7;
+    uint32 reserve = 8;
+    nvosdcolorparams bgcolor = 9;
+    int32 has_color_info = 10;
+    int32 color_id = 11;
+}
+
+message nvosdmaskparams
+{
+    repeated float data = 1;
+    uint32 size = 2;
+    float threshold = 3;
+    uint32 width = 4;
+    uint32 height = 5;
+}
+
+message nvosdfontparams
+{
+    string font_name = 1;
+    uint32 font_size = 2;
+    nvosdcolorparams font_color = 3;
+}
+
+message nvosdtextparams
+{
+    string display_text = 1;
+    uint32 x_offset = 2;
+    uint32 y_offset = 3;
+    nvosdfontparams font_params = 4;
+    int32 set_bg_clr = 5;
+    nvosdcolorparams text_bg_clr = 6;
+}
+
+message nvdsobjectmeta
+{
+    nvdsbasemeta base_meta = 1;
+    int32 unique_component_id = 2;
+    int32 class_id = 3;
+    uint64 object_id = 4;
+    nvdscompbboxinfo detector_bbox_info = 5;
+    nvdscompbboxinfo tracker_bbox_info = 6;
+    float confidence = 7;
+    float tracker_confidence = 8;
+    nvosdrectparams rect_params = 9;
+    nvosdmaskparams mask_params = 10;
+    nvosdtextparams text_params = 11;
+    string obj_label = 12;
+    repeated nvdsclassifiermeta classifier_meta_list = 13;
+    repeated nvdsusermeta obj_user_meta_list = 14;
+    repeated int64 misc_obj_info = 15;
+    repeated int64 reserve = 16;
+}
+
+message nvdslabelinfo
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 num_classes = 2;
+    string result_label = 3;
+    string presult_label = 4;
+    uint32 result_class_id = 5;
+    int32 label_id = 6;
+    float result_prob = 7;
+}
+
+message nvdsclassifiermeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 num_labels = 2;
+    int32 unique_component_id = 3;
+    repeated nvdslabelinfo label_info_list = 4;
+    string classifier_type = 5;
+}
+
+message nvosdlineparams
+{
+    uint32 x1 = 1;
+    uint32 y1 = 2;
+    uint32 x2 = 3;
+    uint32 y2 = 4;
+    uint32 line_width = 5;
+    nvosdcolorparams line_color =6;
+}
+
+message nvosdarrowparams
+{
+    uint32 x1 = 1;
+    uint32 y1 = 2;
+    uint32 x2 = 3;
+    uint32 y2 = 4;
+    uint32 arrow_width = 5;
+/*
+    enum arrow_head_direction {
+        START_HEAD = 0;
+        END_HEAD = 1;
+        BOTH_HEAD = 2;
+    }
+    arrow_head_direction arrow_head = 6;
+*/
+    uint32 arrow_head = 6;
+    nvosdcolorparams arrow_color = 7;
+    uint32 reserve = 8;
+}
+
+message nvosdcircleparams
+{
+    uint32 xc = 1;
+    uint32 yc = 2;
+    uint32 radius = 3;
+    nvosdcolorparams circle_color = 4;
+    uint32 has_bg_color = 5;
+    nvosdcolorparams circle_bg_color = 6;
+    uint32 reserve = 7;
+}
+
+message nvdsdisplaymeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 num_rects = 2;
+    uint32 num_labels = 3;
+    uint32 num_lines = 4;
+    uint32 num_arrows = 5;
+    uint32 num_circles = 6;
+    repeated nvosdrectparams rect_params = 7;
+    repeated nvosdtextparams text_params = 8;
+    repeated nvosdlineparams line_params = 9;
+    repeated nvosdarrowparams arrow_params = 10;
+    repeated nvosdcircleparams circle_params = 11;
+    repeated int64 misc_osd_data = 12;
+    repeated int64 reserve = 13;   
+}
+
+message nvdsusermeta
+{
+    nvdsbasemeta base_meta = 1;
+    string user_meta_data = 2;
+}
+

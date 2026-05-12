@@ -1,0 +1,41 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2020 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+#dewarp-dump-frames=10
+output-width=3680
+output-height=2428
+num-batch-buffers=1
+
+#########################################
+# Note - Max 4 surfaces are supported
+#########################################
+
+[surface0]
+# 1=PushBroom, 2=VertRadCyl, 3=PerspectivePerspective
+projection-type=3
+width=3680
+height=2428
+focal-length=1721.592
+#src-fov=180
+#top-angle=30
+#bottom-angle=-30
+distortion=-0.09787;0.00574;-0.00013;0;0
+src-x0=1861.88
+src-y0=1216.04
+# 0=cudaAddressModeClamp, 1=cudaAddressModeBorder
+#cuda-address-mode=0
+
+
+
+
+

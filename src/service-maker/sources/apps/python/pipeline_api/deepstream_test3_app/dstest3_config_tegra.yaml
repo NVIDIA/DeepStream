@@ -1,0 +1,90 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+deepstream:
+  nodes:
+  - name: uridecodebin
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+    type: uridecodebin
+  - name: uridecodebin1
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+    type: uridecodebin
+  - name: uridecodebin2
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+    type: uridecodebin
+  - name: uridecodebin3
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+    type: uridecodebin
+  - name: nvstreammux
+    properties:
+      batch-size: 4
+      batched-push-timeout: 40000
+      height: 1080
+      width: 1920
+    type: nvstreammux
+  - name: queue
+    type: queue
+  - name: infer
+    properties:
+      batch-size: 4
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test3/dstest3_pgie_config.yml
+## Inference using nvinferserver: replace the above infer definition with below
+#  - type: nvinferserver
+#    name: infer
+#    properties:
+#      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test3/dstest3_pgie_nvinferserver_config.txt
+    type: nvinfer
+  - name: queue1
+    type: queue
+  - name: nvdslogger
+    type: nvdslogger
+  - name: nvmultistreamtiler
+    properties:
+      height: 720
+      width: 1280
+    type: nvmultistreamtiler
+  - name: queue2
+    type: queue
+  - name: converter
+    type: nvvideoconvert
+  - name: queue3
+    type: queue
+  - name: queue4
+    type: queue
+  - name: nveglglessink
+    type: nveglglessink
+  - name: nvdsosd
+    type: nvdsosd
+  - name: samplevideoprobe
+    type: sample_video_probe.sample_video_probe
+  edges:
+    nvdslogger: nvmultistreamtiler
+    nvdsosd: queue4
+    infer:
+    - queue1
+    - samplevideoprobe
+    nvmultistreamtiler: queue2
+    nvstreammux: queue
+    converter: queue3
+    queue: infer
+    queue1: nvdslogger
+    queue2: converter
+    queue3: nvdsosd
+    queue4: nveglglessink
+    uridecodebin: nvstreammux
+    uridecodebin1: nvstreammux
+    uridecodebin2: nvstreammux
+    uridecodebin3: nvstreammux

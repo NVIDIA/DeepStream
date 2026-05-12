@@ -1,0 +1,30 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+camera-list:
+# Enable in case of Jetson Device (not supported for x86)
+# - camera-type: "CSI"
+#   camera-csi-sensor-id: 0
+#   camera-width: 1280
+#   camera-height: 720
+#   camera-fps-n: 30
+#   camera-fps-d: 1
+- camera-type: "V4L2"
+  camera-width: 640
+  camera-height: 480
+  camera-fps-n: 30
+  camera-fps-d: 1
+  camera-v4l2-dev-node: 2
+  # Additional props for v4l2src
+  # gpu-id: 0
+  # nvbuf-mem-type: 2
+  # nvvideoconvert-copy-hw: 1

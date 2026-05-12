@@ -1,0 +1,158 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Purpose:
+===============================================================================
+
+The sample app demonstrates how to simplify ../../pipeline_api/deepstream_sr_test_app 
+using the Flow API.
+Flow APIs effectively abstract away the underlying pipeline details, allowing 
+developers to focus solely on the goals of their specific tasks in a pythonic style.
+
+===============================================================================
+2. Configuration:
+===============================================================================
+
+The application uses the following configuration files (default paths):
+
+```
+KAFKA_PROTO_LIB_PATH = "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"
+KAFKA_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt"
+MSGCONV_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+CONFIG_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.yml"
+```
+
+Additional sample configuration:
+
+- `source_list.yaml`: Sample source configuration for local mode. Replace the placeholder RTSP URIs with your actual RTSP stream links before running.
+
+Smart Recording Configuration
+
+The application uses the following smart recording parameters:
+
+- `rec_cache`: Size of cache in seconds (default: 20)
+- `rec_container`: Container format (0: MP4, 1: MKV)
+- `rec_dir_path`: Directory for recorded files
+- `rec_mode`: Recording mode (0: AV, 1: Video only, 2: Audio only)
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+Run the application in one of the following modes:
+
+1) Local mode (uses a source config YAML):
+
+   - Edit `source_list.yaml` and replace the placeholder RTSP URIs with your actual RTSP stream links.
+   - Run:
+
+   ```bash
+   python3 deepstream_sr_test.py --recording local --source-config ./source_list.yaml
+   ```
+
+   Notes:
+   - The sample automatically starts and stops a short smart-record session for the sensor with `sensor-id: UniqueSensorId1` to showcase the API.
+   - Only `--source-config` is accepted in local mode; do not pass URIs.
+
+2) Cloud mode (Kafka; pass RTSP URIs on the command line):
+
+   ```bash
+   python3 deepstream_sr_test.py -r cloud rtsp://host/stream1 [rtsp://host/stream2 ...]
+   ```
+   Notes:
+   - Do not pass `--source-config` in cloud mode; provide RTSP URIs only.
+
+===============================================================================
+4. Important Notes:
+===============================================================================
+
+1. Smart Record feature only works with live RTSP streams.
+2. `MSGCONV_CONFIG_FILE` is required only when running with `-r cloud`.
+3. A sample MSGCONV_CONFIG_FILE is available at:
+   "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+4. The smart record feature allows for:
+   - Event-based recording
+   - Configurable recording duration
+   - Multiple stream handling
+   - Custom event triggers for recording
+
+===============================================================================
+5. How To Smart Record in Cloud mode (Kafka)
+===============================================================================
+
+Follow these steps to use the smart record feature with Kafka:
+
+1. **Install a Message Broker**
+   Download and install a message broker like Kafka or MQTT.
+
+2. **Start the Message Broker Producer**
+   Use the message broker producer script in the message broker directory to send smart record messages.
+
+   **For Kafka example:**
+
+   a) Download and extract Apache Kafka:
+   ```bash
+   wget https://downloads.apache.org/kafka/3.6.1/kafka_2.13-3.6.1.tgz
+   tar -xzf kafka_2.13-3.6.1.tgz
+   cd kafka_2.13-3.6.1
+   ```
+
+   b) Start Kafka server (in a separate terminal):
+   ```bash
+   bin/zookeeper-server-start.sh config/zookeeper.properties
+   bin/kafka-server-start.sh config/server.properties
+   ```
+
+   c) Start the Kafka console producer:
+   ```bash
+   bin/kafka-console-producer.sh --topic sr-test --bootstrap-server localhost:9092
+   ```
+
+   **Note:** Ensure the topic (`sr-test`) and bootstrap server (`localhost:9092`) match your application configuration. In the application, the Kafka connection string (`conn-str`) uses a semicolon separator (`localhost;9092`).
+
+3. **Send Smart Record Command**
+   Start the application in cloud mode, then send the smart-record command in JSON format:
+
+   ```bash
+   python3 deepstream_sr_test.py -r cloud rtsp://host/stream1 [rtsp://host/stream2 ...]
+   ```
+
+   ```json
+   {
+     "command": "start-recording",
+     "start": "2025-07-15T07:35:00.051Z",
+     "end": "2025-07-16T07:35:10.051Z",
+     "sensor": {
+       "id": "HWY_20_AND_LOCUST__EBA__4_11_2018_4_59_59_508_AM_UTC-07_00"
+     }
+   }
+   ```
+
+**Notes:**
+- Update the UTC time according to your current time and date
+- Sensor ID mapping is configured using the file:
+  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
+- Update the sensor ID accordingly based on your configuration
+
+===============================================================================
+6. How To Smart Record Locally
+===============================================================================
+
+Use this mode to demonstrate smart-record without a message broker.
+
+1. Edit `source_list.yaml` and replace the placeholder RTSP URIs with your actual RTSP links.
+2. Start the application:
+   ```bash
+   python3 deepstream_sr_test.py --recording local --source-config ./source_list.yaml
+   ```
+3. The app automatically starts a short smart-record session for `sensor-id: UniqueSensorId1` and stops it later to showcase the API. Recordings are saved in the current directory (.) using the configured container format.

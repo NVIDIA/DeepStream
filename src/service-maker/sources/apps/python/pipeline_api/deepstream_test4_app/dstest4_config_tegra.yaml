@@ -1,0 +1,78 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+deepstream:
+  nodes:
+  - name: filesrc
+    properties:
+      location: /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+    type: filesrc
+  - name: h264parse
+    type: h264parse
+  - name: nvv4l2decoder
+    type: nvv4l2decoder
+  - name: nvstreammux
+    properties:
+      batch-size: 1
+      height: 720
+      width: 1280
+    type: nvstreammux
+  - name: infer
+    properties:
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4/dstest4_pgie_config.yml
+    type: nvinfer
+## Inference using nvinferserver: replace the above infer definition with below
+#  - name: infer
+#    type: nvinferserver 
+#    properties:
+#      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4/dstest4_pgie_nvinferserver_config.txt
+  - name: nvvideoconvert
+    type: nvvideoconvert
+  - name: nvdsosd
+    type: nvdsosd
+  - name: tee
+    type: tee
+  - name: queue
+    type: queue
+  - name: queue1
+    type: queue
+  - name: nveglglessink
+    type: nveglglessink
+  - name: nvmsgconv
+    properties:
+      config: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4/dstest4_msgconv_config.yml
+    type: nvmsgconv
+  - name: nvmsgbroker
+    properties:
+      conn-str: localhost;9092
+      proto-lib: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+      sync: false
+      topic: test4app
+    type: nvmsgbroker
+  - name: addmessagemetaprobe
+    type: add_message_meta_probe.add_message_meta_probe
+  edges:
+    filesrc: h264parse
+    h264parse: nvv4l2decoder
+    nvdsosd:
+    - tee
+    - addmessagemetaprobe
+    infer.src: nvvideoconvert
+    nvmsgconv: nvmsgbroker
+    nvstreammux: infer
+    nvv4l2decoder: nvstreammux
+    nvvideoconvert: nvdsosd
+    queue.src: nveglglessink
+    queue1.src: nvmsgconv
+    tee:
+    - queue
+    - queue1

@@ -1,0 +1,49 @@
+################################################################################
+# Copyright (c) 2018-2026, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the library.
+
+--------------------------------------------------------------------------------
+Compile the library :
+
+  # Export correct CUDA version as per the platform
+      For x86, CUDA_VER=13.1
+      For Jetson & SBSA, CUDA_VER=13.0
+
+  $ sudo -E make install
+
+--------------------------------------------------------------------------------
+This source has been written to parse the output layers of the resnet10 detector
+and the resnet18 vehicle type classifier model provided with the SDK. To use this
+library for bounding box / classifier output parsing instead of the inbuilt
+parsing function, modify the following parameters in [property] section of
+primary/secondary vehicle type infer configuration file (config_infer_primary.txt/
+config_infer_secondary_vehicletypes.txt) provided with the SDK:
+
+# For resnet10 detector
+parse-bbox-func-name=NvDsInferParseCustomResnet
+custom-lib-path=/path/to/this/directory/libnvds_infercustomparser.so
+
+# For resnet18 vehicle type classifier
+parse-classifier-func-name=NvDsInferClassiferParseCustomSoftmax
+custom-lib-path=/path/to/this/directory/libnvds_infercustomparser.so
+
+# For Tensorflow/Onnx SSD detector within nvinferserver
+infer_config {
+  postprocess { detection {
+      custom_parse_bbox_func: "NvDsInferParseCustomTfSSD"
+      ...
+  } }
+  ...
+  custom_lib {
+    path: "/path/to/this/directory/libnvds_infercustomparser.so"
+  }
+}

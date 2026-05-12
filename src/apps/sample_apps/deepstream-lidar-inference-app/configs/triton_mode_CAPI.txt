@@ -1,0 +1,51 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+infer_config {
+  unique_id: 1
+  gpu_ids: [0]
+  max_batch_size: 1
+  backend {
+    inputs [
+      {name: "points"},
+      {name: "num_points"}
+    ]
+    outputs [
+      {name: "output_boxes"},
+      {name: "num_boxes"}
+    ]
+    triton {
+      model_name: "pointpillars"
+      version: -1
+      model_repo {
+        root: "tritonserver/models"
+        strict_model_config: true
+        log_level: 2
+      }
+    }
+    output_mem_type: MEMORY_TYPE_CPU
+  }
+
+  postprocess {
+    other {}
+  }
+
+  extra {
+    copy_input_to_host_buffers: false
+    output_buffer_pool_size: 2
+    custom_process_funcion: "CreateInferServerCustomProcess"
+  }
+
+  custom_lib {
+    path: "/opt/nvidia/deepstream/deepstream/lib/libnvds_lidar_custom_postprocess_impl.so"
+  }
+}

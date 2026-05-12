@@ -1,0 +1,27 @@
+################################################################################
+# Copyright (c) 2020-2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+
+--------------------------------------------------------------------------------
+Pre-requisites:
+- glib-2.0
+- json-glib-1.0
+- uuid
+
+Install using:
+   sudo apt-get install libglib2.0-dev libjson-glib-dev uuid-dev
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

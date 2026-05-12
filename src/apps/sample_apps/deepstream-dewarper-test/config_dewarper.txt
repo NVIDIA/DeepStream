@@ -1,0 +1,92 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+#dewarp-dump-frames=10
+
+# aisle-calibration-file property is getting used in case of deepstream-360d-app,
+# if set below properties under group [surfaceX] will be ignored
+aisle-calibration-file=csv_files/nvaisle_2M.csv
+# spot-calibration-file property is getting used in case of deepstream-360d-app,
+# if set below properties under group [surfaceX] will be ignored
+spot-calibration-file=csv_files/nvspot_2M.csv
+
+#########################################
+# Note - Max 4 surfaces are supported
+#########################################
+
+[surface0]
+# 1=PushBroom,              2=VertRadCyl,               3=Perspective_Perspective,
+# 4=FISH_PERSPECTIVE,       5=FISH_FISH,                6=FISH_CYL,
+# 7=FISH_EQUIRECT,          8=FISH_PANINI,              9=PERSPECTIVE_EQUIRECT,
+# 10=PERSPECTIVE_PANINI,    11=EQUIRECT_CYLINDER,       12=EQUIRECT_EQUIRECT,
+# 13=EQUIRECT_FISHEYE,      14=EQUIRECT_PANINI,         15=EQUIRECT_PERSPECTIVE,
+# 16=EQUIRECT_PUSHBROOM,    17=EQUIRECT_STEREOGRAPHIC,  18=EQUIRECT_VERTCYLINDER
+projection-type=1
+surface-index=0
+#dewarped surface parameters
+width=3886
+height=666
+top-angle=0
+bottom-angle=-35
+pitch=90
+yaw=0
+roll=0
+focal-length=437
+# Useful for Panini, Stereographic and Pushbroom projections
+# For all other projections "control" parameter has no effect
+# control=0 is identical to perspective output
+control=0.6
+
+[surface1]
+# 1=PushBroom, 2=VertRadCyl
+projection-type=1
+surface-index=1
+#dewarped surface parameters
+width=3886
+height=666
+top-angle=0
+bottom-angle=-35
+pitch=-90
+yaw=0
+roll=180
+focal-length=437
+
+[surface2]
+# 1=PushBroom, 2=VertRadCyl
+projection-type=2
+surface-index=0
+#dewarped surface parameters
+width=1902
+height=1500
+top-angle=90.3
+bottom-angle=0.3
+pitch=0
+yaw=0
+roll=278
+focal-length=437
+
+[surface3]
+# 1=PushBroom, 2=VertRadCyl
+projection-type=2
+surface-index=1
+#dewarped surface parameters
+width=1902
+height=1500
+top-angle=90.3
+bottom-angle=0.3
+pitch=0
+yaw=0
+roll=98
+focal-length=437
+
+

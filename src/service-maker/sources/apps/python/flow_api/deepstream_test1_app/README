@@ -1,0 +1,26 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Purpose:
+===============================================================================
+
+The sample app demonstrates how to simplify ../../pipeline_api/deepstream_test1_app 
+using Flow API.
+Flow APIs effectively abstract away the underlying pipeline details, allowing 
+developers to focus solely on the goals of their specific tasks in a pythonic style.
+
+===============================================================================
+2. Usage:
+===============================================================================
+
+ $ python3 deepstream_test1.py <H.264 file> 

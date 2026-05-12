@@ -1,0 +1,164 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Purpose:
+===============================================================================
+
+The sample app demonstrates how to simplify ../../pipeline_api/deepstream_test5_app
+using Flow API. This application showcases a comprehensive DeepStream pipeline that includes:
+- Object detection using primary inference engine
+- Object tracking
+- Vehicle type classification
+- Vehicle make/model classification
+- Smart recording capabilities
+- Message publishing to Kafka
+- Various monitoring probes (FPS, latency, OSD)
+
+Flow APIs effectively abstract away the underlying pipeline details, allowing
+developers to focus solely on the goals of their specific tasks in a pythonic style.
+
+===============================================================================
+2. Configuration:
+===============================================================================
+
+The application uses the following configuration files and settings:
+
+Primary Inference (Object Detection):
+```
+PGIE_CONFIG_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.yml"
+PGIE_MODEL_ENGINE_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx_b16_gpu0_fp16.engine"
+PGIE_BATCH_SIZE = 16  # Number of frames processed in parallel
+PGIE_UNIQUE_ID = 1    # Unique identifier for primary inference
+```
+
+Object Tracking:
+```
+TRACKER_LL_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml"
+TRACKER_LL_LIB_FILE = "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so"
+```
+
+Secondary Inference (Vehicle Type Classification):
+```
+SGIE1_CONFIG_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehicletypes.yml"
+SGIE1_MODEL_ENGINE_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleTypes/resnet18_vehicletypenet_pruned.onnx_b40_gpu0_fp16.engine"
+SGIE1_BATCH_SIZE = 40  # Batch size for vehicle type classification
+SGIE1_UNIQUE_ID = 4    # Unique identifier for vehicle type classification
+```
+
+Secondary Inference (Vehicle Make/Model Classification):
+```
+SGIE2_CONFIG_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehiclemake.yml"
+SGIE2_MODEL_ENGINE_FILE_PATH = "/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/resnet18_vehiclemakenet_pruned.onnx_b40_gpu0_fp16.engine"
+SGIE2_BATCH_SIZE = 40  # Batch size for make/model classification
+SGIE2_UNIQUE_ID = 6    # Unique identifier for make/model classification
+```
+
+Kafka Protocol Configuration:
+```
+PROTO_LIB_PATH = "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"
+PROTO_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt"
+```
+
+Message Broker Configuration:
+```
+MSGCONV_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+MSGBROKER_CONN_STR = "localhost;9092"  # Kafka broker connection string
+MGSBROKER_TOPIC = "test5app"           # Kafka topic for message publishing
+```
+
+Smart Recording Configuration:
+```
+SMART_RECORD_TOPIC_LIST = "sr-test"
+SMART_RECORD_CACHE = 20          # Number of frames to cache
+SMART_RECORD_CONTAINER = 0       # Container format (0 = MP4)
+SMART_RECORD_DIR_PATH = "."      # Output directory for recordings
+SMART_RECORD_MODE = 0            # Recording mode (0 = event-based)
+```
+
+Display Configuration:
+```
+TILER_WIDTH = 1920
+TILER_HEIGHT = 1080
+```
+
+The application supports two types of source configurations:
+1. Static source configuration (source_list_static.yaml)
+2. Dynamic source configuration (source_list_dynamic.yaml)
+
+===============================================================================
+3. Features:
+===============================================================================
+
+The application includes the following features:
+
+1. Multi-stream Processing:
+   - Supports multiple input streams
+   - Batch processing capabilities
+
+2. Inference Pipeline:
+   - Primary object detection
+   - Object tracking
+   - Vehicle type classification
+   - Vehicle make/model classification
+
+3. Monitoring and Analytics:
+   - FPS measurement
+   - Latency tracking
+   - Object counting
+   - On-screen display (OSD)
+
+4. Data Export:
+   - Kafka message publishing
+   - Smart recording
+   - KITTI format data dump
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Run the application with a source configuration file:
+
+```bash
+python3 deepstream_test5.py <source_config.yaml>
+```
+
+Example:
+```bash
+python3 deepstream_test5.py source_list_static.yaml
+```
+
+For dynamic source configuration:
+```bash
+python3 deepstream_test5.py source_list_dynamic.yaml
+```
+
+===============================================================================
+5. Output:
+===============================================================================
+
+The application provides:
+1. Real-time video display with object detection and classification results
+2. Kafka messages with detection and tracking information
+3. Smart recorded video files
+4. Performance metrics (FPS, latency)
+5. Object count statistics
+
+===============================================================================
+6. Notes:
+===============================================================================
+
+- The application uses multiprocessing to handle KeyboardInterrupt gracefully
+- Smart recording can be configured for different modes (AV, Video only, Audio only)
+- The pipeline can be extended with additional probes or processing steps
+- Source configuration files can be customized for different input sources
+- Smart recording functionality is only supported with RTSP streams. It will not work with file-based inputs or other stream types.

@@ -1,0 +1,86 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+deepstream:
+  nodes:
+  - type: filesrc
+    name: filesrc
+    properties:
+      location: /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+  - type: h264parse
+    name: h264parse
+  - type: nvv4l2decoder
+    name: nvv4l2decoder
+  - type: nvstreammux
+    name: nvstreammux
+    properties:
+      batch-size: 1
+      width: 1280
+      height: 720
+  - type: nvinfer
+    name: pgie
+    properties:
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_pgie_config.yml
+  - type: nvinfer
+    name: vehicle_make_classifier
+    properties:
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_sgie1_config.yml
+  - type: nvinfer
+    name: vehicle_type_classifier
+    properties:
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_sgie2_config.yml
+## Inference using nvinferserver: replace the above infer definitions with below
+#  - type: nvinferserver
+#    name: pgie
+#    properties:
+#      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_pgie_nvinferserver_config.txt
+#  - type: nvinferserver
+#    name: vehicle_make_classifier
+#    properties:
+#      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_sgie1_nvinferserver_config.txt
+#  - type: nvinferserver
+#    name: vehicle_type_classifier
+#    properties:
+#      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test2/dstest2_sgie2_nvinferserver_config.txt
+  - type: nvtracker
+    name: nvtracker
+    properties:
+      ll-lib-file: /opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+#     ll-config-file required to set different tracker types
+#     ll-config-file: ../../../../samples/configs/deepstream-app/config_tracker_IOU.yml
+#     ll-config-file: ../../../../samples/configs/deepstream-app/config_tracker_NvSORT.yml
+      ll-config-file: /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
+#     ll-config-file: ../../../../samples/configs/deepstream-app/config_tracker_NvDCF_accuracy.yml
+#     ll-config-file: ../../../../samples/configs/deepstream-app/config_tracker_NvDeepSORT.yml
+  - type: nvvideoconvert
+    name: converter
+  - type: nvdsosd
+    name: nvdsosd
+  - type: nveglglessink
+    name: sink
+    properties:
+      sync: false
+  - type: sample_video_probe.sample_video_probe
+    name: samplevideoprobe
+  edges:
+    filesrc: h264parse
+    h264parse: nvv4l2decoder
+    nvv4l2decoder: nvstreammux
+    nvstreammux: pgie
+    pgie.src: nvtracker
+    nvtracker: vehicle_make_classifier
+    vehicle_make_classifier.src: vehicle_type_classifier
+    vehicle_type_classifier.src: converter
+    converter: nvdsosd
+    nvdsosd:
+    - sink
+    - samplevideoprobe

@@ -1,0 +1,139 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-image-meta-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+
+For RHEL Systems:
+   The application has a dependency on libjpeg.so.8 which has to be installed
+   separately by the user.
+   Please install cmake and nasm by following the steps in the given link -
+   https://github.com/libjpeg-turbo/libjpeg-turbo/blob/master/BUILDING.md
+
+Steps to install libjpeg.so.8 after cmake and nasm installation:
+   git clone https://github.com/libjpeg-turbo/libjpeg-turbo.git
+   mkdir final_libs
+   cd final_libs/
+   cmake -G"Unix Makefiles" -DWITH_JPEG8=1 ~/libjpeg-turbo/
+   make
+   sudo cp -a libjpeg.so* /usr/lib64/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-image-meta-test
+application.
+
+It demonstrates, how to encode objects detected by nvinfer in jpeg format.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-image-meta-test <gpu_id> <uri1> [uri2] ... [uriN]
+e.g.
+  $ deepstream-image-meta-test 0 file:///home/ubuntu/video1.mp4
+  $ deepstream-image-meta-test 0 rtsp://127.0.0.1/video1
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-image-meta-test -t inferserver <gpu_id> <uri1> [uri2] ... [uriN]
+e.g.
+  $ deepstream-image-meta-test -t inferserver 0 file:///home/ubuntu/video1.mp4
+  $ deepstream-image-meta-test -t inferserver 0 rtsp://127.0.0.1/video1
+
+NOTE: Run app with `sudo` or change directory and file permissions
+as necessary.
+
+The encode will take place on the GPU with the "gpu_id" mentioned by the
+user in the command.
+
+[For nvinferserver] In case of multi-gpu device, need to update gpu_id in following files.
+1. ds_image_meta_pgie_nvinferserver_config.txt - change "gpu_ids: [1]"
+2. /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Primary_Detector/config.pbtxt - change "gpus: 1"
+3. Then run app with nvinferserver
+   $ deepstream-image-meta-test -t inferserver 1 file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4
+
+The user can set "save_img" and "save_user_meta" according to their
+requirements.
+For details check the public header file "nvds_obj_encode.h".
+
+The user can set the environment variable CALCULATE_ENCODE_TIME to yes if they
+want to print the encode time for all the jpeg_images. They can also choose to
+only enable it for particular encodes by setting the calcEncodeTime field of
+the encodes to TRUE.
+
+For reference, here are the config files used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    ds_image_meta_pgie_config.txt
+
+In this sample, one instance of either "nvinfer" or "nvinferserver" element
+referred as the pgie, is created.
+This is a 4 class detector and it detects for "Vehicle , RoadSign, TwoWheeler,
+Person".
+The "nvinfer" element uses TensorRT API to infer
+on frames/objects. The "nvinferserver" element uses the Triton Inference
+Server to infer on frames/objects.
+With this information detected objects are encoded using the
+"nvds_obj_enc_start_encode" API. Refer the "nvds_obj_encode.h" public header
+file for details. Please refer the "pgie_src_pad_buffer_probe" function in the
+sample code for details on the user arguments. For demonstration purposes,
+only the first detected object of each frame is encoded.
+For Jetson Platform the encoded images will always have even resolution even if
+the detected objects have odd width or height. Even resolution is achieved by
+increasing the odd value by 1. Objects are not encoded on Jetson Platform if
+the scaledHeight or scaledWidth is more than 16 times the objectHeight or
+objectWidth respectively.
+Furthermore the encoded objects are verified by attaching a probe on the sink
+pad of osd component and writing the attached metadata to a file. Metadata that
+is attached is of the type "NVDS_CROP_IMAGE_META".
+For details on the metadata format, refer to the file "nvdsmeta.h".

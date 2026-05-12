@@ -1,0 +1,73 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the "nvinferserver"
+plugin and "nvdsinferserver" API.
+
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+- CUDA Runtime 12.2
+
+Install gstreamer developement packages using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+        libprotobuf-dev protobuf-compiler
+
+Other dependencies:
+- Triton gRPC client library v25.12
+- Google Protobuf compiler v3.21.12
+
+Install other dependencies (Needs sudo or root privilege):
+A. For X86 Device -
+1. Triton gRPC Client into "/opt/tritonclient":
+mkdir -p  /opt/tritonclient/
+wget https://github.com/triton-inference-server/server/releases/download/v2.65.0/v2.65.0_ubuntu2404.clients.tar.gz
+tar xzf v2.65.0_ubuntu2404.clients.tar.gz -C /opt/tritonclient/ lib include
+
+2. Protobuf compiler v3.21.12 into "/opt/proto":
+mkdir /opt/proto
+PB_REL="https://github.com/protocolbuffers/protobuf/releases";;
+curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip
+unzip protoc-21.12-linux-x86_64.zip -d /opt/proto
+
+B. For Jetson Device -
+1. Please download the correct version of Triton gRPC client from
+   https://github.com/triton-inference-server/server/releases 
+   and install into "/opt/tritonclient". Example commands :
+mkdir -p  /opt/tritonclient/
+wget https://github.com/triton-inference-server/server/releases/download/v2.60.0/tritonserver2.60.0-agx.tar
+tar xzf tritonserver2.60.0-agx.tar -C /opt/tritonclient/ --strip-components=2 tritonserver/clients/lib/ tritonserver/clients/include
+
+2. Protobuf compiler v3.21.12 into "/opt/proto":
+mkdir /opt/proto
+PB_REL="https://github.com/protocolbuffers/protobuf/releases";;
+curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip
+unzip protoc-21.12-linux-aarch_64.zip -d /opt/proto
+chmod -R +rx /opt/proto/
+
+Please ensure that the above dependencies are installed and update corresponding
+paths in the Makefile if required.
+Current set paths are as follows:
+TRITON_GRPC_CLIENT ?= /opt/tritonclient
+PROTOBUF_BIN_DIR ?= /opt/proto/bin
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+Run make and sudo make install
+
+NOTE:
+1. To compile the sources, run make with "sudo" or root permission.
+2. Update PATH variable with newly installed protoc by running below command,
+   export PATH=/opt/proto/bin/:$PATH
+3. Clean and build sources which are compiled with old protoc version.

@@ -1,0 +1,123 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+name: "v2xfusion"
+platform: "tensorrt_plan"
+max_batch_size: 0
+default_model_filename: "v2xfusionmodel-int8-sparsity-seq.engine"
+input [
+  {
+    name: "images"
+    data_type: TYPE_FP16
+    dims: [ 4, 3, 864, 1536 ]
+  },
+  {
+    name: "feats"
+    data_type: TYPE_FP16
+    dims: [ 4, 8000, 10, 9 ]
+  },
+  {
+    name: "coords"
+    data_type: TYPE_INT32
+    dims: [ 4, 8000, 4 ]
+  },
+  {
+    name: "N"
+    data_type: TYPE_INT32
+    dims: [ 4, 1 ]
+  },
+  {
+    name: "intervals"
+    data_type: TYPE_INT32
+    dims: [ 4, 10499, 3 ]
+  },
+  {
+    name: "geometry"
+    data_type: TYPE_INT32
+    dims: [ 4, 1086935 ]
+  },
+  {
+    name: "num_intervals"
+    data_type: TYPE_INT32
+    dims: [ 4, 1 ]
+  }
+]
+output [
+  {
+    name: "heatmap"
+    data_type: TYPE_FP32
+    dims: [ 4, 5, 128, 128 ]
+  },
+  {
+    name: "rotation"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  },
+  {
+    name: "height"
+    data_type: TYPE_FP32
+    dims: [ 4, 1, 128, 128 ]
+  },
+  {
+    name: "dim"
+    data_type: TYPE_FP32
+    dims: [ 4, 3, 128, 128 ]
+  },
+  {
+    name: "vel"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  },
+  {
+    name: "reg"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  },
+  {
+    name: "heatmap2"
+    data_type: TYPE_FP32
+    dims: [ 4, 5, 128, 128 ]
+  },
+  {
+    name: "rotation2"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  },
+  {
+    name: "height2"
+    data_type: TYPE_FP32
+    dims: [ 4, 1, 128, 128 ]
+  },
+  {
+    name: "dim2"
+    data_type: TYPE_FP32
+    dims: [ 4, 3, 128, 128 ]
+  },
+  {
+    name: "vel2"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  },
+  {
+    name: "reg2"
+    data_type: TYPE_FP32
+    dims: [ 4, 2, 128, 128 ]
+  }
+
+]
+instance_group [
+  {
+    kind: KIND_GPU
+    count: 1
+    gpus: 0
+  }
+]

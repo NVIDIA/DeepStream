@@ -1,0 +1,47 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+pytorch and torchvision is required to run the test app. To install pytorch and torchvision,
+run following commands:
+
+  $ pip3 install torch torchvision
+
+for Ubuntu 24.04, use:
+
+  $ pip3 install torch torchvision --break-system-packages
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream_test1 application.
+
+It is meant for demonstration of how to use the various DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream using the service-maker API.
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream or YAML pipeline config file.
+   With YAML Pipeline config approach, user can modify the config file to configure
+   pipeline properties.
+
+    $ python3 deepstream_test1.py <h264_elementary_stream>
+
+    Or
+
+    $ python3 deepstream_test1.py <pipeline config in yaml>

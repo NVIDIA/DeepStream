@@ -1,0 +1,46 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+#dewarp-dump-frames=10
+output-width=2048
+output-height=1708
+# aisle-calibration-file property is getting used in case of deepstream-360d-app,
+# if set below properties under group [surfaceX] will be ignored
+#aisle-calibration-file=csv_files/nvaisle_2M.csv
+# spot-calibration-file property is getting used in case of deepstream-360d-app,
+# if set below properties under group [surfaceX] will be ignored
+#spot-calibration-file=csv_files/nvspot_2M.csv
+
+#########################################
+# Note - Max 4 surfaces are supported
+#########################################R
+num-batch-buffers=1
+
+[surface0]
+# 1=PushBroom, 2=VertRadCyl 3= Perspective_Perspective FISH_PERSPECTIVE=4, FISH_FISH=5, FISH_CYL=6, FISH_EQUIRECT=7,
+# FISH_PANINI=8, PERSPECTIVE_EQUIRECT=9, PERSPECTIVE_PANINI=10, EQUIRECT_CYLINDER=11, EQUIRECT_EQUIRECT=12 EQUIRECT_FISHEYE=13,
+# EQUIRECT_PANINI=14, EQUIRECT_PERSPECTIVE=15, EQUIRECT_PUSHBROOM=16, EQUIRECT_STEREOGRAPHIC=17, EQUIRECT_VERTCYLINDER=18
+projection-type=5
+surface-index=0
+#dewarped surface parameters
+width=3800
+height=3100
+focal-length=350
+top-angle=90
+bottom-angle=-90
+# Sets the rotation as a 3X3 rotation matrix.
+# The matrix is specified in a right-handed screen space, with X to the right, Y downwards and Z outwards.
+# The example below corresponds to a Z axis rotation. Can also be achieved with
+#roll=-60
+rot-matrix = 0.5000000; -0.8660254;  0.0000000;0.8660254;0.5000000;0.0000000;0.0000000;0.0000000;1.0000000
+

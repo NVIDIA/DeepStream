@@ -1,0 +1,57 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+source-list:
+  #semicolon separated uri. For ex- uri1;uri2;uriN;
+  list: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4;
+  #list: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4;
+
+streammux:
+  # update streammux batch-size as per total uris used with above source-list
+  batch-size: 1
+  batched-push-timeout: 40000
+  width: 1920
+  height: 1080
+
+tracker:
+  tracker-width: 640
+  tracker-height: 544
+  # Set tracker gpu-id: 0 for nvxfer position: 2
+  gpu-id: 1
+  ll-lib-file: /opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+  # ll-config-file required to set different tracker types
+  ll-config-file: /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
+
+osd:
+  process-mode: 1
+  # By default, OSD will not display text. To display text, change this to 1
+  display-text: 0
+  gpu-id: 1
+
+tiler:
+  width: 1280
+  height: 720
+  gpu-id: 1
+
+sink:
+  qos: 0
+  gpu-id: 1
+
+nvxfer:
+  gpu-id: 1
+  # To disable NVLINK based data transfer, set p2p-gpu-id: -1
+  p2p-gpu-id: 0
+  # nvdsxfer plugin Position in the pipeline
+  # 0 : Decoder(s) -> Streammux -> PGIE -> nvxfer -> Tracker -> SGIE(s)
+  # 1 : Decoder(s) -> Streammux -> nvxfer -> PGIE -> Tracker -> SGIE(s)
+  # 2 : Decoder(s) -> Streammux -> PGIE -> Tracker -> nvxfer -> SGIE(s)
+  position: 0

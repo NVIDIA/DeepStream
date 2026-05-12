@@ -1,0 +1,30 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+## Triton CAPI Native Inference deployment
+The CAPI Triton server should run in the same docker container with the client app.
+
+Start DeepStream Triton docker if it is not started.
+```
+    $ docker run --gpus all -it  --ipc=host --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -e DISPLAY=$DISPLAY \
+    -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream_lidar_inference_app \
+    ${DS_TRITON_IMG}
+```
+Generate inference engines
+```
+    $ cd tritonserver/
+    $ sudo ./build_engine.sh       # this will take some time to build TensorRT engines
+```
+Jump to `Build and Run` to run the tests inside the container.
+
+## Triton GRPC Remote Inference deployment
+please refer to [README.Triton_DGPU_GRPC](./README.Triton_DGPU_GRPC)

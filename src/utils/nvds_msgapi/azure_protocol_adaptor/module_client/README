@@ -1,0 +1,165 @@
+#######################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+#######################################################################################################
+
+This project implements protocol adaptor for Azure (device2edge messaging or azure module client)
+The adaptor implements the Nv_dsmi API for client applications to interface with it.
+
+NOTE:
+-----
+#Create azure IOT hub:
+ https://docs.microsoft.com/en-us/azure/iot-hub/tutorial-connectivity
+
+#Register a new Azure IoT Edge device from the Azure portal:
+ https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#register-a-new-device-in-the-iot-hub
+
+#Setup and install Azure Iot Edge on your machine. Note there is separate setup section for different architectures
+ https://docs.microsoft.com/en-us/azure/iot-edge/how-to-install-iot-edge-linux
+
+Dependencies:
+------------
+ sudo apt-get update
+ sudo apt-get install -y libcurl4-openssl-dev libssl-dev uuid-dev libglib2.0 libglib2.0-dev
+
+* azure-iot-sdk-c 1.11.0
+    git clone https://github.com/Azure/azure-iot-sdk-c.git
+    cd azure-iot-sdk-c
+    git checkout tags/1.11.0
+    git submodule update --init
+    #Modify the CMakeLists.txt (line 61), change the default build option - build_as_dynamic to ON
+    #Modify the CMakeLists.txt (line 65), change the default build option - use_edge_modules to ON
+    mkdir cmake
+    cd cmake
+    cmake ..
+    cmake --build .
+    make install
+
+Azure Iot sdk lib (libiothub_client.so):
+---------------------------------------
+This deepstream release ships with precompiled azure c sdk lib(v1.2.8)
+It can be found at /opt/nvidia/deepstream/deepstream-<version>/lib/libiothub_client.so
+
+Azure mqtt protocol bridge (libnvds_azure_edge_proto.so):
+---------------------------------------------------------
+Azure mqtt protocol bridge can be found at /opt/nvidia/deepstream/deepstream-<version>/lib/libnvds_azure_edge_proto.so
+
+Connection string:
+-----------------
+Connection details for Azure IoT edge must always be provided in /etc/iotedge/config.yaml
+For more details, please refer https://docs.microsoft.com/en-us/azure/iot-edge/how-to-install-iot-edge-linux#configure-the-azure-iot-edge-security-daemon
+
+Azure cfg:
+----------
+You can set Azure module client related properties in a cfg file.
+Specifially the cfg file supports option to set custom message properties
+
+$ cat cfg_azure.txt
+[message-broker]
+#custom_msg_properties =  <key>=<value>;
+
+custom_msg_properties:
+----------------------
+Provide custom MQTT / IOT-hub client message properties of format key=value;
+Multiple such key value message pairs can be provided
+Note: Max length of the custom_msg_property string is limited to 512 bytes
+ex1: key1=value1;
+ex2: key1=value1;key2=value2;key3=value3;
+
+NOTE:
+- DO NOT delete the line [message-broker]. Its the section identifier used for parsing
+- cfg file should be passed in as an optioanal param to the connect api in the test programs. Make sure to include the full path(of the cfg within the docker container)
+ ex: nvds_msgapi_connect_ptr(NULL, connect_cb, "/root/cfg_azure.txt")
+- Message route(or topic) can be passed as a param to the send api within test programs
+ ex: nvds_msgapi_send_async_ptr(ah, "sample_topic", (const uint8_t *)msg, strlen(msg), send_callback, &myinfo)
+
+Compile test programs:
+--------------------
+ make -f Makefile.test
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+Create a container which includes the azure libs + test apps compiled above:
+---------------------------------------------------------------------------
+#For x86:    Install nvidia-docker by following instructions here: https://github.com/NVIDIA/nvidia-docker
+
+#For Jetson: Ensure nvidia-docker is installed (it comes pre-installed on jetson)
+             If not present, Use latest jetpack to install nvidia container runtime from here : https://developer.nvidia.com/embedded/jetpack
+
+#Set nvidia as default runtime in /etc/docker/daemon.json. https://github.com/NVIDIA/nvidia-container-runtime/blob/master/README.md#daemon-configuration-file
+
+#Create a local docker registry (Just one time setup)
+ sudo docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
+#Build a docker image using the sample Dockerfile in this directory
+ #NOTE:
+ #Edit the Dockerfile to use the base docker image for specific ds-version and tag
+ #The Dockerfile uses the x86 version of nvidia deepstream:<ds-version>-<tag> image as default
+ #For jetson: Edit the Dockerfile to use the image nvcr.io/nvidia/deepstream-l4t:<ds-version>-<tag>
+
+ sudo docker build -t mytest:0 .
+ sudo docker tag mytest:0 localhost:5000/mytest:latest
+ sudo docker push localhost:5000/mytest:latest
+
+Deploy a iotedge module:
+-----------------------
+#Deploy the container created above as a Iot Edge module:
+  https://docs.microsoft.com/en-us/azure/iot-edge/how-to-deploy-modules-portal
+
+#provide module details. For ex:
+ Name      - test_async
+ Image URI - localhost:5000/mytest:latest
+ Container Create options:
+ {
+   "ENTRYPOINT": [
+     "/root/test_azure_iotedge_async",
+     "/opt/nvidia/deepstream/deepstream/lib/libnvds_azure_edge_proto.so"
+   ]
+ }
+
+#specify route options(if any) for the message topic for the module
+
+- Default route where every message from every module is sent upstream
+{
+  "routes": {
+    "route": "FROM /messages/* INTO $upstream"
+  }
+}
+
+- Or you can mention specific routes where messages sent upstream based on topic name
+ex: in the sample test programs, topic name "sample_topic" is used
+ {
+  "routes": {
+    "route1": "FROM /messages/modules/test_async/outputs/sample_topic INTO $upstream",
+    "route2": "FROM /messages/modules/test_sync/outputs/sample_topic INTO $upstream"
+  }
+ }
+
+#Start the edge runtime and verify if modules are running:
+---------------------------------------------------------
+
+#Restart the iotedge on your system
+ sudo systemctl restart iotedge
+
+#Give it a few seconds
+
+#check edge runtime status
+ systemctl status iotedge
+
+#List the modules running
+ sudo iotedge list
+
+#check output from the modules
+ sudo iotedge logs test_async
+
+Building the adaptor
+---------------------
+Upon installing the dependencies, to build adaptor library execute 'make' and install with 'make install'

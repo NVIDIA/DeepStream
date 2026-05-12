@@ -1,0 +1,88 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Compile custom lib:
+
+/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so:
+
+  $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/custom_sequence_preprocess/
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+
+  $ sudo make install (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+Search and Download 3D and 2D RGB based tao_iva_action_recognition_pretrained
+models from NGC https://ngc.nvidia.com/catalog/models/nvidia:tao:actionrecognitionnet
+into /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/ . The 2 TAO models are
+  resnet18_3d_rgb_hmdb5_32.onnx
+  resnet18_2d_rgb_hmdb5_32.onnx
+
+Make sure the model names are exactly same as the ones mentioned above while downloading.
+These Models support following classes :
+  push;fall_floor;walk;run;ride_bike
+
+For More Info:
+    Check /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/README
+
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream_3d_action_recognition application.
+
+It is meant for demonstration of how to use the various DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream using the service-maker API.
+
+deepstream-3d-action-recognition is an example to demonstrate a sequence
+based 3D or 2D model inference pipeline for action recognition. The pipeline
+is as:
+
+src_bin -> nvstreammux -> nvdspreprocess -> nvinfer -> nvtiler -> nvosd -> display.
+
+The nvdspreprocess plugin does preprocessing for the 3D/2D model input.
+It would load a custom_sequence_preprocess lib(subfolder) to do temporal sequence
+batching and ROI spacial batching. Then deliver the batched tensor buffer to
+downstream plugin nvinfer to do inference. The test app parses the output
+tensor data for action classifiction.
+
+This 3D/2D model is pretrained by NVIDIA TAO toolkit. The 3D model has NCDHW(NCSHW)
+input and the 2D model has NSHW shapes.
+    N: batch-size
+    C: channels
+    D/S: depth(sequence)
+    H: height
+    W: width
+    S: channels x depth, reshaped from [C, D]
+
+For more custom 3D preprocessing details, see source files in /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/custom_sequence_preprocess.
+
+For More Info:
+    Check /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/README
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+  Run with the YAML pipeline config file.
+   With YAML Pipeline config approach, user can modify the config file to configure
+   pipeline properties.
+
+    $ python3 deepstream_3d_action_recognition.py <pipeline config in yaml>

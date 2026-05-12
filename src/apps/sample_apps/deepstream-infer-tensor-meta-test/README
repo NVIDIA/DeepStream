@@ -1,0 +1,132 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-infer-tensor-meta-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the
+apps/sample_apps/deepstream-infer-tensor-meta-test/README on how to install the
+prequisites for Deepstream SDK, the DeepStream SDK itself and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+For x86 Docker, use below command:
+   - apt-get update
+   - apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+      libgstrtspserver-1.0-dev libx11-dev libucx0 libopencv-dev
+
+   Note: Add 'libucx0' and 'libopencv-dev' only if you enable OpenCV support (WITH_OPENCV:=1).
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container  for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-infer-tensor-meta-test
+application.
+
+It demonstrates, how to access infer-plugin's output tensor
+data for DeepStream SDK elements in the pipeline.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-infer-tensor-meta-app <H264 filename1> [H264 filename2] ...[H264 filenameN]
+    deepstream-infer-tensor-meta-app /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-infer-tensor-meta-app -t inferserver <H264 filename1> [H264 filename2] ...[H264 filenameN]
+    deepstream-infer-tensor-meta-app -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+This sample creates multiple instances of infer-plugin element. Each instance of
+the infer-plugin uses TensorRT API or TRT-IS model to infer on frames/objects. Every
+instance is configured through its respective config file and enable
+each instance to generate raw tensor data on full frame or object. End users
+can read or parse the tensor data by probe the buffer and look though metadata.
+
+For reference, here are the config files used for this sample :
+1. The inference for 4-class detector (referred to as pgie in this sample) uses
+    dstensor_pgie_config.txt or inferserver/dstensor_pgie_config.txt
+2. The inference for vehicle make classifier (referred to as sgie1 in this
+   sample) uses
+    dstensor_sgie1_config.txt or inferserver/dstensor_sgie1_config.txt
+3. The inference for vehicle type classifier (referred to as sgie2 in this
+   sample) uses
+    dstensor_sgie2_config.txt or  inferserver/dstensor_sgie2_config.txt
+
+In this sample, one infer-plugin instance, referred as the pgie.
+This is the first inference and "pgie_pad_buffer_probe" function parse the
+tensor output data and get detection objects as "Vehicle , RoadSign, TwoWheeler,
+Person". After this, 2 more instances of infer-plugin referred to as
+sgie1, sgie2 respectively are created. The 2 instances would crop pgie's detected
+objects and do secondary inference. "sgie_pad_buffer_probe" function parse all
+sgies inference tensor data and classify them for OSD to drawing box and text.
+
+To enable output layers' tensor data
+a. for nvinfer plugin, we need set property or attribute
+    "output-tensor-meta=true".
+   In the sample code, We also set attribute "network-type=100" in config file but
+   this is not mandatory.
+b. for nvinferserver plugin, we set field
+    " output_control { output_tensor_meta: true } "
+    In the sample code, We also set field
+    " postprocess { other {} } " and
+    in config file but this is not mandatory.
+    We can also set filed
+    " extra { output_buffer_pool_size: 6 } "
+    to set output buffer pool size in range of [2 - 6].
+output-tensor-meta will work with infer-plugin configured
+as detector/classifier as well.
+
+pgie would attach tensor output data into each frame's frame_user_meta_list,
+and each sgie would attach tensor output data into each object's
+obj_user_meta_list. We can probe GstBuffer and loop through meta list to find
+all output layers' buffer. With that, we can parse detection and classficiation
+results on each layer's host buffer pointer "out_buf_ptrs_host". We also show
+that out_buf_ptrs_dev can be used as well.
+Please refer the "pgie_pad_buffer_probe" and "sgie_pad_buffer_probe" functions
+in the sample code. For details on the Metadata format, refer to the
+file "gstnvdsmeta.h"

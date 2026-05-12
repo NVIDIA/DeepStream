@@ -1,0 +1,138 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+################################################################################
+
+deepstream:
+  nodes:
+  - type: nvinfer
+    # name of the primary inference must be 'pgie' for test app to route streams here
+    name: pgie
+    properties:
+      config-file-path: "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.yml"
+      model-engine-file: "/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx_b16_gpu0_fp16.engine"
+      unique-id: 1
+      # be sure to rename model-engine-file whenever batch-size is changed
+      batch-size: 16
+  - type: nvinfer
+    name: vehicle_type_classifier
+    properties:
+      config-file-path: "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehicletypes.yml"
+      model-engine-file: "/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleTypes/resnet18_vehicletypenet_pruned.onnx_b40_gpu0_fp16.engine"
+      unique-id: 4
+      # be sure to rename model-engine-file whenever batch-size is changed
+      batch-size: 40
+  - type: nvinfer
+    name: vehicle_make_classifier
+    properties:
+      config-file-path: "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehiclemake.yml"
+      model-engine-file: "/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/resnet18_vehiclemakenet_pruned.onnx_b40_gpu0_fp16.engine"
+      unique-id: 6
+      # be sure to rename model-engine-file whenever batch-size is changed
+      batch-size: 40
+  - type: nvtracker
+    name: tracker
+    properties:
+      ll-config-file: "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml"
+      ll-lib-file: "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so"
+  # be sure to set enable to true msgconv and msgbroker to connect to a cloud server
+  # end user can use this enable key to enable/disable an element within the pipeline
+  # if enable key is not used for an element, it is assumed to be enabled by default
+  # to disable an element just use enable: false
+  - type: nvmsgconv
+    name: msgconv
+    enable: false
+    properties:
+      config: "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+  - type: nvmsgbroker
+    name: msgbroker
+    enable: false
+    properties:
+      config: "/opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt"
+      proto-lib: "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"
+      conn-str: "localhost;9092"
+      topic: "test5app"
+      sync: false
+      async: false
+  - type: nvmultistreamtiler
+    name: tiler
+    properties:
+      width: 1280
+      height: 720
+  - type: nvdsosd
+    name: osd
+  - type: nvvideoconvert
+    name: converter
+  - type: tee
+    name: tee
+  - type: queue
+    name: queue_tracker
+  - type: queue
+    name: queue_vehicle_type_classifier
+  - type: queue
+    name: queue_vehicle_make_classifier
+  - type: queue
+    name: queue_tee
+  - type: queue
+    name: queue_tiler
+  - type: queue
+    name: queue_msgconv
+  - type: queue
+    name: queue_converter
+  - type: queue
+    name: queue_osd
+  - type: queue
+    name: queue_sink
+  - type: queue
+    name: queue_msgbroker
+  - type: nv3dsink
+    name: sink
+    properties:
+      async: false
+      sync: false
+  - type: measure_latency_probe.measure_latency_probe
+    name: latency_probe
+  - type: kitti_dump_probe.kitti_dump_probe
+    name: kitti_dump
+  - type: sample_video_probe.sample_video_probe
+    name: osd_counter
+    properties:
+      font-size: 15
+  edges:
+    pgie: [queue_tracker, osd_counter]
+    queue_tracker: tracker
+    tracker: queue_vehicle_type_classifier
+    queue_vehicle_type_classifier: vehicle_type_classifier
+    vehicle_type_classifier: queue_vehicle_make_classifier
+    queue_vehicle_make_classifier: vehicle_make_classifier
+    vehicle_make_classifier: queue_tee
+    queue_tee: tee
+    tee: [queue_tiler, queue_msgconv]
+    queue_tiler: [tiler, latency_probe, kitti_dump]
+    tiler: queue_converter
+    queue_converter: converter
+    converter: queue_osd
+    queue_osd: osd
+    osd: queue_sink
+    queue_sink: sink
+    queue_msgconv: msgconv
+    msgconv: queue_msgbroker
+    queue_msgbroker: msgbroker

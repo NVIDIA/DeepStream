@@ -1,0 +1,91 @@
+################################################################################
+# Copyright (c) 2022-2026, NVIDIA CORPORATION.  All rights reserved.
+#
+# NVIDIA Corporation and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA Corporation is strictly prohibited.
+#
+################################################################################
+
+Refer to the DeepStream SDK documentation for a description of the "nvdspostprocess"
+plugin. The plugin performs parsing of detection/classification model.
+The nvinfer is required to generate tensor meta (output-tensor-meta=1)
+and parsing of network has to be disabled in nvinfer plugin (network-type=100).
+Please refer configs present in the folder for nvinfer and corresponding yml files
+for nvdspostprocess plugin. In case if one wants to use nvinferserver user can
+modify nvinferserver config as output_control { output_tensor_meta : true } and
+infer_config { postprocess { other {} } } for attaching output tensor meta and
+and bypassing postprocessing in nvinferserver. Please refer DeepStream Key Features
+Section of nvdspostprocess plugin for parsing of different models output and
+nvinferserver
+
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+- CUDA Runtime 11.0+
+- yaml-cpp
+
+Install gstreamer developement packages using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libyaml-cpp-dev
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+Run make and sudo make install
+
+NOTE:
+1. To compile the sources, run make with "sudo" or root permission.
+--------------------------------------------------------------------------------
+How to test :
+
+Single Stream and Rendering, set appropriate CUDA_VER, 13.0 for Jetson, 13.1 for dGPU and SBSA
+   $ export CUDA_VER=13.1
+   $ make
+   $ sudo -E make install
+   $ cd postprocesslib_impl
+   $ make
+   $ cd -
+Tests for cascaded detector/classifier models
+On dGPU
+   $ gst-launch-1.0 uridecodebin \
+     uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 \
+    ! m.sink_0 nvstreammux name=m width=1920 height=1080 batch-size=2   ! \
+     nvinfer config-file-path=config_infer_primary_post_process.txt  \
+    ! nvdspostprocess \
+    postprocesslib-config-file=config_detector.yml \
+    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+    ! queue ! nvinfer \
+    config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
+    ! nvdspostprocess \
+    postprocesslib-config-file= config_classifier_vehicle_make.yml \
+    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+    config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
+    ! nvdspostprocess  postprocesslib-config-file= \
+    config_classifier_vehicle_type.yml  postprocesslib-name= \
+    ./postprocesslib_impl/libpostprocess_impl.so    ! queue ! nvmultistreamtiler !  nvvideoconvert \
+    gpu-id=0 ! nvdsosd ! nveglglessink sync=1 -v  uridecodebin \
+    uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1
+
+On Jetson
+   $ gst-launch-1.0 uridecodebin \
+     uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 \
+    ! m.sink_0 nvstreammux name=m width=1920 height=1080 batch-size=2   ! \
+    nvinfer config-file-path=config_infer_primary_post_process.txt  \
+    ! nvdspostprocess \
+    postprocesslib-config-file=config_detector.yml \
+    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+    ! queue ! nvinfer \
+    config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
+    ! nvdspostprocess \
+    postprocesslib-config-file=config_classifier_vehicle_make.yml \
+    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+    config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
+    ! nvdspostprocess  postprocesslib-config-file= \
+    config_classifier_vehicle_type.yml  postprocesslib-name= \
+    ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvmultistreamtiler !  nvvideoconvert \
+    gpu-id=0 ! nvdsosd ! nv3dsink sync=1 -v  uridecodebin \
+    uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1

@@ -1,0 +1,48 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2018-2019 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[sensor0]
+enable=1
+type=Camera
+id=CAMERA_ID
+location=45.293701447;-75.8303914499;48.1557479338
+description="Entrance of Garage Right Lane"
+coordinate=5.2;10.1;11.2
+
+[place0]
+enable=1
+id=1
+type=garage
+name=XYZ
+location=30.32;-40.55;100.0
+coordinate=1.0;2.0;3.0
+place-sub-field1=walsh
+place-sub-field2=lane1
+place-sub-field3=P2
+
+[place1]
+enable=1
+id=1
+type=garage
+name=XYZ
+location=28.47;47.46;1.53
+coordinate=1.0;2.0;3.0
+place-sub-field1="C-76-2"
+place-sub-field2="LEV/EV/CP/ADA"
+place-sub-field3=P2
+
+[analytics0]
+enable=1
+id=XYZ
+description="Vehicle Detection and License Plate Recognition"
+source=OpenALR
+version=1.0

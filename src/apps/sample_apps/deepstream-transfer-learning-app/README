@@ -1,0 +1,175 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                    deepstream-transfer-learning-app
+                                 README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the deepstream_sdk_release_package/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+Additionally you must have the following development packages installed
+
+    GStreamer-1.0
+    GStreamer-1.0 Base Plugins
+    GStreamer-1.0 gstrtspserver
+    X11 client-side library
+    Glib json library - json-glib-1.0
+
+To install these packages, execute the following command:
+$ sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev libjson-glib-dev
+
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+The purpose of this application is to save images and their metadata for
+detections that fall under a certain confidence range.
+The saved images can be used to re-train a neural network.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make && sudo make install (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+$ cd apps/sample_apps/deepstream-transfer-learning-app/configs
+$ mkdir output
+$ deepstream-transfer-learning-app -c ds_transfer_learning_app_example.txt
+
+When performing the inference with nvinferserver, comment the plugin-type & infer config path
+& uncomment the nvinferserver plugin-type & config path in ds_transfer_learning_app_example.txt
+plugin-type=0
+config-file=config_infer_primary_ds_transfer_learning.txt
+
+#plugin-type=1
+#config-file=config_inferserver_primary_ds_transfer_learning.txt
+
+Note: Ensure the output directory has write permissions
+
+===============================================================================
+5. Configuration file:
+===============================================================================
+
+5.1) Example configuration file
+
+enable=1
+output-folder-path=./output
+save-img-cropped-obj=0
+save-img-full-frame=1
+frame-to-skip-rules-path=capture_time_rules.csv
+second-to-skip-interval=600
+min-confidence=0.9
+max-confidence=1.0
+min-box-width=5
+min-box-height=5
+
+5.2) Configuration description
+
+Several options exist in order to perform that in the config file.
+
+- enable: <boolean> set it to true to enable the metadata saving process.
+    (values given can be 1 (true) or 0 (false))
+    Default: 1 (true)
+
+- output-folder-path: <string> set the path where images and metadata should be saved.
+    Please note that 3 folders will be created into this path: `images`,
+    `images_cropped` and `labels`. Also a files named
+    'metadata.{json,csv}' will be produced. This folder path *must* exist.
+    Default: NULL
+
+- frame-to-skip-rules-path: <string> path to a csv file where rules about metadata saves
+    are stored.
+    The first line is ignored. From the second line, each line is a time rule and should
+    respect following pattern:
+    <a_hour>:<a_minute>,<b_hour>:<b_minute>,<c_hour>:<c_minute>:<c_second>
+    With:
+        - a: begin time (timestamp)
+        - b: end time (timestamp)
+        - c: duration interval (duration)
+    With:
+        -  0 <= hour < 24
+        -  0 <= minute < 60
+        -  0 <= second < 60
+
+    Time must be written in 24 hours format. The time will be considered as
+    overlapping on the next day is <a> (begin time) is after <b> (end time).
+    i.e.: <a> == 23:30 and <b> == 0:30
+
+    Each rule is checked from top to bottom. As soon as one of the rule is valid, its
+    related duration interval is used from <a> to <b>.
+    If no rules can apply for the current time, the default duration interval
+    (second-to-skip-interval) is used. These rules are defined for a 24 hours
+    timespan. If this app is run for several days, the rules will be applied for each
+    day.
+
+    So after each metadata save, from <a> to <b>, for a duration <c>,
+    metadata saving is disabled.
+    i.e.
+    rules:
+    9:00,13:00,0:12:00
+    11:00,14:00,2:00:00
+
+    With current time == 9:45 :
+        An interval of 12 minutes will be waited between 2 metadata saves.
+    With current time == 11:01 :
+        An interval of 12 minutes will be waited between 2 metadata saves.
+    With current time == 13:01 :
+        An interval of 2 hours will be waited between 2 metadata saves.
+
+    Default: NULL
+
+- second-to-skip-interval: <positive integer> number of seconds to skip before 2 saves
+    of metadata for each source.
+    Default: 600
+
+- save-img-cropped-obj: <boolean> set it to true to enable the cropped image
+    saving process. (values given can be 1 (true) or 0 (false))
+    Default: 0 (false)
+
+- save-img-full-frame: <boolean> set it to true to enable the full image
+    saving process. (values given can be 1 (true) or 0 (false))
+    Default: 1 (true)
+
+- min-confidence: <float> Minimum confidence (non-inclusive) for an object to have in order to
+    be saved (metadata and image).
+    Default: 0.0
+
+- max-confidence: <float> Maximum confidence (non-inclusive) for an object to have in order to
+    be saved (metadata and image).
+    Default: 1.0
+
+- min-box-width: <positive integer> Minimum width (inclusive) for an object to have in order to
+    be saved (metadata and image).
+    Default: 1
+
+- min-box-height: <positive integer> Minimum height (inclusive) for an object to have in order to
+    be saved (metadata and image).
+    Default: 1
+

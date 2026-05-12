@@ -1,0 +1,6 @@
+begin_time_hour_minute,end_time_hour_minute,time_to_skip_hour_minute_second
+0:40,3:10,0:10:0
+6:00,12:40,0:0:40
+13:00,14:00,0:20:00
+16:00,20:00,0:30:30
+22:30,0:30,0:7:25

@@ -1,0 +1,92 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package dsmeta;
+
+message nvdsbasemeta
+{
+    uint32 meta_type = 1;
+}
+
+message nvdsbatchmeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 max_frames_in_batch = 2;
+    uint32 num_frames_in_batch = 3;
+    repeated nvdsaudioframemeta audio_frame_meta_list = 4;
+    repeated nvdsusermeta batch_user_meta_list = 5;
+    repeated int64 misc_batch_info = 6;
+    repeated int64 reserve = 7;
+}
+
+message nvdsaudioframemeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 pad_index = 2;
+    uint32 batch_id = 3;
+    int32 frame_num = 4;
+    uint64 buf_pts = 5;
+    uint64 ntp_timestamp = 6;
+    uint32 source_id = 7;
+    int32 num_samples_per_frame = 8;
+    uint32 sample_rate = 9;
+    uint32 num_channels = 10;
+    uint32 nvbufaudioformat = 11;
+    uint32 nvbufaudiolayout = 12;
+    bool binferdone = 13;
+    int32 class_id = 14;
+    float confidence = 15;
+    string class_label = 16;
+    repeated nvdsclassifiermeta classifier_meta_list = 17;
+    repeated nvdsusermeta frame_user_meta_list = 18;
+    repeated int64 misc_frame_info = 19;
+    repeated int64 reserve = 20;
+}
+
+message nvdslabelinfo
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 num_classes = 2;
+    string result_label = 3;
+    string presult_label = 4;
+    uint32 result_class_id = 5;
+    int32 label_id = 6;
+    float result_prob = 7;
+}
+
+message nvdsclassifiermeta
+{
+    nvdsbasemeta base_meta = 1;
+    uint32 num_labels = 2;
+    int32 unique_component_id = 3;
+    repeated nvdslabelinfo label_info_list = 4;
+    string classifier_type = 5;
+}
+
+message nvdsusermeta
+{
+    nvdsbasemeta base_meta = 1;
+    string user_meta_data = 2;
+}

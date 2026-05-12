@@ -1,0 +1,32 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+---
+source:
+  camera:
+    device_serial_number: 0815-0000
+    pfs_path: basler_cam_emulation_0815-0000.pfs
+    width: 870
+    height: 1200
+  framerate: 30/1
+
+video_template:
+  customlib_name: /opt/nvidia/deepstream/deepstream/lib/libnvds_vpicanmatch.so
+  customlib_props: config-file:config_video_template_can_match.yaml
+
+sink:
+  egl_display: true
+  sync: false
+
+debug:
+  print_result: true

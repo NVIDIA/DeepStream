@@ -1,0 +1,30 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2018-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# --------------------------------------------------
+# OTA Model Config section
+# --------------------------------------------------
+# Refer to section 7 in the README for more details.
+#
+
+#
+# Below is the Primary GIE configuration section taken from DS config file
+#
+[primary-gie]
+enable=1
+# Provide the model-engine-file and labelfile-path of newly built model
+# One of the use-case is that newly built model will have better accuracy compared to previous model
+# Testing :- Here we are using the same model which we lauched during the deepstream-test5-app for
+# demonstrating model-update OTA functionlity
+model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx_b4_gpu0_fp16.engine
+labelfile-path=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt
+config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
