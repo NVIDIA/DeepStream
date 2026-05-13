@@ -1,0 +1,235 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# decode and mux to batch
+---
+name: video_source
+type: ds3d::gstparsebin
+link_to: videobridge_2d_to_3d
+config_body:
+  parse_bin: >-
+    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/0/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvv4l2decoder ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_0
+    nvstreammux name=m width=1920 height=1080 batch-size=1 ! nvdspreprocess config-file=v2xfusion/config/config_preprocess.txt
+
+# bridge (2d->3d)
+---
+name: videobridge_2d_to_3d
+type: ds3d::databridge
+link_to: multisensor_mixer_lidar_and_image.sink_0
+in_caps: video/x-raw(memory:NVMM)
+out_caps: ds3d/datamap
+#with_queue: src
+custom_lib_path: libnvds_3d_video_databridge.so
+custom_create_function: createVideoBridge2d3d
+config_body:
+  surface_to_image: True
+  # wrap nvbufsurface into color frame of ds3d::Frame2DGuard
+  output_image_key: DS3D::ColorFrame
+  output_image_preproess_key: DS3D::VideoPreprocessTensor
+
+# lidar source
+---
+name: lidarsource
+type: ds3d::dataloader
+link_to: lidarpreprocess
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+config_body:
+  source_id: 0
+  #path of the frames, data file needs to be placed in order in this path
+  data_config_file: v2xfusion/config/lidar_data_list0.yaml
+  points_num: 70000 #points num
+  fixed_points_num: False
+  lidar_datatype: FP32 #FP32 FP16 INT8 INT32, only support FP32 this version
+  mem_type: gpu #cpu gpu, only support cpu this version
+  mem_pool_size: 16
+  gpu_id: 0
+  element_size: 4
+  element_stride: 4
+  output_datamap_key: DS3D::LidarXYZI_0
+  file_loop: False # False: read data normally True: read data circularly
+
+# lidar preprocess
+---
+name: lidarpreprocess
+type: ds3d::datafilter
+link_to: multisensor_mixer_lidar_and_image.sink_1
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_lidar_preprocess_datafilter.so
+custom_create_function: createLidarPreprocessFilter
+config_body:
+  mem_pool_size: 4
+  filter_input_datamap_key: DS3D::LidarXYZI_0
+  #datatype: FP32, FP16, INT8, INT32, INT16, UINT8, UINT16, UINT32, FP64, INT64, UINT64, BYTES, BOOL
+  model_inputs:
+    - name: feats
+      datatype: FP16
+      shape: [4, 8000, 10, 9]
+    - name: coords
+      datatype: INT32
+      shape: [4, 8000, 4]
+    - name: N
+      datatype: INT32
+      shape: [4, 1]
+  gpu_id: 0
+  #input tensor memory type after preprocess: GpuCuda, CpuCuda
+  input_tensor_mem_type: GpuCuda
+  lidar_data_from: [DS3D::LidarXYZI_0]
+  output_features_tensor_key: DS3D::LidarFeatureTensor
+  output_coords_tensor_key: DS3D::LidarCoordTensor
+  output_num_tensor_key: DS3D::LidarPointNumTensor
+
+# mixer
+---
+name: multisensor_mixer_lidar_and_image
+type: ds3d::datamixer
+link_to: lidar_alignment_filter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+#with_queue: src
+custom_lib_path: libnvds_3d_multisensor_mixer.so
+custom_create_function: createMultiSensorMixer
+config_body:
+  #timeout in milliseconds;
+  timeout: 50
+  #force_sync == true will force mixer to wait for buffers from ALL inputs
+  force_sync: true
+
+# alignment (lidar->image calibration)
+---
+name: lidar_alignment_filter
+type: ds3d::datafilter
+link_to: v2xfusion_inference
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_alignment_datafilter.so
+custom_create_function: createLidarAlignmentFilter
+config_body:
+  cam_width: 1920
+  cam_height: 1080
+  row_major: True
+  disable_lidar_data_align: True
+  filter_input_datamap_key: DS3D::LidarXYZI_0
+  output_cam_intrinsic_param_keys: [DS3D::Cam0_IntrinsicParm]
+  output_cam_intrinsic_mat_keys: [DS3D::Cam0_IntrinsicMatrix]
+  output_lidar_to_cam_extrinsic_mat_keys: [DS3D::LidarToCam0_ExtrinsicMatrix]
+  cam_intrinsic: [
+    [2175.554,    0.000, 969.823, 0.000,
+        0.000, 2320.126, 572.754, 0.000,
+        0.000,    0.000,   1.000, 0.000]]
+  lidar_to_cam_extrisic: [
+    [-0.002, -1.001, -0.000, -3.616,
+     -0.219, -0.001, -0.806,  5.457,
+      0.976, -0.007, -0.183,  1.201]]
+  cam_input_keys: [DS3D::ColorFrame+0]
+  max_points: 70000
+  mem_pool_size: 32
+  align_to_intrinsic: false
+  lidar_element_size: 4
+
+#inference
+---
+name: v2xfusion_inference
+type: ds3d::datafilter
+link_to: ds3d_v2xfusion_msg_broker
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+config_body:
+  in_streams: [lidar]
+  mem_pool_size: 20
+  #datatype: FP32, FP16, INT8, INT32, INT16, UINT8, UINT16, UINT32, FP64, INT64, UINT64, BYTES, BOOL
+  model_inputs:
+    - name: images
+      datatype: FP16
+      shape: [4, 3, 864, 1536]
+    - name: feats
+      datatype: FP16
+      shape: [4, 8000, 10, 9]
+    - name: coords
+      datatype: INT32
+      shape: [4, 8000, 4]
+    - name: N
+      datatype: INT32
+      shape: [4, 1]
+    - name: intervals
+      datatype: INT32
+      shape: [4, 10499, 3]
+    - name: geometry
+      datatype: INT32
+      shape: [4, 1086935]
+    - name: num_intervals
+      datatype: INT32
+      shape: [4, 1]
+  gpu_id: 0
+  #input tensor memory type after preprocess: GpuCuda, CpuCuda
+  input_tensor_mem_type: GpuCuda
+  custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_3d_v2x_infer_custom_preprocess.so
+  custom_preprocess_func_name: CreateInferServerCustomPreprocess
+  preprocess:
+    intervalsFrom: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/example-data/intervals.tensor
+    geometrysFrom: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/example-data/geometrys.tensor
+    imagesFrom: DS3D::VideoPreprocessTensor+0
+    featsFrom: DS3D::LidarFeatureTensor+1
+    coordsFrom: DS3D::LidarCoordTensor+1
+    NFrom: DS3D::LidarPointNumTensor+1
+  postprocess:
+    score_threshold: 0.5
+    batchSize: 1
+  labels:
+    - car:
+        color: [255, 158, 0]
+    - truck:
+        color: [255, 99, 71]
+    - construction_vehicle:
+        color: [233, 150, 70]
+    - bus:
+        color: [255, 69, 0]
+    - trailer:
+        color: [255, 140, 0]
+    - barrier:
+        color: [112, 128, 144]
+    - motorcycle:
+        color: [255, 61, 99]
+    - bicycle:
+        color: [220, 20, 60]
+    - pedestrian:
+        color: [0, 0, 230]
+    - traffic_cone:
+        color: [47, 79, 79]
+  config_file: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/config/triton_mode_CAPI.txt
+  # filter_input_datamap_key: DS3D::LidarAlignedXYZIKey
+
+---
+name: ds3d_v2xfusion_msg_broker
+type: ds3d::gstparsebin
+config_body:
+  # payload-type: 1 minimum. 2 with lidar proto buf(CPU)
+  # start server: $ docker run -p 9092:9092 apache/kafka:3.7.0
+  # create topic: $ bin/kafka-topics.sh --create --topic quick-test --bootstrap-server localhost:9092
+  # consumer: $ bin/kafka-console-consumer.sh --topic quick-test --from-beginning --bootstrap-server localhost:9092
+  parse_bin: queue ! nvmsgconv config=v2xfusion/config/msgconv_config_v2xfusion.yml payload-type=1 msg2p-newapi=true ! queue ! nvmsgbroker proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so conn-str=localhost;9092;quick-test topic=quick-test new-api=true sync=false async=true
+
+# for debug
+---
+  name: debugdump
+  type: ds3d::userapp
+  eos_auto_stop: True
+  enable_debug: False
+  probe_buffer: True
+  batch_size: 1
+  enable_fps: False
+  enable_latency_measurement: False

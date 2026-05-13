@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+# NVIDIA DeepStream Analytics Library (nvds_analytics)
+
+## Purpose
+The nvds_analytics library implements core computer vision analytics functions for NVIDIA DeepStream applications. It provides real-time video analytics capabilities including spatial analysis, object behavior analytics, and event detection for intelligent video analytics pipelines.
+
+## Core Features
+
+### 1. Region of Interest (ROI) Filtering
+- **Polygon-based ROI Detection**: Define arbitrary polygonal regions for object filtering
+- **Inverse ROI Support**: Detect objects outside specified regions
+- **Class-specific Filtering**: Apply ROI filtering to specific object classes
+- **Multi-ROI Support**: Handle multiple regions simultaneously
+- **Coordinate Scaling**: Automatic coordinate transformation for different resolutions
+
+### 2. Line Crossing Detection
+- **Directional Line Crossing**: Detect objects crossing predefined lines with direction awareness
+- **Multiple Detection Modes**:
+  - **Strict Mode**: High precision with stricter thresholds (6000px displacement, 0.8 direction similarity)
+  - **Balanced Mode**: Standard detection parameters (3000px displacement, 0.5 direction similarity) 
+  - **Loose Mode**: More sensitive detection (1000px displacement, 0.1 direction similarity)
+- **Extended vs. Segment-based**: Choose between infinite line or line segment intersection
+- **Direction Enforcement**: Configurable positive/negative crossing directions
+- **Per-object Tracking**: Prevents duplicate counting for same object
+
+### 3. Overcrowding Detection
+- **Real-time Crowd Counting**: Monitor object density in defined areas
+- **Configurable Thresholds**: Set custom crowd size limits per region
+- **Class-specific Counting**: Count specific object types (people, vehicles, etc.)
+- **Temporal Filtering**: Smooth count variations over time
+
+### 4. Object Direction Analysis
+- **8-Direction Detection**: Comprehensive directional movement analysis
+- **Motion Filtering**: Distinguish between moving and stationary objects
+- **Displacement Thresholds**: Configurable minimum movement requirements
+- **Statistical Analysis**: Uses standard deviation to detect stopped objects
+
+
+## Technical Architecture
+
+### Object Information Management
+Each tracked object maintains:
+```cpp
+- Position history (X, Y coordinates)
+- Dimension history (Width, Height)
+- Statistical measures (mean, standard deviation)
+- Temporal data (first seen, last seen, frame count)
+- Status flags (ROI presence, line crossing events)
+```
+
+### Configuration Parameters
+- **Frame History Size**: Number of frames to maintain in circular buffer (default: 8)
+- **Timeout Period**: Object expiration time in milliseconds (default: 4000ms)
+- **Smoothing Window**: Temporal filtering window for count smoothing
+- **Resolution Scaling**: Automatic coordinate transformation support
+
+### Analytics Pipeline
+1. **Object Input Processing**: Receive object metadata from upstream elements
+2. **Coordinate Transformation**: Scale coordinates to match configuration
+3. **History Management**: Update circular buffers and statistical measures
+4. **Spatial Analysis**: Perform ROI, line crossing, and overcrowding detection
+5. **Temporal Filtering**: Apply smoothing algorithms for stable results
+6. **Event Generation**: Output analytics events and status updates
+
+## Build Instructions
+
+### Prerequisites
+- NVIDIA DeepStream SDK
+- GCC compiler with C++11 support
+
+### Compilation
+# Compile the library
+$ sudo make
+
+# Install system-wide
+$ sudo make install
+
+**Note**: Root permissions required for compilation and installation.
+
+## Integration with DeepStream
+
+This library is designed to be used by the `nvdsanalytics` GStreamer plugin in DeepStream pipelines. It provides the core analytics engine while the plugin handles:
+- GStreamer integration
+- Configuration file parsing  
+- Metadata attachment
+- Pipeline management 

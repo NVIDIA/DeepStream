@@ -1,0 +1,107 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# realsense data loader settings
+---
+name: realsense_dataloader
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_dataloader_realsense.so
+custom_create_function: createRealsenseDataloader
+config_body:
+  streams: [color, depth] # load color and depth only
+  aligned_image_to_depth: False # default False
+
+# read depth/color from file source
+# ---
+# name: depthfilesource
+# type: ds3d::dataloader
+# out_caps: ds3d/datamap, framerate=30/1
+# custom_lib_path: libnvds_3d_depth_datasource.so
+# custom_create_function: createDepthColorLoader
+# config_body:
+#   depth_source: depth_uint16_848x480.bin
+#   color_source: color_rgba_1920x1080.bin
+#   depth_scale: 0.0010 # to meters
+#   depth_datatype: uint16
+#   depth_size: [848, 480]
+#   color: rgba
+#   color_size: [1920, 1080]
+#   depth_intrinsic:
+#     width: 848
+#     height: 480
+#     centerX: 424.06073
+#     centerY: 237.75032
+#     fx: 422.513062
+#     fy: 422.513062
+#   color_intrinsic:
+#     width: 1920
+#     height: 1080
+#     centerX: 964.288086
+#     centerY: 533.287354
+#     fx: 1358.21423
+#     fy: 1358.2533
+#   depth_to_color_extrinsic:
+#     rotation: [1, -0.0068, 0.0010, 0.0068, 1, 0, -0.0010, 0, 1]
+#     translation: [0.01481, -0.0001, 0.0002]
+
+# point2cloud data filter settings
+# convert depth and color into point-xyz data and pointUVcoordinates
+---
+name: point2cloud_datafilter
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_depth2point_datafilter.so
+custom_create_function: createDepth2PointFilter
+config_body:
+  in_streams: [color, depth]
+  max_points: 407040 # 848*480
+  mem_pool_size: 8
+
+# point cloud with color image data render settings
+---
+name: point-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createPointCloudDataRender
+gst_properties:
+  sync: False
+  async: False
+  drop: False
+config_body:
+  title: ds3d-point-cloud-test
+  streams: [points]
+  width: 1280
+  height: 720
+  block: True
+  #view_position: [1, 0.1, 0] # view position in xyz coordinates
+  #view_position: [-1.0, 0, 0] # view position in xyz coordinates
+  view_position: [0, 0, -1] # view position in xyz coordinates
+  view_target: [0, 0, 1] # view target which is the direction pointing to
+  view_up: [0, -1.0, 0] # view up direction
+  near: 0.01 # nearest points of perspective
+  far: 10.0 # farmost points of perspective
+  fov: 40.0 # FOV of perspective
+  coord_y_opposite: False #UV(xy) coordination position of texture, realsense use same uv as gl texture
+  positive_z_only: False
+
+# for debug
+---
+  name: debugdump
+  type: ds3d::userapp
+  enable_debug: False
+  #dump_depth: depth_uint16_848x480.bin
+  #dump_color: color_rgba_1920x1080.bin
+  #dump_points: pointxyz.bin

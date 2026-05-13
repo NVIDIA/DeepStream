@@ -1,0 +1,103 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-test4-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the apps.
+
+Install cmake: https://cmake.org/download/
+
+#Deepstream msgbroker supports sending messages to Azure(mqtt) IOThub, kafka, AMQP broker(rabbitmq) and Redis
+
+Dependencies
+------------
+
+ Azure Iot:
+ ----------
+    Refer to the README files available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    for detailed documentation on prerequisites and usages of Azure protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ Kafka:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    for detailed documentation on prerequisites and usages of kafka protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ AMQP (rabbitmq):
+ ----------------
+    Install rabbitmq-c library
+    --------------------------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    for detailed documentation on prerequisites and usages of rabbitmq based
+    amqp protocol adaptor with the message broker plugin for sending messages to cloud.
+
+ Redis:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    for detailed documentation on prerequisites and usages of redis protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample builds on top of the service-maker deepstream-test1 sample to demonstrate to use
+"nvmsgconv" and "nvmsgbroker" plugins in the pipeline. Create EventMessageUserMetadata
+type of meta and attach to buffer. EventMessageUserMetadata is used for different types
+ of objects e.g. vehicle, person etc.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ mkdir build && cd build && cmake .. && make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream. In this method, user needs to modify the source
+    code of deepstream-test4-app to configure pipeline properties.
+
+    $ ./deepstream-test4-app <h264_elementary_stream>
+
+    OR
+
+    $ ./deepstream-test4-app <YAML pipeline config file>
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+This sample creates instance of "nvinfer" element
+for inference. The "nvinfer" element uses TensorRT API to infer
+on frames/objects. "nvinfer" element is configured through its
+config file. Using a correct configuration for a inference element
+instance is therefore very important as considerable behaviors of the instance
+are parameterized through these configs.
+
+For reference, here is the config file used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    dstest4_pgie_config.yml
+
+

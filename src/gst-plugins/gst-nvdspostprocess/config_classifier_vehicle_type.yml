@@ -1,0 +1,58 @@
+%YAML:1.0
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+################################################################################
+# Following properties are mandatory:
+#   output-blob-names,  gpu-id,
+#   network-type (0-detector, 1-classifier, 2-segmentation)
+#
+# Mandatory properties for detectors:
+#   num-detected-classes
+#
+# Optional properties for detectors:
+#   cluster-mode
+#
+# Mandatory properties for classifiers:
+#   classifier-threshold, is-classifier, classifier-type
+#   labelfile-path
+#
+#  Properties in secondary mode:
+#   operate-on-class-ids,
+#
+# Other optional properties:
+#   gie-unique-id(Default=0), process-mode,
+#   custom-lib-path, network-mode(Default=0 i.e FP32)
+#
+# The values in the config file are overridden by values set through GObject
+# properties.
+
+property:
+  gpu-id: 0
+  is-classifier: 1
+  network-type: 1
+  process-mode: 2
+  output-blob-names: predictions/Softmax
+  classifier-threshold: 0.51
+  gie-unique-id: 4
+  operate-on-class-ids: 0
+  classifier-type: vehicletype
+  labelfile-path: /opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleTypes/labels.txt

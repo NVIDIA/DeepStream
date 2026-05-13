@@ -1,0 +1,66 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+---
+name: realsense_dataloader
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_dataloader_realsense.so
+custom_create_function: createRealsenseDataloader
+config_body:
+  streams: [color, depth]
+  framerate: 0
+
+# ---
+# name: depthsource
+# type: ds3d::dataloader
+# out_caps: ds3d/datamap, framerate=30/1
+# custom_lib_path: libnvds_3d_depth_datasource.so
+# custom_create_function: createDepthColorLoader
+# config_body:
+#   depth_source: depth_uint16_848x480.bin
+#   color_source: color_rgba_1920x1080.bin
+#   depth_scale: 0.0010 # to meters
+#   depth_datatype: uint16
+#   depth_size: [848, 480]
+#   color: rgba
+#   color_size: [1920, 1080]
+
+---
+name: depth-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createDepthStreamDataRender
+gst_properties:
+  sync: False
+  async: False
+  drop: False
+config_body:
+  streams: [depth, color]
+  width: 1920
+  height: 544
+  title: ds3d-camera-app
+  block: True
+  # depth value out of [min_depth, max_depth] would be clamped.
+  min_depth: 0.3 # in meters
+  max_depth: 2.0 # in meters
+  min_depth_color: [255, 128, 0] # RGB color value for mininum depth
+  max_depth_color: [0, 128, 255] # RGB color value for maximum depth
+
+---
+  name: debugdump
+  type: ds3d::userapp
+  enable_debug: False
+  #dump_depth: depth_uint16_848x480.bin
+  #dump_color: color_rgba_1920x1080.bin

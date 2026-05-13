@@ -1,0 +1,105 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-test5-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the deepstream_sdk_release_package/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+Install cmake: https://cmake.org/download/
+
+Also refer ../deepstream-test4/README for detailed Dependencies for the various
+supported IoT protocols
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample builds with Deepstream Service Maker demonstrates how to:
+
+* Use "nvmsgconv" and "nvmsgbroker" plugins in the pipeline.
+* Create EventMessageMetadata for different types of objects e.g. vehicle, person etc.
+* Work with a remote Kafaka server as producer and consumer
+* Leveraging nvmultiurisrcbin for dynamic source management
+
+"nvmsgconv" plugin generates the "DeepStream Schema" payload in Json format using
+1) NVDS_EVENT_MSG_META type of metadata from the buffer
+   OR
+2) NvDsFrameMeta and NvDsObjectMeta structures from NvDs metadata
+
+Static properties of schema are read from configuration file in the form of key-value pair.
+Check dstest5_msgconv_sample_config.txt for reference. Generated payload is attached
+as NVDS_META_PAYLOAD type metadata to the buffer.
+
+"nvmsgbroker" plugin extracts NVDS_META_PAYLOAD type of metadata from the buffer
+and sends that payload to the server using protocol adaptor APIs.
+
+PAYLOAD_DEEPSTREAM - Full message schema with separate payload per object (Default)
+PAYLOAD_DEEPSTREAM_MINIMAL - Minimal message with multiple objects in single payload.
+PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in single payload.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ mkdir build && cd build && cmake .. && make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+$ ./deepstream-test5-app -s source-lists -c config-files [-l label-file] [--perf-measurement-interval-sec] [--hide-stream-name]
+
+Use nvurisrcbin for static input:
+
+$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_static.yaml
+
+Use nvmultiurisrcbin for dynamic input:
+
+$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_dynamic.yaml
+
+Use camerabin for V4L2/CSI camera source
+$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/camera_list.yaml
+
+Multiple pipelines are supported with multiple pipeline config files and source lists separated by ','
+
+$ ./deepstream-test5-app -s ../source_list_dynamic.yaml,../source_list_static.yaml -c ../test5_b16_dynamic_source.yaml,../test5_b2.yaml
+
+Enable/Disable the element within the pipeline
+
+$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source_with_enable_property.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_dynamic.yaml
+
+===============================================================================
+5. Option [-l] 
+===============================================================================
+  5.1 This is an optional argument used to set label file for primary inference engine.
+  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml -l labels.txt
+
+===============================================================================
+6. Option [--perf-measurement-interval-sec][Default: 1]
+===============================================================================
+  6.1 This is an optional argument used to set the interval between perf logs.
+  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml --perf-measurement-interval-sec 5
+
+===============================================================================
+7. Option [--hide-stream-name][Default: false]
+===============================================================================
+  7.1 This argument is used to hide stream name in the perf logs
+  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml --hide-stream-name

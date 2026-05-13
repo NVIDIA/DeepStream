@@ -26,3 +26,11 @@ src/service-maker/sources/**/build/
 
 # Proprietary prebuilt libs (not migrated to NVIDIA/DeepStream)
 artifacts/
+
+# Versioned shared libraries (build/ship artifacts; the *.so rule in src/.gitignore misses these)
+*.so.*
+
+# Tarballs and zip archives (large datasets / proprietary blobs — distribute separately)
+*.tar.gz
+*.tgz
+*.zip

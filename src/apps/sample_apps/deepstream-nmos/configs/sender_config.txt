@@ -1,0 +1,34 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[application]
+seed=DS-NMOS
+host-name=dsnode-2.local
+http-port=8080
+
+[sender0]
+enable=1
+#Type - 1=OSS UDPsink 2=Nvidia UDPsink
+type=1
+sdp-file=sender_sdp_video.txt
+# Additional parameters for video with Nvidia UDPsink
+# Refer README to calculate these values.
+# size of RTP packet (including RTP header)
+#payload-size=1220
+# Number of RTP packets per line
+#packets-per-line=4
+
+[sender1]
+enable=1
+#Type - 1=OSS UDPsink 2=Nvidia UDPsink
+type=1
+sdp-file=sender_sdp_audio.txt

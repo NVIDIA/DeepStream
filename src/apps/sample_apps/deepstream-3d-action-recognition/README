@@ -1,0 +1,211 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-3d-action-recognition
+                               README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
+and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+To prepare Triton inference environment, Please follow instructions in
+`samples/configs/deepstream-app-triton/README`.
+ - For x86, follow instructions in paragraph of 'Prepare Deepstream Triton
+   Docker Container (Only for X86)'. Users must run this application inside
+   Deepstream Triton docker container.
+ - For Jetson, follow instructions in paragraph of 'Setting up Triton Inference
+   Server backends (Only for Jetson)' to install Triton packages and dependencies
+   on host or inside docker container.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+deepstream-3d-action-recognition is an example to demonstrate a sequence
+based 3D or 2D model inference pipeline for action recognition. The pipeline
+is as:
+
+src_bin -> nvstreammux -> nvdspreprocess -> nvinfer -> nvtiler -> nvosd -> display.
+
+The nvdspreprocess plugin does preprocessing for the 3D/2D model input.
+It would load a custom_sequence_preprocess lib(subfolder) to do temporal sequence
+batching and ROI spacial batching. Then deliver the batched tensor buffer to
+downstream plugin nvinfer to do inference. The test app parses the output
+tensor data for action classifiction.
+
+This 3D/2D model is pretrained by NVIDIA TAO toolkit. The 3D model has NCDHW(NCSHW)
+input and the 2D model has NSHW shapes.
+    N: batch-size
+    C: channels
+    D/S: depth(sequence)
+    H: height
+    W: width
+    S: channels x depth, reshaped from [C, D]
+
+For more custom 3D preprocessing details, see source files in custom_sequence_preprocess.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+To compile application deepstream-3d-action-recognition and custom lib
+custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so:
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+
+  $ cd custom_sequence_preprocess
+  $ sudo make install (sudo not required in case of docker containers)
+
+  $ cd ..
+  $ sudo make install  (sudo not required in case of docker containers)
+
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Search and Download 3D and 2D RGB based tao_iva_action_recognition_pretrained
+models from NGC https://ngc.nvidia.com/catalog/models/nvidia:tao:actionrecognitionnet
+into this folder. The 2 TAO models are
+  resnet18_3d_rgb_hmdb5_32.onnx
+  resnet18_2d_rgb_hmdb5_32.onnx
+
+Make sure the model names are exactly same as the ones mentioned above while downloading.
+These Models support following classes :
+  push;fall_floor;walk;run;ride_bike
+
+Download user's sample videos into folder samples/streams.
+
+Update source streams 'uri-list' in action recognition config file,
+  deepstream_action_recognition_config.txt
+
+To run 3D action recognition with DS-TensorRT plugin inference:
+  Update application config file 'deepstream_action_recognition_config.txt'
+  with:
+    preprocess config file path 'preprocess-config=config_preprocess_3d_custom.txt'.
+    inference config file path 'infer-config=config_infer_primary_3d_action.txt'.
+
+  Run test:
+    $ deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
+
+To run 3D action recognition with DS-Triton plugin inference.
+  After running with DS-TensorRT inference, new TensorRT engine
+  'resnet18_3d_rgb_hmdb5_32.etlt_b4_gpu0_fp16.engine' is generated, Triton model
+  link file 'triton_model_repo/resnet18_3d_rgb/1/resnet18_3d_rgb.engine' is valid
+  and links to this engine file.
+
+  Update application config file 'deepstream_triton_action_recognition_config.txt'
+  with:
+    preprocess config file path 'preprocess-config=config_preprocess_3d_custom.txt'
+    inference config file path 'triton-infer-config=config_triton_infer_primary_3d_action.txt'.
+  Run test:
+    $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+
+To run 2D action recognition tests, follow similiar ways for 3D tests.
+  Update application config file'deepstream_action_recognition_config.txt' with
+    preprocess config file path 'preprocess-config=config_preprocess_2d_custom.txt'
+    inference config file path 'infer-config=config_infer_primary_2d_action.txt'
+  Run 2D test with DS-TensorRT:
+    $ deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
+
+  Update application config file 'deepstream_triton_action_recognition_config.txt'
+  with:
+    preprocess config file path 'preprocess-config=config_preprocess_2d_custom.txt'
+    inference config file path 'triton-infer-config=config_triton_infer_primary_2d_action.txt'.
+  Run 2D test with DS-Triton:
+    $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+
+
+Run Action recognition with Triton gRPC tests.
+  Follow instructions in `samples/configs/deepstream-app-triton-grpc/README` to
+  start tritonserver by
+  $ tritonserver \
+    --model-repository=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/triton_model_repo
+
+  Update 2D and 3D triton inference config file 'config_triton_infer_primary_xx_action.txt'
+  disable 'model_repo{}' block and enable 'grpc{}' with correct url.
+  Run Triton tests again for gRPC remote inference.
+  $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+
+NOTE : Set display-sync=0 in eglglessink if the following warning is seen.
+  Warning: A lot of buffers are being dropped.
+  WARNING from element nvvideo-renderer: A lot of buffers are being dropped.
+This warning will be seen if the performance is not real time on the platform the app is running.
+
+Update 3d custom lib path in config_preprocess_xx_custom.txt if user rebuild
+3d custom process lib.
+  Update 'custom-lib-path=./custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so'
+  Update 'custom-tensor-preparation-function' if user implement new input
+  tensor preprocessing functions.
+
+custom_sequence_preprocess is an example to demonstrate how to implement a
+3D/2D sequence based preprocess custom lib for gst-nvdspreprocess plugin.
+libnvds_custom_sequence_preprocess.so processes each incoming ROI and accumulates
+them into buffer sequence for temporal batching. When temporal batching is ready,
+it will do spacial batching on multi-ROIs and multi-streams. Finally it return the
+temparal and spacial batched buffer(tensor) to Gst-nvdspreprocess plugin which
+would attach the tensor as preprocess input metadata and delivery to next
+Gst-nvinfer plugin to do inference.
+
+The example libnvds_custom_sequence_preprocess.so supports user defined settings
+in [user-configs]:
+Assume following examples are using incoming frame nums: 1,3,4,5,6,7,8,9,10...
+- `channel-scale-factors=`: scale factors of all channels.
+- `channel-mean-offsets=`: mean value offsets of all channels.
+- `subsample=`: subsample rate before processing. Default value is 0.
+    When `subsample=1`, the processing frames nums are: 1,3,5,7,9...
+- `stride=`: sequence sliding stride for each batched sequnece. Default value is 1.
+    Note: The stride is on top of subsample results.
+    Take sequence lenth as 5 for example.
+    When `stride=1, subsample=0`, the 2 consecutive sliding sequences are:
+      Batch A: [1,2,3,4,5]
+      Batch B: [2,3,4,5,6]
+    When `stride=2, subsample=0`, the 2 consecutive sliding sequences are:
+      Batch A: [1,2,3,4,5]
+      Batch B: [3,4,5,6,7]
+    When `stride=2, subsample=1`, it would do subsample firstly, sliding
+    sequences are on top of subsample results.
+    The processing frame nums after subsample are: 1,3,5,7,9,11,13,15,17,19
+    the consecutive sliding sequences on top of them are:
+      Batch A: [1,3,5,7,9]
+      Batch B: [5,7,9,11,13] # 1st frame sliding from frame 1 of Batch A to frame 5
+      Batch C: [9,11,13,15,17] # 1st frame sliding from frame 5 of Batch C to frame 9
+
+config_preprocess_xx_custom.txt config file settings for 3D / 2D models.
+3D models NCDHW(NCSHW) with 5 dims shape:
+    `network-input-shape= 4;3;32;224;224`
+    means max_batch_size: 4, channels 3, sequence_len: 32, height 224, width 224.
+2D models with 4 dims shape:
+    `network-input-shape= 4;96;224;224`
+    means max_batch_size: 4, channels 3, sequence_len: 32, height 224, width 224.
+    where 96 = channels x sequence_len.

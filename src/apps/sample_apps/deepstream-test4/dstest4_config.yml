@@ -1,0 +1,45 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+source:
+  location: /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+streammux:
+  batch-size: 1
+  batched-push-timeout: 40000
+  width: 1920
+  height: 1080
+
+msgconv:
+  #If you want to send images, please set the "payload-type: 1" and "msg2p-newapi: 1"
+  payload-type: 0
+  msg2p-newapi: 0
+  frame-interval: 30
+
+msgbroker:
+  proto-lib: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+  conn-str: <host>;<port>
+  topic: <topic>
+  sync: 0
+
+sink:
+  sync: 1
+
+# Inference using nvinfer:
+primary-gie:
+  plugin-type: 0
+  config-file-path: dstest4_pgie_config.yml
+
+## Inference using nvinferserver:
+#primary-gie:
+#  plugin-type: 1
+#  config-file-path: dstest4_pgie_nvinferserver_config.txt

@@ -1,0 +1,218 @@
+********************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+********************************************************************************
+
+*****************************************************************************
+                     deepstream-3d-lidar-sensor-fusion
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
+and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+   libyaml-cpp-dev
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev libyaml-cpp-dev
+
+The application uses Triton Inference Server, so Triton Inference Server must be installed.
+
+For dGPU:
+Docker is recommended.
+Use deepstream:x.x-triton-multiarch from NGC(https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
+
+For Jetson:
+Go to samples directory and run the following command to set up the Triton Server and backends.
+
+$ cd  /opt/nvidia/deepstream/deepstream/samples
+$ sudo ./triton_backend_setup.sh
+
+1.1 Downloading dataset and model files
+===============================================================================
+
+Please install the following python package first
+  $ sudo pip install numpy python-lzf --break-system-packages
+
+Please make sure you have write permissions to /opt/nvidia/deepstream/deepstream
+If not, try sudo or sudo chmod -R a+w /opt/nvidia/deepstream/deepstream
+
+  $ cd ./v2xfusion/script/
+
+1.1.1 Preprocess the dataset
+================================================================================
+
+Download the V2X-Seq-SPD-Example.zip from this following link.
+https://github.com/AIR-THU/DAIR-V2X?tab=readme-ov-file#dataset
+
+  $ sudo pip install gdown --break-system-packages
+
+  $ gdown 1gjOmGEBMcipvDzu2zOrO9ex_OscUZMYY
+
+  $ ./prepare.sh dataset
+
+For each dataset an user elects to use, the user is responsible for checking
+if the dataset license is fit for the intended purpose.
+
+When you download the data, you agree to the license(https://thudair.baai.ac.cn/agree).
+
+To demonstrate the case with batch size of 4, we will make three copies of the dataset.
+
+1.1.2 Generate TRT engine file
+================================================================================
+
+For Docker User:
+  $ sudo docker_run_generate_v2x_trt_engine_model.sh
+
+In Host:
+  $ ./prepare.sh engine
+
+This script will help you download the model and generate it to tensorrt engine file.
+
+The pre-trained V2XFusion onnx model is available in
+https://nvidia.box.com/s/xqj7ob2sa3betojf1084juyrlr1eek1a.
+
+1.1.3 Summary
+================================================================================
+
+As a shortcut, put V2X-Seq-SPD-Example.zip into v2xfusion/scripts and
+run prepare.sh without parameters, which will directly generate the tensorrt engine file
+and preprocessed dataset.
+
+$ ./prepare.sh
+
+If the prepare.sh script runs successfully,
+you will find v2xfusionmodel-int8-sparsity-seq.onnx at deepstream-3d-lidar-sensor-fusion/v2xfusion/models/
+and the preprocessed dataset will appears in deepstream-3d-lidar-sensor-fusion/v2xfusion/example-data/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+deepstream-3d-lidar-sensor-fusion is an example to demonstrate lidar and video
+data fusion. There are pipelines to test
+  a) lidar and video data alignment and rendering.
+  The pipeline setup a sub-pipeline video/image decode pipeline and connect it to
+`ds3d::databridge` moving 2D buffer into ds3d::datamap. There is another
+sub-pipeline setup 'ds3d::dataloader' to read lidar data out. the 2 sub-pipeline
+merged together through `ds3d::datamixer`. With that, all of the video 2D and lidar
+3D data are combined together into same ds3d::datamap. Then the next downstream
+plugin `ds3d::datafilter` loads 3D/2D alignment lib generate matrix to transform 3D
+into 2D image. Eventually, the `ds3d::datarender` with GLES 3D rendering renders
+the 2D image and projects all lidar 3D data into 2D image on screen.
+
+  b) lidar and video data inference and data fusion.
+
+===============================================================================
+3. Usage:
+===============================================================================
+For Docker User:
+  $ sudo v2xfusion/scripts/docker_run_generate_v2x_trt_engine_model.sh ds3d_lidar_video_sensor_v2x_fusion.yml
+
+In Host:
+  Run v2xfusion tests:
+  - lidar and video data inference and rendering using v2xfusion:
+  # batchsize = 4
+  $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_video_sensor_v2x_fusion.yml
+  # batchsize = 1
+  $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_video_sensor_v2x_fusion_single_batch.yml
+
+  - lidar and video data inference and sink to Apache Kafka using v2xfusion:
+  $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_video_sensor_v2x_fusion_single_batch_iot.yml
+
+===============================================================================
+4. To compile:
+===============================================================================
+
+To compile sample app deepstream-3d-lidar-sensor-fusion:
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+      For x86, CUDA_VER=13.1
+      For SBSA, CUDA_VER=13.0
+
+  $ make
+  $ sudo make install (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+5. DS3D Components used in pipeline
+===============================================================================
+
+┌─────────────────┐     ┌─────────────────┐   ┌─────────────────┐                                                                                  
+│                 │     │                 │   │      3)         │  images                                                                         
+│ image sequences ├────►│  nvdspreprocess ├──►│     bridge      ├────────────┐                                                                     
+│ (gstreamer)     │     │                 │   │   2d -> ds3d    │            ▼            ┌────────────────┐    ┌──────────────┐  ┌───────────┐    
+└─────────────────┘     └─────────────────┘   └─────────────────┘       ┌───────────┐     │       5)       │    │      6)      │  │   7)      │    
+                                                                        │     4)    │     │   alignment    │    │   inference  │  │ DS3DRender│    
+                                                                        │    Mixer  ├────►│  (lidar2image) ├───►│  (v2xfusion) ├─►│   (sink)  │    
+┌─────────────────┐     ┌─────────────────┐                             └───────────┘     └────────────────┘    └──────────────┘  └───────────┘    
+│       1)        │     │      2)         │                                  ▲                                     ▲         ▲                     
+│   lidar data)   ├────►│ lidarpreprocess ├──────────────────────────────────┘                                     │         │                     
+│  (dataloader)   │     │                 │       feats/coords/N                                                   │         │                     
+└─────────────────┘     └─────────────────┘                                                                        │         │                     
+                                                                                                                   │         │                     
+                                                                                                    ┌──────────────┴──┐   ┌──┴──────────────┐      
+                                                                                                    │                 │   │                 │      
+                                                                                                    │custom_preprocess│   │custom_postprocess      
+                                                                                                    │                 │   │                 │      
+                                                                                                    └─────────────────┘   └─────────────────┘      
+                                                                                                            ▲                                     
+                                                                                                            │                                     
+                                                                                                        intervals                                 
+                                                                                                            ┼                                     
+                                                                                                        geometrys                                 
+
+1) ds3d::dataloader | libnvds_lidarfileread.so
+===============================================================================
+Read a list of lidar point files from disk into ds3d::datamap.
+
+2) ds3d::datafilter | libnvds_3d_lidar_preprocess_filter.so
+Preprocess the lidar data and process the data into feats/N/coords tensor
+
+3) ds3d::databridge | libnvds_3d_video_databridge.so
+===============================================================================
+Move 2D buffer into ds3d::datamap.
+DeepStream 2D buffer is  video/x-raw(memory:NVMM) data (say from nvv4l2decoder).
+Note: datamap is a generic data format consisting of {key:value} pairs.
+DeepStream ds3d framework uses datamap as its components’ input and output buffer format.
+
+4) ds3d::datamixer | libnvds_3d_multisensor_mixer.so
+===============================================================================
+a) Combine video 2D and lidar 3D data are together into same ds3d::datamap
+b) Mixer runs at a specified frame-rate.
+Can be slower if the input is slower than configured frame-rate.
+
+5) ds3d::datafilter | libnvds_3d_alignment_datafilter.so
+===============================================================================
+Performs a series of transformations to align lidar data into the
+camera image coordinates.
+
+6) ds3d::datafilter | libnvds_tritoninferfilter.so
+===============================================================================
+Perform multi-modal data inference through Triton. Any frame data from ds3d::datamap
+could be forward to Triton. It supports Triton CAPI and gRPC mode.
+custom-preprocess and postprocess might be needed.
+
+7) ds3d::datarender | libnvds_3d_gles_ensemble_render.so
+===============================================================================
+Perform GLES 3D ensemble display with multiple renders(texture, lidar, bbox)
+with different layouts in a single window.

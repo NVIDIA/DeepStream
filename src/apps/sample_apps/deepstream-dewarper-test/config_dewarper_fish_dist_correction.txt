@@ -1,0 +1,40 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+#dewarp-dump-frames=10
+output-width=1280
+output-height=720
+
+#########################################
+# Note - Max 4 surfaces are supported
+#########################################R
+num-batch-buffers=1
+
+[surface0]
+# 1=PushBroom, 2=VertRadCyl 3= Perspective_Perspective FISH_PERSPECTIVE=4, FISH_FISH=5, FISH_CYL=6, FISH_EQUIRECT=7,
+# FISH_PANINI=8, PERSPECTIVE_EQUIRECT=9, PERSPECTIVE_PANINI=10, EQUIRECT_CYLINDER=11, EQUIRECT_EQUIRECT=12 EQUIRECT_FISHEYE=13,
+# EQUIRECT_PANINI=14, EQUIRECT_PERSPECTIVE=15, EQUIRECT_PUSHBROOM=16, EQUIRECT_STEREOGRAPHIC=17, EQUIRECT_VERTCYLINDER=18
+projection-type=4
+surface-index=0
+#dewarped surface parameters
+width=1280
+height=720
+
+# Following parameters are derived by using opencv camera calibrate function cv::fisheye::calibrate()
+focal-length=442.638745;395.106339
+distortion=-0.103424;0.182589;-0.166839;0.050952
+src-x0=662.191258
+src-y0=411.045033
+
+# If we want a zoom out effect, we can set a lower dst focal length : uncomment the following line to see the effect
+#dst-focal-length=350;316

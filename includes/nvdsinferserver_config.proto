@@ -1,0 +1,224 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+ */
+
+syntax = "proto3";
+
+import "nvdsinferserver_common.proto";
+
+package nvdsinferserver.config;
+
+/** Post-processing settings */
+message PostProcessParams {
+  /** label file path. It relative to config file path if value is not
+   * absoluate path
+   */
+  string labelfile_path = 1;
+
+  /** post-process can only have one of the following types*/
+  oneof process_type
+  {
+    /** deepstream detection parameters */
+    DetectionParams detection = 2;
+    /** deepstream classification parameters */
+    ClassificationParams classification = 3;
+    /** deepstream segmentation parameters */
+    SegmentationParams segmentation = 4;
+    /** deepstream other postprocessing parameters */
+    OtherNetworkParams other = 5;
+    /** [deprecated] TRT-IS classification parameters */
+    TritonClassifyParams trtis_classification = 6;
+    /** Triton classification parameters, replacing trtis_classification */
+    TritonClassifyParams triton_classification = 7;
+  }
+}
+
+/** Triton models repo settings */
+message TritonModelRepo
+{
+  /** Triton backend config settings */
+  message BackendConfig {
+    /** backend name */
+    string backend = 1;
+    /** backend setting name */
+    string setting = 2;
+    /** backend setting value */
+    string value = 3;
+  }
+
+  /** Cuda Memory settings for GPU device */
+  message CudaDeviceMem {
+    /** GPU device id */
+    uint32 device = 1;
+    /** Cuda Memory Pool byte size */
+    uint64 memory_pool_byte_size = 2;
+  }
+
+  /** root directory for all models
+   * All models should set same @a root value */
+  repeated string root = 1;
+  /** log verbose level, the larger the more logs output
+   *  (0): ERROR;
+   *  (1): WARNING;
+   *  (2): INFO
+   *  (3+): VERBOSE Level
+   */
+  uint32 log_level = 2;
+
+  /** enable strict model config
+   * true: config.pbtxt must exsit.
+   * false: Triton try to figure model's config file, it may cause failure on
+   *        different input/output dims.
+   */
+  bool strict_model_config = 3;
+  /** tensorflow gpu memory fraction, default 0.0 */
+  float tf_gpu_memory_fraction = 4;
+  /** tensorflow soft placement, allowed by default */
+  bool tf_disable_soft_placement = 5;
+  /** minimum compute capacity,
+    * dGPU: default 6.0; Jetson: default 5.3.
+    */
+  float min_compute_capacity = 6;
+  /** triton backends directory */
+  string backend_dir = 7;
+  /** triton model control mode, select from
+    * "none": load all models in 'root' repo at startup once.
+    * "explicit": load/unload models by 'TritonParams'.
+    * If value is empty, will use "explicit" by default.
+    */
+  string model_control_mode = 8;
+
+  /** Triton server reserved cuda memory size for each device.
+    * If device not added, will use Triton runtime's default memory size 256MB.
+    * If \a cuda_memory_pool_byte_size is set 0, plugin will not reserve cuda
+    * memory on that device.
+    */
+  repeated CudaDeviceMem cuda_device_memory = 9;
+  /** Triton server reserved pinned memory size during initialization */
+  oneof pinned_mem {
+    uint64 pinned_memory_pool_byte_size = 10;
+  }
+
+  repeated BackendConfig backend_configs = 11;
+}
+
+message TritonGrpcParams {
+  string url = 1;
+  /** Enable sharing of input CUDA buffers with local Triton server.
+    * If enabled, the input CUDA buffers are shared with the Triton server
+    * to improve performance. This feature should be enabled only when the
+    * Triton server is on the same machine. Applicable for x86 dGPU platform,
+    * not supported on Jetson devices.
+    * By default disabled, CUDA buffers are copied to system memory while
+    * creating the inference request */
+  bool enable_cuda_buffer_sharing = 2;
+}
+
+/** Triton inference backend parameters */
+message TritonParams {
+  /** trt-is model name */
+  string model_name = 1;
+  /** model version, -1 is for latest version, required */
+  int64 version = 2;
+  /** Triton classifications, optional */
+  repeated TritonClassifyParams class_params = 3;
+
+  oneof server {
+    /** trt-is server model repo, all models must have same @a model_repo */
+    TritonModelRepo model_repo = 4;
+    TritonGrpcParams grpc = 5;
+  }
+}
+
+/** Network backend Settings */
+message BackendParams {
+  /** input tensors settings, optional */
+  repeated InputLayer inputs = 1;
+  /** outputs tensor settings, optional */
+  repeated OutputLayer outputs = 2;
+
+  /** inference framework */
+  oneof infer_framework
+  {
+    /** [deprecated] TRT-IS inference framework. Use triton instead of trt_is */
+    TritonParams trt_is = 3;
+    /** Triton inference framework */
+    TritonParams triton = 4;
+  }
+
+  /** Output tensor memory type.
+   * Default: MEMORY_TYPE_DEFAULT, it is Triton preferred memory type.
+   */
+  MemoryType output_mem_type = 5;
+
+  /** disable warmup */
+  bool disable_warmup = 6;
+}
+
+/** extrac controls */
+message ExtraControl {
+  /** enable if need copy input tensor data for application output parsing,
+   * it's disabled by default */
+  bool copy_input_to_host_buffers = 1;
+  /** defined how many buffers allocated for output tensors in the pool.
+   * Optional, default is 2, the value can be in range [2, 10+] */
+  int32 output_buffer_pool_size = 2;
+  /** custom function to create a specific processor IInferCustomProcessor.
+   *  e.g. custom_process_funcion: CreateCustomProcessor */
+  string custom_process_funcion = 3;
+}
+
+/** Input tensor is preprocessed */
+message InputTensorFromMeta
+{
+    /** first dims is not a batch-size*/
+    bool is_first_dim_batch = 1;
+}
+
+/** Inference configuration */
+message InferenceConfig {
+  /** unique id, larger than 0, required for multiple models inference */
+  uint32 unique_id = 1;
+  /** gpu id settings. Optional. support single gpu only at this time
+   * default values [0] */
+  repeated int32 gpu_ids = 2;
+  /** max batch size. Required, can be reset by plugin */
+  uint32 max_batch_size = 3;
+  /** inference backend parameters. required */
+  BackendParams backend = 4;
+  /** preprocessing for tensors, required */
+  oneof preprocessing {
+    PreProcessParams preprocess = 5;
+    InputTensorFromMeta input_tensor_from_meta = 10;
+  }
+  /** postprocessing for all tensor data, required */
+  oneof postprocessing {
+    PostProcessParams postprocess = 6;
+  }
+  /** Custom libs for tensor output parsing or preload, optional */
+  CustomLib custom_lib = 7;
+
+  /** advanced controls as optional */
+  oneof advanced
+  {
+    /** extrac controls */
+    ExtraControl extra = 8;
+  }
+
+  /** LSTM controller */
+  oneof lstm_control {
+    /** LSTM parameters */
+    LstmParams lstm = 9;
+  }
+  /** Clip the object bounding-box which lies outside the roi specified by nvdspreprosess plugin. */
+  bool clip_object_outside_roi = 11;
+}
+

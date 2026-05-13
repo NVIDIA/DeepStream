@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+Purpose:
+nvll_osd library implements helper functions to draw rectangles/bounding boxes/segmentation mask
+which are used by 'nvdsosd' plugin
+
+Pre-requisites:
+1. Install pango package:
+   sudo apt-get install libpango1.0-dev
+
+2. Install cairo package:
+   sudo apt-get install libcairo2-dev
+
+3. Install jpeg package:
+   sudo apt-get install libjpeg-dev
+--------------------------------------------------------------------------------
+
+Compiling and installing the plugin:
+
+export CUDA_VER=<version> or set appropriate CUDA_VER in the Makefile.
+      For x86, CUDA_VER=13.1
+      For Jetson & SBSA, CUDA_VER=13.0
+
+Run:
+- sudo make
+- sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

@@ -1,0 +1,32 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+---
+source:
+  frame_settings:
+    # format supports RGBA and GREY
+    format: GREY
+    width: 870
+    height: 1200
+  framerate: 10/1
+
+video_template:
+  customlib_name: /opt/nvidia/deepstream/deepstream/lib/libnvds_vpicanmatch.so
+  customlib_props: config-file:config_video_template_can_match.yaml
+
+sink:
+  egl_display: true
+  sync: true
+
+debug:
+  print_result: true

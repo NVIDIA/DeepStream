@@ -1,0 +1,69 @@
+################################################################################ 
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: MIT                                                   
+#                                                                                
+# Permission is hereby granted, free of charge, to any person obtaining a        
+# copy of this software and associated documentation files (the "Software"),        
+# to deal in the Software without restriction, including without limitation         
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,          
+# and/or sell copies of the Software, and to permit persons to whom the          
+# Software is furnished to do so, subject to the following conditions:           
+#                                                                                
+# The above copyright notice and this permission notice shall be included in        
+# all copies or substantial portions of the Software.                            
+#                                                                                
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR        
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,          
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL        
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER        
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING        
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER            
+# DEALINGS IN THE SOFTWARE.                                                      
+################################################################################ 
+
+nvmultiurisrcbin integrates REST API and the API at
+gst-nvmultiurisrcbincreator.h to support runtime source addition and deletion.
+
+Note: This bin is an Alpha release. Support might be limited.
+
+--------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+Install OpenTelemetry dependencies
+-------------------------------------------------------------------------------
+Enter the following commands to install OpenTelemetry:
+
+$ cd ~
+$ mkdir otel_src && cd otel_src && git clone --branch v1.23.0 --recurse-submodules https://github.com/open-telemetry/opentelemetry-cpp
+$ cd opentelemetry-cpp
+$ mkdir build && cd build
+$ sudo apt install cmake
+$ cmake .. -DBUILD_SHARED_LIBS=ON -DWITH_OTLP_GRPC=ON -DWITH_OTLP_HTTP=ON
+$ cmake --build . --parallel $(nproc)
+$ ctest -V (Optional: run tests for verification)
+$ sudo cmake --install .
+
+For more information, refer to the OpenTelemetry C++ installation guide:
+https://github.com/open-telemetry/opentelemetry-cpp/blob/v1.23.0/INSTALL.md
+
+Note: After installing OpenTelemetry, clear gstreamer cache and run ldconfig command.
+
+--------------------------------------------------------------------------------
+Installing Pre-requisites:
+--------------------------------------------------------------------------------
+Packages to be installed:
+$ sudo apt install \
+    libssl3 \
+    libssl-dev \
+    libgles2-mesa-dev \
+    libgstrtspserver-1.0-0 \
+    libjansson4 \
+    libyaml-cpp-dev \
+    libjsoncpp-dev \
+    libcurl4-openssl-dev
+
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

@@ -1,0 +1,49 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[application]
+seed=DS-NMOS
+host-name=dsnode-3.local
+http-port=8080
+
+[receiver0]
+enable=1
+#Type - 1=OSS UDPsrc 2=Nvidia UDPsrc
+type=1
+sdp-file=recv_sdp_video.txt
+#Type - 1=OSS UDPsink 2=Nvidia UDPsink
+sink-type=1
+sink-sdp-file=sender_sdp_video.txt
+# Additional parameters for video with Nvidia UDPsink
+# Refer README to calculate these values.
+# size of RTP packet (including RTP header)
+#payload-size=1220
+# Number of RTP packets per line
+#packets-per-line=4
+
+[receiver1]
+enable=1
+#Type - 1=OSS UDPsrc 2=Nvidia UDPsrc
+type=1
+sdp-file=recv_sdp_audio.txt
+#Type - 1=OSS UDPsink 2=Nvidia UDPsink
+sink-type=1
+sink-sdp-file=sender_sdp_audio.txt
+
+[primary-gie]
+enable=1
+plugin-type=0
+config-file=config_infer_primary.txt
+
+# Inference with nvinferserver
+#plugin-type=1
+# config-file=config_inferserver_primary.txt

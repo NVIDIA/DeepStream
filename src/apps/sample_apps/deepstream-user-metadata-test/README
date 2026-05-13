@@ -1,0 +1,95 @@
+*****************************************************************************
+* Copyright (c) 2019-2026 NVIDIA Corporation.  All rights reserved.
+*
+* NVIDIA Corporation and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA Corporation is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-user-metadata-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container  for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-user-metadata-test application.
+
+It is meant for demonstration of how to set, access user metadata for DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-user-metadata-app <h264_elementary_stream>
+    deepstream-user-metadata-app /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-user-metadata-app -t inferserver <h264_elementary_stream>
+    deepstream-user-metadata-app -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+This sample creates instance of either "nvinfer" or "nvinferserver" element
+for inference. The "nvinfer" element uses TensorRT API to infer
+on frames/objects. The "nvinferserver" element uses the Triton Inference
+Server to infer on frames/objects.
+
+For reference, here are the config files used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    dstestsr_pgie_config.yml / dstestsr_pgie_nvinferserver_config.txt
+
+In this sample, one instance of "nvinfer"/"nvinferserver" referred as the pgie, is created.
+This is a 4 class detector and it detects for "Vehicle , RoadSign, TwoWheeler,
+Person".
+
+nvinfer element attaches 16 random integers as user metadata to frame metadata.
+Refer "nvinfer_src_pad_buffer_probe" function in the sample code.
+By attaching the probe function at the end of the pipeline, one can extract
+all the 16 integers which are attached as user metadata.
+Refer the "osd_sink_pad_buffer_probe" function in the sample code.
+For details on the Metadata format, refer to the file "nvdsmeta.h"
+
+Expected output:
+Metadata attached on pgie source pad probe function should match with
+metadata received on nvosd sink pad.

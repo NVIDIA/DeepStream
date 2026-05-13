@@ -1,0 +1,57 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[application]
+seed=DS-NMOS
+host-name=dsnode-1.local
+http-port=8080
+
+[receiver0]
+enable=1
+#Type - 1=OSS UDPsrc 2=Nvidia UDPsrc
+type=1
+sdp-file=recv_sdp_video.txt
+# sink type - 1=OSS UDPsink 2=Nvidia UDPsink 3=SRT sink 4=XvImagesink
+# sink type 1 and 2 to be used in sender mode.
+#sink-type=3
+# SRT mode - 1=caller 2=listener
+#srt-mode=1
+# SRT uri
+#srt-uri=srt://192.0.2.3:7002
+# Latency in milliseconds
+#srt-latency=500
+# SRT passphrase
+#srt-passphrase=mypassphrase
+# encode bitrate
+#bitrate=4000000
+# encode I-frame interval
+#iframeinterval=10
+# encode filter caps
+#encode-caps=video/x-raw(memory:NVMM), width=(int)960, height=(int)540
+# flip method
+#flip-method=2
+
+[receiver1]
+enable=1
+#Type - 1=OSS UDPsrc 2=Nvidia UDPsrc
+type=1
+sdp-file=recv_sdp_audio.txt
+
+# Inference with nvinfer
+[primary-gie]
+enable=1
+plugin-type=0
+config-file=config_infer_primary.txt
+
+# Inference with nvinferserver
+#plugin-type=1
+# config-file=config_inferserver_primary.txt

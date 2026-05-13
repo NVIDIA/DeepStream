@@ -1,0 +1,88 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+deepstream:
+  nodes:
+  - name: uridecodebin
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_walk.mov
+    type: uridecodebin
+  - name: uridecodebin1
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_ride_bike.mov
+    type: uridecodebin
+  - name: uridecodebin2
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_run.mov
+    type: uridecodebin
+  - name: uridecodebin3
+    properties:
+      uri: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_push.mov
+    type: uridecodebin
+  - name: streammux
+    type: nvstreammux
+    properties:
+      batch-size: 4
+      width: 1280
+      height: 720
+      batched-push-timeout: 40000
+  - name: queue_preprocess
+    type: queue
+  - name: preprocess
+    type: nvdspreprocess
+    properties:
+      config-file: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_preprocess_3d_custom.txt
+  - name: queue_pgie
+    type: queue
+  - name: pgie
+    type: nvinfer
+    properties:
+      input-tensor-meta: True
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/config_infer_primary_3d_action.txt
+  - name: queue_tiler
+    type: queue
+  - name: tiler
+    type: nvmultistreamtiler
+    properties:
+      width: 1280
+      height: 720
+  - name: queue_nvvidconv
+    type: queue
+  - name: nvvidconv
+    type: nvvideoconvert
+  - name: queue_nvosd
+    type: queue
+  - name: nvosd
+    type: nvdsosd
+  - name: queue_sink
+    type: queue
+  - name: sink
+    type: nveglglessink
+    properties:
+      qos: False
+  edges:
+    uridecodebin: streammux
+    uridecodebin1: streammux
+    uridecodebin2: streammux
+    uridecodebin3: streammux
+    streammux: queue_preprocess
+    queue_preprocess: preprocess
+    preprocess: queue_pgie
+    queue_pgie: pgie
+    pgie: queue_tiler
+    queue_tiler: tiler
+    tiler: queue_nvvidconv
+    queue_nvvidconv: nvvidconv
+    nvvidconv: queue_nvosd
+    queue_nvosd: nvosd
+    nvosd: queue_sink
+    queue_sink: sink

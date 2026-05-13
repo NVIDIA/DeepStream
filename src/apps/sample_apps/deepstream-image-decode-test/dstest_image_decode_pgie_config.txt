@@ -1,0 +1,34 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+gpu-id=0
+net-scale-factor=0.00392156862745098
+onnx-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx
+model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx_b1_gpu0_fp16.engine
+labelfile-path=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt
+int8-calib-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/cal_trt.bin
+batch-size=2
+network-mode=2
+num-detected-classes=4
+interval=0
+gie-unique-id=1
+is-classifier=0
+#scaling-filter=0
+#scaling-compute-hw=0
+offsets=0.0;0.0;0.0
+maintain-aspect-ratio=0
+
+[class-attrs-all]
+pre-cluster-threshold=0.2
+eps=0.2
+group-threshold=1

@@ -1,0 +1,509 @@
+*****************************************************************************
+* Copyright (c) 2018-2026 NVIDIA Corporation.  All rights reserved.
+*
+* NVIDIA Corporation and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA Corporation is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-test5-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the deepstream_sdk_release_package/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+Additionally you must have the following development packages installed
+
+    GStreamer-1.0
+    GStreamer-1.0 Base Plugins
+    GStreamer-1.0 gstrtspserver
+    X11 client-side library
+    Glib json library - json-glib-1.0
+    yaml-cpp
+
+To install these packages, execute the following command:
+$ sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev libjson-glib-dev libyaml-cpp-dev
+
+Also refer ../deepstream-test4/README for detailed Dependencies for the various
+supported IoT protocols
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-test5 application.
+
+This sample builds on top of the deepstream-app sample to demonstrate how to:
+
+* Use "nvmsgconv" and "nvmsgbroker" plugins in the pipeline.
+* Create NVDS_EVENT_MSG_META type of meta and attach to buffer.
+* Use NVDS_EVENT_MSG_META for different types of objects e.g. vehicle, person etc.
+* Provide copy / free functions if meta data is extended through "extMsg" field.
+
+"nvmsgconv" plugin generates the "DeepStream Schema" payload in Json format using
+1) NVDS_EVENT_MSG_META type of metadata from the buffer
+   OR
+2) NvDsFrameMeta and NvDsObjectMeta structures from NvDs metadata
+
+Static properties of schema are read from configuration file in the form of key-value pair.
+Check dstest5_msgconv_sample_config.txt for reference. Generated payload is attached
+as NVDS_META_PAYLOAD type metadata to the buffer.
+
+"nvmsgbroker" plugin extracts NVDS_META_PAYLOAD type of metadata from the buffer
+and sends that payload to the server using protocol adaptor APIs.
+
+Generating custom metadata for different type of objects:
+In addition to common fields provided in NvDsEventMsgMeta structure, user can
+also create custom objects and attach to buffer as NVDS_EVENT_MSG_META metadata.
+To do that NvDsEventMsgMeta provides "extMsg" and "extMsgSize" fields. User can
+create custom structure, fill that structure and assign the pointer of that
+structure as "extMsg" and set the "extMsgSize" accordingly.
+If custom object contains fields that can't be simply mem copied then user should
+also provide function to copy and free those objects.
+
+Refer generate_event_msg_meta() to know how to use "extMsg" and "extMsgSize"
+fields for custom objects and how to provide copy/free function and attach that
+object to buffer as metadata.
+
+Json & Protobuf payload formats are supported.
+Choose config options as below, refer to config files here:
+  configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.txt
+  configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.yml
+
+PAYLOAD_DEEPSTREAM - Full message schema with separate payload per object (Default)
+PAYLOAD_DEEPSTREAM_MINIMAL - Minimal message with multiple objects in single payload.
+PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in single payload.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+The application supports txt/yml config files -
+
+$ deepstream-test5-app -c configs/test5_config_file_src_infer.txt -p 1
+$ deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
+
+$ deepstream-test5-app -c configs/test5_config_file_src_infer.yml -p 1
+$ deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.yml -p 0
+
+===============================================================================
+5. Config files provides with this package
+===============================================================================
+1) test5_config_file_src_infer.txt(.yml) -
+A 4 X File(mp4) stream analytics pipeline config
+2) test5_dec_infer-resnet_tracker_sgie_tiled_display.txt(.yml) -
+A 2 X RTSP Camera analytics pipeline config
+3) test5_config_file_src_infer_tracker_sgie.txt(.yml) -
+A 4 X File(mp4) stream analytics pipeline config with SGIE usage
+
+Please provide message broker connection string in [sink1] section
+
+===============================================================================
+5.1 IoT Protocols supported and cloud configuration
+===============================================================================
+Details on the IoT Protocols (like KAFKA, Azure, AMQP, etc)
+supported by nvmsgbroker plugin is listed in the DeepStream Plugin Manual.
+
+DeepStream Public documentation may be referred to setup IoT hubs/servers/brokers
+specific to the protocol in use.
+
+[sink] group keys associated with type=6 for nvmsgconv and nvmsgbroker
+configuration are discussed in the DeepStream_Development_Guide ->
+Reference Application Configuration -> Configuration Groups.
+
+===============================================================================
+6. Option -p [Default=0]
+===============================================================================
+
+  6.1 -p 0 (PLAYBACK=0)
+  (Base UTC timestamp for meta-data from RTCP SR for RTSP Sources
+              only; any sources other than type=4 will default to PLAYBACK=1)
+  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
+  ==============================================================================
+  NOTE 1: For RTSP Streams, Config file shall use 'type=4'(NV_DS_SOURCE_RTSP)
+  in [source] groups
+  ==============================================================================
+  NOTE 2: If the RTSP Camera/Server does not send RTCP Sender Report - or until
+  the first Sender Report arrive, the buffer/metadata timestamps sent out by
+  nvmsgbroker will be based on the initial timestamp as zero.
+  ==============================================================================
+
+  6.2 -p 1 (PLAYBACK=1)
+  (Base UTC timestamp from filename of format - *__M_DD_YYYY_H_MIN_SEC_MSEC_AM/PM_UTC<Offset>.mp4)
+  Means - the first video frame timestamp is embedded in the URI.
+  Example: VideoFileSavedFromCamera__4_11_2018_4_59_59_433_AM_UTC-07_00.mp4
+  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 1
+  =============================================================================
+  NOTE: If URI does not have original timestamp embedded, a WARNING will be
+  thrown to user and current system time will be used as base time for all metadata
+  ==============================================================================
+
+===============================================================================
+7. Option -m [Default=0]
+  PGIE Model used; {0 - Unknown [DEFAULT]}, {1: Resnet 4-class [Car, Bicycle, Person, Roadsign]}
+===============================================================================
+
+  This option is to demonstrate the code which can read
+  PGIE, Tracker, and SGIE Metadata from NvDsBatchMeta and fill
+  NvDsEventMsgMeta in bbox_generated_probe_after_analytics()
+  for the nvmsgconv schema and JSON-metadata-generation.
+  For more details run the below command on terminal post DS installation:
+  gst-inspect-1.0 nvmsgconv
+  ==============================================================================
+  NOTE: Customers using `-m 0` with custom PGIE, SGIE models,
+  please read the documentation under "IMPORTANT Note 1" tag
+  in deepstream_test5_app_main.c for changes in code required
+  to relay SGIE Classifier-Metadata to nvmsgconv
+
+  8.0 -m 0 (Model(s) used are unknown)
+  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 0
+
+  7.2 -m 1 (Analytics Model(s) used are:
+            resnet(4-class model) -> Tracker (Optional) -> SGIE0 (Vehicle-type)
+            -> SGIE1 (Vehicle-Color) -> SGIE2 (Vehicle-Make))
+  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 1
+
+===============================================================================
+8. Option -o
+   GIE Model update configuration override file; {provide path of override config file}
+
+   This option is used to demonstrate the on-the-fly model update feature.
+   deepstream-test5-app to be launched with -o <ota_override_file> option to test
+   on-the-fly OTA functionality.
+
+   Steps to test the OTA functionality
+   1) Run deepstream-test5-app with -o <ota_override_file> option
+   2) While DS application is running, update the <ota_override_file> with new model details
+      and save it
+   3) File content changes gets detected by deepstream-test5-app and then it starts
+      model-update process
+
+   Currently only model-update feature is supported as a part of OTA functionality.
+   Assumption for On-The-Fly model updates are as below:
+
+   1) New model must have same network parameter configuration as of previous model
+     (e.g. network resolution, network architecture, number of classes)
+   2) Engine file or cache file of new model to be provided by developer
+   3) Other primary gie configuration parameters like group-threshold, bbox color, gpu-id,
+      nvbuf-memory-type etc updated parameters if provided in the override file,
+      will not have any effect after model switch.
+   4) Secondary gie model-update is not validated, primary model-update is validated
+   5) No frame drop / frames without inference should be observed during on-the-fly
+      model update process
+   6) In case of model update failure, error message will be printed on the console and
+      pipeline should continue to run with older model configuration
+   7) config-file parameter is needed to suppress the config file parsing error prints,
+      values from this config file are not used during model switch process
+
+===============================================================================
+9. Multiple broker sinks
+===============================================================================
+   Multiple broker sinks might be required for sending a message to multipe
+   backends simultaneously or to send specific message to particular backend.
+
+   By default sink of type = 6 adds message converter and message broker
+   components in the pipeline.
+   In case of multiple brokers [message-converter] group can be used to add
+   single message converter in the pipeline with multiple sinks of type = 6
+   having disable-msgconv set to 1.
+
+   If multiple message converters are also required along with multiple brokers
+   then "msg-conv-comp-id" and "msg-broker-comp-id" should be set properly to
+   avoid duplicate messages. These fields force converter / broker components to
+   process only those messages having same value for componentId field and ignore
+   other messages. User should modify the application to fill componentId field of
+   NvDsEventMsgMeta structure.
+
+===============================================================================
+10. Smart Record - Event based recording
+===============================================================================
+   Event based recording can be enabled by setting "smart-record" under [sourceX]
+   group. Currently only source type = 4 (RTSP) is supported.
+   There are two ways in which smart record events can be triggerd.
+   1) Through cloud messages.
+      set smart-record=1 and configure [message-consumerX] group accordingly.
+      Refer deepstream_c2d_msg_utils.c for format of cloud message to trigger
+      the smart record start / stop events.
+   2) Through local events.
+      set smart-record=2, this will enable smart record through cloud messages
+      as well as local events.
+      To demonstrate the event based recording through local events, application
+      by default triggers start / stop events every ten seconds.
+      This interval and other parameters are configurable.
+
+   Please refer plugin manual and gst-nvdssr.h header file for more details about
+   smart record.
+
+===============================================================================
+11. Message consumer
+===============================================================================
+    deepstream-test5-app can be configured to work as message consumer for
+    cloud messages. After parsing the received message and based on the content
+    of the message specific action(s) can be triggered.
+    e.g. NvDsSrcParentBin*, which holds the smart record context, is passed as an
+    argument in start_cloud_to_device_messaging() that is then used to trigger
+    start/stop of smart record.
+
+    By default, event based recording has been implmented to demonstrate the
+    usage of message consumer.
+    User need to implement the custom logic to work on other types of received
+    messages.
+
+    Following minimum json message is expected to trigger the start / stop
+    of smart record.
+      {
+        command: string   // <start-recording / stop-recording>
+        start: string     // "2020-05-18T20:02:00.051Z"
+        end: string       // "2020-05-18T20:02:02.851Z",
+        sensor: {
+          id: string
+        }
+      }
+
+    To subscribe to cloud messages configure the [message-consumer] group(s)
+    accordingly.
+
+===============================================================================
+
+NOTE:
+-----
+
+#Rebuilding the Deepstream based Docker image:
+----------------------------------------------
+
+In order to extend DeepStream docker image with your modified config file settings,
+follow instructions listed in the "Docker Containers" section of the DeepStream Plugin
+Manual, for creating your own docker image based on DeepStream.
+
+The associated steps are shown below specifically for the test5 usecase for convenience:
+
+Step 1: Modify test5 config file as required; assume new config file is named test5_config_new.txt
+Step 2: Create Dockerfile for building new DeepStream docker image for jetson which includes modified config file
+
+$ cat <<EOF > Dockerfile
+#==============================================================================
+FROM nvcr.io/nvidia/deepstream-l4t:<tag>
+ADD test5_config_new.txt /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/
+CMD ["/bin/bash"]
+WORKDIR /opt/nvidia/deepstream/deepstream/
+#==============================================================================
+EOF
+
+Step 3: Rebuild new docker image
+$ docker build -t ds_test5:1 .
+
+#Run deepstream-test5-app as Azure iotedge module:
+--------------------------------------------------
+  # Refer to sections within DS_PACKAGE_DIR/sources/libs/azure_protocol_adaptor/module_client/README to:
+    1. Create azure IotHub
+    2. Register a new Azure IoT Edge device from the Azure portal
+    3. Setup and install Azure Iot Edge on your machine
+    4. Install dependencies
+    5. Specify connection string
+    6. Use cfg file (optional)
+    7. Install & setup nvidia-docker
+    8. Deploy a iotedge module
+    9. Start the edge runtime
+
+  # On Azure iothub deployment page, use the information below as an example to use deepstream-test5-app using
+    * sample config file "test5_config_file_src_infer_azure_iotedge.txt"
+    * to send messages with minimal schema
+    * with display disabled
+    * Message topic = mytopic
+    (Note: Message topic cant be empty)
+
+  Deployment of a Module:
+  -----------------------
+
+  On the Azure portal, Click on the Iot edge device you have created and click Set Modules:
+
+  Container Registry Settings:
+        Name:       NGC
+        Address:    nvcr.io
+        User Name:  $oauthtoken
+        Password:   <password (or API key) from your NGC account>
+
+  Deployment modules:
+  Add new module:
+  - Name:    ds_test5
+
+  - Image URI:
+         For x86:     nvcr.io/nvidia/deepstream:<tag>
+         For jetson:  nvcr.io/nvidia/deepstream-l4t:<tag>
+
+  - container Create options:
+    {
+      "HostConfig": {
+        "Runtime": "nvidia"
+      },
+      "WorkingDir": "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/",
+      "ENTRYPOINT": [
+        "/usr/bin/deepstream-test5-app",
+        "-c",
+        "test5_config_file_src_infer_azure_iotedge.txt",
+        "-p",
+        "1",
+        "-m",
+        "1"
+      ]
+    }
+
+  - specify route options for the module:
+
+    option 1) Default route where every message from every module is sent upstream
+    {
+      "routes": {
+        "route": "FROM /messages/* INTO $upstream"
+      }
+    }
+
+    option 2)  you can mention specific routes where messages sent upstream based on topic name
+    ex: in the sample test programs, topic name "mytopic" is used for the module name ds_test5
+    {
+      "routes": {
+        "route": "FROM /messages/modules/ds_test5/outputs/mytopic INTO $upstream",
+      }
+    }
+
+  Start the edge runtime and verify if modules are running:
+  ---------------------------------------------------------
+
+  #Restart the iotedge on your system
+  sudo systemctl restart iotedge
+
+  #Give it a few seconds
+
+  #check edge runtime status
+  systemctl status iotedge
+
+  #List the modules running
+  sudo iotedge list
+
+  #check output from the modules
+  sudo iotedge logs ds<ds-version>_test5
+
+===============================================================================
+FAQ
+===============================================================================
+
+1) I see the following WARNING:
+WARNING; playback mode used with URI [file:///.../streams/sample_720p.mp4] not conforming
+to timestamp format; check README; using system-time
+===============================================================================
+
+Answer:
+The file URI does not have the base timestamp (first video frame timestamp in
+the format discussed above in Section 5.2
+
+2) I see the following WARNING:
+nvmsgbroker queue overrun; Older Message Buffer Dropped; Network bandwidth might be insufficient
+===============================================================================
+
+Answer:
+The GstQueue just before nvmsgbroker is set to hold a max number of buffers (say 20).
+This means - if the network bandwidth is not enough to scale and send the
+metadata over nvmsgbroker overflowing this queue, the queue will leak
+(older buffers will be dropped with this WARNING).
+You could change this number at ../../apps-common/src/deepstream_sink_bin.c
+In function - create_msg_conv_broker_bin() -
+g_object_set(G_OBJECT(bin->queue), "max-size-buffers", 20, NULL);
+
+3) What do I need to change in the test5_config_file_src_infer.txt or
+test5_dec_infer-resnet_tracker_sgie_tiled_display.txt config?
+===============================================================================
+
+Answer:
+i) [sinkN] group config with type=6
+needs to be reconfigured.
+Main change required are:
+a) msg-broker-proto-lib - KAFKA/Azure
+b) msg-broker-conn-str - The broker-connection-string
+c) topic
+For more details on these configs check documentation with:
+`gst-inspect-1.0 nvmsgbroker`
+
+Example:
+[sink1]
+enable=1
+#Type - 1=FakeSink 2=EglSink 3=File 4=UDPSink 5=nvdrmvideosink 6=MsgConvBroker
+type=6
+msg-conv-config=dstest5_msgconv_sample_config.txt
+msg-broker-proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+msg-broker-conn-str=host;port;example-topic
+topic=example-topic
+
+ii) [sourceN] for RTSP cameras/streams
+The streams provided in config are placeholders;
+User needs to change these for IP cameras or streams in use
+
+4) I see a WARNING log similar to the one below:
+%3|1560387814.967|FAIL|rdkafka#producer-1| [thrd:kafka.broker.host:9092/1021]: kafka.broker.host:9092/1021: Receive failed: Disconnected
+%3|1560387814.967|ERROR|rdkafka#producer-1| [thrd:kafka.broker.host:9092/1021]: kafka.broker.host:9092/1021: Receive failed: Disconnected
+===============================================================================
+
+Answer:
+Just shows that TCP connection got disconnected after a period of inactivity.
+But it will get reestablished when there are messages to be sent.
+
+5) I see a lot of artifacts/video-glitches on the decoded stream
+(when tiler + display) is enabled.
+===============================================================================
+
+Answer:
+If using RTSP Cameras, network latency above a configurable threshold causes
+RTP buffer drops.
+Please fine tune your camera's [source] group configuration in the
+DeepStream config file using the "latency" config key.
+The rtp-jitterbuffer shall drop buffers when its buffering
+more than the configured latency.
+A sample usage with details on the latency key provided below.
+
+[source0]
+enable=1
+#Type - 1=CameraV4L2 2=URI 3=MultiURI
+type=4
+uri=rtsp://foo.com/sample1.mp4
+num-sources=1
+gpu-id=0
+nvbuf-memory-type=0
+#max Latency of rtp buffers to
+#buffer at the source in ms (milliseconds)
+#Default=100ms
+latency=100
+
+Additional info: `$gst-inspect-1.0 rtspsrc`
+
+6) How does the data in nvmsgconv config file (say - dstest5_msgconv_sample_config.txt)
+specified in [sink1] msg-conv-config key
+map with the streams specified in DeepStream config file (say -
+test5_dec_infer-resnet_tracker_sgie_tiled_display.txt) ?
+===============================================================================
+
+Answer:
+[config-group-index] shall be the same among these config files
+for a particular source.
+Example:
+[source0] in DeepStream config maps to:
+[sensor0], [place0], [analytics0] groups in the nvmsgconv config file
+[source1] in DeepStream config maps to:
+[sensor1], [place1], [analytics1] groups in the nvmsgconv config file

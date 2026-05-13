@@ -1,0 +1,57 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+infer_config {
+  unique_id: 1
+  gpu_ids: [0]
+  max_batch_size: 4
+  backend {
+    triton {
+      model_name: "resnet18_2d_rgb"
+      version: -1
+
+      # model_repo block is enabled for Triton Server CAPI inference.
+      model_repo {
+        root: "./triton_model_repo"
+        strict_model_config: true
+      }
+
+      # To run Triton client remote inference, users need enable 'grpc' block,
+      # and disalbe 'model_repo' block.
+      # Setup Tritonserver, goto current directory, run
+      # tritonserver --model-repository=triton_model_repo
+      #grpc {
+      #  url: "localhost:8001"
+      #}
+    }
+    output_mem_type: MEMORY_TYPE_DEFAULT
+  }
+
+  input_tensor_from_meta {
+    is_first_dim_batch: true
+  }
+
+  postprocess {
+    labelfile_path: "labels.txt"
+    classification {
+      threshold:0.1
+    }
+  }
+
+  extra {
+    output_buffer_pool_size: 4
+  }
+}
+
+output_control {
+  output_tensor_meta: true
+}

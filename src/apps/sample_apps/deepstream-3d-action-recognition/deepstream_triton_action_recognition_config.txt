@@ -1,0 +1,54 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# deepstream action recognition config settings.
+# run:
+# $ deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
+
+[action-recognition]
+
+# stream/file source list
+uri-list=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_walk.mov;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_ride_bike.mov;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_run.mov;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_push.mov
+
+# eglglessink settings
+display-sync=1
+# 0=eglgles display; 1=fakesink
+fakesink=0
+
+# <preprocess-config> is the config file path for nvdspreprocess plugin
+# <infer-config> is the config file path for nvinfer plugin
+
+# Enable 3D preprocess and inference
+preprocess-config=config_preprocess_3d_custom.txt
+triton-infer-config=config_triton_infer_primary_3d_action.txt
+
+# Uncomment to enable 2D preprocess and inference
+#preprocess-config=config_preprocess_2d_custom.txt
+#triton-infer-config=config_triton_infer_primary_2d_action.txt
+
+# nvstreammux settings
+muxer-height=720
+muxer-width=1280
+
+# nvstreammux batched push timeout in usec
+muxer-batch-timeout=40000
+
+
+# nvmultistreamtiler settings
+tiler-height=720
+tiler-width=1280
+
+# Log debug level. 0: disabled. 1: debug. 2: verbose.
+debug=0
+
+# Enable fps print on screen. 0: disable. 1: enable
+enable-fps=1

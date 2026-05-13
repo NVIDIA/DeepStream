@@ -1,0 +1,35 @@
+#######################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+#######################################################################################################
+# this  Makefile is to be used to build the test application to exercise the sample_proto protocol adaptor
+CXX:=g++
+NVDS_VERSION?=9.0
+DS_INC:= ../../includes
+DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+
+TEST_BIN:= test_msgbroker
+
+TEST_SRCS:=test_msgbroker.cpp
+
+CXXFLAGS:= -I$(DS_INC) -rdynamic
+LDFLAGS:= -L$(DS_LIB) -lpthread -lnvds_msgbroker -ldl -Wl,-rpath=$(DS_LIB)
+
+default: all
+
+all: $(TEST_BIN)
+
+$(TEST_BIN) : $(TEST_SRCS)
+	$(CXX) -o $@ $^  $(CXXFLAGS) $(LDFLAGS)
+
+clean:
+	rm -rf $(TEST_BIN)
+

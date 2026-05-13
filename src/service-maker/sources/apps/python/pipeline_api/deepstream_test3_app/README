@@ -1,0 +1,49 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Purpose:
+===============================================================================
+
+This document describes the sample deepstream_test3 application.
+
+This sample builds on top of the service-maker deepstream_test1 sample to demonstrate how to:
+
+* Use multiple sources in the pipeline.
+* Use a uridecodebin so that any type of input (e.g. RTSP/File), any GStreamer
+  supported container format, and any codec can be used as input.
+* Configure the stream-muxer to generate a batch of frames and infer on the
+  batch for better resource utilization.
+* Extract the stream metadata, which contains useful information about the
+  frames in the batched buffer.
+
+Refer to the service-maker deepstream_test1 sample documentation for an example of a
+single-stream inference, bounding-box overlay, and rendering.
+
+===============================================================================
+2. Usage:
+===============================================================================
+
+  Run with the uri(s) or YAML pipeline config file.
+   With YAML Pipeline config approach, user can modify the config file to configure
+   pipeline properties.
+
+    $ python3 deepstream_test3.py <uri1> [uri2] ... [uriN]
+    e.g.
+    $ python3 deepstream_test3.py file:///home/ubuntu/video1.mp4 file:///home/ubuntu/video2.mp4
+    For URI(s) with special charcaters like @,& etc, you need to pass the uri within quotes
+    $ python3 deepstream_test3.py 'rtsp://user@ip/cam/realmonitor?channel=1&subtype=0' 'rtsp://user@ip/cam/realmonitor?channel=1&subtype=0'
+
+    OR
+
+    $ python3 deepstream_test3.py <pipeline config in yaml>
+    

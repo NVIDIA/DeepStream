@@ -1,0 +1,35 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+This custom lib libnvds_3d_infer_postprocess_lidar_detection.so is a custom
+postprocessing for lidar 3D objects detection. It is parsing Nvidia Triton output
+tenors data into 'ds3d::Lidar3DBbox' objects and set the <key, value> data into
+ds3d::datamap.
+
+It exports interface 'CreateInferServerCustomProcess' for deepstream-triton post
+processing with ds3d inference plugin.
+
+More details, refer to the DeepStream SDK documentation for section of "DeepStream 3D Custom Manual".
+https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_3D_Custom_Manual.html
+
+--------------------------------------------------------------------------------
+Pre-requisites:
+- libyaml-cpp Development package
+- CUDA Runtime
+
+--------------------------------------------------------------------------------
+Compiling and installing this custom lib:
+- Run make and sudo make install
+  $ make && make install
+- Verify `libnvds_3d_infer_postprocess_lidar_detection.so` exist and installed well.
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

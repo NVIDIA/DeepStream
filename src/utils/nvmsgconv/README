@@ -1,0 +1,79 @@
+#######################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+#######################################################################################################
+
+nvmsgconv (Message Convertor) library provides APIs for payload generation
+nvmsgconv library supports generation of payload in json & protobuf formats
+
+Below are the schemas supported for payload generation:
+  PAYLOAD_DEEPSTREAM - Json Full message schema with separate payload per object (Default)
+  PAYLOAD_DEEPSTREAM_MINIMAL - Json Minimal message with multiple objects in single payload.
+  PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in single payload.
+
+Payload can be generated using below metadata types:
+  NVDS_EVENT_MSG_META type metadata attached to the buffer as user metadata of frame meta
+  OR
+  NVDS_FRAME_META type and NVDS_OBJECT_META type in Gst buffer and available fields in
+these metadata types are used to create message payload based on schema type.
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+
+--------------------------------------------------------------------------------
+Pre-requisites:
+- glib-2.0
+- json-glib-1.0
+- uuid
+- yaml-cpp
+
+Install using:
+  sudo apt-get install libglib2.0-dev libjson-glib-dev uuid-dev libyaml-cpp-dev
+
+If running deepstream on baremetal and not docker:
+  Install other dependencies (Needs sudo or root privilege):
+  A. For X86 Device -
+  1. Triton gRPC Client into "/opt/tritonclient":
+  mkdir -p  /opt/tritonclient/
+  wget https://github.com/triton-inference-server/server/releases/download/v2.65.0/v2.65.0_ubuntu2404.clients.tar.gz
+  tar xzf v2.65.0_ubuntu2404.clients.tar.gz -C /opt/tritonclient/ lib include
+
+  2. Protobuf compiler v3.21.12 into "/opt/proto":
+  mkdir /opt/proto
+  PB_REL="https://github.com/protocolbuffers/protobuf/releases";
+  curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip
+  unzip protoc-21.12-linux-x86_64.zip -d /opt/proto
+  chmod -R +rx /opt/proto/
+
+  B. For Jetson Device -
+  1. Please download the correct version of Triton gRPC client from
+    https://github.com/triton-inference-server/server/releases 
+    and install into "/opt/tritonclient". Example commands :
+  mkdir -p  /opt/tritonclient/
+  wget https://github.com/triton-inference-server/server/releases/download/v2.60.0/tritonserver2.60.0-agx.tar
+  tar xzf tritonserver2.60.0-agx.tar -C /opt/tritonclient/ --strip-components=2 tritonserver/clients/lib/ tritonserver/clients/include
+
+  2. Protobuf compiler v3.21.12 into "/opt/proto":
+  mkdir /opt/proto
+  PB_REL="https://github.com/protocolbuffers/protobuf/releases";
+  curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip
+  unzip protoc-21.12-linux-aarch_64.zip -d /opt/proto
+  chmod -R +rx /opt/proto/
+
+  Update PATH variable with newly installed protoc by running below command,
+    $ export PATH=/opt/proto/bin/:$PATH
+
+------------------------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Run make and sudo make install
+
+NOTE:
+1) To compile the sources, run make with "sudo" or root permission.
+2) For payload generation using protobuf, proto.schema is provided within deepstream_schema directory.

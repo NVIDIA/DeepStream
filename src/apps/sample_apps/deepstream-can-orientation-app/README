@@ -1,0 +1,161 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-can-orientation-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
+and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+   libyaml-cpp-dev
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev libyaml-cpp-dev
+
+Prepare all test sample images and reference images. Run the following command
+to uncompress can test and reference images into folder `data`, generate
+raw sample image data files, and update yaml configs with correct local paths.
+  $ chmod +x prepare_sample_data.sh && ./prepare_sample_data.sh
+  Note: If there is file permission issues, try with sudo.
+
+
+
+Basler Camera Emulation dependencies setup:
+(Note: If users do not need Basler Camera Emulation test, jump to section 2)
+
+Refer to Basler offical link and install pylon Camera Software Suite x86 or ARM version
+from
+https://www.baslerweb.com/en/products/basler-pylon-camera-software-suite/
+Suggest to use pylon_7.2.1 version which is compatble with PSF file
+'basler_cam_emulation_0815-0000.pfs'
+
+Download specific pylon 7.2.1 Camera Software Suite Debian packages:
+  For x86, get them from
+  https://www.baslerweb.com/en/downloads/software-downloads/software-pylon-7-2-1-linux-x86-64bit-debian/
+  For Jetson, get them from
+  https://www.baslerweb.com/en/downloads/software-downloads/software-pylon-7-2-1-linux-arm-64bit-debian/
+
+Install Basler pylon packages after download.
+  $ apt install -y ./pylon*.deb ./codemeter*.deb
+
+Then clone gst-plugin-pylon source
+ $ git clone -b v0.5.0 https://github.com/basler/gst-plugin-pylon.git
+ $ cd gst-plugin-pylon
+
+Build and install gst pylonsrc plugin, refer to instructions from
+https://github.com/basler/gst-plugin-pylon#linux
+Build and install instructions from practice
+ $ sudo apt remove meson ninja-build
+ $ sudo -H python3 -m pip install meson ninja --upgrade
+ $ export PYLON_ROOT=/opt/pylon
+ $ meson setup builddir --prefix /usr/
+ $ ninja -C builddir
+ $ sudo ninja -C builddir install
+ Note: No need to run `sudo` inside container
+
+Verify `pylonsrc` plugin, run
+ $ gst-inspect-1.0 pylonsrc
+
+Note: if users prefer a different version of pylon SDK rather than pylon_7.2.1.
+After installation, Open Pylon Viewer to generated a Baser Emulation pfs config file
+and replace 'basler_cam_emulation_0815-0000.pfs'.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+deepstream-can-orientation-app is an example to demonstrate detection for
+indrustrial can position and roation angles.
+  a) demonstrate can rotation with multiple images input.
+  b) demonstrate can rotation with raw test data file input (GREY and RGBA)
+  c) detection and matching are processed by plugin
+  d) Basler Camera setup https://github.com/basler/gst-plugin-pylon
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+To compile application deepstream-3d-action-recognition and custom lib
+custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so:
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+
+  $ make
+  $ sudo make install (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+To run can orientation tests:
+  - Run multifile src test with JPG samples:
+  $ deepstream-can-orientation-app -c ds_can_orientation_jpg.yaml
+
+  - Run multifile src test with raw GREY data input:
+  $ deepstream-can-orientation-app -c ds_can_orientation_raw.yaml \
+      -r data/test_samples_raw.grey
+ 
+  - Run multifile src test with raw RGBA data input:
+    Update ds_can_orientation_raw.yaml, change to
+    frame_settings:
+      format: RGBA
+  $ deepstream-can-orientation-app -c ds_can_orientation_raw.yaml \
+      -r data/test_samples_raw.rgba
+
+ - Run Basler Camera Test with Emulation.
+  $ PYLON_CAMEMU=1 deepstream-can-orientation-app -c \
+    ds_can_orientation_basler_cam.yaml
+
+  Note: In case of any emulation configuration file verion or platform mismatch
+  errors, please regenerate Pylon Feature Stream file, e.g.
+  'basler_cam_emulation_0815-0000.pfs'.
+  Users need use GUI tool Pylon Viewer to save emulation config from
+  Camera->Save Features
+  Update correct parameters in ds_can_orientation_basler_cam.yaml
+  camera:
+      device_serial_number: 0815-0000
+      pfs_path: basler_cam_emulation_0815-0000.pfs
+
+  - Performance test
+    Update ds_can_orientation_raw.yaml, change to
+      sink:
+        egl_display: false
+        sync: false
+      debug:
+        print_result: fasle
+  Run loop test:
+  $ deepstream-can-orientation-app -c ds_can_orientation_raw.yaml \
+    -r data/test_samples_raw.grey -l
+
+Note: for all GREY input test files or reference files, pitch of bytes must
+  be 4 bytes aligned.
+  The reference image must be in GREY(GRAY8) color format.
+
+To quit application:
+  'CTRL + C' to quit.

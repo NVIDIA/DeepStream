@@ -1,0 +1,86 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-test2-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+Install cmake: https://cmake.org/download/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-test2 application.
+
+It is meant for demonstration of how to use the various DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream using the service-maker API.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ mkdir build && cd build && cmake .. && make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream. In this method, user needs to modify the source
+    code of deepstream-test2-app to configure pipeline properties.
+
+    $ ./deepstream-test2-app <h264_elementary_stream>
+
+    Or
+
+    $ ./deepstream-test2-app <pipeline config in yaml>
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+In this sample, one instance of "nvinfer" referred as the
+pgie, is created. It uses a 4 class detector and it detects the classes
+"Vehicle , RoadSign, TwoWheeler, Person". After this a "nvtracker" instance
+is linked which tracks the objects detected by the pgie. After this 2 more
+instances of "nvinfer" referred to as sgie1, sgie2,
+respectively are created.
+
+This sample creates instance of "nvinfer" element
+for inference. The "nvinfer" element uses TensorRT API to infer
+on frames/objects. "nvinfer" element is configured through its
+config file. Using a correct configuration for a inference element
+instance is therefore very important as considerable behaviors of the instance
+are parameterized through these configs.
+
+For reference, here are the config files used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    dstest2_pgie_config.yml
+2. The vehicle make classifier (referred to as sgie1 in this sample) uses
+    dstest2_sgie1_config.yml
+3. The vehicle type classifier (referred to as sgie2 in this sample) uses
+    dstest2_sgie2_config.yml
+4. The tracker (referred to as nvtracker in this sample) uses
+    dstest2_tracker_config.txt
+
+Each of the inference elements attach inference metadata to the buffer. By attaching
+the probe at the end of the pipeline, one can extract meaningful
+information from this inference. Please refer the "ObjectCounter::handleData"
+function in the sample code.
+

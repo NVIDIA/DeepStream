@@ -1,0 +1,42 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+# Prepare Trtion Enviroment
+
+On Jetson platforms, the application is meant to be executed on target device directly or inside
+[DeepStream L4T container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream-l4t).
+
+## Trion Inference server for CAPI mode in Jetson
+
+Setup Triton backend
+In case of Jetson to run the Triton Inference Server directly on device, Triton Server setup will be required.
+Go to samples directory and run the following command to set up the Triton Server and backends.
+```
+   $ cd  /opt/nvidia/deepstream/deepstream/samples
+   $ sudo ./triton_backend_setup.sh
+```
+Notes:
+   By default script will download the Triton Server version 2.20.0. For setting
+   up any other version change the package path accordingly.
+
+
+## Triton CAPI deployment
+
+Generate inference engines
+```
+    $ cd tritonserver/
+    $ sudo ./build_engine.sh       # this will take some time to build TensorRT engines
+```
+
+Jump to `Build and Run` to run the tests
+
+##  Triton GRPC Remote Inference server deployment
+please refer to [README.Triton_Jetson_GRPC](./README.Triton_Jetson_GRPC)

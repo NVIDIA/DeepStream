@@ -1,0 +1,123 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-testsr-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container. Please refer
+samples/configs/deepstream-app-triton/README for the steps to download the
+container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample app demonstrates the usage of smart record APIs to record
+portions of the input stream. The recorded file will have bboxes or no bboxes
+as per the command line arguments. Refer Usage section for command line arguments.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+To run(Single H264 video stream source is supported):
+  $deepstream-testsr-app <rtsp uri with H264 video stream>
+e.g.
+By default, hardware encoder path, egldisplay output and bboxes recording is done
+  $deepstream-testsr-app rtsp://127.0.0.1/video1
+To disable bboxes run like below:
+  $deepstream-testsr-app rtsp://127.0.0.1/video1 --bbox-enable=0
+
+Use below command line arguments to use respective components
+1. bbox-enable  0: Disable bboxes, 1: Enable bboxes, Default: Bboxes enabled
+2. enc-type     0: Hardware encoder, 1: Software encoder, Default: Hardware encoder
+3. sink-type    1: Fakesink, 2: Eglsink, 3: RTSP sink, Default: Eglsink
+4. sr-mode      0: Audio + Video, 1: Video only, 2: Audio only, Default: Audio + Video
+5. pgie-type	0: Nvinfer, 1: Nvinferenceserver, Default: Nvinfer
+
+Sample command with above mentioned command line arguments as below
+(User can refer above data to set each arguments accordingly) :
+ $deepstream-testsr-app rtsp://127.0.0.1/video1 --enc-type=1 --sink-type=1 --bbox-enable=1 --sr-mode=0 --pgie-type=0
+
+
+This document shall describe about the sample deepstream-testsr application.
+
+It is meant for simple demonstration of how to use the various DeepStream SDK
+elements in the pipeline and record segments of the stream based on custom
+triggers (NvDsStart / NvDsStop).
+
+The NvDsSr smart record API supports both video and audio. Depending on which sink pads
+("sink" and "asink") of the record bin are linked, either video or audio or both
+can be recorded. For this sample application, this is controlled using the "--sr-mode" commandline
+argument.
+
+This sample creates instance of either "nvinfer" or "nvinferserver" element
+for inference. The "nvinfer" element uses TensorRT API to infer
+on frames/objects. The "nvinferserver" element uses the Triton Inference
+Server to infer on frames/objects. Both elements are configured through the argument
+provided and correspondingly, their respective config files will be set.
+
+For reference, here are the config files used for this sample :
+1. The 4-class detector (referred to as pgie in this sample) uses
+    dstestsr_pgie_config.yml / dstestsr_pgie_nvinferserver_config.txt
+
+Note:
+
+1. User must have write permission in the directory to store the recorded files.
+2. User can disable bboxes in recorded files by following the steps mentioned above.
+3. User can update smart-record parameters i.e. SMART_REC_CONTAINER,
+   CACHE_SIZE_SEC, SMART_REC_DEFAULT_DURATION, START_TIME,
+   SMART_REC_INTERVAL, SMART_REC_DURATION.
+4. Smart record needs I-frames to record videos. So if in case
+   "No video stream found" error is encountered, it is quite possible that
+   the from a given rtsp source, I-frames are not received by the application,
+   for a given recording interval.Try changing the rtsp source or update the
+   above mentioned parameters accordingly.
+5. By default OSD_DISPLAY_TEXT is set to 0. Set to 1, in case user needs
+   information about type of object detected in bounding box e.g. Person.
+6. Use sink-type and enc-type to use the sink and encoders accordingly.
+7. Only video is supported for recording with bboxes enabled

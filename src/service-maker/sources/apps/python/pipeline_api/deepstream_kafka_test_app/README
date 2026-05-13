@@ -1,0 +1,36 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+kafka-python is required to run the test app. To install kafka,
+run following commands:
+
+  $ pip3 install kafka-python
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream_kafka_test application.
+
+It is meant for demonstration of how to use the various DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream using the service-maker API and send these insights directly to a kafka server.
+
+===============================================================================
+2. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream
+    $ python3 deepstream_kafka_test.py <h264_elementary_stream>

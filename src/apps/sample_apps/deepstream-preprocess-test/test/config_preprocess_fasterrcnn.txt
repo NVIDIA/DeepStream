@@ -1,0 +1,66 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# The values in the config file are overridden by values set through GObject
+# properties.
+
+[property]
+enable=1
+target-unique-ids=1
+    # 0=NCHW, 1=NHWC, 2=CUSTOM
+network-input-order=0
+    # tensor shape based on network-input-order
+network-input-shape= 7;3;375;500
+processing-width=500
+processing-height=375
+scaling-buf-pool-size=6
+tensor-buf-pool-size=6
+    # 0=RGB, 1=BGR, 2=GRAY
+network-color-format=0
+    # 0=FP32, 1=UINT8, 2=INT8, 3=UINT32, 4=INT32, 5=FP16
+tensor-data-type=0
+tensor-name=data
+    # 0=NVBUF_MEM_DEFAULT 1=NVBUF_MEM_CUDA_PINNED 2=NVBUF_MEM_CUDA_DEVICE 3=NVBUF_MEM_CUDA_UNIFIED
+scaling-pool-memory-type=0
+    # 0=NvBufSurfTransformCompute_Default 1=NvBufSurfTransformCompute_GPU 2=NvBufSurfTransformCompute_VIC
+scaling-pool-compute-hw=0
+    # Scaling Interpolation method
+    # 0=NvBufSurfTransformInter_Nearest 1=NvBufSurfTransformInter_Bilinear 2=NvBufSurfTransformInter_Algo1
+    # 3=NvBufSurfTransformInter_Algo2 4=NvBufSurfTransformInter_Algo3 5=NvBufSurfTransformInter_Algo4
+    # 6=NvBufSurfTransformInter_Default
+scaling-filter=0
+custom-lib-path=/opt/nvidia/deepstream/deepstream/lib/gst-plugins/libcustom2d_preprocess.so
+custom-tensor-preparation-function=CustomTensorPreparation
+
+[user-configs]
+pixel-normalization-factor=1
+#mean-file=
+offsets=102.9801;115.9465;122.7717
+
+[group-0]
+src-ids=0;1
+custom-input-transformation-function=CustomAsyncTransformation
+process-on-roi=1
+roi-params-src-0=0;540;900;500;960;0;900;500
+roi-params-src-1=0;540;900;500;960;0;900;500
+
+[group-1]
+src-ids=2
+custom-input-transformation-function=CustomAsyncTransformation
+process-on-roi=1
+roi-params-src-2=0;540;900;500;960;0;900;500
+
+[group-2]
+src-ids=3
+custom-input-transformation-function=CustomAsyncTransformation
+process-on-roi=0
+roi-params-src-3=0;540;900;500;960;0;900;500

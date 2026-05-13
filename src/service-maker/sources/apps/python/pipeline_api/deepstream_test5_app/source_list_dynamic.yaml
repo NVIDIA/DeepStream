@@ -1,0 +1,31 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+source-list:
+- uri: "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4"
+  sensor-id: UniqueSensorId1
+  sensor-name: UniqueSensorName1
+- uri: "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4"
+  sensor-id: UniqueSensorId2
+  sensor-name: UniqueSensorName2
+source-config:
+  source-bin: "nvmultiurisrcbin"
+  properties:
+    ip-address: "localhost"
+    port: 7000
+    batched-push-timeout: 33000
+    live-source: true
+    width: 1920
+    height: 1080
+    file-loop: true
+    max-batch-size: 16
+    buffer-pool-size: 16

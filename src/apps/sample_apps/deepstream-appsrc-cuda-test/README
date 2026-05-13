@@ -1,0 +1,105 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-appsrc-cuda-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+    GStreamer-1.0
+    GStreamer-1.0 Base Plugins
+    GStreamer-1.0 gstrtspserver
+    X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container. Please refer
+samples/configs/deepstream-app-triton/README for the steps to download the
+container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream-appsrc-cuda-test application.
+
+It is meant to demonstrate how cuda frames acquired from outside DeepStream
+can be fed to a DeepStream pipeline. It also demostrates how metadata can be accessed
+via appsink and used outside deepstream.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+      For x86, CUDA_VER=13.1
+      For SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+Note: This application is validated on x86.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Creating raw video streams from Encoded streams:
+Raw streams can be created using gst-launch-1.0. The pipeline is as follows:
+  $ gst-launch-1.0 uridecodebin uri=<URI of file> ! nvvideoconvert !
+      'video/x-raw, format=<Format of stream (example: I420, NV12, RGBA)>,
+      width=<Width of stream>, height=<height of stream>' ! filesink location=test.raw
+
+Ensure the directory where raw file needs to be saved has write permissions.
+i.e. /opt/nvidia/deepstream/deepstream/samples/streams/ needs write permissions before executing
+below sample pipeline.
+
+  $ gst-launch-1.0 uridecodebin \
+      uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
+      ! nvvideoconvert ! 'video/x-raw, format=I420, width=1280, height=720' \
+      ! filesink location= /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.i420
+
+To run the application with raw video stream:
+  $ deepstream-appsrc-cuda-test <Raw video stream (example: YUV)> <width of stream>
+      <height of stream> <expected FPS of stream> <format of stream (example: I420, NV12, RGBA)>
+  e.g.
+  $ deepstream-appsrc-cuda-test /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.i420 1280 720 30 I420
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-appsrc-cuda-test -t inferserver <Raw video stream (example: YUV)> <width of stream>
+      <height of stream> <expected FPS of stream> <format of stream (example: I420, NV12, RGBA)>
+  e.g.
+  $ deepstream-appsrc-cuda-test -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.i420 1280 720 30 I420
+    
+This sample uses appsrc APIs to push raw video frames copied to GPU memory into the pipeline,
+frames are read from a file into system memory.
+A cuda memory block is created where the raw video frames are copied. NvBufsurface parameters are updated and
+is wrapped in a Gstreamer buffer which is passed to appsrc component. From appsrc, the usual deepstream components are then used.
+Single primary inferencing is used here. Then the buffers are sent via a tee to regular video rendering sink and
+appsink. Appsink extracts buffer from sample and then obtains metadata information from it.
+
+NOTE: This app supports only RGBA, NV12 and I420 raw video streams.
+
+

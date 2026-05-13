@@ -1,0 +1,34 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Purpose:
+===============================================================================
+
+This document shall describe about the sample deepstream_test2 application.
+
+It is meant for demonstration of how to use the various DeepStream SDK
+elements in the pipeline and extract meaningful insights from a video stream using the service-maker API.
+
+===============================================================================
+2. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream or YAML pipeline config file.
+   With YAML Pipeline config approach, user can modify the config file to configure
+   pipeline properties.
+
+    $ python3 deepstream_test2.py <h264_elementary_stream>
+
+    Or
+
+    $ python3 deepstream_test2.py <pipeline config in yaml>

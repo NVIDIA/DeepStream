@@ -1,0 +1,45 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+Refer to the DeepStream SDK documentation for the description of the
+"nvinferserver" plugin.
+
+Dependencies:
+- Triton Inference Server library (/opt/tritonserver/lib/libtritonserver.so)
+- Triton gRPC client library v26.01 for X86
+- Triton gRPC client library v25.08 for aarch64 and SBSA/Spark
+- Google Protobuf compiler v3.21.12
+- Half - Half precision floating point C++ library v2.1.0 
+
+Please ensure that the above dependencies are installed and update corresponding
+paths in the Makefile if required.
+Current set paths are as follows:
+PROTOBUF_BIN_DIR ?= /opt/proto/bin
+TRITON_GRPC_CLIENT ?= /opt/tritonclient
+HALF_PRECISION_LIB ?= /opt/half
+
+For installing the Triton gRPC client library and the protobuf compiler please
+check the steps in /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvinferserver/README 
+
+Installing Half v2.1.0:
+mkdir /opt/half
+wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip
+unzip half-2.1.0.zip -d /opt/half/
+rm half-2.1.0.zip
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+
+Run make and sudo make install
+
+NOTE: To compile the sources, run make with "sudo" or root permission.

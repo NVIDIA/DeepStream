@@ -1,0 +1,46 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+source:
+  uri-list: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+  ip-address: localhost
+  port: 9010
+  drop-pipeline-eos: 1
+  live-source: 1
+  max-batch-size: 10
+  batched-push-timeout: 33333
+  width: 1920
+  height: 1080
+
+tiler:
+  width: 1280
+  height: 720
+  rows: 2
+  columns: 5
+  gpu-id: 0
+  nvbuf-memory-type: 0
+  square-seq-grid: 1
+# streammux:
+#   batch-size: 10
+#   batched-push-timeout: 40000
+#   width: 1920
+#   height: 1080
+
+# Inference using nvinfer:
+primary-gie:
+  plugin-type: 0
+  config-file-path: ds_dynamic_demuxer_pgie_config.yml
+
+## Inference using nvinferserver:
+#primary-gie:
+#  plugin-type: 1
+#  config-file-path: ds_dynamic_demuxer_pgie_nvinferserver_config.txt

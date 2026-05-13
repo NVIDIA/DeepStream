@@ -1,0 +1,48 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+name: "pointpillars"
+platform: "tensorrt_plan"
+max_batch_size: 0
+default_model_filename: "pointpillars_deployable.engine"
+input [
+  {
+    name: "points"
+    data_type: TYPE_FP32
+    dims: [ 1, 204800, 4 ]
+  },
+  {
+    name: "num_points"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+  }
+]
+output [
+  {
+    name: "output_boxes"
+    data_type: TYPE_FP32
+    dims: [ 1, 393216 , 9 ]
+  },
+  {
+    name: "num_boxes"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+  }
+
+]
+instance_group [
+  {
+    kind: KIND_GPU
+    count: 1
+    gpus: 0
+  }
+]

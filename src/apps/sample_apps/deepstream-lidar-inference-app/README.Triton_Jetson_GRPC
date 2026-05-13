@@ -1,0 +1,49 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*
+* NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+* property and proprietary rights in and to this material, related
+* documentation and any modifications thereto. Any use, reproduction,
+* disclosure or distribution of this material and related documentation
+* without an express license agreement from NVIDIA CORPORATION or
+* its affiliates is strictly prohibited.
+*****************************************************************************
+##  Triton GRPC server deployment
+Jetson dose not support to start Tritonserver locally, please start Tritonserver on DGPU.
+
+start Triton server docker on DGPU device.
+```
+    #start Triton docker.
+    $ docker run --gpus all -it  --ipc=host --net=host --rm -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -w \
+    /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream_lidar_inference_app  nvcr.io/nvidia/deepstream:6.2-triton
+```
+Generate inference engines on DGPU
+```
+    $ cd tritonserver/
+    $ sudo ./build_engine.sh       # this will take some time to build TensorRT engines
+```
+start Tritonserver application program on DGPU
+```
+    $ tritonserver --model-repository=./models --strict-model-config=false --grpc-infer-allocation-pool-size=16 --log-verbose=1
+```
+Update `config_file` of `lidarfilter` in configuration `config_lidar_triton_infer.yaml`
+or `config_lidar_source_triton_render.yaml`.
+Switch from triton_mode_CAPI.txt to triton_mode_GRPC.txt for gRPC test:
+```
+    config_file: triton_mode_GRPC.txt
+```
+  Users could update grpc connection in triton_mode_GRPC.txt looks like:
+```
+    grpc {
+        url: "x.x.x.x:8001"
+    }
+```
+Note: DO NOT use `localhost` if starting server docker without "--net=host",
+`localhost` does not work well if both server & client are running on the same host.
+
+Check Tritonserver application status
+On the client side, run
+    $ curl -v IP:8000/v2/health/ready
+
+Jump to `Build and Run` to run the tests inside client container.

@@ -1,0 +1,87 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+rest-server:
+  within_multiurisrcbin: 1
+
+server-app-ctx:
+  #Use single uri in uri_list for server-app-ctx to start the sample application.
+  #i.e. no comma separted uri's to be used)
+  uri_list: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+  httpIp: "localhost"
+  httpPort: "9000"
+  pipeline_width: 1920
+  pipeline_height: 1080
+  maxBatchSize: 8
+  batched_push_timeout: 33333
+  live_source: 1
+  drop_pipeline_eos: 1
+
+multiurisrcbin:
+  #comma separated uri (no semicolon at the end). For ex- uri1,uri2,uriN
+  #parsed inside nvmultiurisrcbin
+  uri-list: file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+  port: 9000
+  live-source: 1
+  width: 1920
+  height: 1080
+  batched-push-timeout: 33333
+  max-batch-size: 8
+  #To simulate nvvideoconvert specific REST APIs change disable-passthrough: 1
+  disable-passthrough: 0
+  drop-pipeline-eos: 1
+  #Error Propagation configuration
+  #Set the below error propagation key to enable the error propagation to a given adaptor
+  enable-error-propagation: 0
+  #Once above error propagation key is set, uncomment and update below key values accordingly
+  #Error messages published to:
+  #  - Stream-related errors: error_events_<sensor_id>
+  #  - Other errors: error_events_<topic>
+  #proto-lib: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+  #conn-str: <host>;<port>
+  #topic: <topic>
+  #Enable rtsp reconnections properties for rtsp source(s).
+  #rtsp-reconnect-interval: 5
+  #rtsp-reconnect-attempts: 3
+  #To demonstrate the new nvstreammux config-file usage
+  config-file-path: config_new_nvstreammux.txt
+
+osd:
+  process-mode: 1
+  display-text: 1
+
+tiler:
+  width: 1280
+  height: 720
+
+sink:
+  qos: 0
+
+encoder:
+  codec: 1 # codec=1 h264, codec=2 h265
+  enable: 0 #Disabled, Set to 1 to enable encoder pipeline in the sample application.
+
+# Inference using nvinfer:
+primary-gie:
+  plugin-type: 0
+  config-file-path: dsserver_pgie_config.yml
+
+## Inference using nvinferserver:
+#primary-gie:
+#  plugin-type: 1
+#  config-file-path: dsserver_pgie_nvinferserver_config.txt
+
+analytics:
+  # Enable analytics
+  enable: 0
+  # Set the config file path
+  config-file: config_nvdsanalytics.txt

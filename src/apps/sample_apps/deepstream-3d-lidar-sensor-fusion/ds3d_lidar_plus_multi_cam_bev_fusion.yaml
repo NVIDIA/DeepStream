@@ -1,0 +1,481 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+---
+name: video_source
+type: ds3d::gstparsebin
+link_to: videobridge_2d_to_3d
+config_body:
+  # cam_0: CAM_FRONT -> nvstreammux m.sink_0
+  # cam_1: CAM_FRONT_RIGHT -> nvstreammux m.sink_1
+  # cam_2: CAM_FRONT_LEFT -> nvstreammux m.sink_2
+  # cam_3: CAM_BACK -> nvstreammux m.sink_3
+  # cam_4: CAM_BACK_LEFT -> nvstreammux m.sink_4
+  # cam_5: CAM_BACK_RIGHT -> nvstreammux m.sink_5
+  # path of the frames, data file needs to be placed in order in this path
+  parse_bin: >-
+    multifilesrc loop=true location=data/nuscene/CAM_FRONT/%06d-CAM_FRONT.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_0
+    multifilesrc loop=true location=data/nuscene/CAM_FRONT_RIGHT/%06d-CAM_FRONT_RIGHT.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_1
+    multifilesrc loop=true location=data/nuscene/CAM_FRONT_LEFT/%06d-CAM_FRONT_LEFT.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_2
+    multifilesrc loop=true location=data/nuscene/CAM_BACK/%06d-CAM_BACK.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_3
+    multifilesrc loop=true location=data/nuscene/CAM_BACK_LEFT/%06d-CAM_BACK_LEFT.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_4
+    multifilesrc loop=true location=data/nuscene/CAM_BACK_RIGHT/%06d-CAM_BACK_RIGHT.jpg ! image/jpeg, framerate=20/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert compute-hw=1 nvbuf-memory-type=2 ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_5
+    nvstreammux name=m width=1600 height=900 batch-size=6 buffer-pool-size=6 nvbuf-memory-type=2 compute-hw=1 ! queue
+
+# bridge (2d->3d)
+---
+name: videobridge_2d_to_3d
+type: ds3d::databridge
+link_to: multisensor_mixer.sink_1
+in_caps: video/x-raw(memory:NVMM)
+out_caps: ds3d/datamap
+#with_queue: src
+custom_lib_path: libnvds_3d_video_databridge.so
+custom_create_function: createVideoBridge2d3d
+config_body:
+  surface_to_image: True
+  # wrap nvbufsurface into color frame of ds3d::Frame2DGuard
+  output_image_key: DS3D::ColorFrame
+  # convert NvDsObjectMeta into array of ds3d::Object2DBbox with ds3d::FrameGuard
+  output_object2d_key: DS3D::Object2DBboxKey
+
+
+# read lidar data from file
+---
+name: ds3d_lidar_file_source
+type: ds3d::dataloader
+link_to: multisensor_mixer.sink_0
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+config_body:
+  #path of the frames, data file needs to be placed in order in this path
+  data_config_file: lidar_nuscene_data_list.yaml
+  points_num: 242180 #points num, change to 242180
+  fixed_points_num: True
+  lidar_datatype: FP32 #FP32 FP16 INT8 INT32, only support FP32 this version
+  mem_type: gpu # choose [cpu gpu]
+  gpu_id: 0
+  mem_pool_size: 6
+  element_size: 4
+  element_stride: 5
+  output_datamap_key: DS3D::LidarXYZI
+  file_loop: True # False: read data normally True: read data circularly
+
+# mixer
+---
+name: multisensor_mixer
+type: ds3d::datamixer
+link_to: lidar_alignment_filter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+#with_queue: src
+custom_lib_path: libnvds_3d_multisensor_mixer.so
+custom_create_function: createMultiSensorMixer
+config_body:
+  #timeout in milliseconds;
+  timeout: 50
+  #force_sync == true will force mixer to wait for buffers from ALL inputs
+  force_sync: true
+
+# multi-sensor data fusion inference
+---
+name: bevfusion_inference
+type: ds3d::datafilter
+link_to: ds3d_sensor_fusion_render
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+config_body:
+  in_streams: [lidar]
+  mem_pool_size: 2
+  # datatype: FP32, FP16, INT8, INT32, INT16, UINT8, UINT16, UINT32, FP64, INT64, UINT64, BYTES, BOOL
+  model_inputs:
+    - name: input_image_0
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_0+1
+      is_2d_frame: true
+    - name: input_image_1
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_1+1
+      is_2d_frame: true
+    - name: input_image_2
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_2+1
+      is_2d_frame: true
+    - name: input_image_3
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_3+1
+      is_2d_frame: true
+    - name: input_image_4
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_4+1
+      is_2d_frame: true
+    - name: input_image_5
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_5+1
+      is_2d_frame: true
+    - name: input_lidar
+      datatype: FP32
+      shape: [242180, 4]
+      from: DS3D::LidarXYZI+0
+
+  gpu_id: 0
+  # input tensor memory type after preprocess: GpuCuda, CpuCuda
+  input_tensor_mem_type: GpuCuda
+  labels:
+    - car:
+        color: [255, 158, 0]
+    - truck:
+        color: [255, 99, 71]
+    - construction_vehicle:
+        color: [233, 150, 70]
+    - bus:
+        color: [255, 69, 0]
+    - trailer:
+        color: [255, 140, 0]
+    - barrier:
+        color: [255, 201, 14]
+    - motorcycle:
+        color: [255, 61, 99]
+    - bicycle:
+        color: [220, 20, 60]
+    - pedestrian:
+        color: [0, 0, 230]
+    - traffic_cone:
+        color: [117, 22, 63]
+
+  postprocess:
+    score_threshold: 0.2
+    3d_bbox_key: DS3D::Lidar3DBboxRawData
+
+  #config_file: triton deploy,CAPI is edge deployment, GRPC is cloud deployment
+  config_file: model_config_files/config_triton_bev_fusion_infer_grpc.pbtxt
+
+# alignment (lidar->image calibration)
+---
+name: lidar_alignment_filter
+type: ds3d::datafilter
+link_to: bevfusion_inference
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_alignment_datafilter.so
+custom_create_function: createLidarAlignmentFilter
+config_body:
+  disable_lidar_data_align: True
+  cam_width: 1600
+  cam_height: 900
+  row_major: True
+  # The below data settings are following camera order
+  # [CAM_FRONT, CAM_FRONT_RIGHT, CAM_FRONT_LEFT, CAM_BACK, CAM_BACK_LEFT, CAM_BACK_RIGHT]
+  output_cam_intrinsic_param_keys: [
+      DS3D::Cam0_IntrinsicParm, DS3D::Cam1_IntrinsicParm, DS3D::Cam2_IntrinsicParm,
+      DS3D::Cam3_IntrinsicParm, DS3D::Cam4_IntrinsicParm, DS3D::Cam5_IntrinsicParm]
+  output_cam_intrinsic_mat_keys: [
+      DS3D::Cam0_IntrinsicMatrix, DS3D::Cam1_IntrinsicMatrix, DS3D::Cam2_IntrinsicMatrix,
+      DS3D::Cam3_IntrinsicMatrix, DS3D::Cam4_IntrinsicMatrix, DS3D::Cam5_IntrinsicMatrix]
+  output_lidar_to_cam_extrinsic_mat_keys: [
+    DS3D::LidarToCam0_ExtrinsicMatrix, DS3D::LidarToCam1_ExtrinsicMatrix, DS3D::LidarToCam2_ExtrinsicMatrix,
+    DS3D::LidarToCam3_ExtrinsicMatrix, DS3D::LidarToCam4_ExtrinsicMatrix, DS3D::LidarToCam5_ExtrinsicMatrix]
+  cam_intrinsic: [
+      [1266.4172, 0.0000, 816.2670, 0.0000,
+      0.0000, 1266.4172, 491.5071, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000],
+      [1260.8474, 0.0000, 807.9682, 0.0000,
+      0.0000, 1260.8474, 495.3344, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000],
+      [1272.5979, 0.0000, 826.6155, 0.0000,
+      0.0000, 1272.5979, 479.7517, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000],
+      [809.2210, 0.0000, 829.2196, 0.0000,
+      0.0000, 809.2210, 481.7784, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000],
+      [1256.7415, 0.0000, 792.1126, 0.0000,
+      0.0000, 1256.7415, 492.7757, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000],
+      [1259.5137, 0.0000, 807.2529, 0.0000,
+      0.0000, 1259.5137, 501.1958, 0.0000,
+      0.0000, 0.0000, 1.0000, 0.0000]
+      ]
+  lidar_to_cam_extrisic: [
+      [1.0000, 0.0035, 0.0068, 0.0119,
+      0.0067, 0.0186, -0.9998, -0.3250,
+      -0.0036, 0.9998, 0.0186, -0.7590],
+      [0.5517, -0.8337, -0.0260, 0.2296,
+      -0.0105, 0.0243, -0.9997, -0.3363,
+      0.8340, 0.5517, 0.0046, -0.7516],
+      [0.5729, 0.8193, 0.0211, -0.1943,
+      0.0027, 0.0239, -0.9997, -0.3323,
+      -0.8196, 0.5728, 0.0115, -0.7366],
+      [-0.9999, 0.0047, -0.0098, -0.0023,
+      0.0098, 0.0075, -0.9999, -0.2764,
+      -0.0046, -1.0000, -0.0075, -0.9109],
+      [-0.3171, 0.9481, 0.0249, -0.2409,
+      0.0199, 0.0329, -0.9993, -0.2432,
+      -0.9482, -0.3163, -0.0293, -0.4341],
+      [-0.3569, -0.9335, -0.0355, 0.2342,
+      -0.0054, 0.0401, -0.9992, -0.2734,
+      0.9341, -0.3564, -0.0194, -0.4285]
+      ]
+  #cam input keys to ratain in the output datamap
+  cam_input_keys: [DS3D::ColorFrame+1]
+  max_points: 2073600
+  mem_pool_size: 32
+  align_to_intrinsic: false
+  lidar_element_size: 4
+
+#lidar data rendering
+---
+name: ds3d_sensor_fusion_render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+with_queue: sink
+custom_lib_path: libnvds_3d_gles_ensemble_render.so
+custom_create_function: NvDs3D_CreateGlesEnsembleRender
+gst_properties:
+  sync: False
+  async: True
+  drop: False
+config_body:
+  # window size
+  window_width: 1920
+  window_height: 1080
+  color_clear: true
+  window_title: DS3D-Lidar-6-Cameras-BEVFusion
+  render_graph:
+    # cam_2: CAM_FRONT_LEFT in top left positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [0, 0, 640, 360]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_2+1 # DS3D::ColorFrame_2... is for cam_2
+    - lidar3d_render: # lidar aligned into cam_2
+        # layout [x0, y0, x1, y1]
+        layout: [0, 0, 640, 360]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        #lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam2_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam2_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+    # cam_0: CAM_FRONT in top center positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [640, 0, 1280, 360]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_0+1 # DS3D::ColorFrame_0... is for cam_0
+    - lidar3d_render: # lidar aligned into cam_0
+        # layout [x0, y0, x1, y1]
+        layout: [640, 0, 1280, 360]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        # lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam0_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam0_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+    # cam_1: CAM_FRONT_RIGHT in top right positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [1280, 0, 1920, 360]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_1+1 # DS3D::ColorFrame_1... is for cam_1
+    - lidar3d_render: # lidar aligned into cam_1
+        # layout [x0, y0, x1, y1]
+        layout: [1280, 0, 1920, 360]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        # lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam1_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam1_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+    #lidar top view
+    - lidar3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [0, 360, 960, 720]
+        view_position: [0, 0, 30]
+        view_target: [0, 0, 0]
+        view_up: [0, 1, 0]
+        perspective_near: 0.1
+        perspective_far: 100
+        # angle degree
+        perspective_fov: 80
+        # 0 stands for (layout.x1 - layout.x0) / (layout.y1 - layout.y0))
+        perspective_ratio: 0.0
+        lidar_color: [0, 255, 0]
+        # lidar transformed to camera coordinates data key
+        #lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        enable_label: false
+        element_size: 4
+        color_clear: false
+
+    # lidar front view
+    - lidar3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [960, 360, 1920, 720]
+        color_clear: false
+        lidar_color: [255, 255, 128]
+        # setup front top view
+        view_position: [0, -8, 3]
+        view_target: [0, 20, 1]
+        view_up: [0, 0, 1]
+        # setup perspective angles
+        perspective_near: 1
+        perspective_far: 100
+        # angle degree
+        perspective_fov: 70
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        enable_label: true
+        element_size: 4
+
+    # cam_5: CAM_BACK_RIGHT in bottom left positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [0, 720, 640, 1080]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_5+1 # DS3D::ColorFrame_3... is for cam_5
+    - lidar3d_render: # lidar aligned into cam_5
+        # layout [x0, y0, x1, y1]
+        layout: [0, 720, 640, 1080]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        # lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam5_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam5_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+    # cam_3: CAM_BACK in bottom center positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [640, 720, 1280, 1080]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_3+1 # DS3D::ColorFrame_3... is for cam_3
+    - lidar3d_render: # lidar aligned into cam_3
+        # layout [x0, y0, x1, y1]
+        layout: [640, 720, 1280, 1080]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        # lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam3_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam3_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+    # cam_4: CAM_BACK_LEFT in bottom right positon
+    - texture3d_render:
+        # layout [x0, y0, x1, y1]
+        layout: [1280, 720, 1920, 1080]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_4+1 # DS3D::ColorFrame_4... is for cam_4
+    - lidar3d_render: # lidar aligned into cam_4
+        # layout [x0, y0, x1, y1]
+        layout: [1280, 720, 1920, 1080]
+        color_clear: false
+        lidar_color: [0, 0, 255]
+        # lidar transformed to camera coordinates data key
+        # lidar_data_key: DS3D::LidarAlignedXYZIKey
+        # original lidar data key
+        lidar_data_key: DS3D::LidarXYZI+0
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+        # project lidar data into image require image size settings
+        project_lidar_to_image: true
+        image_width: 1600
+        image_height: 900
+        intrinsics_mat_key: DS3D::Cam4_IntrinsicMatrix
+        extrinsics_mat_key: DS3D::LidarToCam4_ExtrinsicMatrix
+        #z_range: [-100, 100]
+        x_range: [-100, 100]
+        #y_range: [-100, 100]
+
+# for debug
+---
+  name: debugdump
+  type: ds3d::userapp
+  eos_auto_stop: True
+  enable_debug: False
+  probe_buffer: True

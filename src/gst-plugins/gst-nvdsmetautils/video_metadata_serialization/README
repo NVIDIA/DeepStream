@@ -1,0 +1,98 @@
+*****************************************************************************
+* SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.  All rights reserved.
+* SPDX-License-Identifier: MIT
+*
+* Permission is hereby granted, free of charge, to any person obtaining a
+* copy of this software and associated documentation files (the "Software"),
+* to deal in the Software without restriction, including without limitation
+* the rights to use, copy, modify, merge, publish, distribute, sublicense,
+* and/or sell copies of the Software, and to permit persons to whom the
+* Software is furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+* THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+* DEALINGS IN THE SOFTWARE.
+*****************************************************************************
+
+*****************************************************************************
+                      video-metadata-serialization
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Refer to the DeepStream SDK documentation for a description of the
+"nvdsgst_metautils" plugins and API.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   Protobuf Compiler
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev protobuf-compiler libjson-glib-dev
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document shall describe about the gst-nvdsmetatils plugins.
+
+It is meant for demonstration of how to use the nvdsmetainsert and
+nvdsmetaextract elements with video meta serializtion and deserialization library
+in the pipeline.
+
+nvdsinsert plugin with video meta serialization library serializes NvDsFrameMeta &
+NvDsObjectMeta and attach it as NvDsUserMeta on the outgoing buffer.
+This lib can be modified and extended to support other metadata fields
+based on the use-case
+
+nvdsextract plugin with the same library deserializes NvDsFramemeta &
+NvDsObjectmeta and reconstructs the metadata into NvDsBatchMeta.
+
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+      For x86, CUDA_VER=13.1
+      For SBSA, CUDA_VER=13.0
+  $ sudo make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Unit-Test:
+
+Setting CLEAR_NVDS_BATCH_META=yes is needed only for the demonstration of
+below pipelines, in actual use-case scenario like RDMA transfer this flag is
+not needed. This flag only resets NvDsObjectMeta as part of NvDsFrameMeta
+
+$ export USE_NEW_NVSTREAMMUX=yes
+$ export CLEAR_NVDS_BATCH_META=yes
+
+1. Using nvinfer
+
+$ gst-launch-1.0 filesrc location=~/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder \
+! m.sink_0 nvstreammux name=m ! nvvideoconvert ! nvinfer config-file-path= config_infer_primary.txt \
+! nvdsmetainsert serialize-lib = "libnvds_video_metadata_serialization.so" \
+! nvdsmetaextract deserialize-lib = "libnvds_video_metadata_serialization.so"  \
+! nvmultistreamtiler width=1280 height=720 ! nvdsosd !  nveglglessink     filesrc location=~/sample_720p.mp4 \
+! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1
+
+===============================================================================
+4. Note:
+===============================================================================
+Clean and build the sources upon any change in the protobuf compiler version
+on the system.

@@ -1,0 +1,76 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the apps.
+
+#Deepstream msgbroker supports sending messages to Azure(mqtt) IOThub, kafka, AMQP broker(rabbitmq) and Redis
+
+Dependencies
+------------
+
+ Azure Iot:
+ ----------
+    Refer to the README files available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    for detailed documentation on prerequisites and usages of Azure protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ Kafka:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    for detailed documentation on prerequisites and usages of kafka protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+ AMQP (rabbitmq):
+ ----------------
+    Install rabbitmq-c library
+    --------------------------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    for detailed documentation on prerequisites and usages of rabbitmq based
+    amqp protocol adaptor with the message broker plugin for sending messages to cloud.
+
+ Redis:
+ ------
+    Refer to the README file available under
+    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    for detailed documentation on prerequisites and usages of redis protocol
+    adaptor with the message broker plugin for sending messages to cloud.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample builds on top of the service-maker deepstream_test1 sample to demonstrate to use
+"nvmsgconv" and "nvmsgbroker" plugins in the pipeline. Create EventMessageUserMetadata
+type of meta and attach to buffer. EventMessageUserMetadata is used for different types
+ of objects e.g. vehicle, person etc.
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream or YAML pipeline config file.
+   With YAML Pipeline config approach, user can modify the config file to configure
+   pipeline properties.
+
+    $ python3 deepstream_test4.py <h264_elementary_stream>
+
+    OR
+
+    $ python3 deepstream_test4.py <YAML pipeline config file>

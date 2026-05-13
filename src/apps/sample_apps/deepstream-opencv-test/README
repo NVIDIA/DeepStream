@@ -1,0 +1,94 @@
+*****************************************************************************
+* Copyright (c) 2020-2026, NVIDIA Corporation.  All rights reserved.
+*
+* NVIDIA Corporation and its licensors retain all intellectual property
+* and proprietary rights in and to this software, related documentation
+* and any modifications thereto.  Any use, reproduction, disclosure or
+* distribution of this software and related documentation without an express
+* license agreement from NVIDIA Corporation is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-opencv-test
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+This example can be configured to use either the nvinfer or the nvinferserver
+element for inference.
+If nvinferserver is selected, the Triton Inference Server is used for inference
+processing. In this case, the example needs to be run inside the
+DeepStream-Triton docker container  for dGPU platforms. For Jetson platforms,
+this example can be executed on target device directly or inside DeepStream L4T
+Triton container. Please refer samples/configs/deepstream-app-triton/README for
+the steps to download the container image and setup model repository.
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document describes the sample deepstream-opencv-test application.
+
+This sample builds on top of the deepstream-test1 sample to use dsexample plugin
+to do opencv processing. It uses uridecodebin so that any type of input
+(e.g. RTSP/File), any GStreamer supported container format, and any codec
+can be used as input.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+  $ sudo make (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  $ deepstream-opencv-test <uri>
+e.g.
+  $ deepstream-opencv-test file:///home/nvidia/video1.mp4
+
+Use option "-t inferserver" to select nvinferserver as the inference plugin
+  $ deepstream-opencv-test -t inferserver <uri>
+e.g.
+  $ deepstream-opencv-test -t inferserver file:///home/nvidia/video1.mp4
+
+Refer to the deepstream-test1 sample documentation of single-stream inference,
+bounding-box overlay, and rendering.
+
+This sample accepts any type of stream as a input. dsexample plugin has been
+added to show image processing using opencv. dsexample gaussian blurs the detected
+objects from nvinfer/nvinferserver while processing in full-frame=0 mode.
+
+Since, dsexample plugin requires RGB input for blurring with opencv, nvvideoconvert
+has been used before it to convert the NV12 format to RGBA input format for dsexample.
+
+"blur-objects" property is enabled in dsexample plugin to blur the detected objects only when processing
+in object mode is used. i.e. "full-frame" property is disabled.
+
+NOTE: Due to OpenCV deprecation from gst-dsexample, object blurring will not work. To run this app:
+1. Set `WITH_OPENCV=1` in Makefile of gst-dsexample.
+2. Compile and install the library by following instructions mentioned in gst-dsexample README.

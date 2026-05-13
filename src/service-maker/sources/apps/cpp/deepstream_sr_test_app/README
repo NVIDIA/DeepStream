@@ -1,0 +1,159 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-sr-test-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the
+apps.
+
+Install cmake: https://cmake.org/download/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document describes the deepstream-sr-test application.
+
+This sample demonstrates how to:
+* Use smart-record feature for recording RTSP streams
+* Configure and manage smart recording based on events
+* Handle multiple RTSP streams with smart recording capabilities
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ mkdir build && cd build && cmake .. && make
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+  Run with the RTSP uri(s). Use --recording to select local or kafka mode.
+
+    $ ./deepstream-sr-test-app [--recording {local|kafka}] rtsp://127.0.0.1/video1 [rtsp://127.0.0.1/video2 ...]
+
+  Where:
+  - --recording or -r selects the recording mode. Valid values: "local" or "kafka". Default: "local".
+
+  Examples:
+  - Local (default):
+      $ ./deepstream-sr-test-app rtsp://127.0.0.1/video1
+  - Kafka-controlled recording:
+      $ ./deepstream-sr-test-app -r kafka rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
+
+===============================================================================
+5. Important Notes:
+===============================================================================
+
+1. Smart Record feature only works with live RTSP streams
+2. MSGCONV_CONFIG_FILE is required only when running with "--recording kafka"
+3. A sample MSGCONV_CONFIG_FILE is available at:
+   "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+4. The smart record feature allows for:
+   - Event-based recording
+   - Configurable recording duration
+   - Multiple stream handling
+   - Custom event triggers for recording
+
+===============================================================================
+6. How To Smart Record Locally
+===============================================================================
+
+Use this mode to demonstrate smart-record without a message broker.
+
+1. Start the application (local is the default mode):
+   ```bash
+   ./deepstream-sr-test-app rtsp://127.0.0.1/video1 [rtsp://127.0.0.1/video2 ...]
+   ```
+
+   Or explicitly specify local mode:
+   ```bash
+   ./deepstream-sr-test-app --recording local rtsp://127.0.0.1/video1
+   ```
+
+2. The app automatically starts a short smart-record session for the first source and
+   stops it later to showcase the API.
+
+3. Recordings are saved in the current directory (.) using the configured container format.
+
+Notes:
+- Smart Record works only with live RTSP sources.
+- The smart-record cache is set to 20 seconds in this sample.
+
+===============================================================================
+7. How To Smart Record with Kafka
+===============================================================================
+
+Follow these steps to use the smart record feature with Kafka:
+
+1. **Install a Message Broker**
+   Download and install a message broker like Kafka or MQTT.
+
+2. **Start the Message Broker Producer**
+   Use the message broker producer script in the message broker directory to send smart record messages.
+
+   **For Kafka example:**
+
+   a) Download and extract Apache Kafka:
+   ```bash
+   wget https://downloads.apache.org/kafka/3.6.1/kafka_2.13-3.6.1.tgz
+   tar -xzf kafka_2.13-3.6.1.tgz
+   cd kafka_2.13-3.6.1
+   ```
+
+   b) Start Kafka server (in a separate terminal):
+   ```bash
+   bin/zookeeper-server-start.sh config/zookeeper.properties
+   bin/kafka-server-start.sh config/server.properties
+   ```
+
+   c) Start the Kafka console producer:
+   ```bash
+   bin/kafka-console-producer.sh --topic sr-test --bootstrap-server localhost:9092
+   ```
+
+   **Note:** Ensure the topic (`sr-test`) and bootstrap server (`localhost:9092`) match your application configuration. In this application, the Kafka connection string uses a colon separator (`localhost:9092`).
+
+3. **Run the Application and Send Smart Record Command**
+   Start the application in Kafka mode, then send the smart-record command in JSON format:
+
+   ```bash
+   ./deepstream-sr-test-app -r kafka rtsp://127.0.0.1/video1 [rtsp://127.0.0.1/video2 ...]
+   ```
+
+   Send messages (from the Kafka console producer started earlier) in the following format:
+
+   ```json
+   {
+     "command": "start-recording",
+     "start": "2025-07-15T07:35:00.051Z",
+     "end": "2025-07-16T07:35:10.051Z",
+     "sensor": {
+       "id": "HWY_20_AND_LOCUST__EBA__4_11_2018_4_59_59_508_AM_UTC-07_00"
+     }
+   }
+   ```
+
+**Notes:**
+- Update the UTC time according to your current time and date
+- Sensor ID mapping is configured using the file:
+  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
+- Update the sensor ID accordingly based on your configuration

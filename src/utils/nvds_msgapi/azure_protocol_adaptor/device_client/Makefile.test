@@ -1,0 +1,42 @@
+#######################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+#######################################################################################################
+# this  Makefile is to be used to build the test application to exercise the sample azure device client protocol adaptor
+CXX:=g++
+DS_INC:= ../../../includes
+
+NVDS_VERSION?=9.0
+
+DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+
+SYNC_SEND_BIN:= test_azure_proto_sync
+ASYNC_SEND_BIN:= test_azure_proto_async
+
+SYNC_SEND_SRCS:=test_azure_proto_sync.c
+ASYNC_SEND_SRCS:=test_azure_proto_async.c
+
+CXXFLAGS:= -I$(DS_INC) -rdynamic
+LDFLAGS:= -L$(DS_LIB) -ldl -lpthread -Wl,-rpath=$(DS_LIB)
+
+default: all
+
+all: $(SYNC_SEND_BIN) $(ASYNC_SEND_BIN)
+
+$(SYNC_SEND_BIN) : $(SYNC_SEND_SRCS)
+	$(CXX) -o $@ $^  $(CXXFLAGS) $(LDFLAGS)
+
+$(ASYNC_SEND_BIN) : $(ASYNC_SEND_SRCS)
+	$(CXX) -o $@ $^  $(CXXFLAGS) $(LDFLAGS)
+
+clean:
+	rm -rf $(SYNC_SEND_BIN) $(ASYNC_SEND_BIN)
+

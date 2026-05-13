@@ -1,0 +1,104 @@
+#######################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2020-2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+#######################################################################################################
+
+nvmsgbroker library can be used to make connections with multiple external brokers.
+This library acts as a wrapper around the message adapter libraries(kafka,Azure,redis,amqp)
+provides its own API’s and implements certain features like autoreconnection applicable for
+all the message adapters.
+
+Pre-requisites
+---------------
+- glib-2.0
+
+Install using:
+  sudo apt-get install libglib2.0-dev
+
+Configuration
+--------------
+configurations applicable for nvmsgbroker library are listed in cfg_nvmsgbroker.txt
+1. auto-reconnect
+    Used to automatically attempt reconnection when connection with broker is down
+    To enable : auto-reconnect=1
+    To Disable: auto-reconnect=0
+2. retry-interval
+    Specify reconnection interval in seconds
+3. max-retry-limit
+    Specify reconnection max retry limit in seconds
+
+NOTE:
+Default nvmsgbroker library settings are as below.
+You can override them by specifying different values in cfg_nvmsgbroker.txt
+    1. auto-reconnect is enabled by defualt
+    2. retry-interval=2
+    3. max-retry-limit=360
+
+Dependencies
+-------------
+The msgbroker library dynamically loads protocol adapters passed as a paramter during
+connection creation. Also connection string and/or a message protocol adapter library
+specific cfg file is passed as paramater during connection creation.
+Please see documentation for the adapter libraries for their specific requirements.
+
+The following information is expected for each protocol:
+  - Path to the protocol adapter library
+    The libraries are found under /opt/nvidia/deepstream/deepstream/lib:
+    Kafka: libnvds_kafka_proto.so
+    AMQP: libnvds_amqp_proto.so
+    Azure Device Client: libnvds_azure_proto.so
+    Redis: libnvds_redis_proto.so
+
+  - Protocol-specific Connection string and/or configuration file
+    See README for each of the supported protocols:
+    Kafka: /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    AMQP: /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    Azure Device Client: /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    Redis: /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+
+Compiling and installing the plugin
+-----------------------------------
+Run make and sudo make install
+
+Sample Application
+-------------
+This sample application demonstrates usage of libnvds_msgbroker.so.
+The nvds_msgbroker library provides access to various messaging protocol adapter
+libraries through a common facility.
+
+This sample application tests the following protocols:
+  - Kafka
+  - AMQP
+  - Azure IoTHub Device
+  - Redis
+
+To build the application:
+  $ make -f Makefile.test
+
+To run the application:
+  $ ./test_msgbrokerlib
+
+The application tests a series of operations (connect/send/subscribe/disconnect)
+on each of aforementioned protocols. One thread is launched for each protocol test.
+All threads are launched simultaneously and hence the order in which the tests are
+launched may vary each time the app is run
+
+NOTE:
+1. There can be simultaneous multiple connections with external brokers.
+    ex: connection 1 : kafka (localhost)
+        connection 2 : kafka (kafka broker on remote host)
+        connection 3 : Azure (Azure IotHub)
+2. The protocol-specific config file has a "share-connection" config. If you want to allow
+the connection created to be shared with an other component within the same process,
+uncomment the line share-connection=1 in cfg file
+3. If there are 2 tests with each attempting to connect with the same connection params,
+same protocol adapter library and if share-connection=1 , just one connection is created
+internally and the same connection handle is returned to the both the callers(threads)

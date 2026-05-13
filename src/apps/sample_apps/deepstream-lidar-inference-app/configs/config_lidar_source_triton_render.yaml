@@ -1,0 +1,101 @@
+%YAML 1.2
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+---
+name: lidar_file_source
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+config_body:
+  #path of the frames, data file needs to be placed in order in this path
+  data_config_file: lidar_data_list.yaml
+  points_num: 204800 #points num
+  lidar_datatype: FP32 #FP32 FP16 INT8 INT32, only support FP32 this version
+  mem_type: gpu # choose [cpu, gpu] for file lidar data loader
+  gpu_id: 0 # specify gpu id if mem_type: gpu
+  mem_pool_size: 4
+  output_datamap_key: DS3D::LidarXYZI
+  file_loop: True # False: read data normally True: read data circularly
+---
+name: lidar_triton_infer
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+config_body:
+  in_streams: [lidar]
+  mem_pool_size: 2
+  #datatype: FP32, FP16, INT8, INT32, INT16, UINT8, UINT16, UINT32, FP64, INT64, UINT64, BYTES, BOOL
+  model_inputs:
+    - name: points
+      datatype: FP32
+      shape: [1, 204800, 4]
+    - name: num_points
+      datatype: INT32
+      shape: [1]
+  model_outputs:
+    - name: output_boxes
+      datatype: FP32
+      shape: [1, 393216, 9]
+    - name: num_boxes
+      datatype: INT32
+      shape: [1]
+  gpu_id: 0
+  #input tensor memory type after preprocess: GpuCuda, CpuCuda
+  input_tensor_mem_type: GpuCuda
+  #custom_preprocess_lib_path: path of preprcoess lib
+  custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_lidar_custom_preprocess_impl.so
+  custom_preprocess_func_name: CreateInferServerCustomPreprocess
+  preprocess:
+    scale_factor: 0.00392157 # 1.0 / 255.0
+    offsets: 0
+  labels:
+    - Vehicle
+    - Pedestrain
+    - Cyclist
+  postprocess_nms_iou_thresh: 0.2
+  postprocess_pre_nms_top_n: 4096
+  postprocess_score_thresh: 0.4
+  #config_file: triton deploy,CAPI is edge deployment, GRPC is cloud deployment
+  config_file: triton_mode_CAPI.txt
+  #config_file: triton_mode_GRPC.txt
+  filter_input_datamap_key: DS3D::LidarXYZI
+---
+name: lidar_render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createLidarDataRender
+gst_properties:
+  sync: True
+  async: False
+  drop: False
+config_body:
+  title: ds3d-lidar-render
+  streams: [lidardata]
+  width: 1280
+  height: 720
+  block: True
+  view_position: [0, 0, 60]
+  view_target: [0, 0, 0]
+  view_up: [0, 1, 0]
+  near: 0.3
+  far: 100
+  fov: 50
+  lidar_color: [0, 255, 0]
+  lidar_data_key: DS3D::LidarXYZI
+  element_size: 4
+  lidar_bbox_key: DS3D::Lidar3DBboxRawData
+  enable_label: True
