@@ -1,4 +1,0 @@
-BG
-Person
-Face
-Bag

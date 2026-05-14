@@ -1,3 +1,0 @@
-[submodule "dependencies/triton-inference-server/common"]
-	path = dependencies/triton-inference-server/common
-	url = https://github.com/triton-inference-server/common
