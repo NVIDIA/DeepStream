@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "test-app"
+model_repo: "/workspace/models"
+
+server:
+  responders:
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+    infer:
+      operation: inference
+      requests:
+        InferenceRequest: >
+          {
+            "inputs_not_found": ["hello"]
+          }
+      responses:
+        InferenceResponse: >
+          {
+            "output": {{ response.outputs | tojson }}
+          }
+models:
+- name: dummy
+  backend: dummy
+  max_batch_size: 1
+  input:
+  - name: inputs
+    data_type: TYPE_STRING
+    dims: [ -1]
+  output:
+  - name: output
+    data_type: TYPE_FP32
+    dims: [ 1 ]

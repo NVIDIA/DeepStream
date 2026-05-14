@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/parameters/polygraphy-parameters.schema.json",
+  "title": "Polygraphy Backend Parameters",
+  "description": "Parameter schema for Polygraphy (TensorRT) backend",
+  "type": "object",
+  "required": ["tensorrt_engine"],
+  "properties": {
+    "tensorrt_engine": {
+      "type": "string",
+      "description": "Path to TensorRT engine file (typically model.plan) relative to the model home directory (typically folder named after model name under model repository)"
+    }
+  },
+  "additionalProperties": false
+}
+

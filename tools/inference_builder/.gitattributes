@@ -1,0 +1,7 @@
+builder/boilerplates/nim/** merge=ours
+builder/boilerplates/triton/** merge=ours
+templates/api_server/nim/** merge=ours
+templates/api_server/triton/** merge=ours
+builder/allowed_servers.txt merge=ours
+.gitlab-ci.yml merge=ours
+builder/samples/tao/ib_client.py merge=ours

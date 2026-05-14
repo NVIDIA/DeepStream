@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/pytorch.schema.json",
+  "title": "PyTorch Backend Configuration",
+  "description": "Schema for PyTorch backend model configuration (Huggingface Transformers)",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "const": "pytorch",
+          "description": "PyTorch backend for Huggingface Transformers models"
+        },
+        "parameters": {
+          "$ref": "parameters/pytorch-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "llama_model",
+      "backend": "pytorch",
+      "parameters": {
+        "model_name_or_path": "meta-llama/Llama-2-7b-hf",
+        "device": "cuda",
+        "torch_dtype": "float16",
+        "trust_remote_code": true
+      },
+      "input": [
+        {
+          "name": "input_ids",
+          "data_type": "TYPE_INT64",
+          "dims": [-1, -1]
+        }
+      ],
+      "output": [
+        {
+          "name": "logits",
+          "data_type": "TYPE_FP32",
+          "dims": [-1, -1, -1]
+        }
+      ]
+    }
+  ]
+}
+

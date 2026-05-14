@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/tensorrtllm.schema.json",
+  "title": "TensorRT-LLM Backend Configuration",
+  "description": "Schema for TensorRT-LLM backend model configuration",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "enum": ["tensorrtllm", "tensorrtllm/pytorch"],
+          "description": "TensorRT-LLM backend type with optional PyTorch fallback"
+        },
+        "parameters": {
+          "$ref": "parameters/tensorrtllm-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "Qwen2.5-VL",
+      "backend": "tensorrtllm/pytorch",
+      "parameters": {
+        "max_num_tokens": 19200,
+        "kv_cache_config": {
+          "enable_block_reuse": false
+        }
+      },
+      "input": [
+        {
+          "name": "inputs",
+          "data_type": "TYPE_CUSTOM_VLM_INPUT",
+          "dims": [-1]
+        }
+      ],
+      "output": [
+        {
+          "name": "outputs",
+          "data_type": "TYPE_STRING",
+          "dims": [-1]
+        }
+      ]
+    }
+  ]
+}

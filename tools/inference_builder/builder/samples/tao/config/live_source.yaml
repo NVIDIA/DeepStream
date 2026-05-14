@@ -1,0 +1,9 @@
+source-config:
+  source-bin: "nvmultiurisrcbin"
+  properties:
+    ip-address: "localhost"
+    port: 8003
+    batched-push-timeout: 33000
+    live-source: true
+    select-rtp-protocol: 4
+    buffer-pool-size: 16

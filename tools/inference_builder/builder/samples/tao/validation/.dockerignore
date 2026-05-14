@@ -1,0 +1,13 @@
+# Explicitly include .tmp directories
+!**/.tmp/
+!**/.tmp/**
+
+# Exclude Docker-related files
+Dockerfile*
+docker-compose.yaml
+.dockerignore
+
+# Optional: exclude other unnecessary files
+**/__pycache__
+**/*.pyc
+**/.DS_Store

@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "deepstream-app"
+model_repo: "/workspace/models"
+
+input:
+- name: media_url
+  data_type: TYPE_CUSTOM_LIST
+  dims: [ -1 ]
+- name: mime
+  data_type: TYPE_CUSTOM_DS_MIME
+  dims: [ -1 ]
+
+output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+
+models:
+- name: citysemsegformer
+  backend: deepstream/nvinfer
+  max_batch_size: "$MAX_BATCH_SIZE|2"
+  input:
+  - name: images
+    data_type: TYPE_CUSTOM_DS_IMAGE
+    dims: [ -1 ]
+    optional: true
+  - name: media_url
+    data_type: TYPE_CUSTOM_DS_MEDIA_URL
+    dims: [ -1 ]
+  - name: mime
+    data_type: TYPE_CUSTOM_DS_MIME
+    dims: [ -1 ]
+  output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+  parameters:
+    # timeout in microseconds for batching multiple inputs
+    batch_timeout: 33333
+    infer_config_path:
+      - nvdsinfer_config.yaml
+    render_config:
+      enable_display: "$ENABLE_DISPLAY|true"
+      # enable segmentation mask visualization
+      seg_mask_visualization:
+        width: 1820
+        height: 1024
+      # enable_osd: true
+      # enable_stream: true
+      # rtsp_mount_point: /ds_app
+      # rtsp_port: 8554
+    inference_timeout: "$INFERENCE_TIMEOUT|5"

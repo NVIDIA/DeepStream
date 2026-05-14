@@ -1,0 +1,499 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+openapi: 3.1.0
+info:
+  title: NVIDIA INFERENCE SERVICE
+  description: NVIDIA INFERENCE SERVICE
+  version: "1.0.0"
+  termsOfService: https://nvidia.com/legal/terms-of-use
+  contact:
+    name: NVIDIA Support
+    url: https://help.nvidia.com/
+  license:
+    name: NVIDIA AI Foundation Models Community License
+    url: https://docs.nvidia.com/ai-foundation-models-community-license.pdf
+paths:
+  /v1/health/ready:
+    get:
+      tags:
+        - "NVIDIA METROPOLIS INFERENCE API"
+      summary: Health Ready
+      description: Provide your implementation of readiness to know when container
+        ready to accept traffic
+      operationId: health_ready_v1_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/files:
+    post:
+      tags:
+        - Files
+      summary: Upload a media file that can be used as inference input.
+      description: Upload media files to be used as inference input. Currently, only images upto 50 MB are supported.
+      operationId: add_media_file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddFileRequest'
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddFileResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+    get:
+      tags:
+        - Files
+      summary: Returns a list of the uploaded files.
+      description: Returns a list that includes ID, file name, size, purpose, file size, and media type for the uploaded files.
+      operationId: list_media_files
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFilesResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+  /v1/files/{file_id}:
+    delete:
+      tags:
+        - Files
+      summary: Delete a uploaded file.
+      description: Deletes an uploaded file based on ID.
+      operationId: delete_media_file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?4[0-9a-fA-F]{3}-?[89abAB][0-9a-fA-F]{3}-?[0-9a-fA-F]{12}'
+            description: File having 'file_id' to be deleted.
+            title: File Id
+          description: File having 'file_id' to be deleted.
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAssetResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+  /v1/live-streams:
+    post:
+      tags:
+        - Live Streams
+      summary: Add a live stream
+      description: Add a live stream as an asset
+      operationId: add_live_stream
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLiveStreamRequest'
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddLiveStreamResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+    get:
+      tags:
+        - Live Streams
+      summary: List live streams
+      description: List all live streams
+      operationId: list_live_streams
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListLiveStreamsResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+  /v1/live-streams/{live_stream_id}:
+    delete:
+      tags:
+        - Live Streams
+      summary: Delete a live stream
+      description: Delete a live stream based on ID
+      operationId: delete_live_stream
+      parameters:
+        - name: live_stream_id
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?4[0-9a-fA-F]{3}-?[89abAB][0-9a-fA-F]{3}-?[0-9a-fA-F]{12}'
+            description: Live stream having 'live_stream_id' to be deleted.
+            title: Live Stream Id
+          description: Live stream having 'live_stream_id' to be deleted.
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAssetResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+  /v1/inference:
+    post:
+      tags:
+        - "NVIDIA INFERENCE API"
+      summary: Inference sample
+      description: "Invokes inference for the input images or videos.
+        The input image can be Base64 encoded string in the request or it can be
+        specified using the file identifier of an uploaded file. "
+      operationId: inference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceRequest'
+        required: true
+      responses:
+        "200":
+          description: Invocation is fulfilled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceResponse'
+            application/x-ndjson:
+              schema:
+                $ref: '#/components/schemas/InferenceResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+security:
+  - Token: []
+
+components:
+  securitySchemes:
+    Token:
+      type: http
+      scheme: bearer
+  schemas:
+    MediaAsset:
+      properties:
+        id:
+          type: string
+          maxLength: 36
+          pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?4[0-9a-fA-F]{3}-?[89abAB][0-9a-fA-F]{3}-?[0-9a-fA-F]{12}'
+          title: Id
+          description: The file identifier (asset_id), which can be referenced in the API endpoints.
+        description:
+          type: string
+          title: Description
+          description: Description of the asset.
+        path:
+          type: string
+          maxLength: 256
+          pattern: ^(?:[a-zA-Z][a-zA-Z0-9+.-]*:(?://[^/?#]*)?)?(?:[A-Za-z0-9_.\-~:/?#\[\]@!$&'()*+,;=%]*|(?:[A-Za-z]:)?[\\/]?[A-Za-z0-9_.\-~:/?#\[\]@!$&'()*+,;=%\\]*)$
+          title: Filename
+          description: Local path of the file or URI with optional protocol.
+          examples:
+            - myfile.jpg
+            - /tmp/assets/name.jpg
+            - file:///tmp/myfile.jpg
+            - rtsp://camera.example.com/stream
+            - udp://192.168.1.100:5000
+            - rtsp:camera.example.com/stream
+            - udp:192.168.1.100:5000
+            - C:\Users\username\Documents\file.jpg
+            - \\server\share\file.jpg
+            - https://example.com/image.jpg
+            - ftp://ftp.example.com/file.mp4
+        size:
+          type: integer
+          format: int64
+          title: Size
+          description: Size of the file in bytes.
+        duration:
+          type: integer
+          format: int64
+          title: Duration
+          description: Duration of the file in nanoseconds.
+        contentType:
+          type: string
+          title: Content Type
+          description: MIME type of the file.
+          examples:
+            - image/jpeg
+      additionalProperties: false
+      type: object
+      required:
+        - id
+        - path
+      title: MediaAsset
+      description: Represents a media asset.
+    AddFileResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/MediaAsset'
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: AddFileResponse
+      description: Response schema for the add file request.
+    AddFileRequest:
+      properties:
+        file:
+          type: string
+          maxLength: 52428800
+          format: binary
+          title: File
+          description: File object (not file name) to be uploaded.
+      type: object
+      required:
+        - file
+      title: AddFileRequest
+      description: Schema for uploading media files.
+    AddLiveStreamResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/MediaAsset'
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: AddLiveStreamResponse
+      description: Response schema for the add live stream request.
+      additionalProperties: false
+    AddLiveStreamRequest:
+      properties:
+        url:
+          type: string
+          title: URL
+          description: URL of the live stream.
+        description:
+          type: string
+          title: Description
+          description: Description of the live stream.
+        username:
+          type: string
+          title: Username
+          description: Username of the live stream.
+        password:
+          type: string
+          title: Password
+          description: Password of the live stream.
+      type: object
+      required:
+        - url
+      title: AddLiveStreamRequest
+      description: Schema for adding live streams.
+    ListFilesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+          type: array
+          maxItems: 100000000000000000
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: ListFilesResponse
+      description: Response schema for the list files API.
+    ListLiveStreamsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+          type: array
+          maxItems: 100000000000000000
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: ListLiveStreamsResponse
+      description: Response schema for the list live streams API.
+    DeleteAssetResponse:
+      properties:
+        deleted:
+          type: boolean
+          title: Deleted
+          description: Indicates if the file was deleted
+      additionalProperties: false
+      type: object
+      required:
+        - deleted
+      title: DeleteAssetResponse
+      description: Response schema for the delete asset request.
+    InferenceRequest:
+      additionalProperties: false
+      properties:
+        input:
+          type: array
+          items:
+            oneOf:
+              - type: string
+                pattern: ^.*$
+                maxLength: 4294967296
+              - $ref: '#/components/schemas/MediaAsset'
+          maxItems: 64
+          title: Input
+          description: 'The list of images on which you want to perform inference. Images should be in form
+          of `data:image/{format};base64,{base64encodedimage}`.Accepted formats are `jpg`, `png` and `jpeg`. Or they
+          can be uploaded media assets.'
+        text:
+          type: array
+          items:
+            type: string
+            maxLength: 256
+          title: Text
+          description: 'A list of text to be used for the extra prompt on the inference.'
+        model:
+          type: string
+          enum: [nvidia/nvdino-v2, nvidia/c-radio-p3-v3, nvidia/convnext]
+          title: Model
+          description: ID of the CV model.
+          example: nvidia/nvdino-v2
+      type: object
+      title: InferenceRequest
+      description: List of input images for the inference request.
+    InferenceResponse:
+      type: object
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/InferenceResult'
+          type: array
+          title: Data
+          description: The list of inference data generated by the model.
+          maxItems: 10
+        model:
+          type: string
+          description: Model used to generate masks.
+          example: nvidia/nvdino
+          title: Model
+        usage:
+          $ref: '#/components/schemas/Usage'
+          description: Usage statistics for the masks request.
+          examples:
+          - num_images: 1
+      additionalProperties: false
+      title: InferenceResponse
+      description: Response schema for the inference request.
+    InferenceResult:
+      type: object
+      description: Represents the inference result
+      additionalProperties: true
+      properties:
+        index:
+          type: integer
+          format: int32
+          title: Index
+          description: The index of the mask in the list of masks.
+          minimum: 0
+          maximum: 127
+      required:
+        - index
+        - timestamp
+      title: InferenceResult
+    Usage:
+      properties:
+        num_images:
+          type: integer
+          format: int32
+          title: Num Images
+          minimum: 0
+          maximum: 64
+          description: Number of images processed.
+      additionalProperties: false
+      required:
+        - num_images
+      title: Usage
+    Errors:
+      type: object
+      properties:
+        type:
+          type: string
+          maxLength: 128
+          description: Error type
+        title:
+          type: string
+          maxLength: 128
+          description: Error title
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 999
+          description: Error status code
+        detail:
+          type: string
+          maxLength: 1024
+          description: Detailed information about the error
+        instance:
+          type: string
+          maxLength: 256
+          description: Function instance used to invoke the request
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      title: Errors

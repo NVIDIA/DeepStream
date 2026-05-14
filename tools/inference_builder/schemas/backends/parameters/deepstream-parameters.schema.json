@@ -1,0 +1,207 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/parameters/deepstream-parameters.schema.json",
+  "title": "DeepStream Backend Parameters",
+  "description": "Parameter schema for DeepStream backend",
+  "type": "object",
+  "required": ["infer_config_path"],
+  "properties": {
+    "infer_config_path": {
+      "type": "array",
+      "description": "Paths (inside the model repository) to DeepStream nvinfer runtime configuration files (for example, nvdsinfer_config.yaml). These files are used by the DeepStream nvinfer plugin at runtime. **Creating or locating config files:** (1) The configuration file typically accompanies the ONNX model from the remote model repository (NGC) as a YAML or TXT file containing all required inference parameters - always prefer using this provided configuration when available. (2) If no configuration file is provided with the model, one must be created based on the model architecture, inference implementation details, and post-processing approaches specific to the model. (3) The config file must be copied into the model repository before deployment. Refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvinfer.html#gst-nvinfer-file-configuration-specifications for the complete configuration specification.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "preprocess_config_path": {
+      "type": "array",
+      "description": "Paths (inside the model repository) to DeepStream nvdspreprocess runtime configuration files (for example, nvdspreprocess_config*.yaml). These files define preprocessing operations that run before inference and are required when non-image tensors must be injected into the pipeline. They must already be copied into the model repository before deployment. Refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvdspreprocess.html for more details.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "batch_timeout": {
+      "type": "integer",
+      "minimum": -1,
+      "description": "Timeout in microseconds for batching multiple inputs. Set to -1 to wait infinitely for batch formation. Default is 1000 * max_batch_size microseconds."
+    },
+    "inference_timeout": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Inference timeout in seconds, absence of this field means no timeout is enforced"
+    },
+    "tracker_config": {
+      "type": "object",
+      "description": "Configuration for object tracking, absence of this field means no tracking is required",
+      "required": ["ll_lib_file", "ll_config_file"],
+      "properties": {
+        "ll_lib_file": {
+          "type": "string",
+          "description": "Path to the low-level tracker library file"
+        },
+        "ll_config_file": {
+          "type": "string",
+          "description": "Path to the low-level tracker configuration file"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Width of the tracker processing frame",
+          "default": 1920
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Height of the tracker processing frame",
+          "default": 1088
+        },
+        "display_tracking_id": {
+          "type": "boolean",
+          "description": "Whether to display tracking IDs in the output",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "msgbroker_config": {
+      "type": "object",
+      "description": "Configuration for message broker integration, absence of this field means no message broker is required",
+      "required": ["msgbroker_proto_lib_path", "msgbroker_conn_str", "msgbroker_topic", "msgconv_config_path"],
+      "properties": {
+        "msgbroker_proto_lib_path": {
+          "type": "string",
+          "description": "Path to the message broker protocol library"
+        },
+        "msgbroker_conn_str": {
+          "type": "string",
+          "description": "Connection string for the message broker (e.g., 'localhost;9092' for Kafka)"
+        },
+        "msgbroker_topic": {
+          "type": "string",
+          "description": "Topic name for publishing messages"
+        },
+        "msgconv_config_path": {
+          "type": "string",
+          "description": "Path to the message conversion configuration file, refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvmsgconv.html for more details"
+        },
+        "msgconv_payload_type": {
+          "type": "integer",
+          "enum": [0, 1, 2],
+          "description": "Payload type for message conversion (0=DeepStream JSON, 1=DeepStream Minimal JSON, 2=DeepStream Protobuf)"
+        },
+        "msgconv_msg2p_new_api": {
+          "type": "boolean",
+          "description": "Use new API which supports publishing multiple payloads using NvDsFrameMeta",
+          "default": false
+        },
+        "msgconv_frame_interval": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Frame interval at which payload is generated (every Nth frame)",
+          "default": 1
+        },
+        "msgconv_msg2p_lib": {
+          "type": "string",
+          "description": "Path to the message converter library"
+        }
+      },
+      "additionalProperties": false
+    },
+    "render_config": {
+      "type": "object",
+      "description": "Configuration for rendering and display",
+      "properties": {
+        "enable_display": {
+          "type": "boolean",
+          "description": "Enable on-screen display",
+          "default": false
+        },
+        "enable_osd": {
+          "type": "boolean",
+          "description": "Enable on-screen display overlays (bounding boxes, labels, etc.)",
+          "default": false
+        },
+        "enable_stream": {
+          "type": "boolean",
+          "description": "Enable RTSP streaming output",
+          "default": false
+        },
+        "rtsp_mount_point": {
+          "type": "string",
+          "description": "RTSP mount point path (e.g., '/ds_app'), not required if enable_stream is false",
+          "default": "/ds-test"
+        },
+        "rtsp_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "RTSP server port number, not required if enable_stream is false",
+          "default": 8554
+        }
+      },
+      "additionalProperties": false
+    },
+    "perf_config": {
+      "type": "object",
+      "description": "Performance monitoring configuration",
+      "properties": {
+        "enable_fps_logs": {
+          "type": "boolean",
+          "description": "Enable FPS (frames per second) logging",
+          "default": false
+        },
+        "enable_latency_logs": {
+          "type": "boolean",
+          "description": "Enable latency logging",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "kitti_output_path": {
+      "type": "object",
+      "description": "Paths for KITTI format output dumps",
+      "properties": {
+        "infer": {
+          "type": "string",
+          "description": "Path for inference KITTI output"
+        },
+        "tracker": {
+          "type": "string",
+          "description": "Path for tracker KITTI output"
+        }
+      },
+      "additionalProperties": false
+    },
+    "analytics_config": {
+      "type": "object",
+      "description": "Configuration for nvdsanalytics (ROI, line-crossing, overcrowding, direction). Absence means no analytics. Typically used after tracker. Refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvdsanalytics.html",
+      "required": ["config_file_path"],
+      "properties": {
+        "config_file_path": {
+          "type": "string",
+          "description": "Path to the analytics configuration file (YAML or TXT). Path is relative to model repository unless absolute."
+        },
+        "gpu_id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "GPU device id for nvdsanalytics",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "resize_video": {
+      "type": "array",
+      "description": "Target resolution for input stream resizing in format [height, width]. When specified, the input stream will be resized to these dimensions before processing. When tracker is being enabled, it requires a specific resolution consistent with the tracker config. In such cases, the resize_video configuration is required.",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 2,
+      "maxItems": 2
+    }
+  },
+  "additionalProperties": false
+}
+

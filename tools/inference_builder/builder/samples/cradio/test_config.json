@@ -1,0 +1,47 @@
+[
+  {
+    "name": "cradio_peoplenet_inference",
+    "description": "Test PeopleNet Transformer + C-RADIOv3-H sequential multi-model pipeline",
+    "build_args": {
+      "TEST_APP_NAME": "ds-cradio",
+      "CACHE_BUSTER": "cradio_peoplenet_test",
+      "APP_YAML_PATH": "ds_cradio.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 1000,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/models"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/models"
+      },
+      "cmd": [
+        "--media-url",
+        "/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.jpg",
+        "--mime",
+        "image/jpeg"
+      ],
+      "prerequisite_script": "bash prepare_engine.sh {image_name} /tmp/model-repo",
+      "models": {
+        "peoplenet": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/peoplenet_transformer",
+          "version": "deployable_v1.1",
+          "configs": "../ds_app/detection/peoplenet_transformer"
+        },
+        "cradio_v3_h": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/C-RADIOv3-H"
+        }
+      }
+    }
+  }
+]

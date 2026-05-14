@@ -1,0 +1,106 @@
+# the name will be used to identify the microservice.
+name: "vllm"
+# the root path to the directory containing the model files (checkpoint, config, etc).
+model_repo: "/workspace/model-repo"
+
+# top level inference input specification
+input:
+  # messages from the http request
+  - name: "messages"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  - name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+output:
+  - name: "outputs"
+    data_type: TYPE_CUSTOM_OBJECT
+    dims: [ -1 ]
+
+server:
+  responders:
+    infer:
+      operation: create_chat_completion_v1_chat_completions_post
+      requests:
+        NIMLLMChatCompletionRequest: >
+          {
+            "messages": {{ request.messages|tojson }},
+            "max_tokens": {{ request.max_tokens }}
+          }
+      responses:
+        NIMLLMChatCompletionResponse: >
+          {
+            "id": "{{ request._id }}",
+            "choices":
+              [
+                {% for output in response.outputs %}
+                {
+                  "index": {{ output.index }},
+                  "message": { "role": "assistant", "content": {{ output.text|tojson }} },
+                  "finish_reason": {{ output.finish_reason|tojson }}
+                }
+                {% if not loop.last %}, {% endif %}
+                {% endfor %}
+              ],
+            "model": "Cosmos",
+            "usage": {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+          }
+    add_file:
+      operation: add_media_file
+      responses:
+        AddFileResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "duration": {{response.duration|tojson}},
+              "contentType": {{response.mime_type|tojson}}
+            }
+          }
+    del_file:
+      operation: delete_media_file
+      responses:
+        DeleteFileResponse: >
+          {
+            "deleted": {{response.status|tojson}}
+          }
+    list_files:
+      operation: list_media_files
+      responses:
+        ListFilesResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+  - name: "Cosmos"
+    backend: "vllm"
+    input:
+      - name: "inputs"
+        data_type: TYPE_CUSTOM_VLM_INPUT
+        dims: [ -1 ]
+      - name: "max_tokens"
+        data_type: TYPE_INT32
+        dims: [ 1 ]
+    output:
+      - name: "outputs"
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    parameters:
+      max_num_tokens: 19200
+      async_mode: true
+    preprocessors:
+      - kind: "custom"
+        name: "qwen3-vl-loader"
+        input: ["messages"]
+        output: ["inputs"]

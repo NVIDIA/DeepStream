@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "deepstream-inference-builder": {
+      "command": ".venv/bin/python",
+      "args": ["mcp/mcp_server.py"],
+      "cwd": ".",
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  }
+}
+

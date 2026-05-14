@@ -1,0 +1,42 @@
+name: "test-app"
+model_repo: "/workspace/models"
+
+input:
+  - name: "video_files"
+    data_type: TYPE_CUSTOM_VIDEO_CHUNK_ASSETS
+    dims: [ -1 ]
+    optional: true
+  - name: "video_streams"
+    data_type: TYPE_CUSTOM_LONG_VIDEO_ASSETS
+    dims: [ -1 ]
+    optional: true
+
+models:
+- name: dummy
+  backend: dummy
+  max_batch_size: 1
+  input:
+  - name: media_frames
+    data_type: TYPE_FP32
+    dims: [ -1, -1, -1, -1]
+  output:
+  - name: output
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  preprocessors:
+  - kind: "custom"
+    name: "frame-picker"
+    input: ["video_streams"]
+    output: ["media_frames"]
+    config: { "num_frames": 10 }
+  - kind: "custom"
+    name: "frame-picker"
+    input: ["video_files"]
+    output: ["media_frames"]
+    config: { "num_frames": 10 }
+
+routes: {
+  ':["video_files"]': 'dummy',
+  ':["video_streams"]': 'dummy',
+  'dummy:["output"]': ':'
+}

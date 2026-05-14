@@ -1,0 +1,204 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+model_name: null
+encryption_key: tlt_encode
+results_dir: /media/local/seg.cradiov2_b
+wandb:
+  enable: true
+  project: TAO Toolkit
+  entity: ''
+  tags:
+  - training
+  - tao-toolkit
+  reinit: false
+  sync_tensorboard: false
+  save_code: false
+  name: TAO Toolkit training experiment
+model:
+  backbone:
+    type: c_radio_v2_vit_base_patch16_224
+    feat_downsample: false
+    pretrained_backbone_path: /tao-pt/mount/pretrained_models/cradio_v2/cradio_b.pth
+    freeze_backbone: false
+  decode_head:
+    in_channels:
+    - 64
+    - 128
+    - 320
+    - 512
+    in_index:
+    - 0
+    - 1
+    - 2
+    - 3
+    feature_strides:
+    - 4
+    - 8
+    - 16
+    - 32
+    align_corners: false
+    decoder_params:
+      embed_dim: 768
+dataset:
+  segment:
+    root_dir: /media/projects.metropolis1/tichou/for_QA/dataset/ISBI/
+    dataset: SFDataset
+    num_classes: 2
+    img_size: 224
+    batch_size: 1
+    workers: 1
+    shuffle: true
+    train_split: train
+    validation_split: val
+    test_split: val
+    predict_split: test
+    augmentation:
+      random_flip:
+        vflip_probability: 0.5
+        hflip_probability: 0.5
+        enable: true
+      random_rotate:
+        rotate_probability: 0.5
+        angle_list:
+        - 90.0
+        - 180.0
+        - 270.0
+        enable: true
+      random_color:
+        brightness: 0.3
+        contrast: 0.3
+        saturation: 0.3
+        hue: 0.3
+        enable: false
+        color_probability: 0.5
+      with_scale_random_crop:
+        scale_range:
+        - 1.0
+        - 1.2
+        enable: true
+      with_random_blur: false
+      with_random_crop: true
+      mean:
+      - 0.5
+      - 0.5
+      - 0.5
+      std:
+      - 0.5
+      - 0.5
+      - 0.5
+    label_transform: norm
+    palette:
+    - label_id: 0
+      mapping_class: foreground
+      rgb:
+      - 0
+      - 0
+      - 0
+      seg_class: foreground
+    - label_id: 1
+      mapping_class: background
+      rgb:
+      - 1
+      - 1
+      - 1
+      seg_class: background
+train:
+  num_gpus: 1
+  gpu_ids:
+  - 0
+  num_nodes: 1
+  seed: 1234
+  cudnn:
+    benchmark: false
+    deterministic: true
+  num_epochs: 300
+  checkpoint_interval: 300
+  validation_interval: 1
+  resume_training_checkpoint_path: null
+  results_dir: null
+  optim:
+    monitor_name: val_loss
+    optim: adamw
+    lr: 0.0001
+    policy: linear
+    momentum: 0.9
+    weight_decay: 0.0005
+  pretrained_model_path: null
+  segment:
+    loss: ce
+    weights:
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.8
+    - 1.0
+  tensorboard:
+    enabled: false
+    infrequent_logging_frequency: 2
+evaluate:
+  num_gpus: 1
+  gpu_ids:
+  - 0
+  num_nodes: 1
+  checkpoint: ???
+  trt_engine: /media/local/seg.cradiov2_b/segformer.onnx.trt
+  results_dir: /media/local/seg.cradiov2_b
+  vis_after_n_batches: 16
+  batch_size: 1
+inference:
+  num_gpus: 1
+  gpu_ids:
+  - 0
+  num_nodes: 1
+  checkpoint: ???
+  trt_engine: /media/local/seg.cradiov2_b/segformer.onnx.trt
+  results_dir: /media/local/seg.cradiov2_b/inference
+  vis_after_n_batches: 16
+  batch_size: -1
+export:
+  results_dir: ${results_dir}/export
+  gpu_id: 0
+  checkpoint: /tao-pt/mount/result/ISBI_pl_for_QA/cradiov2_b/train/model_epoch_299_step_01500.pth
+  onnx_file: ${export.results_dir}/segformer.onnx
+  on_cpu: false
+  input_channel: 3
+  input_width: 224
+  input_height: 224
+  opset_version: 17
+  batch_size: -1
+  verbose: false
+  format: onnx
+  serialize_nvdsinfer: true
+gen_trt_engine:
+  results_dir: /media/local/seg.cradiov2_b
+  gpu_id: 0
+  onnx_file: /media/projects.metropolis1/tichou/for_QA/seg/cradiov2_b/export/export/segformer.onnx
+  trt_engine: /media/local/seg.cradiov2_b/segformer.onnx.trt
+  timing_cache: null
+  batch_size: 1
+  verbose: false
+  tensorrt:
+    workspace_size: 1024
+    min_batch_size: 1
+    opt_batch_size: 1
+    max_batch_size: 1
+    layers_precision: []
+    data_type: FP16
+    calibration:
+      cal_image_dir: ???
+      cal_cache_file: ???
+      cal_batch_size: 1
+      cal_batches: 1

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/polygraphy.schema.json",
+  "title": "Polygraphy Backend Configuration",
+  "description": "Schema for Polygraphy (TensorRT) backend model configuration",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "const": "polygraphy",
+          "description": "Polygraphy backend for TensorRT inference"
+        },
+        "parameters": {
+          "$ref": "parameters/polygraphy-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "nvclip_text",
+      "backend": "polygraphy",
+      "max_batch_size": 64,
+      "parameters": {
+        "tensorrt_engine": "model.plan"
+      },
+      "input": [
+        {
+          "name": "TEXT",
+          "data_type": "TYPE_INT64",
+          "dims": [-1, -1]
+        }
+      ],
+      "output": [
+        {
+          "name": "LOGITS_PER_TEXT",
+          "data_type": "TYPE_FP32",
+          "dims": [-1, -1]
+        }
+      ]
+    }
+  ]
+}

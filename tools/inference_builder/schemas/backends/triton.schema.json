@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/triton.schema.json",
+  "title": "Triton Backend Configuration",
+  "description": "Schema for Triton Inference Server backend model configuration",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "enum": [
+            "triton/python",
+            "triton/tensorrt",
+            "triton/onnx",
+            "triton/pytorch",
+            "triton/tensorflow",
+            "triton/python/tensorrtllm"
+          ],
+          "description": "Triton backend type with specific framework"
+        },
+        "parameters": {
+          "$ref": "parameters/triton-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "visual_changenet",
+      "backend": "triton/tensorrt",
+      "max_batch_size": 1,
+      "parameters": {
+        "FORCE_CPU_ONLY_INPUT_TENSORS": "no"
+      },
+      "input": [
+        {
+          "name": "input0",
+          "data_type": "TYPE_FP32",
+          "dims": [3, 768, 768]
+        }
+      ],
+      "output": [
+        {
+          "name": "output_final",
+          "data_type": "TYPE_FP32",
+          "dims": [10, 768, 768]
+        }
+      ]
+    }
+  ]
+}

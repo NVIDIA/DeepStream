@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/index.json",
+  "title": "Inference Builder Schema Index",
+  "description": "Central index for all Inference Builder schemas",
+  "version": "1.0.0",
+  "schemas": {
+    "main": {
+      "id": "config.schema.json",
+      "description": "Main configuration schema for inference builder",
+      "path": "./config.schema.json"
+    },
+    "backends": {
+      "deepstream": {
+        "id": "backends/deepstream.schema.json",
+        "description": "DeepStream backend configuration",
+        "path": "./backends/deepstream.schema.json",
+        "parameters": "./backends/parameters/deepstream-parameters.schema.json",
+        "backend_type": "deepstream/nvinfer"
+      },
+      "triton": {
+        "id": "backends/triton.schema.json",
+        "description": "Triton Inference Server backend configuration",
+        "path": "./backends/triton.schema.json",
+        "parameters": "./backends/parameters/triton-parameters.schema.json",
+        "backend_types": [
+          "triton/python",
+          "triton/tensorrt",
+          "triton/onnx",
+          "triton/pytorch"
+        ]
+      },
+      "vllm": {
+        "id": "backends/vllm.schema.json",
+        "description": "vLLM backend configuration for large language models",
+        "path": "./backends/vllm.schema.json",
+        "parameters": "./backends/parameters/vllm-parameters.schema.json",
+        "backend_type": "vllm"
+      },
+      "tensorrtllm": {
+        "id": "backends/tensorrtllm.schema.json",
+        "description": "TensorRT-LLM backend configuration",
+        "path": "./backends/tensorrtllm.schema.json",
+        "parameters": "./backends/parameters/tensorrtllm-parameters.schema.json",
+        "backend_types": [
+          "tensorrtllm",
+          "tensorrtllm/pytorch"
+        ]
+      },
+      "polygraphy": {
+        "id": "backends/polygraphy.schema.json",
+        "description": "Polygraphy (TensorRT) backend configuration",
+        "path": "./backends/polygraphy.schema.json",
+        "parameters": "./backends/parameters/polygraphy-parameters.schema.json",
+        "backend_type": "polygraphy"
+      },
+      "dummy": {
+        "id": "backends/dummy.schema.json",
+        "description": "Dummy backend for testing",
+        "path": "./backends/dummy.schema.json",
+        "parameters": "./backends/parameters/dummy-parameters.schema.json",
+        "backend_type": "dummy"
+      },
+      "pytorch": {
+        "id": "backends/pytorch.schema.json",
+        "description": "PyTorch backend configuration (Huggingface Transformers)",
+        "path": "./backends/pytorch.schema.json",
+        "parameters": "./backends/parameters/pytorch-parameters.schema.json",
+        "backend_type": "pytorch"
+      }
+    },
+    "common": {
+      "base_model": {
+        "id": "common/base-model.schema.json",
+        "description": "Base model configuration (shared structure)",
+        "path": "./common/base-model.schema.json"
+      },
+      "base_processor": {
+        "id": "common/base-processor.schema.json",
+        "description": "Base processor configuration (shared by preprocessors and postprocessors)",
+        "path": "./common/base-processor.schema.json"
+      },
+      "definitions": {
+        "id": "common/definitions.schema.json",
+        "description": "Common definitions and reusable schemas",
+        "path": "./common/definitions.schema.json"
+      },
+      "preprocessors": {
+        "id": "common/preprocessors.schema.json",
+        "description": "Preprocessor configurations",
+        "path": "./common/preprocessors.schema.json"
+      },
+      "postprocessors": {
+        "id": "common/postprocessors.schema.json",
+        "description": "Postprocessor configurations",
+        "path": "./common/postprocessors.schema.json"
+      }
+    }
+  },
+  "documentation": {
+    "readme": "./README.md",
+    "samples": "../builder/samples/"
+  }
+}
+

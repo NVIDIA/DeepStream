@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/common/definitions.schema.json",
+  "title": "Common Definitions",
+  "description": "Common definitions and reusable schemas for Inference Builder",
+  "definitions": {
+    "dataTypes": {
+      "type": "string",
+      "enum": [
+        "TYPE_BOOL",
+        "TYPE_UINT8",
+        "TYPE_UINT16",
+        "TYPE_UINT32",
+        "TYPE_UINT64",
+        "TYPE_INT8",
+        "TYPE_INT16",
+        "TYPE_INT32",
+        "TYPE_INT64",
+        "TYPE_FP16",
+        "TYPE_FP32",
+        "TYPE_FP64",
+        "TYPE_STRING",
+        "TYPE_CUSTOM_IMAGE_BASE64",
+        "TYPE_CUSTOM_IMAGE_ASSETS",
+        "TYPE_CUSTOM_LONG_VIDEO_ASSETS",
+        "TYPE_CUSTOM_VIDEO_CHUNK_ASSETS",
+        "TYPE_CUSTOM_BINARY_BASE64",
+        "TYPE_CUSTOM_LIST",
+        "TYPE_CUSTOM_DS_MEDIA_URL",
+        "TYPE_CUSTOM_VLM_INPUT",
+        "TYPE_CUSTOM_OBJECT",
+        "TYPE_CUSTOM_DS_IMAGE",
+        "TYPE_CUSTOM_DS_METADATA",
+        "TYPE_CUSTOM_DS_MIME",
+        "TYPE_CUSTOM_DS_SOURCE_CONFIG"
+      ],
+      "description": "Supported data types for tensors"
+    },
+    "backendTypes": {
+      "type": "string",
+      "enum": [
+        "dummy",
+        "vllm",
+        "triton/python",
+        "triton/tensorrt",
+        "triton/onnx",
+        "triton/pytorch",
+        "triton/tensorflow",
+        "tensorrtllm",
+        "tensorrtllm/pytorch",
+        "deepstream/nvinfer",
+        "deepstream/nvinferserver",
+        "polygraphy",
+        "pytorch"
+      ],
+      "description": "Supported backend types"
+    },
+    "operationTypes": {
+      "type": "string",
+      "enum": [
+        "inference",
+        "create_chat_completion_v1_chat_completions_post",
+        "create_embedding",
+        "add_media_file",
+        "delete_media_file",
+        "list_media_files",
+        "add_live_stream",
+        "delete_live_stream",
+        "list_live_streams",
+        "health_ready_v1_health_ready_get"
+      ],
+      "description": "Supported operation types for responders"
+    },
+    "processorKinds": {
+      "type": "string",
+      "enum": ["custom", "builtin"],
+      "description": "Types of processors"
+    },
+    "commonProcessorNames": {
+      "type": "string",
+      "enum": [
+        "dummy-preprocessor",
+        "dummy-tokenizer",
+        "qwen-vl-loader",
+        "qwen-vl-image-loader",
+        "qwen-vl-video-loader",
+        "openclip-tokenizer",
+        "nvclip-vision-preprocessor",
+        "nvclip-postprocessor",
+        "changenet-normalizer",
+        "changenet-masking"
+      ],
+      "description": "Common processor names"
+    },
+    "responderNames": {
+      "type": "string",
+      "enum": [
+        "infer",
+        "add_file",
+        "del_file",
+        "list_files",
+        "add_live_stream",
+        "del_live_stream",
+        "list_live_streams",
+        "healthy_ready"
+      ],
+      "description": "Available responder template names (must match templates/responder/*.jinja.py)"
+    }
+  }
+}
+

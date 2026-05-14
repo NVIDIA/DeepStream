@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/parameters/vllm-parameters.schema.json",
+  "title": "vLLM Backend Parameters",
+  "description": "Parameter schema for vLLM backend",
+  "type": "object",
+  "properties": {
+    "max_num_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum number of tokens"
+    },
+    "async_mode": {
+      "type": "boolean",
+      "description": "Enable asynchronous mode"
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["auto", "half", "float16", "bfloat16", "float", "float32"],
+      "description": "Data type for model weights and activations"
+    },
+    "gpu_memory_utilization": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "GPU memory utilization (0.0 to 1.0)"
+    },
+    "max_model_len": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum model context length"
+    },
+    "tensor_parallel_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of GPUs to use for tensor parallelism"
+    },
+    "pipeline_parallel_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of pipeline stages"
+    },
+    "trust_remote_code": {
+      "type": "boolean",
+      "description": "Trust remote code from model hub"
+    },
+    "max_num_seqs": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum number of sequences per iteration"
+    }
+  },
+  "additionalProperties": false
+}
+

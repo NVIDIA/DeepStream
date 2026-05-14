@@ -1,0 +1,241 @@
+[
+  {
+    "name": "gdino_video_inference",
+    "description": "Test gdino inference application with video input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "gdino_video_test",
+      "APP_YAML_PATH": "./gdino/ds_gdino.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../tao/processors.py",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 600,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics"
+      },
+      "volumes": {
+        "/tmp/model-repo/gdino": "/workspace/models/gdino"
+      },
+      "cmd": [
+        "--media-url",
+        "/opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4",
+        "--mime",
+        "video/mp4",
+        "--text",
+        "car,person"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "gdino": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/grounding_dino",
+          "version": "grounding_dino_swin_tiny_commercial_deployable_v1.0",
+          "configs": "./gdino/gdino"
+        }
+      }
+    }
+  },
+    {
+    "name": "gdino_image_inference",
+    "description": "Test gdino inference application with image input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "gdino_image_test",
+      "APP_YAML_PATH": "./gdino/ds_gdino.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../tao/processors.py",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 600,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics"
+      },
+      "volumes": {
+        "/tmp/model-repo/gdino": "/workspace/models/gdino"
+      },
+      "cmd": [
+        "--media-url",
+        "/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.jpg",
+        "--mime",
+        "image/jpeg",
+        "--text",
+        "car,person"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "gdino": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/grounding_dino",
+          "version": "grounding_dino_swin_tiny_commercial_deployable_v1.0",
+          "configs": "./gdino/gdino"
+        }
+      }
+    }
+  },
+  {
+    "name": "changenet_classification_inference",
+    "description": "Test Visual ChangeNet classification application with image input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "changenet_classify_test",
+      "APP_YAML_PATH": "./classification/ds_changenet.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../tao/processors.py",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 300,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics"
+      },
+      "volumes": {
+        "/tmp/model-repo/changenet-classify": "/workspace/models/changenet-classify"
+      },
+      "cmd": [
+        "--media-url",
+        "/workspace/test_data/pass_0.png",
+        "/workspace/test_data/pass_1.png",
+        "--mime",
+        "image/png",
+        "image/png"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "changenet-classify": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/visual_changenet_classification",
+          "version": "visual_changenet_nvpcb_deployable_v1.0",
+          "configs": "./classification/changenet-classify"
+        }
+      }
+    }
+  },
+  {
+    "name": "rtdetr_detection_inference",
+    "description": "Test RT-DETR detection application with video input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "rtdetr_detection_test",
+      "APP_YAML_PATH": "./detection/ds_detect.yaml",
+      "OUTPUT_DIR": ".",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 600,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "ENABLE_DISPLAY": "false"
+      },
+      "volumes": {
+        "/tmp/model-repo/rtdetr": "/workspace/models/rtdetr"
+      },
+      "cmd": [
+        "--media-url",
+        "/opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4",
+        "--mime",
+        "video/mp4"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "rtdetr": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/trafficcamnet_transformer_lite",
+          "version": "deployable_v1.0",
+          "configs": "./detection/rtdetr"
+        }
+      }
+    }
+  },
+  {
+    "name": "rtdetr_detection_inference_source_file",
+    "description": "Test RT-DETR detection application with video input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "rtdetr_detection_test",
+      "APP_YAML_PATH": "./detection/ds_detect.yaml",
+      "OUTPUT_DIR": ".",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 600,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "ENABLE_DISPLAY": "false"
+      },
+      "volumes": {
+        "/tmp/model-repo/rtdetr": "/workspace/models/rtdetr"
+      },
+      "cmd": [
+        "--source-config",
+        "/workspace/test_data/source_config.yaml"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "rtdetr": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/trafficcamnet_transformer_lite",
+          "version": "deployable_v1.0",
+          "configs": "./detection/rtdetr"
+        }
+      }
+    }
+  },
+  {
+    "name": "citysemsegformer_segmentation_inference",
+    "description": "Test CitySemsegFormer semantic segmentation application with image input",
+    "build_args": {
+      "TEST_APP_NAME": "deepstream-app",
+      "CACHE_BUSTER": "citysemsegformer_segmentation_test",
+      "APP_YAML_PATH": "./segmentation/ds_segformer.yaml",
+      "OUTPUT_DIR": ".",
+      "SERVER_TYPE": "serverless"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 1000,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "ENABLE_DISPLAY": "false"
+      },
+      "volumes": {
+        "/tmp/model-repo/citysemsegformer": "/workspace/models/citysemsegformer"
+      },
+      "cmd": [
+        "--media-url",
+        "/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.jpg",
+        "--mime",
+        "image/jpeg"
+      ],
+      "prerequisite_script": null,
+      "models": {
+        "citysemsegformer": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/citysemsegformer",
+          "version": "deployable_onnx_v1.0",
+          "configs": "./segmentation/citysemsegformer"
+        }
+      }
+    }
+  }
+]
+

@@ -1,0 +1,149 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Sample Dockerfile for a DeepStream TAO ds_app-style pipeline on DGX
+# with Spark, using a Triton-enabled DeepStream base image and a PyTorch
+# source image for copying Python packages.
+#
+# Target platform: aarch64 / NVIDIA server-grade ARM64 (GB300, DGX Spark)
+# Intended for NVIDIA ARM64 server systems such as GB300 NVL and DGX Spark
+# that run the arm-sbsa DeepStream variant. Like the Tegra variant, PyTorch
+# packages are copied from the NGC pytorch image. Unlike Tegra, this targets
+# high-performance datacenter ARM64 hardware (SBSA) rather than embedded
+# Jetson devices.
+FROM "nvcr.io/nvidia/pytorch:25.08-py3" AS pytorch_src
+
+FROM "nvcr.io/nvidia/deepstream:9.0-triton-sbsa-dgx-spark" AS inference_base
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends libyaml-cpp-dev pkg-config cmake
+
+RUN --mount=type=bind,from=pytorch_src,source=/usr/local/lib/python3.12/dist-packages,target=/tmp/pytorch_src \
+    cp -r /tmp/pytorch_src/{torch,functorch,torchgen,torch-*,torchvision*,flash_attn*,tensorrt*} \
+    /usr/local/lib/python3.12/dist-packages/ && \
+    cp -r /tmp/pytorch_src/triton /usr/local/lib/python3.12/dist-packages/ && \
+    sed -i '/self.capability = target.arch/a\        if self.capability == 121: self.capability = 120' /usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/compiler.py
+COPY --from=pytorch_src /usr/local/lib/libnvpl* /usr/local/lib/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install \
+    jinja2==3.1.6 \
+    numpy==1.26.4 \
+    omegaconf==2.3.0 \
+    networkx==3.5 \
+    sympy==1.14.0 \
+    pillow==11.3 \
+    transformers==4.54.1 \
+    opencv-python
+
+# Build TensorRT OSS to provide customized plugins (e.g. for ONNX) and
+# the trtexec tool. The version and GPU architectures are controlled
+# by the ARGs below; update them if you target different CUDA/TRT
+# versions or GPU architectures.
+ARG TRT_VERSION_MAJOR=10
+ARG TRT_VERSION_MINOR=13
+ARG TRT_VERSION_PATCH=0
+ARG TRT_VERSION_BUILD=0
+
+ARG TRT_VERSION_MAJOR_MINOR=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR
+ARG TRT_VERSION_MAJOR_MINOR_PATCH=$TRT_VERSION_MAJOR.$TRT_VERSION_MINOR.$TRT_VERSION_PATCH
+ARG TRT_VERSION_FULL=$TRT_VERSION_MAJOR_MINOR_PATCH.$TRT_VERSION_BUILD
+
+ARG CUDA_VERSION_MAJOR=13
+ARG CUDA_VERSION_MINOR=0
+ARG CUDA_VERSION_PATCH=0
+ARG CUDA_VERSION_BUILD=1
+ARG CUDA_VERSION_MAJOR_MINOR=$CUDA_VERSION_MAJOR.$CUDA_VERSION_MINOR
+ARG CUDA_VERSION_FULL=$CUDA_VERSION_MAJOR_MINOR.$CUDA_VERSION_PATCH.$CUDA_VERSION_BUILD
+ARG CUDNN_VERSION=9.12.0.46-1
+
+ENV TRT_VERSION=$TRT_VERSION_FULL+cuda$CUDA_VERSION_FULL
+
+WORKDIR /tmp
+ENV TRT_TAG="release/$TRT_VERSION_MAJOR_MINOR"
+RUN mkdir trt_oss_src && \
+    cd trt_oss_src && \
+    echo "$PWD Building TRT OSS..." && \
+    git clone -b $TRT_TAG https://github.com/nvidia/TensorRT TensorRT && \
+    cd TensorRT && \
+    git submodule update --init --recursive && \
+    mkdir -p build && cd build && \
+    cmake .. \
+    -DGPU_ARCHS="110;120;121" \
+    -DTRT_LIB_DIR=/usr/lib/aarch64-linux-gnu \
+    -DTRT_OUT_DIR=/tmp/out \
+    -DCUDA_VERSION=$CUDA_VERSION_MAJOR_MINOR \
+    -DCUDNN_VERSION=$CUDNN_VERSION \
+    -DCMAKE_C_COMPILER=/usr/bin/gcc \
+    && for i in {1..50}; do make -j 12 && break; done
+RUN echo "Listing /tmp/out:" && ls -l /tmp/out/libnvinfer_plugin.so.*
+RUN   cp /tmp/out/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH /usr/lib/aarch64-linux-gnu/libnvinfer_plugin.so.$TRT_VERSION_MAJOR_MINOR_PATCH && \
+    cp /tmp/out/libnvinfer_plugin_static.a /usr/lib/aarch64-linux-gnu/libnvinfer_plugin_static.a && \
+    cp /tmp/out/libnvonnxparser.so.$TRT_VERSION_MAJOR_MINOR_PATCH /usr/lib/aarch64-linux-gnu/libnvonnxparser.so.$TRT_VERSION_MAJOR_MINOR_PATCH && \
+    cp /tmp/out/trtexec /usr/local/bin/ && \
+    cd ../../../ && \
+    rm -rf trt_oss_src
+
+
+# Build DeepStream TAO app post-processors. This must come AFTER the
+# DeepStream SDK is installed in the base image. The resulting
+# libnvds_infercustomparser_tao.so is copied into the DeepStream lib
+# directory for use by ds_app pipelines. Adjust the repo/tag or CUDA
+# version if you use different DS/TAO releases.
+ENV DS_TAO_APPS_REPO=https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps.git
+ENV DS_TAO_APPS_TAG="master"
+ENV DS_SRC_PATH=/opt/nvidia/deepstream/deepstream
+ARG CACHE_BUSTER=unique_value_to_bypass_docker_cache
+RUN mkdir ds_tao_apps_src && \
+   cd ds_tao_apps_src && \
+   echo "$PWD Pulling DS TAO apps repo..." && \
+   git clone -b $DS_TAO_APPS_TAG $DS_TAO_APPS_REPO ds_tao_apps && \
+   cd ds_tao_apps/post_processor && \
+   echo "$PWD Building DS TAO apps post processing..." && \
+   CUDA_MODULE_LOADING=LAZY CUDA_VER=$CUDA_VERSION_MAJOR_MINOR make DS_SRC_PATH=$DS_SRC_PATH && \
+   [ -f libnvds_infercustomparser_tao.so ] && echo "$PWD post processing build successful" || echo "$PWD post processing build falied" && \
+   cp libnvds_infercustomparser_tao.so /opt/nvidia/deepstream/deepstream/lib && \
+   cd ../../../ && \
+   rm -rf ds_tao_apps_src
+
+RUN rm -rf ~/.cache/gstreamer-1.0
+
+WORKDIR /workspace
+
+# Copy the inference flow package generated by Inference Builder.
+# This tarball (here: deepstream-app.tgz) is typically produced when
+# running the builder with tarball output enabled, and its name should
+# match the generated pipeline artifact you want to deploy.
+ADD deepstream-app.tgz /workspace
+
+# Copy test data for CI/regression testing of this sample pipeline.
+# This is optional and specific to the ds_app sample setup.
+COPY test_data/* /workspace/test_data/
+
+## Set Environment variables required for DeepStream runtime.
+# Make sure DeepStream GStreamer plugins and libraries are discoverable.
+ENV GST_PLUGIN_PATH=/opt/nvidia/deepstream/deepstream/lib/gst-plugins
+ENV LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream/lib:$LD_LIBRARY_PATH
+# Enable adaptive batching in nvstreammux for better GPU utilization.
+ENV NVSTREAMMUX_ADAPTIVE_BATCHING=yes
+# Optional: enable detailed latency measurement if needed.
+#ENV NVDS_ENABLE_LATENCY_MEASUREMENT=1
+#ENV NVDS_ENABLE_COMPONENT_LATENCY_MEASUREMENT=1
+
+ENTRYPOINT ["python3", "/workspace/__main__.py"]
+#ENTRYPOINT ["/bin/bash"]
+CMD []

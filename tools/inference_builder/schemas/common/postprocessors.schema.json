@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/common/postprocessors.schema.json",
+  "title": "Postprocessor Configurations",
+  "description": "Schema for custom postprocessor configurations",
+  "type": "object",
+  "$ref": "#/definitions/customPostprocessor",
+  "definitions": {
+    "customPostprocessor": {
+      "allOf": [
+        {
+          "$ref": "base-processor.schema.json"
+        },
+        {
+          "properties": {
+            "config": {
+              "type": "object",
+              "description": "Custom configuration for the postprocessor",
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+

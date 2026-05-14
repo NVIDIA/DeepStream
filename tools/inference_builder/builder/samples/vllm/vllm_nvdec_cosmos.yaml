@@ -1,0 +1,209 @@
+# the name will be used to identify the microservice.
+name: "vllm"
+# the root path to the directory containing the model files (checkpoint, config, etc).
+model_repo: "/workspace/model-repo"
+
+# top level inference input specification
+input:
+  # messages from the http request
+  - name: "messages"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    # This custom data type chunks and samples long videos or live streams and converts them to image tensors
+  - name: "videos"
+    data_type: TYPE_CUSTOM_LONG_VIDEO_ASSETS
+    dims: [-1]
+    optional: true
+  - name: "images"
+    data_type: TYPE_CUSTOM_IMAGE_BASE64
+    dims: [ -1 ]
+    optional: true
+  - name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+  - name: "temperature"
+    data_type: TYPE_FP32
+    dims: [1]
+    optional: true
+  - name: "top_p"
+    data_type: TYPE_FP32
+    dims: [1]
+    optional: true
+  - name: "top_k"
+    data_type: TYPE_INT32
+    dims: [1]
+    optional: true
+output:
+  - name: "outputs"
+    data_type: TYPE_CUSTOM_OBJECT
+    dims: [ -1 ]
+
+server:
+  responders:
+    infer:
+      operation: create_chat_completion_v1_chat_completions_post
+      requests:
+        NIMLLMChatCompletionRequest: >
+          {% set contents = request.messages | selectattr("role", "equalto", "user")| map(attribute="content")| sum(start=[]) %}
+          {
+            "messages": {{ request.messages | tojson }},
+            "videos": [
+                {{ contents | selectattr("type", "equalto", "video") | map(attribute="video") | map("tojson") | join(", ") }}
+            ],
+            "images": [
+                {{ contents | selectattr("type", "equalto", "image") | map(attribute="image") | map("tojson") | join(", ") }}
+            ]
+            {% if 'max_tokens' in request %}
+            , "max_tokens": {{ request.max_tokens }}
+            {% endif %}
+            {% if 'temperature' in request %}
+            , "temperature": {{ request.temperature }}
+            {% endif %}
+            {% if 'top_p' in request %}
+            , "top_p": {{ request.top_p }}
+            {% endif %}
+            {% if 'top_k' in request %}
+            , "top_k": {{ request.top_k }}
+            {% endif %}
+          }
+      responses:
+        NIMLLMChatCompletionResponse: >
+          {
+            "id": "{{ request._id }}",
+            "choices":
+              [
+                {% for output in response.outputs %}
+                {
+                  "index": {{ output.index }},
+                  "message": { "role": "assistant", "content": {{ output.text|tojson }} },
+                  "finish_reason": {{ output.finish_reason|tojson }}
+                }
+                {% if not loop.last %}, {% endif %}
+                {% endfor %}
+              ],
+            "model": "Cosmos",
+            "usage": {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+          }
+    add_file:
+      operation: add_media_file
+      responses:
+        AddFileResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "duration": {{response.duration|tojson}},
+              "contentType": {{response.mime_type|tojson}}
+            }
+          }
+    del_file:
+      operation: delete_media_file
+      responses:
+        DeleteFileResponse: >
+          {
+            "deleted": {{response.status|tojson}}
+          }
+    list_files:
+      operation: list_media_files
+      responses:
+        ListFilesResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    add_live_stream:
+      operation: add_live_stream
+      requests:
+        AddStreamRequest: >
+          {
+            "url": {{ request.url|tojson }},
+            "description": {{ request.name|default("")|tojson }},
+            "username": "",
+            "password": ""
+          }
+      responses:
+        AddStreamResponse: >
+          {
+            "data": {
+              "id": {{ response.id|tojson }},
+              "url": {{ response.url|default(response.path|default(request.url))|tojson }},
+              "status": "active"
+            }
+          }
+    del_live_stream:
+      operation: delete_live_stream
+      responses:
+        DeleteStreamResponse: >
+          {
+            "deleted": {{ response.status|tojson }}
+          }
+
+    list_live_streams:
+      operation: list_live_streams
+      responses:
+        ListStreamsResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{ item.id|tojson }},
+                "url": {{ item.path|tojson }},
+                "status": "active"
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+  - name: "Cosmos"
+    backend: "vllm"
+    input:
+      - name: "inputs"
+        data_type: TYPE_CUSTOM_VLM_INPUT
+        dims: [ -1 ]
+      - name: "max_tokens"
+        data_type: TYPE_INT32
+        dims: [ 1 ]
+      - name: "temperature"
+        data_type: TYPE_FP32
+        dims: [1]
+        optional: true
+      - name: "top_p"
+        data_type: TYPE_FP32
+        dims: [1]
+        optional: true
+      - name: "top_k"
+        data_type: TYPE_INT32
+        dims: [1]
+        optional: true
+    output:
+      - name: "outputs"
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    parameters:
+      max_num_tokens: 19200
+      async_mode: true
+    preprocessors:
+      - kind: "custom"
+        name: "qwen3-vl-video-coordinator"
+        input: ["messages", "videos"]
+        output: ["inputs"]
+      - kind: "custom"
+        name: "qwen-vl-image-coordinator"
+        input: ["messages", "images"]
+        output: ["inputs"]
+# The explicit routes are used to separate the data flow for video and image,
+# so that they can be processed by different hardware decoders
+routes: {
+  ':["images", "messages", "max_tokens", "temperature", "top_p", "top_k"]': 'Cosmos',
+  ':["videos", "messages", "max_tokens", "temperature", "top_p", "top_k"]': 'Cosmos',
+  'Cosmos:["outputs"]': ':'
+}

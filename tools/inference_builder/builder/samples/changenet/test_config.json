@@ -1,0 +1,58 @@
+[
+  {
+    "name": "changenet_inference",
+    "description": "Test ChangeNet inference for change detection on images",
+    "build_args": {
+      "TEST_APP_NAME": "changenet",
+      "CACHE_BUSTER": "changenet_test",
+      "APP_YAML_PATH": "trt_changenet.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 600,
+      "env": {
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/workspace/model_repo",
+        "HTTP_PORT": "8003"
+      },
+      "volumes": {
+        "/tmp/model-repo/visual_changenet": "/workspace/model_repo/visual_changenet/1"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/payloads.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/infer",
+      "error_detection": {
+        "enabled": true,
+        "patterns": [
+          "ERROR",
+          "Exception:",
+          "Traceback",
+          "Fatal error",
+          "CRITICAL"
+        ]
+      },
+      "prerequisite_script": null,
+      "models": {
+        "visual_changenet": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/visual_changenet_segmentation_landsatscd",
+          "version": "deployable_v1.2",
+          "post_script": "docker run --rm --gpus all -v $(pwd):/changenet nvcr.io/nvidia/tensorrt:25.12-py3 trtexec --onnx=/changenet/changenet_768.onnx --saveEngine=/changenet/model.plan --fp16"
+        }
+      }
+    }
+  }
+]
+

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/vllm.schema.json",
+  "title": "vLLM Backend Configuration",
+  "description": "Schema for vLLM backend model configuration",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "const": "vllm",
+          "description": "vLLM backend for large language models"
+        },
+        "parameters": {
+          "$ref": "parameters/vllm-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "Cosmos",
+      "backend": "vllm",
+      "parameters": {
+        "max_num_tokens": 19200,
+        "async_mode": true
+      },
+      "input": [
+        {
+          "name": "inputs",
+          "data_type": "TYPE_CUSTOM_VLM_INPUT",
+          "dims": [-1]
+        }
+      ],
+      "output": [
+        {
+          "name": "outputs",
+          "data_type": "TYPE_STRING",
+          "dims": [-1]
+        }
+      ]
+    }
+  ]
+}

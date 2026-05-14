@@ -1,0 +1,371 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/config.schema.json",
+  "title": "Inference Builder Configuration",
+  "description": "Schema for NVIDIA Inference Builder configuration files",
+  "type": "object",
+  "required": ["name", "model_repo", "models"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique project name. Used as the directory name for generated code and as the package name when bundling artifacts.",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+    },
+    "model_repo": {
+      "type": "string",
+      "description": "Root path to the directory containing the model files"
+    },
+    "input": {
+      "type": "array",
+      "description": "Top level inference input specification. Required when pipeline includes multiple models or when inputs use custom types requiring preprocessing.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/tensorSpec"
+      }
+    },
+    "output": {
+      "type": "array",
+      "description": "Top level inference output specification. Required when pipeline includes multiple models or when outputs use custom types requiring postprocessing.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/tensorSpec"
+      }
+    },
+    "server": {
+      "$ref": "#/definitions/serverConfig",
+      "description": "Server configuration mapping endpoints to their implementation templates."
+    },
+    "models": {
+      "type": "array",
+      "description": "List of model specifications for inference",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/modelSpec"
+      }
+    },
+    "routes": {
+      "type": "object",
+      "description": "Data-flow map between top-level inputs, models, and top-level outputs.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "postprocessors": {
+      "type": "array",
+      "description": "Top-level postprocessors. Required when pipeline includes multiple models and outputs need to be consolidated.",
+      "items": {
+        "$ref": "#/definitions/processor"
+      }
+    }
+  },
+  "definitions": {
+    "tensorSpec": {
+      "type": "object",
+      "required": ["name", "data_type", "dims"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the tensor"
+        },
+        "data_type": {
+          "description": "Data type of the tensor",
+          "oneOf": [
+            { "const": "TYPE_BOOL", "description": "Tensor with bit type" },
+            { "const": "TYPE_UINT8", "description": "Tensor with unsigned 8-bit integer type" },
+            { "const": "TYPE_UINT16", "description": "Tensor with unsigned 16-bit integer type" },
+            { "const": "TYPE_UINT32", "description": "Tensor with unsigned 32-bit integer type" },
+            { "const": "TYPE_UINT64", "description": "Tensor with unsigned 64-bit integer type" },
+            { "const": "TYPE_INT8", "description": "Tensor with signed 8-bit integer type" },
+            { "const": "TYPE_INT16", "description": "Tensor with signed 16-bit integer type" },
+            { "const": "TYPE_INT32", "description": "Tensor with signed 32-bit integer type" },
+            { "const": "TYPE_INT64", "description": "Tensor with signed 64-bit integer type" },
+            { "const": "TYPE_FP16", "description": "Tensor with 16-bit floating point (half precision) type" },
+            { "const": "TYPE_FP32", "description": "Tensor with 32-bit floating point (single precision) type" },
+            { "const": "TYPE_FP64", "description": "Tensor with 64-bit floating point (double precision) type" },
+            { "const": "TYPE_STRING", "description": "Tensor with string type" },
+            { "const": "TYPE_CUSTOM_IMAGE_BASE64", "description": "Base64-encoded JPEG/PNG image data as a data URI string. Each element must follow the format 'data:image/{format};base64,{payload}' where {format} is 'jpeg', 'jpg', or 'png', and {payload} is the base64-encoded image bytes. This type is mapped to TYPE_STRING in Triton and arrives as a list of strings. When used as a top-level input, an ImageInputDataFlow is created that (1) parses the data URI prefix to determine the image format, (2) decodes the base64 payload into raw bytes, and (3) decodes the image using a hardware-accelerated DeepStream pipeline (nvjpegdec/pngdec) to produce RGB uint8 image tensors in HWC layout [H, W, 3] on GPU at the original image resolution. These decoded tensors are then passed to downstream models." },
+            { "const": "TYPE_CUSTOM_IMAGE_ASSETS", "description": "Image asset identifiers (file paths, URLs, or asset IDs) referring to JPEG/PNG images. When used as a top-level input, an ImageInputDataFlow will be created that loads and decodes the referenced images into image tensors before they are passed to the downstream models." },
+            { "const": "TYPE_CUSTOM_LONG_VIDEO_ASSETS", "description": "Video asset identifiers for long videos and live streams requiring temporal chunking. Particularly suitable for: (1) live streams such as RTSP feeds that need continuous processing in chunks, (2) long video files that should be split into temporal segments, (3) scenarios where frames need to be delivered in multiple batches over time. Supports file paths, URLs, RTSP streams, or asset IDs, with required query parameters: ?frames=N (number of frames per chunk), &interval=INTERVAL_NSEC (time interval between frames in nanoseconds), and optional &chunks=M (maximum number of chunks to yield before stopping - useful for RTSP streams without natural end-of-stream), &scale=WIDTHxHEIGHT (target resolution for frame scaling, e.g., scale=640x360 - all assets in a batch must use the same scale value). When used as a top-level input, a VideoInputDataFlow will be created that asynchronously extracts frames in chunks, with each chunk containing N frames sampled at the specified interval. Results are delivered via a queue as they become available, enabling streaming processing. Processing always starts from the beginning of the video or live stream. For short videos that fit in a single batch without temporal chunking, or when you need to specify a start position, use TYPE_CUSTOM_VIDEO_CHUNK_ASSETS instead." },
+            { "const": "TYPE_CUSTOM_VIDEO_CHUNK_ASSETS", "description": "Video asset identifiers for short videos requiring simple frame sampling without temporal chunking. Use this type when: (1) processing short video clips that fit in memory as a single batch, (2) extracting a fixed number of frames from a specific video segment, (3) simple uniform frame sampling from a video duration is needed. Supports file paths, URLs, or asset IDs, with required query parameter ?frames=N (number of frames to sample), and optional &start=START_NSEC (start time in nanoseconds, default 0), &duration=DURATION_NSEC (duration to sample from in nanoseconds, defaults to entire video). When used as a top-level input, a VideoFrameSamplingDataFlow will be created that asynchronously extracts exactly N frames evenly distributed over the specified duration (interval is automatically calculated as duration/frames), decodes them, and produces a single frame batch delivered via queue. The result is one batch containing all requested frames. For long videos or live streams requiring temporal chunking and streaming delivery of multiple batches over time, use TYPE_CUSTOM_LONG_VIDEO_ASSETS instead." },
+            { "const": "TYPE_CUSTOM_BINARY_BASE64", "description": "Base64-encoded binary data. The input strings will be decoded into uint8 tensors before being passed to the downstream models." },
+            { "const": "TYPE_CUSTOM_LIST", "description": "Converts the input values into a list, which implies explicit batching of the input data. Use for non-DS inputs that need list conversion (e.g., video URLs for VLM models)." },
+            { "const": "TYPE_CUSTOM_DS_MEDIA_URL", "description": "DeepStream media URL input. A string URL (file path or remote URL) pointing to an image or video for DeepStream pipeline processing. Unlike TYPE_CUSTOM_LIST, this type follows the implicit batch path and is recognized by the DeepStream backend as a media source. Must be paired with a TYPE_CUSTOM_DS_MIME input." },
+            { "const": "TYPE_CUSTOM_VLM_INPUT", "description": "Vision-Language Model input in dict format and will be passed to the downstream models as is." },
+            { "const": "TYPE_CUSTOM_OBJECT", "description": "Custom object type for complex structured data" },
+            { "const": "TYPE_CUSTOM_DS_IMAGE", "description": "DeepStream custom type for image buffers, usable as both input and output. As INPUT: a 1-D uint8 tensor (or list of tensors) containing encoded JPEG/PNG image bytes that can be passed directly into DeepStream backends without additional decoding in the Python runtime. This input must be defined in the model configuration to enable the image decoder in the DeepStream pipeline. As OUTPUT: extracts the decoded image frames from the DeepStream pipeline and returns them as RGB uint8 image tensors in HWC (Height, Width, Channels) layout, where Channels is 3 (R, G, B). Each tensor has shape [H, W, 3] representing the decoded frame at its processed resolution. Enable the image output only if raw image data is required for downstream models or postprocessors since it adds additional overhead to the pipeline." },
+            { "const": "TYPE_CUSTOM_DS_METADATA", "description": "Deepstream custom type for metadata output. The output structure follows the deepstreamMetadata schema (see definitions/deepstreamMetadata), returned as a dictionary with flexible fields that vary based on the model type and parser implementation. This type requires a low-level C++ postprocessor library (e.g., libnvds_infercustomparser_tao.so) to be available and copied into the container image. The library can be obtained from: (1) TAO model parsers from https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps.git, or (2) custom user-implemented parsers. Without such a library, use regular tensor output types (TYPE_FP32, etc.) with Python postprocessors instead." },
+            { "const": "TYPE_CUSTOM_DS_MIME", "description": "Deepstream custom type for MIME type string (for example, 'image/jpeg' or 'image/png') describing the associated DeepStream image or media buffers. Required alongside TYPE_CUSTOM_DS_IMAGE or TYPE_CUSTOM_DS_MEDIA_URL inputs so the DeepStream pipeline can select the appropriate decoder." },
+            { "const": "TYPE_CUSTOM_DS_SOURCE_CONFIG", "description": "DeepStream custom type for path to a YAML source configuration file. Use this type when handling live cameras or video streams with DeepStream inference pipelines. The source config supports two deployment strategies: (1) STATIC CAMERA SETUP: For fixed scenarios with a known number of cameras (e.g., a retail store with 4 fixed cameras), set source-bin to 'nvurisrcbin' in the YAML config. All camera URIs are defined upfront in the config file and remain unchanged during runtime. This is simpler and recommended when camera topology is stable. (2) DYNAMIC CAMERA MANAGEMENT: For scenarios requiring runtime addition/removal of cameras (e.g., smart city deployments, fleet management), set source-bin to 'nvmultiurisrcbin' in the YAML config. This enables a built-in REST API server for dynamic stream management. Add streams via POST to /api/v1/stream/add with JSON payload containing camera_id, camera_url, and change='camera_add'. Remove streams via POST to /api/v1/stream/remove with change='camera_remove'. The REST API server endpoint (ip-address, port) is configured in the source config. Full API specification: https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvmultiurisrcbin.html. Choose nvurisrcbin for static setups to reduce complexity; choose nvmultiurisrcbin when dynamic stream management is a requirement." }
+          ]
+        },
+        "dims": {
+          "type": "array",
+          "description": "Dimensions of the tensor (-1 for dynamic dimensions)",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "Whether this tensor is optional",
+          "default": false
+        }
+      }
+    },
+    "serverConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "responders": {
+          "type": "object",
+          "description": "Map of responder configurations. Keys must match available responder templates.",
+          "additionalProperties": false,
+          "properties": {
+            "infer": {
+              "description": "Primary inference endpoint responder. Handles model inference requests. Input: mapped from HTTP request body to top-level pipeline inputs (as defined in config 'input' section). Output: top-level pipeline outputs (as defined in config 'output' section). Supports streaming responses with 'Accept: application/x-ndjson' header.",
+              "$ref": "#/definitions/responder"
+            },
+            "add_file": {
+              "description": "File upload responder. Adds files to the asset store for later processing. Input: multipart file upload (file object with filename and content_type). Output: asset dict with fields 'id', 'file_name', 'content_type', 'created_at'.",
+              "$ref": "#/definitions/responder"
+            },
+            "del_file": {
+              "description": "File deletion responder. Removes files from the asset store. Input: 'asset_id' (string, from path parameter). Output: 'status' (boolean, deletion success).",
+              "$ref": "#/definitions/responder"
+            },
+            "list_files": {
+              "description": "File listing responder. Returns a list of files in the asset store. Input: none. Output: 'assets' (array of asset objects with 'id', 'file_name', 'content_type', 'created_at').",
+              "$ref": "#/definitions/responder"
+            },
+            "add_live_stream": {
+              "description": "Live stream addition responder. Registers a new RTSP or video stream for processing. Input: 'url' (string, required), 'description' (string, optional), 'username' (string, optional), 'password' (string, optional). Output: asset dict with fields 'id', 'url', 'description', 'created_at'.",
+              "$ref": "#/definitions/responder"
+            },
+            "del_live_stream": {
+              "description": "Live stream removal responder. Stops and removes a registered live stream. Input: 'asset_id' (string, from path parameter). Output: 'status' (boolean, deletion success).",
+              "$ref": "#/definitions/responder"
+            },
+            "list_live_streams": {
+              "description": "Live stream listing responder. Returns all registered live streams. Input: none. Output: 'assets' (array of stream asset objects with 'id', 'url', 'description', 'created_at').",
+              "$ref": "#/definitions/responder"
+            },
+            "healthy_ready": {
+              "description": "Health check responder. Reports service health and readiness status. Input: none. Output: HTTP 200 with 'Ready' or HTTP 503 with 'Service Unavailable'. No request/response template mapping needed.",
+              "$ref": "#/definitions/responder"
+            }
+          }
+        }
+      }
+    },
+    "responder": {
+      "type": "object",
+      "required": ["operation"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "Name of the operation this responder handles, which is defined in the openapi specification."
+        },
+        "requests": {
+          "type": "object",
+          "description": "Request templates (Jinja2 templates) to map HTTP request body to responder inputs. Keys are OpenAPI request schema/class names (e.g., 'InferenceRequest', 'AddLiveStreamRequest'), values are Jinja2 templates that transform the incoming 'request' object into a JSON structure matching the responder's expected inputs.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "responses": {
+          "type": "object",
+          "description": "Response templates (Jinja2 templates) to map responder outputs to HTTP response body. Keys are OpenAPI response schema/class names (e.g., 'InferenceResponse', 'AddFileResponse'), values are Jinja2 templates that transform the 'response' object from the responder into the desired HTTP response JSON structure.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modelSpec": {
+      "type": "object",
+      "required": ["name", "backend", "input", "output"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Model name identifier for locating the model in the model repository. Must be unique within the project."
+        },
+        "backend": {
+          "type": "string",
+          "description": "Backend type for the model",
+          "enum": [
+            "dummy",
+            "vllm",
+            "triton/python",
+            "triton/tensorrt",
+            "triton/onnx",
+            "triton/pytorch",
+            "triton/tensorflow",
+            "tensorrtllm",
+            "tensorrtllm/pytorch",
+            "deepstream/nvinfer",
+            "deepstream/nvinferserver",
+            "polygraphy",
+            "pytorch"
+          ]
+        },
+        "max_batch_size": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$[A-Z_]+\\|[0-9]+$",
+              "description": "Environment variable with default value (e.g., $MAX_BATCH_SIZE|1)"
+            }
+          ],
+          "description": "Maximum batch size for the model",
+          "default": 1
+        },
+        "input": {
+          "type": "array",
+          "description": "Model input specification. Note on passthrough tensors: any keys present in the request after preprocessing that are NOT listed in this model's input spec are treated as passthrough (they are not sent to the backend). They are merged back into each backend result dict before this model's postprocessors run, so a model postprocessor can consume them by listing those names in its `input`. If you need passthrough values to propagate further downstream/top-level, ensure your postprocessor emits/mappings include them via configured outputs/routes.",
+          "items": {
+            "$ref": "#/definitions/tensorSpec"
+          }
+        },
+        "output": {
+          "type": "array",
+          "description": "Model output specification",
+          "items": {
+            "$ref": "#/definitions/tensorSpec"
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Backend-specific parameters. The structure depends on the 'backend' field value. Read 'schema://index.json' to find the mapping from backend type to its parameter schema (e.g., backend 'vllm' -> 'schema://backends/parameters/vllm-parameters.schema.json').",
+          "additionalProperties": true
+        },
+        "preprocessors": {
+          "type": "array",
+          "description": "Ordered list of preprocessors applied to this model's inputs before inference. Each processor transforms or derives tensors from existing ones (for example, tokenization or image normalization) and is executed in sequence. Typically used to adapt data from top-level inputs or previous models into the format and shape expected by this model's inputs.",
+          "items": {
+            "$ref": "#/definitions/processor"
+          }
+        },
+        "postprocessors": {
+          "type": "array",
+          "description": "Ordered list of postprocessors applied to this model's outputs after inference, before passing results downstream. Each processor can transform, filter, or aggregate output tensors (for example, masking, decoding, or embedding processing) and is executed in sequence. This is also a primary extension point for adding custom logic, giving you room to expand pipeline functionality without changing the core runtime (e.g., adding new derived tensors, validation, formatting, or routing-friendly outputs).",
+          "items": {
+            "$ref": "#/definitions/processor"
+          }
+        }
+      }
+    },
+    "processor": {
+      "type": "object",
+      "required": ["kind", "name", "input", "output"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Type of processor",
+          "enum": ["custom", "auto"]
+        },
+        "name": {
+          "type": "string",
+          "description": "Name/identifier of the processor"
+        },
+        "input": {
+          "type": "array",
+          "description": "Input tensor names",
+          "items": {
+            "type": "string"
+          }
+        },
+        "output": {
+          "type": "array",
+          "description": "Output tensor names",
+          "items": {
+            "type": "string"
+          }
+        },
+        "config": {
+          "type": "object",
+          "description": "Processor-specific configuration",
+          "additionalProperties": true
+        }
+      }
+    },
+    "deepstreamMetadata": {
+      "type": "object",
+      "description": "DeepStream metadata structure returned by TYPE_CUSTOM_DS_METADATA outputs. Contains per-frame detection, classification, and segmentation results extracted from DeepStream's internal metadata by C++ parser libraries. The structure is flexible and fields may be empty depending on the model type and parser implementation.",
+      "additionalProperties": true,
+      "properties": {
+        "shape": {
+          "type": "array",
+          "description": "Image or frame dimensions as [height, width] in pixels. Represents the spatial dimensions of the processed frame.",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "bboxes": {
+          "type": "array",
+          "description": "Bounding boxes for detected objects in the format [left, top, right, bottom] coordinates. Each bounding box is an array of 4 integers representing pixel coordinates. Used by detection and instance segmentation models.",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          }
+        },
+        "probs": {
+          "type": "array",
+          "description": "Confidence scores (probabilities) for each detected object or classification result. Values typically range from 0.0 to 1.0, with higher values indicating greater confidence.",
+          "items": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        },
+        "labels": {
+          "type": "array",
+          "description": "Classification labels as an array of arrays (list[list[str]]). The outer array has one entry per detected object (aligned by index with 'bboxes', 'probs', etc.). The inner array contains one or more label strings for that object, since a single object may have multiple labels (e.g., ['car', 'red', 'moving']). For single-label models, each inner array contains exactly one string (e.g., [['car'], ['person']]).",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "seg_maps": {
+          "type": "array",
+          "description": "Segmentation maps containing pixel-wise class predictions or instance masks. Each element is a 2D array (represented as nested arrays or numpy arrays) where values correspond to class IDs or instance IDs. Used by semantic segmentation and instance segmentation models.",
+          "items": {
+            "type": "array"
+          }
+        },
+        "objects": {
+          "type": "array",
+          "description": "Object tracking IDs assigned by the DeepStream tracker. Each integer uniquely identifies a tracked object across frames. Only populated when tracker is enabled in the pipeline configuration.",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Buffer presentation timestamp (PTS) in nanoseconds. Represents the temporal position of the frame in the video stream. Useful for synchronization and temporal analysis.",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "test-app"
+model_repo: "/workspace/models"
+
+# Input specification for testing various input types
+input:
+  - name: "text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    optional: true
+
+# Output specification with multiple numpy array types
+output:
+  - name: "outputs"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+
+server:
+  responders:
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+    infer:
+      operation: inference
+      requests:
+        InferenceRequest: >
+          {
+            {% if request.text is not none %}
+            "text": [
+              {% for item in request.text %}
+                {{ item|tojson }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ]
+            {% endif %}
+          }
+      responses:
+        InferenceResponse: >
+          {
+            "data": {{ response.outputs | tojson }}
+          }
+
+models:
+  - name: output_types_dummy
+    backend: "dummy"
+    max_batch_size: 1
+    parameters: {}
+    input:
+      - name: text
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    output:
+      - name: int8_output
+        data_type: TYPE_INT8
+        dims: [5, 4]
+      - name: int16_output
+        data_type: TYPE_INT16
+        dims: [5, 4]
+      - name: int32_output
+        data_type: TYPE_INT32
+        dims: [5, 4]
+      - name: int64_output
+        data_type: TYPE_INT64
+        dims: [5, 4]
+      - name: uint8_output
+        data_type: TYPE_UINT8
+        dims: [5, 4]
+      - name: uint16_output
+        data_type: TYPE_UINT16
+        dims: [5, 4]
+      - name: uint32_output
+        data_type: TYPE_UINT32
+        dims: [5, 4]
+      - name: uint64_output
+        data_type: TYPE_UINT64
+        dims: [5, 4]
+      - name: fp16_output
+        data_type: TYPE_FP16
+        dims: [5, 4]
+      - name: fp32_output
+        data_type: TYPE_FP32
+        dims: [5, 4]
+      - name: fp64_output
+        data_type: TYPE_FP64
+        dims: [5, 4]
+      - name: bool_output
+        data_type: TYPE_BOOL
+        dims: [5, 4]
+      - name: string_output
+        data_type: TYPE_STRING
+        dims: [5]
+    postprocessors:
+      - kind: "custom"
+        name: "output-types-validator"
+        input:
+          - int8_output
+          - int16_output
+          - int32_output
+          - int64_output
+          - uint8_output
+          - uint16_output
+          - uint32_output
+          - uint64_output
+          - fp16_output
+          - fp32_output
+          - fp64_output
+          - bool_output
+          - string_output
+        output:
+          - outputs

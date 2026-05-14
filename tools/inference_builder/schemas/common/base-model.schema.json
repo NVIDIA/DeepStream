@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/common/base-model.schema.json",
+  "title": "Base Model Configuration",
+  "description": "Common base schema for all model configurations",
+  "type": "object",
+  "required": ["name", "backend"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Model name identifier"
+    },
+    "backend": {
+      "$ref": "definitions.schema.json#/definitions/backendTypes"
+    },
+    "max_batch_size": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "string",
+          "pattern": "^\\$[A-Z_]+\\|[0-9]+$",
+          "description": "Environment variable with default value (e.g., $MAX_BATCH_SIZE|1)"
+        }
+      ],
+      "description": "Maximum batch size for the model",
+      "default": 1
+    },
+    "input": {
+      "type": "array",
+      "description": "Model input specification",
+      "items": {
+        "$ref": "#/definitions/tensorSpec"
+      }
+    },
+    "output": {
+      "type": "array",
+      "description": "Model output specification",
+      "items": {
+        "$ref": "#/definitions/tensorSpec"
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Backend-specific parameters (see backend schemas for details)",
+      "additionalProperties": true
+    },
+    "preprocessors": {
+      "type": "array",
+      "description": "Ordered list of preprocessors applied to this model's inputs before inference. Each preprocessor transforms or derives tensors from existing ones (for example, tokenization or image normalization) and is executed in sequence. Typically used to adapt data from top-level inputs or previous models into the format and shape expected by this model's inputs.",
+      "items": {
+        "$ref": "preprocessors.schema.json"
+      }
+    },
+    "postprocessors": {
+      "type": "array",
+      "description": "Ordered list of postprocessors applied to this model's outputs after inference. Each postprocessor can transform, filter, or aggregate output tensors (for example, masking, decoding, or embedding processing) and is executed in sequence. Commonly used to convert raw model outputs into the tensors or objects expected by downstream models or top-level outputs.",
+      "items": {
+        "$ref": "postprocessors.schema.json"
+      }
+    }
+  },
+  "definitions": {
+    "tensorSpec": {
+      "type": "object",
+      "required": ["name", "data_type", "dims"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the tensor"
+        },
+        "data_type": {
+          "$ref": "definitions.schema.json#/definitions/dataTypes"
+        },
+        "dims": {
+          "type": "array",
+          "description": "Dimensions of the tensor (-1 for dynamic dimensions)",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "Whether this tensor is optional",
+          "default": false
+        }
+      }
+    }
+  }
+}
+

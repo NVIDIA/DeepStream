@@ -1,0 +1,1367 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+openapi: 3.1.0
+info:
+  title: NVIDIA NIM for VLMs
+  summary: Accelerated VLM inference for NVIDIA GPUs.
+  version: 1.1.2
+paths:
+  /v1/health/ready:
+    get:
+      tags:
+        - Health
+      summary: Health Ready
+      description: Provide your implementation of readiness to know when container ready to accept traffic
+      operationId: health_ready_v1_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/chat/completions:
+    post:
+      summary: OpenAI-compatible chat endpoint
+      operationId: create_chat_completion_v1_chat_completions_post
+      parameters:
+      - name: content-type
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content-Type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NIMLLMChatCompletionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/NIMLLMChatCompletionResponse'
+                - $ref: '#/components/schemas/NIMLLMChatCompletionStreamResponse'
+                title: Response Create Chat Completion V1 Chat Completions Post
+        '400':
+          description: Received an invalid request possibly containing unsupported
+            or out-of-range parameter values.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The requested model does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported Media Type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/files:
+    post:
+      tags:
+        - Files
+      summary: Upload a media file that can be used as inference input.
+      description: Upload media files to be used as inference input. Currently, only images upto 50 MB are supported.
+      operationId: add_media_file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddFileRequest'
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddFileResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+    get:
+      tags:
+        - Files
+      summary: Returns a list of the uploaded files.
+      description: Returns a list that includes ID, file name, size, purpose, file size, and media type for the uploaded files.
+      operationId: list_media_files
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFilesResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+  /v1/files/{file_id}:
+    delete:
+      tags:
+        - Files
+      summary: Delete a uploaded file.
+      description: Deletes an uploaded file based on ID.
+      operationId: delete_media_file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?4[0-9a-fA-F]{3}-?[89abAB][0-9a-fA-F]{3}-?[0-9a-fA-F]{12}'
+            description: File having 'file_id' to be deleted.
+            title: File Id
+          description: File having 'file_id' to be deleted.
+      responses:
+        "200":
+          description: Successful Response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteFileResponse'
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+components:
+  schemas:
+    BaseModel:
+      properties: {}
+      type: object
+      title: BaseModel
+    ChatCompletionLogProb:
+      properties:
+        token:
+          type: string
+          title: Token
+        logprob:
+          type: number
+          title: Logprob
+          default: -9999.0
+        bytes:
+          anyOf:
+          - items:
+              type: integer
+            type: array
+          - type: 'null'
+          title: Bytes
+      additionalProperties: false
+      type: object
+      required:
+      - token
+      title: ChatCompletionLogProb
+    ChatCompletionLogProbs:
+      properties:
+        content:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ChatCompletionLogProbsContent'
+            type: array
+          - type: 'null'
+          title: Content
+      additionalProperties: false
+      type: object
+      title: ChatCompletionLogProbs
+    ChatCompletionLogProbsContent:
+      properties:
+        token:
+          type: string
+          title: Token
+        logprob:
+          type: number
+          title: Logprob
+          default: -9999.0
+        bytes:
+          anyOf:
+          - items:
+              type: integer
+            type: array
+          - type: 'null'
+          title: Bytes
+        top_logprobs:
+          items:
+            $ref: '#/components/schemas/ChatCompletionLogProb'
+          type: array
+          title: Top Logprobs
+      additionalProperties: false
+      type: object
+      required:
+      - token
+      title: ChatCompletionLogProbsContent
+    ChatCompletionNamedFunction:
+      properties:
+        name:
+          type: string
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: ChatCompletionNamedFunction
+    ChatCompletionNamedToolChoiceParam:
+      properties:
+        function:
+          $ref: '#/components/schemas/ChatCompletionNamedFunction'
+        type:
+          type: string
+          const: function
+          title: Type
+          default: function
+      additionalProperties: false
+      type: object
+      required:
+      - function
+      title: ChatCompletionNamedToolChoiceParam
+    ChatCompletionResponseChoice:
+      properties:
+        index:
+          type: integer
+          title: Index
+        message:
+          $ref: '#/components/schemas/ChatMessage'
+        logprobs:
+          anyOf:
+          - $ref: '#/components/schemas/ChatCompletionLogProbs'
+          - type: 'null'
+        finish_reason:
+          anyOf:
+          - type: string
+            enum:
+            - stop
+            - length
+            - tool_calls
+          - type: 'null'
+          title: Finish Reason
+          default: stop
+        stop_reason:
+          anyOf:
+          - type: integer
+          - type: string
+          - type: 'null'
+          title: Stop Reason
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - message
+      title: ChatCompletionResponseChoice
+    ChatCompletionResponseStreamChoice:
+      properties:
+        index:
+          type: integer
+          title: Index
+        delta:
+          $ref: '#/components/schemas/DeltaMessage'
+        logprobs:
+          anyOf:
+          - $ref: '#/components/schemas/ChatCompletionLogProbs'
+          - type: 'null'
+        finish_reason:
+          anyOf:
+          - type: string
+            enum:
+            - stop
+            - length
+            - tool_calls
+          - type: 'null'
+          title: Finish Reason
+        stop_reason:
+          anyOf:
+          - type: integer
+          - type: string
+          - type: 'null'
+          title: Stop Reason
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - delta
+      title: ChatCompletionResponseStreamChoice
+    ChatCompletionToolsParam:
+      properties:
+        type:
+          type: string
+          const: function
+          title: Type
+          default: function
+        function:
+          $ref: '#/components/schemas/FunctionDefinition'
+      additionalProperties: false
+      type: object
+      required:
+      - function
+      title: ChatCompletionToolsParam
+    ChatMessage:
+      properties:
+        role:
+          type: string
+          title: Role
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content
+        tool_calls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCall'
+            type: array
+          - type: 'null'
+          title: Tool Calls
+      additionalProperties: false
+      type: object
+      required:
+      - role
+      title: ChatMessage
+    DeltaMessage:
+      properties:
+        role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content
+        tool_calls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCall'
+            type: array
+          - type: 'null'
+          title: Tool Calls
+      additionalProperties: false
+      type: object
+      title: DeltaMessage
+    ErrorResponse:
+      properties:
+        object:
+          type: string
+          title: Object
+          default: error
+        message:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Type
+        param:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Param
+        code:
+          type: integer
+          title: Code
+      additionalProperties: false
+      type: object
+      required:
+      - message
+      - type
+      - code
+      title: ErrorResponse
+    FunctionCall:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+          default: ''
+        arguments:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Arguments
+          default: ''
+      additionalProperties: false
+      type: object
+      title: FunctionCall
+    FunctionDefinition:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        parameters:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Parameters
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: FunctionDefinition
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ImageURL:
+      properties:
+        url:
+          type: string
+          title: Url
+      type: object
+      required:
+      - url
+      title: ImageURL
+    Logprob:
+      properties:
+        logprob:
+          type: number
+          title: Logprob
+        rank:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rank
+        decoded_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decoded Token
+      type: object
+      required:
+      - logprob
+      title: Logprob
+    NIMLLMChatCompletionMessage:
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+          description: The role of the message's author.
+        content:
+          anyOf:
+          - type: string
+            minLength: 1
+          - items:
+              anyOf:
+              - $ref: '#/components/schemas/NIMVLMChatCompletionContentPartImage'
+              - $ref: '#/components/schemas/NIMVLMChatCompletionContentPartText'
+              - $ref: '#/components/schemas/NIMVLMChatCompletionContentPartVideo'
+              - $ref: '#/components/schemas/NIMVLMChatCompletionContentPartVideoStreaming'
+            type: array
+          title: Content
+          description: "The contents of the message.\n        <br>To pass images (only\
+            \ with role=`user`):\n        <br>    - When content is a string, image\
+            \ can be passed together with the text with `img` HTML tags that wraps\n\
+            \        an image URL (`<img src=\"{url}\" />`),\n        base64 encoded\
+            \ image data (`<img src=\"data:image/{format};base64,{base64encodedimage}\"\
+            \ />`),\n        or an NVCF asset ID (`<img src=\"data:image/{format};asset_id,{asset_id}\"\
+            \ />`)\n        when the container is hosted in NVCF and the payload exceeds\
+            \ 200KB.\n        or http link (`https:{image_link}`)\n        <br>  \
+            \  - When content is a list of objects, images can be passed as objects\
+            \ with type=`image_url`.\n        <br>    - In both cases, images can\
+            \ be PNG, JPG or JPEG.\n        <br>To pass videos (only with role=`user`):\n\
+            \        <br>    - When content is a string, video can be passed together\
+            \ with the text with `video` HTML tags that wraps\n        a video URL\
+            \ (`<video src=\"{url}\" />`),\n        base64 encoded video data (`video\
+            \ src=\"data:video/{format};base64,{base64encodedvideo}\" />`),\n    \
+            \    or an NVCF asset ID (`<video src=\"data:video/{format};asset_id,{asset_id}\"\
+            \ />`),\n        or http link (`https:{video_link}`)\n        when the\
+            \ container is hosted in NVCF and the payload exceeds 200KB.\n       \
+            \ <br>    - When content is a list of objects, images can be passed as\
+            \ objects with type=`video_url` or `rtsp`.\n        For rtsp streams,\
+            \ an extra parameter `duration` needs to be set as the length of the stream\
+            \ in seconds to be\n        sampled.\n        <br>    - In both cases,\
+            \ videos can be H.264, H.265, AV1, JPEG and MJPEG formats.\n        <br>For\
+            \ `system` and `assistant` roles, the object list format is not supported.\n\
+            \        "
+        tool_call_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tool Call Id
+          description: The id of the tool call.
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+          description: The name of the tool called.
+        tool_calls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCall'
+            type: array
+          - type: 'null'
+          title: Tool Calls
+          description: The tool(s) called by the model.
+      type: object
+      required:
+      - role
+      - content
+      title: NIMLLMChatCompletionMessage
+    NIMLLMChatCompletionRequest:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/NIMLLMChatCompletionMessage'
+          type: array
+          minItems: 1
+          title: Messages
+          description: A list of messages comprising the conversation so far.
+        model:
+          type: string
+          title: Model
+          description: The model to use.
+        frequency_penalty:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            minimum: -2.0
+          - type: 'null'
+          title: Frequency Penalty
+          description: Number between -2.0 and 2.0. Positive values penalize new tokens
+            based on their existing frequency in the text so far, decreasing the model's
+            likelihood to repeat the same line verbatim.
+          default: 0.0
+        logit_bias:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Logit Bias
+          description: Modify the likelihood of specified tokens appearing in the
+            completion. Accepts a JSON object that maps tokens (specified by their
+            token ID in the tokenizer) to an associated bias value from -100 to 100.
+            Mathematically, the bias is added to the logits generated by the model
+            prior to sampling. The exact effect varies based on the model, but values
+            between -1 and 1 should decrease or increase likelihood of selection;
+            values at the ends of the range, such as -100 or 100 should result in
+            a ban or exclusive selection of the relevant token.
+        logprobs:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Logprobs
+          description: Whether to return log probabilities of the output tokens or
+            not. If true, returns the log probabilities of each output token returned
+            in the `content` of `message`.
+          default: false
+        top_logprobs:
+          anyOf:
+          - type: integer
+            maximum: 20.0
+            minimum: 1.0
+          - type: 'null'
+          title: Top Logprobs
+          description: An integer specifying the number of most likely tokens to return
+            at each token position, each with an associated log probability. `logprobs`
+            must be set to `true` if this parameter is used.
+        max_tokens:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Tokens
+          description: The maximum number of tokens that can be generated.
+        n:
+          anyOf:
+          - type: integer
+            maximum: 128.0
+            minimum: 1.0
+          - type: 'null'
+          title: N
+          description: How many completions to generate for each prompt.
+          default: 1
+        presence_penalty:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            minimum: -2.0
+          - type: 'null'
+          title: Presence Penalty
+          description: Number between -2.0 and 2.0. Positive values penalize new tokens
+            based on whether they appear in the text so far, increasing the model's
+            likelihood to talk about new topics.
+          default: 0.0
+        response_format:
+          anyOf:
+          - $ref: '#/components/schemas/ResponseFormat'
+          - type: 'null'
+          description: 'An object specifying the format that the model must output.
+            Setting to `{ "type": "json_object" }` enables JSON mode, which guarantees
+            the message the model generates is valid JSON.'
+        seed:
+          anyOf:
+          - type: integer
+            maximum: 9.223372036854776e+18
+            minimum: -9.223372036854776e+18
+          - type: 'null'
+          title: Seed
+          description: Changing the seed produces a different response with similar
+            characteristics. Fixing the seed reproduces the same results if all other
+            parameters are also kept constant.
+        stop:
+          anyOf:
+          - type: string
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Stop
+          description: Sequences where the API will stop generating further tokens.
+        stream:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Stream
+          description: 'If set, partial message deltas are sent, like in ChatGPT.
+            Tokens are sent as data-only [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format)
+            as they become available, with the stream terminated by a `data: [DONE]`'
+          default: false
+        stream_options:
+          anyOf:
+          - $ref: '#/components/schemas/StreamOptions'
+          - type: 'null'
+        temperature:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            minimum: 0.0
+          - type: 'null'
+          title: Temperature
+          description: What sampling temperature to use, between 0 and 2. Higher values
+            such as 0.8 make the output more random, while lower values such as 0.2
+            make it more focused and deterministic.
+          default: 0.5
+        top_p:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Top P
+          description: An alternative to sampling with temperature, called nucleus
+            sampling, where the model considers the results of the tokens with `top_p`
+            probability mass. So 0.1 means only the tokens comprising the top 10%
+            probability mass are considered. NVIDIA recommends that you alter this
+            option or `temperature` but not both.
+          default: 1.0
+        tools:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ChatCompletionToolsParam'
+            type: array
+          - type: 'null'
+          title: Tools
+        tool_choice:
+          anyOf:
+          - type: string
+            enum:
+            - none
+            - auto
+            - required
+          - $ref: '#/components/schemas/ChatCompletionNamedToolChoiceParam'
+          - type: 'null'
+          title: Tool Choice
+          description: Controls which (if any) tool is called by the model.
+          default: none
+        parallel_tool_calls:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Parallel Tool Calls
+          default: false
+        user:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User
+        min_p:
+          type: number
+          title: Min P
+          default: 0.0
+        prompt_logprobs:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Prompt Logprobs
+        echo:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Echo
+          description: This is currently unsupported. If true, the previous message
+            is emitted again before the current message if they belong to the same
+            role.
+          default: false
+        add_special_tokens:
+          type: boolean
+          title: Add Special Tokens
+          description: If true, special tokens (e.g. BOS) will be added to the prompt
+            on top of what is added by the chat template. For most models, the chat
+            template takes care of adding the special tokens so this should be set
+            to false (as is the default).
+          default: false
+        documents:
+          anyOf:
+          - items:
+              additionalProperties:
+                type: string
+              type: object
+            type: array
+          - type: 'null'
+          title: Documents
+          description: A list of dicts representing documents that will be accessible
+            to the model if it is performing RAG (retrieval-augmented generation).
+            If the template does not support RAG, this argument will have no effect.
+            We recommend that each document should be a dict containing "title" and
+            "text" keys.
+        chat_template:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chat Template
+          description: A Jinja template to use for this conversion. As of transformers
+            v4.44, default chat template is no longer allowed, so you must provide
+            a chat template if the tokenizer does not define one.
+        chat_template_kwargs:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Chat Template Kwargs
+          description: Additional kwargs to pass to the template renderer. Will be
+            accessible by the chat template.
+        guided_whitespace_pattern:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guided Whitespace Pattern
+          description: If specified, will override the default whitespace pattern
+            for guided json decoding.
+        image:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image
+          description: The image as a string or null.
+        nvext:
+          anyOf:
+          - $ref: '#/components/schemas/NVExt'
+          - type: 'null'
+          description: Extension dictionary for NIM API.
+        num_frames_per_inference:
+          anyOf:
+          - type: integer
+            maximum: 32.0
+            minimum: 1.0
+          - type: 'null'
+          title: Num Frames Per Inference
+          description: Number of frames to sample from the video or stream. They will
+            be the input to model.
+          default: 8
+        media_response_type:
+          anyOf:
+          - type: string
+            enum:
+            - none
+            - image
+            - video
+          - type: 'null'
+          title: Media Response Type
+          description: The return format if there are media file outputs such as images
+            or videos. `none` means to not return these files; `base64` means to return
+            them as base64 string in response `content`, such as `The response content
+            is... <img src="data:image/png;base64,{image_b64}" />`; `nvcf` means to
+            store them in NVCF large storage directory
+          default: none
+      additionalProperties: false
+      type: object
+      required:
+      - messages
+      - model
+      title: NIMLLMChatCompletionRequest
+    NIMLLMChatCompletionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        object:
+          type: string
+          const: chat.completion
+          title: Object
+          default: chat.completion
+        created:
+          type: integer
+          title: Created
+        model:
+          type: string
+          title: Model
+        choices:
+          items:
+            $ref: '#/components/schemas/ChatCompletionResponseChoice'
+          type: array
+          title: Choices
+        usage:
+          $ref: '#/components/schemas/UsageInfo'
+        prompt_logprobs:
+          anyOf:
+          - items:
+              anyOf:
+              - additionalProperties:
+                  $ref: '#/components/schemas/Logprob'
+                type: object
+              - type: 'null'
+            type: array
+          - type: 'null'
+          title: Prompt Logprobs
+        data:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/NIMLLMMediaObject'
+            type: array
+          - type: 'null'
+          title: Data
+          description: If specified, returns the media data generated by chat completion.
+      additionalProperties: false
+      type: object
+      required:
+      - model
+      - choices
+      - usage
+      title: NIMLLMChatCompletionResponse
+    NIMLLMChatCompletionStreamResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        object:
+          type: string
+          const: chat.completion.chunk
+          title: Object
+          default: chat.completion.chunk
+        created:
+          type: integer
+          title: Created
+        model:
+          type: string
+          title: Model
+        choices:
+          items:
+            $ref: '#/components/schemas/ChatCompletionResponseStreamChoice'
+          type: array
+          title: Choices
+        usage:
+          anyOf:
+          - $ref: '#/components/schemas/UsageInfo'
+          - type: 'null'
+        data:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/NIMLLMMediaObject'
+            type: array
+          - type: 'null'
+          title: Data
+          description: If specified, returns the media data generated by chat completion.
+      additionalProperties: false
+      type: object
+      required:
+      - model
+      - choices
+      title: NIMLLMChatCompletionStreamResponse
+    NIMLLMMediaObject:
+      properties:
+        type:
+          type: string
+          title: Type
+          description: The media type, such as image/jpeg, video/mp4.
+        b64_json:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: B64 Json
+          description: The base64-encoded JSON of the generated media.
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+          description: The URL of the generated media, if response_format is url (default).
+        revised_prompt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revised Prompt
+          description: The prompt that was used to generate the media, if there was
+            any revision to the prompt.
+      type: object
+      required:
+      - type
+      title: NIMLLMMediaObject
+    NIMLLMVersionResponse:
+      properties:
+        release:
+          type: string
+          title: Release
+          description: The product release version of NIM for LLMs.
+        api:
+          type: string
+          title: Api
+          description: The semver API version running inside the NIM.
+      type: object
+      required:
+      - release
+      - api
+      title: NIMLLMVersionResponse
+    NIMLicenseInfoResponse:
+      properties:
+        name:
+          type: string
+          title: Name
+          description: The name of the NIMs license.
+        path:
+          type: string
+          title: Path
+          description: The path of the NIMs license file inside the container.
+        sha:
+          type: string
+          title: Sha
+          description: The unique identifier of the license.
+        size:
+          type: integer
+          title: Size
+          description: The size, in bytes, of the license file.
+        url:
+          type: string
+          title: Url
+          description: The url of the NIMs license.
+        type:
+          type: string
+          title: Type
+          description: The content type of the license.
+        content:
+          type: string
+          title: Content
+          description: The content inside the NIMs license file.
+      type: object
+      required:
+      - name
+      - path
+      - sha
+      - size
+      - url
+      - type
+      - content
+      title: NIMLicenseInfoResponse
+    NIMVLMChatCompletionContentPartImage:
+      properties:
+        image:
+          type: string
+          title: Image
+        type:
+          type: string
+          const: image
+          title: Type
+      type: object
+      required:
+      - image
+      - type
+      title: NIMVLMChatCompletionContentPartImage
+    NIMVLMChatCompletionContentPartText:
+      properties:
+        text:
+          type: string
+          minLength: 1
+          title: Text
+        type:
+          type: string
+          const: text
+          title: Type
+      type: object
+      required:
+      - text
+      - type
+      title: NIMVLMChatCompletionContentPartText
+    NIMVLMChatCompletionContentPartVideo:
+      properties:
+        video:
+          type: string
+          title: Video
+        start_offset:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Start Offset
+        duration:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Duration
+        type:
+          type: string
+          const: video
+          title: Type
+      type: object
+      title: NIMVLMChatCompletionContentPartVideo
+      additionalProperties: true
+    NIMVLMChatCompletionContentPartVideoStreaming:
+      properties:
+        video_url:
+          $ref: '#/components/schemas/VideoURL'
+        connect_timeout:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Connect Timeout
+        duration:
+          type: number
+          title: Duration
+        fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fps
+        type:
+          type: string
+          const: rtsp
+          title: Type
+      type: object
+      title: NIMVLMChatCompletionContentPartVideoStreaming
+    NVExt:
+      properties:
+        ignore_eos:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Ignore Eos
+          description: Whether to ignore End of Sequence (EOS) tokens.
+        repetition_penalty:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Repetition Penalty
+          description: How much to penalize tokens based on how frequently they occur
+            in the text. A value of 1 means no penalty, while values larger than 1
+            discourage and values smaller encourage.
+          default: 1.0
+        top_k:
+          type: integer
+          minimum: -1.0
+          title: Top K
+          description: How many of the top tokens to sample from. Must be -1 or greater
+            than or equal to 1, and cannot be null. If not set, then the default is
+            -1 which disables `top_k` sampling (greedy).
+          default: -1
+        guided_choice:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Guided Choice
+          description: If specified, the output is exactly one of the choices.
+        guided_json:
+          anyOf:
+          - type: string
+          - type: object
+          - $ref: '#/components/schemas/BaseModel'
+          - type: 'null'
+          title: Guided Json
+          description: If specified, the output follows the JSON schema. Can be a
+            string, an object, a reference to a BaseModel, or null.
+        guided_regex:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guided Regex
+          description: If specified, the output follows the regex pattern. Can be
+            a string or null.
+        guided_grammar:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guided Grammar
+          description: If specified, the output follows the context-free grammar.
+            Can be a string or null.
+      type: object
+      title: NVExt
+    ResponseFormat:
+      properties:
+        type:
+          type: string
+          enum:
+          - text
+          - json_object
+          title: Type
+          description: Must be one of `text` or `json_object`.
+          example: json_object
+      type: object
+      required:
+      - type
+      title: ResponseFormat
+    Role:
+      type: string
+      enum:
+      - assistant
+      - user
+      - system
+      - tool
+      - function
+      title: Role
+    StreamOptions:
+      properties:
+        include_usage:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Include Usage
+          default: true
+        continuous_usage_stats:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Continuous Usage Stats
+          default: true
+      additionalProperties: false
+      type: object
+      title: StreamOptions
+    ToolCall:
+      properties:
+        index:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Index
+        id:
+          type: string
+          title: Id
+        type:
+          type: string
+          const: function
+          title: Type
+          default: function
+        function:
+          $ref: '#/components/schemas/FunctionCall'
+      additionalProperties: false
+      type: object
+      required:
+      - function
+      title: ToolCall
+    UsageInfo:
+      properties:
+        prompt_tokens:
+          type: integer
+          title: Prompt Tokens
+          default: 0
+        total_tokens:
+          type: integer
+          title: Total Tokens
+          default: 0
+        completion_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Completion Tokens
+          default: 0
+      additionalProperties: false
+      type: object
+      title: UsageInfo
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    MediaAsset:
+      properties:
+        id:
+          type: string
+          maxLength: 36
+          pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?4[0-9a-fA-F]{3}-?[89abAB][0-9a-fA-F]{3}-?[0-9a-fA-F]{12}'
+          title: Id
+          description: The file identifier (asset_id),                     which can be referenced in the API endpoints.
+        path:
+          type: string
+          maxLength: 256
+          pattern: ^([a-zA-Z][a-zA-Z0-9+.-]*:?//?)?[A-Za-z0-9_.\-/]*$
+          title: Filename
+          description: Local path of the file or URI with optional protocol.
+          examples:
+            - myfile.jpg
+            - /tmp/assets/name.jpg
+            - file:///tmp/myfile.jpg
+            - rtsp://camera.example.com/stream
+            - udp://192.168.1.100:5000
+            - rtsp:camera.example.com/stream
+            - udp:192.168.1.100:5000
+        size:
+          type: integer
+          format: int64
+          title: Size
+          description: Size of the file in bytes.
+        duration:
+          type: integer
+          format: int64
+          title: Duration
+          description: Duration of the file in nanoseconds.
+        contentType:
+          type: string
+          title: Content Type
+          description: MIME type of the file.
+          examples:
+            - image/jpeg
+      additionalProperties: false
+      type: object
+      required:
+        - id
+        - path
+        - size
+        - contentType
+      title: MediaAsset
+      description: Represents a media asset.
+    AddFileResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/MediaAsset'
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: AddFileResponse
+      description: Response schema for the add file request.
+    AddFileRequest:
+      properties:
+        file:
+          type: string
+          maxLength: 52428800
+          format: binary
+          title: File
+          description: File object (not file name) to be uploaded.
+      type: object
+      required:
+        - file
+      title: AddFileRequest
+      description: Schema for uploading media files.
+    ListFilesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+          type: array
+          maxItems: 100000000000000000
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+        - data
+      title: ListFilesResponse
+      description: Response schema for the list files API.
+    DeleteFileResponse:
+      properties:
+        deleted:
+          type: boolean
+          title: Deleted
+          description: Indicates if the file was deleted
+      additionalProperties: false
+      type: object
+      required:
+        - deleted
+      title: DeleteFileResponse
+    Errors:
+      type: object
+      properties:
+        type:
+          type: string
+          maxLength: 128
+          description: Error type
+        title:
+          type: string
+          maxLength: 128
+          description: Error title
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 999
+          description: Error status code
+        detail:
+          type: string
+          maxLength: 1024
+          description: Detailed information about the error
+        instance:
+          type: string
+          maxLength: 256
+          description: Function instance used to invoke the request
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      title: Errors

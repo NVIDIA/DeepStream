@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# the name will be used to identify the microservice.
+name: "qwen"
+# the root path to the directory containing the model files (checkpoint, config, etc).
+model_repo: "/workspace/model-repo"
+
+# top level inference input specification
+input:
+  # messages from the http request
+  - name: "prompts"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  - name: "videos"
+    data_type: TYPE_CUSTOM_LIST
+    dims: [ -1 ]
+    optional: true
+  - name: "images"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    optional: true
+  - name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [1]
+  - name: "temperature"
+    data_type: TYPE_FP32
+    dims: [1]
+    optional: true
+  - name: "top_p"
+    data_type: TYPE_FP32
+    dims: [1]
+    optional: true
+  - name: "top_k"
+    data_type: TYPE_INT32
+    dims: [1]
+    optional: true
+output:
+  - name: "outputs"
+    data_type: TYPE_CUSTOM_OBJECT
+    dims: [ -1 ]
+
+server:
+  responders:
+    infer:
+      operation: create_chat_completion_v1_chat_completions_post
+      requests:
+        NIMLLMChatCompletionRequest: >
+          {% set contents = request.messages | selectattr("role", "equalto", "user")| map(attribute="content")| sum(start=[]) %}
+          {
+            "prompts": [
+                {{ contents | selectattr("type", "equalto", "text") | map(attribute="text") | map("tojson") | join(", ") }}
+            ],
+            "videos": [
+                {{ contents | selectattr("type", "equalto", "video") | map(attribute="video") | map("tojson") | join(", ") }}
+            ],
+            "images": [
+                {{ contents | selectattr("type", "equalto", "image") | map(attribute="image") | map("tojson") | join(", ") }}
+            ]
+            {% if 'max_tokens' in request %}
+            , "max_tokens": {{ request.max_tokens }}
+            {% endif %}
+            {% if 'temperature' in request %}
+            , "temperature": {{ request.temperature }}
+            {% endif %}
+            {% if 'top_p' in request %}
+            , "top_p": {{ request.top_p }}
+            {% endif %}
+            {% if 'top_k' in request %}
+            , "top_k": {{ request.top_k }}
+            {% endif %}
+          }
+
+      responses:
+        NIMLLMChatCompletionResponse: >
+          {
+            {% set result = response.outputs[0] %}
+            "id": "{{ result.request_id }}",
+            "choices":
+              [
+                {% for output in result.outputs %}
+                {
+                  "index": {{ output.index }},
+                  "message": { "role": "assistant", "content": {{ output.text|tojson }} },
+                  "finish_reason": "stop"
+                }
+                {% if not loop.last %}, {% endif %}
+                {% endfor %}
+              ],
+            "model": "qwen-vl",
+            "usage": {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+          }
+    add_file:
+      operation: add_media_file
+      responses:
+        AddFileResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "duration": {{response.duration|tojson}},
+              "contentType": {{response.mime_type|tojson}}
+            }
+          }
+    del_file:
+      operation: delete_media_file
+      responses:
+        DeleteFileResponse: >
+          {
+            "deleted": {{response.status|tojson}}
+          }
+    list_files:
+      operation: list_media_files
+      responses:
+        ListFilesResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+  - name: "Qwen2.5-VL"
+    backend: "tensorrtllm/pytorch"
+    input:
+      - name: "inputs"
+        data_type: TYPE_CUSTOM_VLM_INPUT
+        dims: [ -1 ]
+      - name: "max_tokens"
+        data_type: TYPE_INT32
+        dims: [1]
+      - name: "temperature"
+        data_type: TYPE_FP32
+        dims: [1]
+        optional: true
+      - name: "top_p"
+        data_type: TYPE_FP32
+        dims: [1]
+        optional: true
+      - name: "top_k"
+        data_type: TYPE_INT32
+        dims: [1]
+        optional: true
+    output:
+      - name: "outputs"
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    parameters:
+      max_num_tokens: 19200
+      kv_cache_config:
+        enable_block_reuse: false
+    preprocessors:
+      - kind: "custom"
+        name: "qwen-vl-image-loader"
+        input: ["prompts", "images"]
+        output: ["inputs"]
+      - kind: "custom"
+        name: "qwen-vl-video-loader"
+        input: ["prompts", "videos"]
+        output: ["inputs"]
+        config:
+          num_frames: 8

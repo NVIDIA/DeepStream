@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/common/base-processor.schema.json",
+  "title": "Base Processor Configuration",
+  "description": "Common base schema for preprocessors and postprocessors",
+  "type": "object",
+  "required": ["kind", "name", "input", "output"],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["custom", "builtin"],
+      "description": "Type of processor: 'custom' for user-defined processors, 'builtin' for system-provided processors"
+    },
+    "name": {
+      "type": "string",
+      "description": "Processor identifier used to locate the processor implementation"
+    },
+    "input": {
+      "type": "array",
+      "description": "Ordered list of input tensor names that the processor's __call__ method receives as positional arguments. These names are used to extract values from the upstream data dictionary. For example, if the upstream provides {'image': img_data, 'text': txt_data, 'metadata': meta} and input is ['text', 'image'], the processor's __call__ method will be invoked as __call__(txt_data, img_data) - extracting values in the order specified by the input list.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "output": {
+      "type": "array",
+      "description": "Ordered list of output tensor names corresponding to the tuple returned by the processor's __call__ method. The processor must return a tuple with length equal to the output array length. The returned values are mapped to output names to form a dictionary for downstream consumption. For example, if output is ['embeddings', 'attention_mask'] and __call__ returns (emb_tensor, mask_tensor), the downstream receives {'embeddings': emb_tensor, 'attention_mask': mask_tensor}.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}
+

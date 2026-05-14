@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+schema_version: '2.0'
+profile_selection_criteria: auto
+model: eevaigoeixww/dev/tao_cv
+release: rc1
+profiles:
+- id: 425dcb3ef646e497d5a50bbd1eb1169c9f33f4253f36669bb428ef250e2447cd
+  tags:
+    gpu: a6000
+  workspace:
+    files:
+      model_epoch_049.onnx_b1_gpu0_fp16.engine:
+        uri: ngc://eevaigoeixww/dev/tao_cv:mgdino.engine_b1_fp16_A6000_trt10.9?file=model_epoch_049.onnx_b1_gpu0_fp16.engine
+        checksum: blake3:947483a55c860eddea37cf1d930c6d92ab4a21d33d7d1dbc4c75e2aaa53e188c
+      nvdsinfer_config.yaml:
+        uri: ngc://eevaigoeixww/dev/tao_cv:mgdino.engine_b1_fp16_A6000_trt10.9?file=nvdsinfer_config.yaml
+        checksum: blake3:f957d513dff19d30f911d6c83416e61588cb1f652984fc9cd164a4eb72eedad3
+      nvdspreprocess_config.yaml:
+        uri: ngc://eevaigoeixww/dev/tao_cv:mgdino.engine_b1_fp16_A6000_trt10.9?file=nvdspreprocess_config.yaml
+        checksum: blake3:a261def4031c9a7f068ecf144c4285d26b0767b9e143b83f48ea92b75e383041

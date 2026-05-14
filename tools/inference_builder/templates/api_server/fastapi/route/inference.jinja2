@@ -1,0 +1,76 @@
+{#
+ SPDX-FileCopyrightText: Copyright (c) <year> NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ SPDX-License-Identifier: Apache-2.0
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+#}
+
+from typing import Any
+{{imports}}
+from contextlib import asynccontextmanager
+from fastapi import Request, HTTPException, FastAPI, APIRouter
+import uvicorn
+from .responder import Responder
+from lib.utils import get_logger
+import os
+
+class FastAPIInterface:
+
+    def __init__(self, *args, **kwargs):
+        self.app = FastAPI()
+        self.router = APIRouter()
+        self.responder = Responder()
+        self.logger = get_logger(__name__)
+        self.register_routes()
+        self.app.include_router(self.router)
+
+    def register_routes(self):
+        {% for operation in operations %}
+        self.router.{{operation.type}}("{{operation.path}}")(self.{{operation.function_name}})
+        {% endfor %}
+
+
+    def serve(self, **kwargs):
+        http_port = int(os.getenv("HTTP_PORT", "8000"))
+        uvicorn.run(self.app, host="0.0.0.0", port=http_port)
+
+    {% for operation in operations %}
+    async def {{operation.function_name}}(self, request: Request, {{operation.snake_case_arguments}}) -> {{operation.response}}:
+        self.logger.info("{{operation.function_name}} called")
+        kwargs = dict(locals())
+        kwargs.pop("self")
+        status, response = await self.responder.take_action("{{operation.function_name}}", **kwargs)
+        if status != 200:
+            raise HTTPException(status_code=status, detail=response)
+        self.logger.debug(f"response generated as {response}")
+        return response
+    {% endfor %}
+
+def get_openapi_schema(file_dump=True, pprint=True):
+    """
+    Utility function to get API schema in YAML format.
+    This is used after inference.py has been completed with custom user APIs.
+    """
+    import yaml
+    interface_instance = Interface()
+    schema: dict = interface_instance.get_openapi_schema()
+    if pprint:
+        print(yaml.dump(schema, sort_keys=False))
+    if file_dump:
+        with open("api_spec.yaml", "w+") as file:
+            yaml.dump(schema, file, sort_keys=False)
+
+
+def main():
+    interface = FastAPIInterface()
+    interface.serve()

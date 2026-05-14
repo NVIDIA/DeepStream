@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "test-app"
+model_repo: "/workspace/models"
+
+input:
+  - name: "image"
+    data_type: TYPE_CUSTOM_IMAGE_BASE64
+    dims: [ -1 ]
+    optional: true
+
+output:
+  - name: "output"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+
+models:
+- name: dummy
+  backend: dummy
+  max_batch_size: 1
+  input:
+  - name: image
+    data_type: TYPE_UINT8
+    dims: [ -1, -1, -1, -1 ]
+  output:
+  - name: output
+    data_type: TYPE_FP32
+    dims: [ 1 ]

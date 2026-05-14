@@ -1,0 +1,144 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# the name will be used to identify the microservice.
+name: "qwen"
+# the root path to the directory containing the model files (checkpoint, config, etc).
+model_repo: "/workspace/model-repo/"
+
+# top level inference input specification
+input:
+  # messages from the http request
+  - name: "messages"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  - name: "max_new_tokens"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+output:
+  - name: "text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+
+server:
+  responders:
+    infer:
+      operation: create_chat_completion_v1_chat_completions_post
+      requests:
+        NIMLLMChatCompletionRequest: >
+          {
+            "messages": {{ request.messages|tojson }},
+            "max_new_tokens": {{ request.max_tokens }}
+          }
+      responses:
+        NIMLLMChatCompletionResponse: >
+          {
+            "id": "{{ request._id }}",
+            "choices":
+              [
+                {% for text in response.text %}
+                {
+                  "index": {{ loop.index0 }},
+                  "message": { "role": "assistant", "content": {{ text|tojson }} },
+                  "finish_reason": "stop"
+                }
+                {% if not loop.last %}, {% endif %}
+                {% endfor %}
+              ],
+            "model": "qwen-vl",
+            "usage": {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+          }
+    add_file:
+      operation: add_media_file
+      responses:
+        AddFileResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "duration": {{response.duration|tojson}},
+              "contentType": {{response.mime_type|tojson}}
+            }
+          }
+    del_file:
+      operation: delete_media_file
+      responses:
+        DeleteFileResponse: >
+          {
+            "deleted": {{response.status|tojson}}
+          }
+    list_files:
+      operation: list_media_files
+      responses:
+        ListFilesResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+  - name: "Qwen2.5-VL"
+    backend: "pytorch"
+    input:
+      - name: "input_ids"
+        data_type: TYPE_INT64
+        dims: [ -1, -1 ]
+      - name: "attention_mask"
+        data_type: TYPE_INT64
+        dims: [ -1, -1 ]
+      - name: "pixel_values"
+        data_type: TYPE_FP32
+        dims: [-1, -1]
+        optional: true
+      - name: "image_grid_thw"
+        data_type: TYPE_INT64
+        dims: [-1, -1]
+        optional: true
+      - name: "pixel_values_videos"
+        data_type: TYPE_FP32
+        dims: [-1, -1]
+        optional: true
+      - name: "video_grid_thw"
+        data_type: TYPE_INT64
+        dims: [-1, -1]
+        optional: true
+      - name: "max_new_tokens"
+        data_type: TYPE_INT32
+        dims: [1]
+    output:
+      - name: "output_ids"
+        data_type: TYPE_INT64
+        dims: [ -1, -1 ]
+    preprocessors:
+      - kind: "custom"
+        name: "qwen-vl-processor"
+        input: ["messages", "max_new_tokens"]
+        output: ["input_ids", "attention_mask", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw", "max_new_tokens", "input_ids_copy"]
+    postprocessors:
+      - kind: "custom"
+        name: "qwen-vl-tokenizer"
+        input: ["output_ids", "input_ids_copy"]
+        output: ["text"]
+    parameters:
+      model_class: "Qwen2_5_VLForConditionalGeneration"

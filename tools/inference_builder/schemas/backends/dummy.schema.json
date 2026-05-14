@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NVIDIA-AI-IOT/inference_builder/main/schemas/backends/dummy.schema.json",
+  "title": "Dummy Backend Configuration",
+  "description": "Schema for dummy backend model configuration (testing)",
+  "allOf": [
+    {
+      "$ref": "../common/base-model.schema.json"
+    },
+    {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "const": "dummy",
+          "description": "Dummy backend for testing purposes"
+        },
+        "parameters": {
+          "$ref": "parameters/dummy-parameters.schema.json"
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "dummy",
+      "backend": "dummy",
+      "max_batch_size": 1,
+      "parameters": {},
+      "input": [
+        {
+          "name": "images",
+          "data_type": "TYPE_FP32",
+          "dims": [3, 768, 768]
+        }
+      ],
+      "output": [
+        {
+          "name": "output",
+          "data_type": "TYPE_FP32",
+          "dims": [10, 10]
+        }
+      ]
+    }
+  ]
+}
