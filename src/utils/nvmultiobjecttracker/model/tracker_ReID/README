@@ -1,0 +1,153 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2021-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+# Deep Learning Models for Multi-Object Tracking
+
+## Overview
+
+The DeepStream SDK's multi-object tracker supports multiple deep learning models for enhanced tracking capabilities:
+
+- **Segmentation**: Meta Segment Anything Model 2 (SAM2) for multi-object tracking and segmentation
+- **ReID**: NVIDIA TAO ReidentificationNet for re-identification and re-association
+- **Pose Estimation**: NVIDIA TAO BodyPose3DNet for 3D tracking and human height estimation
+
+All models utilize TensorRT for accelerated inference. This guide demonstrates how to prepare these models for both dGPU and Jetson platforms.
+
+## Table of Contents
+
+- [Segmentation](#segmentation)
+- [ReID](#reid)
+- [Pose Estimation](#pose-estimation)
+
+## Segmentation
+
+The `config_tracker_MaskTracker.yml` configuration enables high-accuracy multi-object tracking and segmentation using SAM2 with memory bank support. This creates a segmentation module based on `config_tracker_module_Segmenter.yml`.
+
+### Model Source
+
+- **Model**: Meta SAM2
+- **URL**: [SAM2 GitHub Repository](https://github.com/facebookresearch/sam2)
+
+### Setup Instructions
+
+1. **Prepare Model Files**
+   ```bash
+   mkdir -p ../../samples/models/Tracker/
+   git clone https://github.com/NVIDIA-AI-IOT/sam2-onnx-tensorrt.git
+   cd sam2-onnx-tensorrt
+   python3 -m venv sam2_env
+   source sam2_env/bin/activate
+   bash run.sh
+   ```
+
+   Visit [SAM2 ONNX TensorRT Conversion](https://github.com/NVIDIA-AI-IOT/sam2-onnx-tensorrt) to convert SAM2 models to ONNX.
+
+   Place the following four ONNX files in the `Tracker` directory:
+   - `image_encoder.onnx`
+   - `mask_decoder.onnx`
+   - `memory_attention.onnx`
+   - `memory_encoder.onnx`
+
+   > **Note**: TensorRT engine files will be automatically generated when you launch deepstream-app.
+
+2. **Configure DeepStream App**
+   - Navigate to `samples/configs/deepstream-app/`
+   - Modify the `[tracker]` configuration in your deepstream-app config file:
+     ```bash
+     ll-config-file=config_tracker_MaskTracker.yml
+     ```
+
+3. **Run DeepStream App**
+   ```bash
+   deepstream-app -c <deepstream-app-config.txt>
+   ```
+
+## ReID
+
+The `config_tracker_NvDCF_accuracy.yml` and `config_tracker_NvDeepSORT.yml` configurations support ReID functionality with two options available.
+
+> **Warning**: UFF models have been deprecated by TensorRT. We recommend switching to ONNX or NVIDIA TAO models.
+
+### Option 1: NVIDIA Pretrained TAO ReID Model (Recommended)
+
+#### Model Source
+
+- **Model**: NVIDIA TAO ReidentificationNet
+- **URL**: [NVIDIA NGC Catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet)
+
+#### Setup Instructions
+
+1. **Prepare Model Files**
+   ```bash
+   mkdir -p ../../samples/models/Tracker/
+   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/reidentificationnet/versions/deployable_v1.0/files/resnet50_market1501.etlt' -P ../../samples/models/Tracker/
+   ```
+
+2. **Configure DeepStream App**
+   - Navigate to `samples/configs/deepstream-app/`
+   - Modify the `[tracker]` configuration in your deepstream-app config file:
+     ```bash
+     ll-config-file=config_tracker_NvDCF_accuracy.yml
+     # or ll-config-file=config_tracker_NvDeepSORT.yml
+     ```
+
+3. **Run DeepStream App**
+   ```bash
+   deepstream-app -c <deepstream-app-config.txt>
+   ```
+
+### Option 2: Custom ONNX Model
+
+#### Prerequisites
+- Convert your custom model to ONNX format
+
+#### Configuration Parameters
+Modify the following parameters in your tracker config file based on your custom model architecture:
+
+```yaml
+reidFeatureSize: 128
+inferDims: [128, 64, 3]
+networkMode: 0
+inputOrder: 1
+colorFormat: 0
+offsets: [0.0, 0.0, 0.0]
+netScaleFactor: 1.0000
+addFeatureNormalization: 1
+onnxFile: "change-to-model-name.onnx"
+```
+
+## Pose Estimation
+
+For 3D tracking examples, refer to the [DeepStream Reference Apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps). Currently, only NVIDIA TAO BodyPose3DNet is supported.
+
+### Model Source
+- **Model**: NVIDIA TAO BodyPose3DNet
+- **URL**: [NVIDIA NGC Catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/bodypose3dnet)
+
+### Setup Instructions
+
+1. **Prepare Model Files**
+   ```bash
+   mkdir -p ../../samples/models/Tracker/
+   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/bodypose3dnet/versions/deployable_accuracy_v1.0/files/bodypose3dnet_accuracy.etlt' -P ../../samples/models/Tracker/
+   ```
+
+2. **Configure and Run DeepStream App**
+
+   Visit [DeepStream Reference Apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps) for how to setup and use single and multi-view 3D tracking.
+
+## Additional Resources
+
+- [DeepStream Documentation](https://docs.nvidia.com/metropolis/deepstream/)
+- [NVIDIA NGC Catalog](https://catalog.ngc.nvidia.com/)
+- [TensorRT Documentation](https://docs.nvidia.com/deeplearning/tensorrt/)
+

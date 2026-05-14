@@ -1,0 +1,43 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2018-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+nvds_logger is a basic logging library accompanying DeepStream and related software such as adaptors, apps etc.
+It is based on syslog and offers many of the related functionality, including:
+* different priorities (log levels)
+* log filtering and redirection
+* shared logging across different deepstream instances executing simultanously
+* log retirement and management (using logrotate)
+* cross platform support
+
+See setup_dslog.sh script to setup nvds_logger
+
+Usage:
+1) Setup nvds_logger (one time basis across system reboots):
+chmod u+x ./setup_nvds_logger.sh 
+sudo ./setup_nvds_logger.sh 
+
+Note that the script enables various levels that help filter logs.
+Please edit the script to set the log level, as mentioned in the comments within.
+
+Programmatic usage:
+For emitting logs from within your source code, follow these three steps
+
+1) Before emitting log messages, application needs to call nvds_log_open function
+
+2) Call nvds_log to emit log messages
+
+3) Prepend the log messages with a keyword (ex: DSLOG)
+and match the prepended keyword in setup_nvds_logger.sh
+
+4) Finally close log by calling nvds_log_close upon completion (to flush logs)
+
+NOTE: The log file is now found at /var/log/nvds/ds.log by default. Logs must be in /var/log/ for apparmor to
+allow rsyslog access. The setup script can be used to choose a filepath but it will always be prepended by /var/log/nvds/.
