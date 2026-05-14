@@ -106,3 +106,22 @@ Refer to the `README` in each app's directory for app-specific prerequisites, ru
 | App | Binary | Description |
 |---|---|---|
 | `deepstream-opencv-test` | `deepstream-opencv-test` | Access frame data in CPU memory for OpenCV processing. |
+
+### Triton Inference Server
+
+These samples do not produce a standalone binary. Each builds an `nvinferserver`
+custom-process library (`.so`) and is driven by the deb-installed `deepstream-app`
+with the included config file. See each sample's `README` for the prerequisite
+Triton container setup and model download steps.
+
+| Sample | Library | Description |
+|---|---|---|
+| `TritonBackendEnsemble` | `libnvdstriton_custom_impl_ensemble.so` | Triton ensemble model used as SGIE plus a custom Triton C++ backend that reads DeepStream stream IDs. |
+| `TritonOnnxYolo` | `libnvdstriton_custom_impl_yolo.so` | DS-Triton custom-lib for ONNX YoloV3 with dynamic-sized output tensors and multi-input postprocessing. |
+
+Run flow:
+
+```bash
+cd src/apps/sample_apps/<TritonSample>
+deepstream-app -c <included-config>.txt
+```

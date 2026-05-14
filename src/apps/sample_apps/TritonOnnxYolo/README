@@ -1,0 +1,105 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+################################################################################
+
+This sample shows 
+- using DS-Triton to run models with dynamic-sized output tensors.
+- implmenting DS-Triton(nvdsinferserver) custom-lib to run ONNX YoloV3 models with
+  multi-input tensors and how to postprocess mixed-batch tensor data and attach them
+  into nvds metadata.
+
+===============================================================================
+1. Sample Contents:
+===============================================================================
+Sample contents for DeepStream Triton:
+- deepstream_app_triton_config_yolov3.txt - DeepStream triton reference app
+  configuration for ONNX YoloV3 model as the primary detector.
+- config_triton_inferserver_primary_yolov3_onnx_custom.txt, an custom processing config
+  file for Gst-nvinferserver plugin. It configured with `output_mem_type: MEMORY_TYPE_CPU` 
+  and `custom_process_funcion: "CreateInferServerCustomProcess"` for custom-lib to parsing
+  ONNX YoloV3 output tensors manually.
+- nvdsinferserver_custom_impl_yolo/nvdsinferserver_custom_process_yolo.cpp - Example 
+  how to create an customized nvdsinferserver::IInferCustomProcessor instance to do extra
+  input processing, ouptut tensor parsing and detection boundingbox attaching into nvds
+  metadata.
+- triton_model_repo/yolov3-10_onnx/config.pbtxt - Triton config file for FasterRCNN model
+- triton_model_repo/yolov3-10_onnx/1/yolov3-10.onnx - Users need to follow pre-requisites
+  to download the model manually.
+
+===============================================================================
+2. Prerequisites:
+===============================================================================
+Pre-requisites:
+- For X86 platform, please follow instructions from
+  https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
+  to download deepstream-triton image.
+  $ docker pull nvcr.io/nvidia/deepstream:[version]-triton
+   [version] means deepstream version numbers e.g. 9.0.0
+  $ xhost +
+  Set correct $DISPLAY variables on host, then run deepstream-triton docker container.
+   $ docker run --gpus '"'device=0'"' -it --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+     -e DISPLAY=$DISPLAY --net=host nvcr.io/nvidia/deepstream:[version]-triton
+   Note: Set correct GPU id in `device=$id`.
+
+- For Jetson platform, please install Triton dependencies.
+   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ sudo ./triton_backend_setup.sh
+   $ rm -rf ~/.cache/gstreamer-1.0/
+
+- Back to current directory and download ONNX yolo-v3 model file.
+  $ mkdir -p triton_model_repo/yolov3-10_onnx/1/
+  $ wget --no-check-certificate \
+        https://github.com/onnx/models/raw/main/validated/vision/object_detection_segmentation/yolov3/model/yolov3-10.onnx \
+        -O triton_model_repo/yolov3-10_onnx/1/yolov3-10.onnx
+NOTE: Run with "sudo -E" or root if there is file permission issues.
+
+===============================================================================
+3. To Compile:
+===============================================================================
+Compile the custom library:
+
+  $ Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+
+  $ make -C nvdsinferserver_custom_impl_yolo
+
+NOTE: To compile the sources, run make with "sudo -E" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+Run the ONNX sample with DeepStream Triton(Gst-nvinferserver) Native CAPI:
+  Run cmdline:
+  $ deepstream-app -c deepstream_app_triton_config_yolov3.txt
+
+  NOTE: Regarding dynamic-sized output tensors, users could update
+  `max_buffer_bytes` to preserve a large memory size for each output tensors. e.g.
+     outputs {
+        name: "yolonms_layer_1/concat_2:0"
+        max_buffer_bytes: 2048
+      }
+  Even this value is not configured or the value is smaller than actual required
+  size, DS-Triton could still auto-grow the memory size during runtime which might
+  affect performance a bit.
+
+Run the ONNX sample with DeepStream Triton gRPC remote inference:
+  Follow instructions in `samples/configs/deepstream-app-triton-grpc/README` to
+  start tritonserver by
+  $ tritonserver \
+    --model-repository=$(pwd)/triton_model_repo
+
+  Update config_triton_inferserver_primary_yolov3_onnx_custom.txt,
+  disable 'model_repo{}' block and enable 'grpc{}' with correct url.
+
+  Then run gRPC test:
+  $ deepstream-app -c deepstream_app_triton_config_yolov3.txt
