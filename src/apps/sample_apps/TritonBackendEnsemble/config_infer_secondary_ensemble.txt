@@ -1,0 +1,76 @@
+####################################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+####################################################################################################
+
+infer_config {
+  unique_id: 5
+  gpu_ids: [0]
+  max_batch_size: 16
+  backend {
+    output_mem_type: MEMORY_TYPE_CPU
+    triton {
+      model_name: "triton_custom_backend_ensemble"
+      version: -1
+
+      # model_repo block is enabled for using nvinferserver in
+      # Triton C-API mode.
+      model_repo {
+        root: "triton_model_repo"
+        strict_model_config: true
+      }
+
+      # To run Triton client remote inference, enable 'grpc' block,
+      # and disalbe 'model_repo' block.
+      # Setup Tritonserver, goto current directory, run
+      # tritonserver --model-repository=triton_model_repo
+      #grpc {
+      #  url: "localhost:8001"
+      #}
+    }
+  }
+
+  preprocess {
+    network_format: IMAGE_FORMAT_BGR
+    tensor_order: TENSOR_ORDER_LINEAR
+    maintain_aspect_ratio: 0
+    frame_scaling_hw: FRAME_SCALING_HW_DEFAULT
+    frame_scaling_filter: 1
+    normalize {
+      scale_factor: 1
+    }
+  }
+
+  postprocess {
+    other { }
+  }
+
+  extra {
+    custom_process_funcion: "CreateInferServerCustomProcess"
+  }
+
+  custom_lib {
+    path: "nvdsinferserver_custom_impl_ensemble/libnvdstriton_custom_impl_ensemble.so"
+  }
+
+}
+input_control {
+  process_mode: PROCESS_MODE_CLIP_OBJECTS
+  operate_on_gie_id: 1
+  operate_on_class_ids: [0]
+  secondary_reinfer_interval: 90
+  async_mode: true
+  object_control {
+    bbox_filter {
+      min_width: 128
+      min_height: 128
+    }
+  }
+}

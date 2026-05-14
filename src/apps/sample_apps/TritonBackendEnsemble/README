@@ -1,0 +1,169 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+#
+################################################################################
+
+This sample demonstrates
+- Use of a Triton ensemble model for inference in a DeepStream pipeline.
+- Implementation of a custom Triton C++ backend for accessing DeepStream
+  metadata like stream IDs in the Triton server.
+
+The included deepstream-app configuration file sets up a pipeline as follows:
+  source -> pgie -> tracker -> sgie -> tiler -> sink.
+The PGIE, Primary_Detector, is a 4 class detector model and it detects the
+classes "Vehicle , RoadSign, TwoWheeler, Person". The SGIE is a Triton
+ensemble model that has Secondary_VehicleMake, Secondary_VehicleTypes,
+and a custom Triton C++ backend as it's component
+models. The vehicle objects detected by the PGIE and tracked by the tracker
+are used as input to the ensemble model along with corresponding stream IDs.
+The objects are inferred by the SGIE component classifier models. The stream
+IDs are given as input to the C++ backend. In this example, the C++ backend
+is used to keep track of number of inference requests seen for a particular
+stream ID. The output of the C++ backend is the current count of inference
+requests for corresponding stream IDs.
+The stream IDs are sent as an extra input to the ensemble model. A custom
+processor instance (nvdsinferserver::IInferCustomProcessor) is used to
+set the stream ID input tensor and to parse the output tensors from the
+model.
+
+The Triton custom C++ backend implementation is derived from the "Recommended
+Triton Backend" example. Please refer this link for more details:
+https://github.com/triton-inference-server/backend/blob/main/examples/README.md#recommended-triton-backend
+
+===============================================================================
+1. Sample Contents:
+===============================================================================
+Sample contents for DeepStream Triton:
+- deepstream_app_config_triton_backend_ensemble.txt: DeepStream reference app
+  configuration file for using the Triton ensemble model as the secondary detector.
+- config_infer_primary.txt: nvinferserver configuration file for primary inference.
+- config_infer_secondary_ensemble.txt: nvinferserver configuration file for
+  secondary inference using Triton ensemble model.
+- nvds_triton_cpp_custom_backend: Implementation of the Triton C++ custom backend
+  along with the required cmake build files. Derived from the Triton recommended
+  backend example.
+- nvdsinferserver_custom_impl_ensemble/nvdsinferserver_custom_process_ensemble.cpp:
+  nvdsinferserver::IInferCustomProcessor instance to do extra
+  input processing, ouptut tensor parsing and attaching classification metadata
+  into nvds metadata.
+- triton_model_repo/triton_custom_backend_ensemble/config.pbtxt:
+  Configuration file for the example Triton Ensemble model. This ensemble works
+  as a secondary GIE. The component models of this ensemble are
+  Secondary_VehicleMake, Secondary_VehicleType and deepstream_triton_custom_cpp_backend.
+- triton_model_repo/deepstream_triton_custom_cpp_backend/config.pbtxt:
+  Triton model configuration file for the Triton custom C++ backend that processes
+  DeepStream metadata, stream IDs in this example.
+- triton_model_repo/Primary_Detector, Secondary_VehicleMake, Secondary_VehicleTypes:
+  Softlinks to the corresponding Triton models. These softlinks are NOT shipped
+  in the mono-repo source tree; they are created when you run
+  prepare_ds_triton_model_repo.sh (see Prerequisites section). The script
+  populates triton_model_repo/ with links pointing at the deb-installed models
+  under /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/.
+
+===============================================================================
+2. Prerequisites:
+===============================================================================
+Pre-requisites:
+- For X86 platform, please follow instructions from
+  https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
+  to download deepstream-triton image.
+  $ docker pull nvcr.io/nvidia/deepstream:[version]-triton
+   [version] means deepstream version numbers e.g. 9.0.0
+  $ xhost +
+  Set correct $DISPLAY variables on host, then run deepstream-triton docker container.
+   $ docker run --gpus '"'device=0'"' -it --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+     -e DISPLAY=$DISPLAY --net=host nvcr.io/nvidia/deepstream:[version]-triton
+   Note: Set correct GPU id in `device=$id`.
+
+- For Jetson platform, please install Triton dependencies.
+   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ sudo ./triton_backend_setup.sh
+   $ rm -rf ~/.cache/gstreamer-1.0/
+
+- Build the Triton model repository
+   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ ./prepare_ds_triton_model_repo.sh
+
+- Install Rapid JSON library:
+   $ apt install rapidjson-dev
+
+- Install cmake 3.31.8 or later:
+   $ mkdir -p $HOME/.local
+
+   For x86:
+   $ wget -q -O /tmp/cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.sh
+   For Jetson (aarch64):
+   $ wget -q -O /tmp/cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-aarch64.sh
+
+   $ sh /tmp/cmake-linux.sh -- --skip-license --prefix=$HOME/.local
+   $ rm /tmp/cmake-linux.sh
+
+ - Generate makefiles for the Triton custom C++ backend:
+   $ cd nvds_triton_cpp_custom_backend
+   $ mkdir build
+   $ cd build
+
+   For x86:
+   $ ~/.local/bin/cmake -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/install -DTRITON_ENABLE_GPU=ON \
+     -DTRITON_BACKEND_REPO_TAG=r26.01 -DTRITON_CORE_REPO_TAG=r26.01 \
+     -DTRITON_COMMON_REPO_TAG=r26.01  ..
+   For Jetson:
+   $ ~/.local/bin/cmake -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/install -DTRITON_ENABLE_GPU=ON \
+     -DTRITON_BACKEND_REPO_TAG=r25.08 -DTRITON_CORE_REPO_TAG=r25.08 \
+     -DTRITON_COMMON_REPO_TAG=r25.08  ..
+
+   $ mkdir -p /opt/tritonserver/backends/recommended/
+
+NOTE: Run with "sudo -E" or root if there is file permission issues.
+
+===============================================================================
+3. To Compile:
+===============================================================================
+ - Compile the custom library:
+   Set CUDA_VER in the MakeFile as per platform.
+     For x86, CUDA_VER=13.1
+     For jetson & SBSA, CUDA_VER=13.0
+
+   $ make -C nvdsinferserver_custom_impl_ensemble
+
+ - Build the Triton custom C++ backend:
+   $ cd nvds_triton_cpp_custom_backend
+   $ cd build
+   $ make install
+   $ cp install/backends/recommended/libtriton_recommended.so ../triton_model_repo/deepstream_triton_custom_cpp_backend/1/
+
+NOTE: To compile the sources, run make with "sudo -E" or root permission.
+
+===============================================================================
+4. Usage:
+===============================================================================
+Run the sample with nvinferserver in Triton C-API mode:
+  Run cmdline:
+  $ deepstream-app -c deepstream_app_config_triton_backend_ensemble.txt
+
+
+Run the with nvinferserver using Triton gRPC remote inference:
+  Follow instructions in `samples/configs/deepstream-app-triton-grpc/README` to
+  start tritonserver by
+  $ tritonserver \
+    --model-repository=$(pwd)/triton_model_repo
+
+  Update configuration files config_infer_primary.txt and config_infer_secondary_ensemble.txt to
+  disable 'model_repo{}' block and enable 'grpc{}' with correct url.
+
+  Then run gRPC test:
+  $ deepstream-app -c deepstream_app_config_triton_backend_ensemble.txt
+
+
+To print the inference count output returned by the model, rebuild the
+custom processor with debug prints enabled:
+  $ make -C nvdsinferserver_custom_impl_ensemble/ clean
+  $ make -C nvdsinferserver_custom_impl_ensemble/ ENABLE_DEBUG=1

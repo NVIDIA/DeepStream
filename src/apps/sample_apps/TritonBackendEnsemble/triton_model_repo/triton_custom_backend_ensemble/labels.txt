@@ -1,0 +1,3 @@
+black;blue;brown;gold;green;grey;maroon;orange;red;silver;white;yellow
+acura;audi;bmw;chevrolet;chrysler;dodge;ford;gmc;honda;hyundai;infiniti;jeep;kia;lexus;mazda;mercedes;nissan;subaru;toyota;volkswagen
+coupe;largevehicle;sedan;suv;truck;van

@@ -1,0 +1,89 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+infer_config {
+  unique_id: 1
+  gpu_ids: [0]
+  max_batch_size: 4
+  backend {
+    triton {
+      model_name: "yolov3-10_onnx"
+      version: -1
+
+      # model_repo block is enabled for Triton Server CAPI inference.
+      model_repo {
+        root: "./triton_model_repo"
+        log_level: 2
+        strict_model_config: true
+        # Triton runtime would reserve 64MB pinned memory
+        pinned_memory_pool_byte_size: 67108864
+        # Triton runtim would reserve 64MB CUDA device memory on GPU 0
+        cuda_device_memory { device: 0, memory_pool_byte_size: 67108864 }
+      }
+
+      # To run Triton client remote inference, users need enable 'grpc' block,
+      # and disalbe 'model_repo' block.
+      # Setup Tritonserver, goto current directory, run
+      # tritonserver --model-repository=triton_model_repo
+      #grpc {
+      #  url: "localhost:8001"
+      #}
+    }
+    output_mem_type: MEMORY_TYPE_CPU
+    outputs [
+      {
+        name: "yolonms_layer_1/ExpandDims_1:0"
+      },
+      {
+        name: "yolonms_layer_1/ExpandDims_3:0"
+      },
+      {
+        name: "yolonms_layer_1/concat_2:0"
+        max_buffer_bytes: 2048
+      }
+    ]
+  }
+
+  preprocess {
+    network_format: IMAGE_FORMAT_RGB
+    tensor_order: TENSOR_ORDER_LINEAR
+    maintain_aspect_ratio: 1
+    symmetric_padding: 1
+    frame_scaling_hw: FRAME_SCALING_HW_DEFAULT
+    frame_scaling_filter: 1
+    normalize {
+      scale_factor: 0.00392157
+      channel_offsets: [0, 0, 0]
+    }
+  }
+
+  postprocess {
+    other { }
+  }
+
+  extra {
+    custom_process_funcion: "CreateInferServerCustomProcess"
+  }
+
+  custom_lib {
+    path: "nvdsinferserver_custom_impl_yolo/libnvdstriton_custom_impl_yolo.so"
+  }
+}
+
+input_control {
+  process_mode: PROCESS_MODE_FULL_FRAME
+  interval: 0
+}
+
+output_control {
+  output_tensor_meta: false
+}

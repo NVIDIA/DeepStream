@@ -68,3 +68,15 @@ For build and installation instructions, see the repo root [BUILD.md](../../BUIL
 | Library | Output | Description |
 |---|---|---|
 | `ds3d` | `libnvds_3d_*.so` | DS3D utility library for 3D sensor pipelines — data loaders (LiDAR, depth camera), data filters, data bridges, and inference custom libs for 3D detection and V2X fusion. See [README](ds3d/README.md). |
+
+---
+
+## Tooling & Model Setup
+
+These entries are not built libraries — they ship setup scripts and model-prep
+documentation consumed alongside the DeepStream runtime.
+
+| Entry | Description |
+|---|---|
+| `nvds_logger` | `setup_nvds_logger.sh` configures `rsyslog` to capture DeepStream `DSLOG` messages to `/var/log/nvds/`. See [README](nvds_logger/README). |
+| `nvmultiobjecttracker/model/tracker_ReID` | Model preparation guide (TensorRT) for deep-learning models used by the multi-object tracker: SAM2 segmentation, TAO ReidentificationNet, TAO BodyPose3DNet. See [README](nvmultiobjecttracker/model/tracker_ReID/README). |
