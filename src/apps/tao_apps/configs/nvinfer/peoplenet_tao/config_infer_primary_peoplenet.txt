@@ -1,0 +1,54 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+################################################################################
+
+[property]
+gpu-id=0
+net-scale-factor=0.0039215697906911373
+onnx-file=../../../models/peoplenet/resnet34_peoplenet_int8.onnx
+labelfile-path=../../../models/peoplenet/labels.txt
+model-engine-file=../../../models/peoplenet/resnet34_peoplenet_int8.onnx_b2_gpu0_fp16.engine
+infer-dims=3;544;960
+batch-size=2
+process-mode=1
+model-color-format=0
+## 0=FP32, 1=INT8, 2=FP16 mode
+network-mode=2
+num-detected-classes=3
+cluster-mode=2
+interval=0
+gie-unique-id=1
+output-blob-names=output_bbox/BiasAdd:0;output_cov/Sigmoid:0
+scaling-compute-hw=1
+
+#Use the config params below for dbscan clustering mode
+#[class-attrs-all]
+#detected-min-w=4
+#detected-min-h=4
+#minBoxes=3
+#eps=0.7
+
+#Use the config params below for NMS clustering mode
+[class-attrs-all]
+topk=20
+nms-iou-threshold=0.5
+pre-cluster-threshold=0.2
+
+## Per class configurations
+[class-attrs-0]
+topk=20
+nms-iou-threshold=0.5
+pre-cluster-threshold=0.4
+
+#[class-attrs-1]
+#pre-cluster-threshold=0.05
+#eps=0.7
+#dbscan-min-score=0.5
