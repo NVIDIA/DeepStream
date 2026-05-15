@@ -34,7 +34,7 @@ LIBS:= $(shell pkg-config --libs $(PKGS))
 LDFLAGS:= -shared
 
 DS_INC:= ../../../../includes
-RDKAFKA_INC:=/usr/local/include/librdkafka
+RDKAFKA_INC:=/usr/include/librdkafka
 
 INC_PATHS:= -I $(DS_INC) -I $(RDKAFKA_INC) -I/opt/tritonclient/include
 CFLAGS+= $(INC_PATHS)
