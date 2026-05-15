@@ -39,12 +39,8 @@ Summary of benchmarks; link to detailed results and hardware used.
 - (Optional) Next milestones or link to `ROADMAP.md`.
   
 # Contribution Guidelines
-- Start here: `CONTRIBUTING.md`
-- Code of Conduct: `CODE_OF_CONDUCT.md`
-- Development quickstart (build/test):
-```bash
-<clone> && <deps> && <build/test>
-```
+This project is currently not accepting contributions.
+
 ## Governance & Maintainers
 - Governance: `GOVERNANCE.md`
 - Maintainers: <team/handles>
@@ -67,4 +63,4 @@ Provide a list of related references
 
 # License
 This project is licensed under the Apache 2.0 License - see the LICENSE file for details
-- License: <link>
+- SPDX-License-Identifier: Apache-2.0
