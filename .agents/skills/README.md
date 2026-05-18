@@ -32,10 +32,8 @@ The following are required on the target execution environment:
 
 ## Project Structure
 
-This README sits under `.agents/skills/` inside the DeepStream mono-repo. Layout of this subtree, plus the related top-level `example_prompts/` directory:
-
 ```
-deepstream/                                 # mono-repo root
+deepstream/                                 # repo root
 ├── .agents/
 │   └── skills/                             # Agentic skills for guided DeepStream development
 │       ├── README.md                       # This file
@@ -417,6 +415,6 @@ This project is currently not accepting contributions.
 
 ## License
 
-This project is licensed under [CC-BY-4.0 AND Apache-2.0](LICENSE).
+This project is licensed under [Apache-2.0](../../LICENSE).
 
-SPDX-License-Identifier: CC-BY-4.0 AND Apache-2.0
+SPDX-License-Identifier: Apache-2.0
