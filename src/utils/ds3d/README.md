@@ -45,4 +45,4 @@ ds3d/
 | `deepstream-3d-action-recognition` | 3D action recognition from video |
 | `deepstream-lidar-inference-app` | Standalone LiDAR object detection |
 
-For build and installation, see the repo root [BUILD.md](../../../BUILD.md).
+For build and installation, see [build/BUILD.md](../../../build/BUILD.md).

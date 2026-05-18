@@ -36,19 +36,19 @@ service-maker/
 
 ## Prerequisites
 
-- DeepStream 9.0 installed (via `build.sh` or the Debian package + `install.sh`)
+- DeepStream 9.0 installed (via `build/build.sh` or the Debian package + `install.sh`)
 - CMake 3.16+
 - GCC 9+
 
-For full system dependency setup, see the repo root [BUILD.md](../../BUILD.md).
+For full system dependency setup, see [build/BUILD.md](../../build/BUILD.md).
 
 ---
 
 ## Build
 
-### Full Build (via build.sh)
+### Full Build (via build/build.sh)
 
-Service Maker apps are built automatically as part of the top-level `build.sh`. Binaries are installed to:
+Service Maker apps are built automatically as part of the top-level `build/build.sh`. Binaries are installed to:
 
 ```
 /opt/nvidia/deepstream/deepstream-9.0/bin/service-maker-<app>
@@ -62,7 +62,7 @@ Modules are installed to:
 
 ### Local CMake Build (single app)
 
-Individual apps can be built and run locally without `build.sh`:
+Individual apps can be built and run locally without `build/build.sh`:
 
 ```bash
 cd sources/apps/cpp/<app-name>

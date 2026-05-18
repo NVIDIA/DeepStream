@@ -14,7 +14,7 @@ its affiliates is strictly prohibited.
 
 This directory contains source code for all DeepStream GStreamer plugins. Each plugin is a self-contained GStreamer element that integrates with the DeepStream metadata pipeline.
 
-For build and installation instructions, see the repo root [BUILD.md](../../BUILD.md).
+For build and installation instructions, see [build/BUILD.md](../../build/BUILD.md).
 
 ---
 

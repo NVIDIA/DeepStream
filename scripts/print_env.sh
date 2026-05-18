@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Copyright (c) 2023, NVIDIA CORPORATION.
+# Copyright (c) 2026, NVIDIA CORPORATION.
 # Reports relevant environment information useful for diagnosing and
 # debugging DeepStream issues.
 # Usage:
-# "./print_env.sh" - prints to stdout
-# "./print_env.sh > env.txt" - prints to file "env.txt"
+# "./scripts/print_env.sh" - prints to stdout
+# "./scripts/print_env.sh > env.txt" - prints to file "env.txt"
 
 print_env() {
 echo "**git***"

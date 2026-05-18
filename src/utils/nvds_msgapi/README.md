@@ -39,4 +39,4 @@ The `nvmsgbroker` plugin selects an adaptor at runtime via the `config-file` pro
 
 See the `deepstream-test4` sample app for an end-to-end example of publishing inference results to a message broker.
 
-For build and installation, see the repo root [BUILD.md](../../../BUILD.md).
+For build and installation, see [build/BUILD.md](../../../build/BUILD.md).

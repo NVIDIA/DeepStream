@@ -14,13 +14,13 @@ its affiliates is strictly prohibited.
 
 This directory contains GStreamer-based DeepStream sample applications. Each app demonstrates a specific pipeline pattern or feature of the DeepStream SDK.
 
-For build and installation instructions, see the repo root [BUILD.md](../../../BUILD.md).
+For build and installation instructions, see [build/BUILD.md](../../../build/BUILD.md).
 
 ---
 
 ## Running Apps
 
-After `build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.0/bin/`.
+After `build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.0/bin/`.
 
 Apps must be run from their **source directory** so relative config and model paths resolve correctly:
 

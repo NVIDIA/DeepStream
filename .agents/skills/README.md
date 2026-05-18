@@ -30,20 +30,6 @@ The following are required on the target execution environment:
 
 ---
 
-## Project Structure
-
-```
-deepstream/                                 # repo root
-├── .agents/
-│   └── skills/                             # Agentic skills for guided DeepStream development
-│       ├── README.md                       # This file
-│       ├── deepstream-dev/                 # DeepStream development skill with condensed references
-│       └── deepstream-import-vision-model/ # Autonomous vision-model onboarding & benchmarking pipeline skill
-└── example_prompts/                        # Pre-built prompts for code generation
-```
-
----
-
 ## Purpose
 
 This project provides the tooling and reference material needed to:
@@ -396,25 +382,3 @@ Create the FastAPI server with all endpoints shown in @rtvi_vlm_openapi_spec.png
   </picture>
 </a>
 
----
-
-## Additional Resources
-
-- [NVIDIA DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/)
-- [DeepStream Python Apps (GitHub)](https://github.com/NVIDIA-AI-IOT/deepstream_python_apps)
-- [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/)
-- [NVIDIA NGC DeepStream Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
-
----
-
-## Contributing
-
-This project is currently not accepting contributions.
-
----
-
-## License
-
-This project is licensed under [Apache-2.0](../../LICENSE).
-
-SPDX-License-Identifier: Apache-2.0
