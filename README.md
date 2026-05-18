@@ -88,6 +88,21 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 - More examples/tutorials: [DeepStream Quickstart Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html#run-deepstream-app-the-reference-application)
 - API reference: [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/)
 
+# Documentation
+
+| Page | Description |
+|------|-------------|
+| [Overview & Architecture](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Overview.html) | What DeepStream is, key features, and the GStreamer-based pipeline architecture. |
+| [Release Notes](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html) | What's new in this release, supported platforms, and known issues. |
+| [Installation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Installation.html) | Step-by-step installation of the NVIDIA compute stack and DeepStream SDK on x86 and Jetson. |
+| [Docker Containers](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html) | Available DeepStream NGC container images (incl. Triton variants) and how to pull and run them. |
+| [DeepStream Samples](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_C_Sample_Apps.html) | Reference walkthroughs of the bundled C/C++ sample applications and what each one demonstrates. |
+| [Reference Applications](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_ref_app_github.html) | Advanced GitHub-hosted reference apps demonstrating specialized end-to-end pipelines. |
+| [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
+| [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
+| [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
+| [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `.agents/skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
+
 # Repository Structure
 
 ```
