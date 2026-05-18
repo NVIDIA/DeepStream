@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build and install all DeepStream mono-repo components.
-# Usage: bash build.sh [CUDA_VER=<ver>]
+# Build and install all DeepStream components from this repository.
+# Usage (run from repo root): bash build/build.sh [CUDA_VER=<ver>]
 set -e
 
 ARCH=$(uname -m)
@@ -23,6 +23,10 @@ NVDS_VERSION=${NVDS_VERSION:-9.0}
 SM_APP_BUILD=/tmp/ds-sm-apps
 SM_MOD_BUILD=/tmp/ds-sm-modules
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# build.sh lives in build/; cd to the repo root so the relative
+# make -C tools/... and src/... paths below resolve regardless of where
+# the script was invoked from.
+cd "$SCRIPT_DIR/.."
 
 # Extra make flags for SBSA — passes AARCH64_IS_SBSA=1 to all Makefiles
 PLATFORM_MAKE_FLAGS=

@@ -14,7 +14,7 @@ its affiliates is strictly prohibited.
 
 This directory contains source code for DeepStream utility libraries — shared libraries consumed by GStreamer plugins, sample applications, and service-maker modules.
 
-For build and installation instructions, see the repo root [BUILD.md](../../BUILD.md).
+For build and installation instructions, see [build/BUILD.md](../../build/BUILD.md).
 
 ---
 

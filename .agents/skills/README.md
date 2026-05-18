@@ -1,6 +1,6 @@
 # DeepStream Coding Agent
 
-A project showcasing how to leverage **AI coding assistants** (Cursor, Claude Code, etc.) for accelerated [NVIDIA DeepStream SDK](https://developer.nvidia.com/deepstream-sdk) application development using a curated agentic skill and structured prompts.
+These skills showcase how to leverage **AI coding assistants** (Cursor, Claude Code, etc.) for accelerated [NVIDIA DeepStream SDK](https://developer.nvidia.com/deepstream-sdk) application development using curated agentic skills and structured prompts.
 
 > **Disclaimer:** Code generated with AI coding assistants is intended as a development starting point. All generated code must undergo your full software development lifecycle (SDLC) — including code review, testing, and security validation — before production use.
 
@@ -27,20 +27,6 @@ The following are required on the target execution environment:
 > The `deepstream-import-vision-model` skill needs a few extra runtime tools (`trtexec`, `wkhtmltopdf`, `mediainfo`, `deepstream-app`, an `optimum`-capable Python venv). They are listed and auto-checked by the pre-flight script in [`.agents/skills/deepstream-import-vision-model/SKILL.md`](deepstream-import-vision-model/SKILL.md#pre-flight-checks).
 
 > For detailed environment setup, refer to the [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/).
-
----
-
-## Project Structure
-
-```
-deepstream/                                 # repo root
-├── .agents/
-│   └── skills/                             # Agentic skills for guided DeepStream development
-│       ├── README.md                       # This file
-│       ├── deepstream-dev/                 # DeepStream development skill with condensed references
-│       └── deepstream-import-vision-model/ # Autonomous vision-model onboarding & benchmarking pipeline skill
-└── example_prompts/                        # Pre-built prompts for code generation
-```
 
 ---
 
@@ -396,25 +382,3 @@ Create the FastAPI server with all endpoints shown in @rtvi_vlm_openapi_spec.png
   </picture>
 </a>
 
----
-
-## Additional Resources
-
-- [NVIDIA DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/)
-- [DeepStream Python Apps (GitHub)](https://github.com/NVIDIA-AI-IOT/deepstream_python_apps)
-- [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/)
-- [NVIDIA NGC DeepStream Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
-
----
-
-## Contributing
-
-This project is currently not accepting contributions.
-
----
-
-## License
-
-This project is licensed under [Apache-2.0](../../LICENSE).
-
-SPDX-License-Identifier: Apache-2.0

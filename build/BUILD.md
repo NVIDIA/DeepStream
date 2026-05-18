@@ -123,26 +123,28 @@ Build and validation must be done **inside the Docker container**.
 
 ## Build and Install
 
-`build.sh` auto-detects the host platform and:
+`build/build.sh` auto-detects the host platform and:
 - On SBSA / DGX Spark: passes `AARCH64_IS_SBSA=1` to all Makefiles (both `aarch64` and `sbsa` report `uname -m` as `aarch64`; SBSA is identified by the absence of `/etc/nv_tegra_release`)
 - Builds and installs open-source dependencies (opentelemetry, civetweb, prometheus-cpp, azure-iot-sdk)
 - Builds all source components and installs them directly to `/opt/nvidia/deepstream/deepstream-<NVDS_VERSION>/`
 
+From the repo root:
+
 ```bash
-sudo bash build.sh
+sudo bash build/build.sh
 ```
 
 Default CUDA version is architecture-dependent (`13.1` for x86_64, `13.0` for aarch64/sbsa/DGX Spark). To override:
 
 ```bash
-sudo CUDA_VER=13.1 bash build.sh   # x86
-sudo CUDA_VER=13.0 bash build.sh   # aarch64
+sudo CUDA_VER=13.1 bash build/build.sh   # x86
+sudo CUDA_VER=13.0 bash build/build.sh   # aarch64
 ```
 
 To override the target DeepStream version (default: 9.0):
 
 ```bash
-sudo NVDS_VERSION=9.0 bash build.sh
+sudo NVDS_VERSION=9.0 bash build/build.sh
 ```
 
 After first run, clear the GStreamer plugin cache so it picks up newly installed plugins:
@@ -162,7 +164,7 @@ rm -rf ~/.cache/gstreamer-1.0/
 
 ## service-maker — Local Compilation
 
-Individual service-maker apps can be compiled locally without running `build.sh`.
+Individual service-maker apps can be compiled locally without running `build/build.sh`.
 From within any app directory (e.g. `src/service-maker/sources/apps/cpp/deepstream_test1_app/`):
 
 ```bash
