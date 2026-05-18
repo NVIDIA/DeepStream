@@ -111,6 +111,7 @@ DeepStream/
 │   └── skills/                              # product-local AI agent skills
 │       ├── deepstream-dev/                  # general DS development skill
 │       └── deepstream-import-vision-model/  # autonomous vision-model onboarding skill
+├── .claude/                                 # Claude Code project-local config (settings, commands)
 ├── .github/                                 # GitHub workflows, issue templates, CODEOWNERS
 ├── build/
 │   ├── build.sh                             # top-level build driver
@@ -118,18 +119,19 @@ DeepStream/
 ├── example_prompts/                         # example prompts for AI coding agents
 ├── includes/                                # shared public headers (ds3d, nvdsinferserver, …)
 ├── scripts/
-│   └── install_opensource_deps.sh           # builds open-source deps (OpenTelemetry, civetweb, …)
-├── tools/                                   # standalone tools
-│   ├── auto-magic-calib/                    # camera auto-calibration tool
-│   ├── inference_builder/                   # visual inference pipeline builder
-│   ├── sam2-onnx-tensorrt/                  # SAM2 ONNX-to-TensorRT conversion
-│   └── yolo_deepstream/                     # YOLO + TensorRT integration
-└── src/
-    ├── apps/                                # sample, reference, and TAO sample applications
-    ├── gst-plugins/                         # GStreamer plugin sources (per-plugin subdirs)
-    ├── gst-utils/                           # GStreamer utility libraries
-    ├── service-maker/                       # Service Maker C++/Python SDK and apps
-    └── utils/                               # utility library sources (per-library subdirs)
+│   ├── install_opensource_deps.sh           # builds open-source deps (OpenTelemetry, civetweb, …)
+│   └── print_env.sh                         # env diagnostic helper for bug reports
+├── src/
+│   ├── apps/                                # sample, reference, and TAO sample applications
+│   ├── gst-plugins/                         # GStreamer plugin sources (per-plugin subdirs)
+│   ├── gst-utils/                           # GStreamer utility library sources
+│   ├── service-maker/                       # Service Maker C++/Python SDK and apps
+│   └── utils/                               # utility library sources (per-library subdirs)
+└── tools/                                   # standalone tools
+    ├── auto-magic-calib/                    # camera auto-calibration tool
+    ├── inference_builder/                   # visual inference pipeline builder
+    ├── sam2-onnx-tensorrt/                  # SAM2 ONNX-to-TensorRT conversion
+    └── yolo_deepstream/                     # YOLO + TensorRT integration
 ```
 
 # Performance
