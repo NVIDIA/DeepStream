@@ -1,0 +1,236 @@
+*****************************************************************************
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+*****************************************************************************
+
+*****************************************************************************
+                     deepstream-ucx-test-app
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps. Also, please read the information about the Gst-NvDsUcx plugin within
+the Deepstream SDK.
+
+This test requires the availability of an NVIDIA ConnectX-6 DX or later NIC.
+For more information on installing and configuring NICs, please see:
+https://docs.nvidia.com/networking/display/ConnectX6VPI/Introduction
+
+To be able to run the test over an RDMA-enabled network, please ensure you have
+also installed the RDMA OFED network stack from here:
+https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/
+The installation instructions can be found here:
+https://docs.nvidia.com/networking/display/MLNXOFEDv551032/Installing+MLNX_OFED
+
+Also, install the Unified Communication-X Library from here:
+https://github.com/openucx/ucx.
+The installation instructions are mentioned here:
+https://github.com/openucx/ucx#release-builds.
+Please note, that UCX library should be compiled with CUDA support by adding the
+--with-cuda=<path/to/cuda>
+to the configure command:
+
+$ ./contrib/configure-release-mt --prefix=/install/path --with-cuda=/path/to/\
+  cuda
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+   GStreamer-1.0 gstrtspserver
+   X11 client-side library
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+   libgstrtspserver-1.0-dev libx11-dev
+
+===============================================================================
+2. Purpose:
+===============================================================================
+This documents describes the sample deepstream-ucx-test application.
+
+The deepstream-ucx-test application is meant for a demonstration of how to use
+the communication plugin called nvdsgst_ucx with the Deepstream SDK.
+
+Test 1: Basic Video Transmission
+   This test is centered on the basic transmission of video frames over an RDMA
+   network.
+
+   Server:
+      - uridecoder: Reads and decodes the video.
+      - streammux: Combines streams and appends metadata.
+      - nvdsgst_ucx: Server acts as sink, sending data.
+
+   Client:
+      - nvdsgst_ucx: Client acts as source, Receives data from the server.
+      - streamdemux: Splits the multiplexed streams.
+      - video converter: Converts video formats.
+      - h264 encoder: Encodes the video.
+      - h264 parser: Parses the encoded video.
+      - qtmux: Packages into MP4 format.
+      - filesink: Writes the processed video to a file.
+
+Test 2: Video with Metadata Serialization
+   This test involves the transmission of video frames with associated metadata
+   serialized using the Gst-NvDsMetaUtils library.
+
+   Client:
+      - filesrc: Reads video data.
+      - streammux: Combines streams after decoding.
+      - nvinfer/nvinferserver: Identifies specific objects in frames, adding
+      metadata.
+      - video serialization plugin: Converts metadata to a binary format.
+      - nvdsgst_ucx: Client acts as a sink, sending frames and binary metadata
+      over the RDMA network to the server.
+
+   Server:
+      - nvdsgst_ucx: Server acts as source, receiving data from the client.
+      - video deserialization plugin: Extracts and appends metadata to frames.
+      - nvdsosd: Interprets the metadata.
+      - videoconverter: Adapts video to the correct format.
+      - encoder: Encodes the video.
+      - qtmux: Splits multiplexed data
+      - filesink: Outputs the processed video to a file.
+
+Test 3: Audio with Metadata Serialization
+This test concentrates on the transmission of audio data embedded with
+serialized metadata via the Gst-NvDsMetaUtils library.
+
+   Server:
+      - uri_decode_bin: Extracts audio from a file.
+      - nvstreammux: Combines audio streams.
+      - audio serialization plugin: Reads metadata added by nvstreammux,
+      serializes it, and appends to the buffer.
+      - nvdsgst_ucx : Server acts as sink, sends the NVAudio buffer's audio
+      data and serialized metadata.
+
+   Client:
+      - nvdsgst_ucx: Client acts as source, receives audio and metadata.
+      - audio deserialization plugin: Extracts and appends metadata to frames.
+      - demux: Splits multiplexed audio data.
+      - audio_converter: Adapts audio to the correct format.
+      - filesink: Writes the processed audio to a file.
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  Set CUDA_VER to 13.2 for x86. The Deepstream UCX plugin does not work in
+  Jetson.
+  $ export CUDA_VER=13.2
+  $ sudo make (sudo not required in case of docker containers)
+
+  Note, the nvdsgst_ucx plugin is not supported on Jetson.
+
+===============================================================================
+4. Usage:
+===============================================================================
+
+Compilation: To compile the sources, run make with "sudo" or root permission.
+
+Test 1:
+   Server Setup:
+   $ ./deepstream-ucx-test-app -t 1 -s <IP> <PORT> <HEIGHT> <WIDTH> \
+   <VIDEO_URI>
+
+   Client Setup:
+   After starting the server, initiate the client application.
+   $ ./deepstream-ucx-test-app -t 1 -c <SERVER_IP> <SERVER_PORT> <HEIGHT> \
+   <WIDTH> <SAVE_PATH>
+
+   Example:
+   Server:
+   $ ./deepstream-ucx-test-app -t 1 -s 192.168.100.1 4000 1920 1080 \
+   file:////opt/nvidia/deepstream/deepstream/samples/streams/\
+   sample_1080p_h264.mp4
+
+   Client:
+   $ ./deepstream-ucx-test-app -t 1 -c 192.168.100.1 4000 1920 1080 \
+   output.mp4
+
+Test 2:
+   Pre-requisites:
+   Navigate to the video_metadata_serialization directory and compile the
+   library:
+   $ cd /opt/nvidia/deepstream/deepstream/sources/gst-plugins/\
+   gst-nvdsmetautils/video_metadata_serialization
+   $ make
+   $ sudo make install
+
+   Set the necessary environment variable:
+   $ export USE_NEW_NVSTREAMMUX=yes
+
+
+   Server Setup:
+   $ ./deepstream-ucx-test-app -t 2 -s <IP> <PORT> <HEIGHT> <WIDTH> \
+   <METADATA_LIB_PATH> <OUTPUT_PATH>
+
+   Client Setup:
+   After initiating the server, launch the client application.
+   $ ./deepstream-ucx-test-app -t 2 -c <SERVER_IP> <SERVER_PORT> \
+   <NVINFER_CONFIG_PATH> <METADATA_LIB_PATH> <VIDEO_PATH>
+
+   Use option "-i" and provide inferserver config file to select nvinferserver
+   as the inference plugin:
+   $ ./deepstream-ucx-test-app -t 2 -c -i <SERVER_IP> <SERVER_PORT> \
+   <INFERSERVER_CONFIG_PATH> <METADATA_LIB_PATH> <VIDEO_PATH>
+
+   Example:
+   Server:
+   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 2 -s 192.168.100.1\
+   4000 1920 1080 /opt/nvidia/deepstream/deepstream/lib/\
+   libnvds_video_metadata_serialization.so output.mp4
+
+   Client:
+   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 2 -c 192.168.100.1\
+   4000 /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/\
+   config_infer_primary.txt /opt/nvidia/deepstream/deepstream/lib/\
+   libnvds_video_metadata_serialization.so /opt/nvidia/deepstream/deepstream\
+   /samples/streams/sample_1080p_h264.mp4
+
+
+
+Test 3:
+   Pre-requisites:
+   Navigate to the audio_metadata_serialization directory and compile the
+   library:
+   $ cd /opt/nvidia/deepstream/deepstream/sources/gst-plugins/\
+   gst-nvdsmetautils/audio_metadata_serialization
+   $ make
+   $ sudo make install
+
+   Set the environment variable:
+   $ export USE_NEW_NVSTREAMMUX=yes
+
+   Server Setup:
+   $ ./deepstream-ucx-test-app -t 3 -s <IP> <PORT> \
+   <AUDIO_METADATA_LIB_PATH> <INPUT_FILE_PATH>
+
+   Client Setup:
+   After starting the server, run the client application.
+   $ ./deepstream-ucx-test-app -t 3 -c <SERVER_IP> <SERVER_PORT> \
+   <AUDIO_METADATA_LIB_PATH> <OUTPUT_AUDIO_PATH>
+
+   Example:
+   Server:
+   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 3 -s 192.168.100.1\
+   4000 /opt/nvidia/deepstream/deepstream/lib/\
+   libnvds_audio_metadata_serialization.so \
+   file:////opt/nvidia/deepstream/deepstream/samples/streams/\
+   sonyc_mixed_audio.wav
+
+   Client:
+   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 3 -c 192.168.100.1\
+   4000 /opt/nvidia/deepstream/deepstream/lib/\
+   libnvds_audio_metadata_serialization.so out.wav
