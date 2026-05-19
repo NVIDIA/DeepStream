@@ -108,12 +108,7 @@ Build and validation must be done **inside the Docker container**.
    apt-get update && apt-get install -y git cmake make build-essential
    ```
 
-3. `sudo` is not present in the container by default. Create a passthrough stub since you are already root:
-   ```bash
-   printf '#!/bin/sh\nexec env "$@"\n' > /usr/local/bin/sudo && chmod +x /usr/local/bin/sudo
-   ```
-
-4. Clone the mono-repo:
+3. Clone the mono-repo:
    ```bash
    git clone https://gitlab-master.nvidia.com/DeepStreamSDK/deepstream -b main deepstream
    cd deepstream
@@ -127,24 +122,31 @@ Build and validation must be done **inside the Docker container**.
 - On SBSA / DGX Spark: passes `AARCH64_IS_SBSA=1` to all Makefiles (both `aarch64` and `sbsa` report `uname -m` as `aarch64`; SBSA is identified by the absence of `/etc/nv_tegra_release`)
 - Builds and installs open-source dependencies (opentelemetry, civetweb, prometheus-cpp, azure-iot-sdk)
 - Builds all source components and installs them directly to `/opt/nvidia/deepstream/deepstream-<NVDS_VERSION>/`
+- Prompts for `sudo` only when a step must install packages or write to system paths
 
 From the repo root:
 
 ```bash
-sudo bash build/build.sh
+bash build/build.sh
 ```
 
 Default CUDA version is architecture-dependent (`13.1` for x86_64, `13.0` for aarch64/sbsa/DGX Spark). To override:
 
 ```bash
-sudo CUDA_VER=13.1 bash build/build.sh   # x86
-sudo CUDA_VER=13.0 bash build/build.sh   # aarch64
+CUDA_VER=13.1 bash build/build.sh   # x86
+CUDA_VER=13.0 bash build/build.sh   # aarch64
 ```
 
 To override the target DeepStream version (default: 9.0):
 
 ```bash
-sudo NVDS_VERSION=9.0 bash build/build.sh
+NVDS_VERSION=9.0 bash build/build.sh
+```
+
+If a user-local `cmake` wrapper shadows the system CMake, either remove it from `PATH` or point the build script at a known-good binary:
+
+```bash
+CMAKE_BIN=/usr/bin/cmake bash build/build.sh
 ```
 
 After first run, clear the GStreamer plugin cache so it picks up newly installed plugins:

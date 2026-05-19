@@ -31,8 +31,8 @@ git clone --recurse-submodules https://github.com/NVIDIA/DeepStream.git && cd De
 # Pull LFS-tracked files
 git lfs install && git lfs pull
 
-# Build
-sudo bash build/build.sh
+# Build. The script prompts for sudo only when installing to system paths.
+bash build/build.sh
 ```
 
 See **[build/BUILD.md](build/BUILD.md)** for full build instructions, including system package dependencies (x86, aarch64, SBSA / DGX Spark), `build/build.sh` usage and environment variables (`CUDA_VER`, `NVDS_VERSION`), and build output locations under `/opt/nvidia/deepstream/deepstream-9.0/`.
@@ -47,7 +47,7 @@ See **[build/BUILD.md](build/BUILD.md)** for full build instructions, including 
 
 # Usage
 
-After `sudo bash build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.0/bin/`. Run the reference `deepstream-app` with one of the sample configs:
+After `bash build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.0/bin/`. Run the reference `deepstream-app` with one of the sample configs:
 
 ```bash
 cd /opt/nvidia/deepstream/deepstream-9.0/samples/configs/deepstream-app
