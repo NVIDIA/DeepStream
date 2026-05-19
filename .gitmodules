@@ -4,3 +4,6 @@
 [submodule "src/apps/tao_apps/apps/tao_others/deepstream_custom_preprocessing_app/modules/Lidar_AI_Solution"]
 	path = src/apps/tao_apps/apps/tao_others/deepstream_custom_preprocessing_app/modules/Lidar_AI_Solution
 	url = https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution.git
+[submodule "tools/inference_builder"]
+	path = tools/inference_builder
+	url = https://github.com/NVIDIA-AI-IOT/inference_builder.git
