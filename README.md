@@ -176,5 +176,5 @@ Provide the channel for community communications.
 - [GStreamer documentation](https://gstreamer.freedesktop.org/documentation/) — underlying framework.
 
 # License
-This project is licensed under [CC-BY-4.0 AND Apache-2.0](./LICENSE) (also viewable on GitHub at https://github.com/NVIDIA/DeepStream/blob/main/LICENSE).
+This project is licensed under [CC-BY-4.0 AND Apache-2.0](./LICENSE).
 - SPDX-License-Identifier: CC-BY-4.0 AND Apache-2.0
