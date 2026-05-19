@@ -2,22 +2,30 @@
 
 [NVIDIA DeepStream SDK](https://developer.nvidia.com/deepstream-sdk) is a streaming analytics toolkit for AI-based video and image understanding, providing a GStreamer-based framework to build multi-stream, multi-model inference pipelines on NVIDIA GPUs (dGPU and Jetson).
 
+DeepStream pipelines combine hardware-accelerated decoding/encoding, TensorRT inference, object tracking, and message-broker integrations to deliver real-time video analytics across dGPU and Jetson platforms.
+
 # Overview
 
 This repository contains the complete source code for DeepStream 9.0 — GStreamer plugins, utility libraries, sample applications, reference applications, TAO-integrated apps, and the Service Maker C++/Python SDK.
 
-It also ships DeepStream-specific tools — [`inference_builder`](tools/inference_builder/README.md) (visual inference pipeline builder), [`auto-magic-calib`](tools/auto-magic-calib/README.md) (camera auto-calibration tool), [`yolo_deepstream`](tools/yolo_deepstream/README.md) (YOLO + TensorRT integration), and [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) (SAM2 ONNX-to-TensorRT conversion) — under `tools/`, and product-local AI agent skills under [`.agents/skills/`](.agents/skills/README.md) (`deepstream-dev` for general DeepStream development, `deepstream-import-vision-model` for autonomous vision-model onboarding) for use with Claude Code and compatible coding agents.
+**Tools** (`tools/`):
+- [`inference_builder`](tools/inference_builder/README.md) — visual inference pipeline builder
+- [`auto-magic-calib`](tools/auto-magic-calib/README.md) — camera auto-calibration tool
+- [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
+- [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
 
-DeepStream pipelines combine hardware-accelerated decoding/encoding, TensorRT inference, object tracking, and message-broker integrations to deliver real-time video analytics across dGPU and Jetson platforms.
+**AI agent skills** ([`.agents/skills/`](.agents/skills/README.md), for Claude Code & compatible coding agents):
+- `deepstream-dev` — general DeepStream development
+- `deepstream-import-vision-model` — autonomous vision-model onboarding
 
 # Requirements
 
-Before building, ensure the following are installed:
+Before building, ensure the following prerequisites are installed:
 
 - **NVIDIA compute stack** — driver, CUDA, cuDNN, and TensorRT at the versions listed below. See the [DeepStream SDK Installation Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Installation.html).
 - **DeepStream 9.0** — installed via the DS 9.0 public Debian package and its `install.sh`.
 
-> **SBSA / DGX Spark:** no DS deb package exists for this platform — use the NVIDIA SBSA Docker container, which bundles the compute stack and DeepStream. See [BUILD.md](build/BUILD.md).
+> **SBSA / DGX Spark:** no DS deb package exists for this platform — use the NVIDIA SBSA Docker container, which bundles the compute stack and DeepStream. See [build/BUILD.md](build/BUILD.md).
 
 # Getting Started
 
