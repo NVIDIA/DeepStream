@@ -7,3 +7,7 @@
 [submodule "tools/inference_builder"]
 	path = tools/inference_builder
 	url = https://github.com/NVIDIA-AI-IOT/inference_builder.git
+[submodule "tools/auto-magic-calib"]
+	path = tools/auto-magic-calib
+	url = https://github.com/NVIDIA-AI-IOT/auto-magic-calib
+	branch = main
