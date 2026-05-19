@@ -124,6 +124,11 @@ SA_BIN_STAGE=/tmp/ds-sample-apps-bin
 DS_BIN=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin
 mkdir -p "$SA_BIN_STAGE"
 for dir in src/apps/sample_apps/*/; do
+  # deepstream-ucx-test is x86-only (no aarch64 UCX support shipped)
+  if [ "$PLATFORM" != "x86" ] && [ "$(basename "$dir")" = "deepstream-ucx-test" ]; then
+    echo "Skipping deepstream-ucx-test on $PLATFORM (x86 only)"
+    continue
+  fi
   make -C "$dir" $MK BIN_DIR="$SA_BIN_STAGE" 2>/dev/null || true
   for bin in "$SA_BIN_STAGE"/deepstream-*; do
     [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true

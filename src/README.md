@@ -66,6 +66,7 @@ See [`utils/README.md`](utils/README.md) for the full list. Each library has its
 |---|---|---|
 | `deepstream-ipc-test` | Jetson (aarch64) only | Relies on NVDEC engine sharing not available on x86 or SBSA |
 | `deepstream-multigpu-nvlink-test` | x86 dGPU only | Requires NVLink; not supported on Jetson |
+| `deepstream-ucx-test` | x86 only | No UCX support shipped for aarch64 or SBSA; skipped by `build/build.sh` on those platforms |
 
 ## Components with External Prerequisites
 
@@ -89,7 +90,6 @@ The following components are **legacy and no longer maintained**. They are still
 - `deepstream-avsync`
 - `deepstream-mrcnn-test`
 - `deepstream-segmentation-test`
-- `deepstream-ucx-test`
 - `deepstream_asr_app`
 - `deepstream_asr_tts_app`
 
