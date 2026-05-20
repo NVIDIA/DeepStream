@@ -30,6 +30,8 @@ sudo apt-get install cmake
    DeepStream lib directory to `LD_LIBRARY_PATH` so the runtime can locate the
    shared libraries:
    ```bash
+   sudo apt update
+   sudo apt remove libglapi-amber
    sudo apt install ./deepstream-9.0_9.0.0-1_amd64.deb
    sudo /opt/nvidia/deepstream/deepstream-9.0/install.sh
    export LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream-9.0/lib:$LD_LIBRARY_PATH
@@ -65,6 +67,8 @@ sudo apt-get install cmake
    DeepStream lib directory to `LD_LIBRARY_PATH` so the runtime can locate the
    shared libraries:
    ```bash
+   sudo apt update
+   sudo apt remove libglapi-amber
    sudo apt install ./deepstream-9.0_9.0.0-1_arm64.deb
    sudo /opt/nvidia/deepstream/deepstream-9.0/install.sh
    export LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream-9.0/lib:$LD_LIBRARY_PATH

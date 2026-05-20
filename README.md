@@ -6,15 +6,23 @@ DeepStream pipelines combine hardware-accelerated decoding/encoding, TensorRT in
 
 # Overview
 
-This repository contains the complete source code for DeepStream 9.0 — GStreamer plugins, utility libraries, sample applications, reference applications, TAO-integrated apps, and the Service Maker C++/Python SDK.
+This repository contains the complete source code for DeepStream 9.0.
+
+**Components** ([`src/`](src/README.md)):
+- [`src/gst-plugins/`](src/README.md#gstreamer-plugins) — DeepStream GStreamer plugin sources
+- [`src/utils/`](src/README.md#utility-libraries) — utility library sources
+- [`src/apps/sample_apps/`](src/README.md#sample-applications) — GStreamer-based sample applications
+- [`src/apps/reference_apps/`](src/README.md#reference-applications) — advanced reference applications
+- [`src/apps/tao_apps/`](src/README.md#tao-apps) — TAO-model integration apps
+- [`src/service-maker/`](src/README.md#service-maker) — Service Maker C++/Python SDK and apps
 
 **Tools** (`tools/`):
-- [`inference_builder`](tools/inference_builder/README.md) — visual inference pipeline builder
-- [`auto-magic-calib`](tools/auto-magic-calib/README.md) — camera auto-calibration tool
+- [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder) — visual inference pipeline builder
+- [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
 
-**AI agent skills** ([`.agents/skills/`](.agents/skills/README.md), for Claude Code & compatible coding agents):
+**AI agent skills** ([`skills/`](skills/README.md), for Claude Code & compatible coding agents):
 - `deepstream-dev` — general DeepStream development
 - `deepstream-import-vision-model` — autonomous vision-model onboarding
 
@@ -109,33 +117,32 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
 | [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
-| [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `.agents/skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
+| [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
 
 # Repository Structure
 
 ```
 DeepStream/
-├── .agents/
-│   └── skills/                              # product-local AI agent skills
-│       ├── deepstream-dev/                  # general DS development skill
-│       └── deepstream-import-vision-model/  # autonomous vision-model onboarding skill
 ├── .claude/                                 # Claude Code project-local config (settings, commands)
 ├── .github/                                 # GitHub workflows, issue templates, CODEOWNERS
 ├── build/
-│   ├── build.sh                             # top-level build driver
-│   └── BUILD.md                             # build instructions
+│   ├── BUILD.md                             # build instructions
+│   └── build.sh                             # top-level build driver
 ├── example_prompts/                         # example prompts for AI coding agents
 ├── includes/                                # shared public headers (ds3d, nvdsinferserver, …)
 ├── scripts/
 │   ├── install_opensource_deps.sh           # builds open-source deps (OpenTelemetry, civetweb, …)
 │   └── print_env.sh                         # env diagnostic helper for bug reports
+├── skills/
+│   ├── deepstream-dev/                      # general DS development skill
+│   └── deepstream-import-vision-model/      # autonomous vision-model onboarding skill
 ├── src/
 │   ├── apps/                                # sample, reference, and TAO sample applications
 │   ├── gst-plugins/                         # GStreamer plugin sources (per-plugin subdirs)
 │   ├── gst-utils/                           # GStreamer utility library sources
 │   ├── service-maker/                       # Service Maker C++/Python SDK and apps
 │   └── utils/                               # utility library sources (per-library subdirs)
-└── tools/                                   # standalone tools
+└── tools/
     ├── auto-magic-calib/                    # camera auto-calibration tool
     ├── inference_builder/                   # visual inference pipeline builder
     ├── sam2-onnx-tensorrt/                  # SAM2 ONNX-to-TensorRT conversion
@@ -147,8 +154,7 @@ Summary of benchmarks; for detailed performance numbers and hardware used, refer
 
 ## Releases & Roadmap
 - Releases/Changelog: <link>
-- **`deepstream_libraries`** is not currently part of this GitHub OSS repository. For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
-- [deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/) is not currently part of this GitHub OSS repository. For details and usage, refer to the [Open Source Dockerfiles Guide](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/blob/main/README.md)
+- **[`deepstream_libraries`](https://github.com/NVIDIA-AI-IOT/deepstream_libraries)** is not currently part of this GitHub OSS repository. For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
   
 # Contribution Guidelines
 This project is currently not accepting contributions.
