@@ -255,7 +255,7 @@ After copying:
    /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4.
    ```
 
-   For an interactive variant that prompts for inputs with defaults, see [`example_prompts/import_vision_model_detection_pipeline.md`](../../example_prompts/import_vision_model_detection_pipeline.md).
+   For an interactive variant that prompts for inputs with defaults, see [`example_prompts/import_vision_model_detection_pipeline.md`](../example_prompts/import_vision_model_detection_pipeline.md).
 
 3. The agent should activate `deepstream-import-vision-model`, run pre-flight checks (`nvidia-smi`, `trtexec`, `wkhtmltopdf`, `mediainfo`, `deepstream-app`), and proceed through Steps 1–8 without further prompting.
 
