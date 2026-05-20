@@ -14,7 +14,7 @@ This repository contains the complete source code for DeepStream 9.0 — GStream
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
 
-**AI agent skills** ([`.agents/skills/`](.agents/skills/README.md), for Claude Code & compatible coding agents):
+**AI agent skills** ([`skills/`](skills/README.md), for Claude Code & compatible coding agents):
 - `deepstream-dev` — general DeepStream development
 - `deepstream-import-vision-model` — autonomous vision-model onboarding
 
@@ -109,16 +109,15 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
 | [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
-| [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `.agents/skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
+| [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
 
 # Repository Structure
 
 ```
 DeepStream/
-├── .agents/
-│   └── skills/                              # product-local AI agent skills
-│       ├── deepstream-dev/                  # general DS development skill
-│       └── deepstream-import-vision-model/  # autonomous vision-model onboarding skill
+├── skills/                                  # product-local AI agent skills
+│   ├── deepstream-dev/                      # general DS development skill
+│   └── deepstream-import-vision-model/      # autonomous vision-model onboarding skill
 ├── .claude/                                 # Claude Code project-local config (settings, commands)
 ├── .github/                                 # GitHub workflows, issue templates, CODEOWNERS
 ├── build/
