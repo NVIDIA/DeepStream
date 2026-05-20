@@ -6,7 +6,15 @@ DeepStream pipelines combine hardware-accelerated decoding/encoding, TensorRT in
 
 # Overview
 
-This repository contains the complete source code for DeepStream 9.0 — GStreamer plugins, utility libraries, sample applications, reference applications, TAO-integrated apps, and the Service Maker C++/Python SDK.
+This repository contains the complete source code for DeepStream 9.0.
+
+**Components** ([`src/`](src/README.md)):
+- [`src/gst-plugins/`](src/README.md#gstreamer-plugins) — DeepStream GStreamer plugin sources
+- [`src/utils/`](src/README.md#utility-libraries) — utility library sources
+- [`src/apps/sample_apps/`](src/README.md#sample-applications) — GStreamer-based sample applications
+- [`src/apps/reference_apps/`](src/README.md#reference-applications) — advanced reference applications
+- [`src/apps/tao_apps/`](src/README.md#tao-apps) — TAO-model integration apps
+- [`src/service-maker/`](src/README.md#service-maker) — Service Maker C++/Python SDK and apps
 
 **Tools** (`tools/`):
 - [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder) — visual inference pipeline builder
