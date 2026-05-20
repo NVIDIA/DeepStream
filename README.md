@@ -154,7 +154,7 @@ Summary of benchmarks; for detailed performance numbers and hardware used, refer
 
 ## Releases & Roadmap
 - Releases/Changelog: <link>
-- **`deepstream_libraries`** is not currently part of this GitHub OSS repository. For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
+- **[`deepstream_libraries`](https://github.com/NVIDIA-AI-IOT/deepstream_libraries)** is not currently part of this GitHub OSS repository. For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
   
 # Contribution Guidelines
 This project is currently not accepting contributions.
