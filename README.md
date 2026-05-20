@@ -16,22 +16,22 @@ This repository contains the complete source code for DeepStream 9.0.
 - [`src/apps/tao_apps/`](src/README.md#tao-apps) — TAO-model integration apps
 - [`src/service-maker/`](src/README.md#service-maker) — Service Maker C++/Python SDK and apps
 
-**Tools** (`tools/`):
+**Tools** ([`tools/`](tools/)):
 - [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder) — visual inference pipeline builder
 - [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
 
 **AI agent skills** ([`skills/`](skills/README.md), for Claude Code & compatible coding agents):
-- `deepstream-dev` — general DeepStream development
-- `deepstream-import-vision-model` — autonomous vision-model onboarding
+- [`deepstream-dev`](skills/deepstream-dev/SKILL.md) — general DeepStream development
+- [`deepstream-import-vision-model`](skills/deepstream-import-vision-model/SKILL.md) — autonomous vision-model onboarding
 
 # Requirements
 
 Before building, ensure the following prerequisites are installed:
 
 - **NVIDIA compute stack** — driver, CUDA, cuDNN, and TensorRT at the versions listed below. See the [DeepStream SDK Installation Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Installation.html).
-- **DeepStream 9.0** — installed via the DS 9.0 public Debian package and its `install.sh`.
+- **DeepStream 9.0** — installed via the [DS 9.0 public Debian package](https://catalog.ngc.nvidia.com/orgs/nvidia/resources/deepstream/files?version=9.0) and its `install.sh`.
 
 > **SBSA / DGX Spark:** no DS deb package exists for this platform — use the NVIDIA SBSA Docker container, which bundles the compute stack and DeepStream. See [build/BUILD.md](build/BUILD.md).
 
@@ -73,6 +73,9 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 rm -rf ~/.cache/gstreamer-1.0/
 ```
 
+- More such examples: [DeepStream Quickstart Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html#run-deepstream-app-the-reference-application)
+- Detailed API reference: [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/)
+
 Each app must be run from its source directory so relative config paths resolve correctly. Refer to the `README` inside each app directory for app-specific run instructions and config options.
 
 ## Running with Triton Inference Server (Docker)
@@ -101,9 +104,6 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 
 **Prerequisites:** Docker (`docker-ce`), the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), NVIDIA driver 590+, and an NGC API key. Triton sample model repos ship under `/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/`. For gRPC-backed Triton, use `samples/configs/deepstream-app-triton-grpc/` instead.
 
-- More examples/tutorials: [DeepStream Quickstart Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html#run-deepstream-app-the-reference-application)
-- API reference: [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/)
-
 # Documentation
 
 | Page | Description |
@@ -114,9 +114,11 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [Docker Containers](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html) | Available DeepStream NGC container images (incl. Triton variants) and how to pull and run them. |
 | [DeepStream Samples](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_C_Sample_Apps.html) | Reference walkthroughs of the bundled C/C++ sample applications and what each one demonstrates. |
 | [Reference Applications](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_ref_app_github.html) | Advanced GitHub-hosted reference apps demonstrating specialized end-to-end pipelines. |
+| [TAO Apps](https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps) | DeepStream sample apps integrating TAO-trained models (detection, classification, segmentation, pose, LPR). |
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
 | [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
+| [Auto Magic Calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) | Automatic camera calibration tool for multi-camera DeepStream deployments. |
 | [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
 
 # Repository Structure
@@ -154,8 +156,10 @@ Summary of benchmarks; for detailed performance numbers and hardware used, refer
 
 ## Releases & Roadmap
 - Releases/Changelog: <link>
-- **[`deepstream_libraries`](https://github.com/NVIDIA-AI-IOT/deepstream_libraries)** is not currently part of this GitHub OSS repository. For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
-- [deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/) is not currently part of this GitHub OSS repository. For details and usage, refer to the [Open Source Dockerfiles Guide](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/blob/main/README.md)
+- [deepstream_libraries](https://github.com/NVIDIA-AI-IOT/deepstream_libraries) is not currently part of this GitHub OSS repository.<br>
+  For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
+- [deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/) is not currently part of this GitHub OSS repository.<br>
+  For details and usage, refer to the [Open Source Dockerfiles Guide](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/blob/main/README.md).
   
 # Contribution Guidelines
 This project is currently not accepting contributions.
