@@ -112,11 +112,20 @@ Build and validation must be done **inside the Docker container**.
    apt-get update && apt-get install -y git cmake make build-essential
    ```
 
-3. Clone the mono-repo:
+3. Clone the repository (with submodules):
    ```bash
-   git clone https://gitlab-master.nvidia.com/DeepStreamSDK/deepstream -b main deepstream
-   cd deepstream
+   git clone --recurse-submodules https://github.com/NVIDIA/DeepStream.git
+   cd DeepStream
    ```
+
+#### Components that must be built and run on the host (baremetal)
+
+The SBSA Docker flow above does **not** cover every component. The following components are not validated inside the container and must instead be built and run from a separate clone of the repository on the baremetal SBSA / DGX Spark host:
+
+- `tools/inference_builder` — see [`tools/inference_builder/README.md`](../tools/inference_builder/README.md)
+- `src/apps/reference_apps/deepstream-tracker-3d-multi-view` — see [`src/apps/reference_apps/deepstream-tracker-3d-multi-view/README.md`](../src/apps/reference_apps/deepstream-tracker-3d-multi-view/README.md)
+
+Clone the repository a second time on the host (outside any container) and follow each component's own README for its build and run steps.
 
 ---
 
