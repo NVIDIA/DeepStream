@@ -13,7 +13,7 @@
 # this  Makefile is to be used to build the test application to exercise the sample_proto protocol adaptor
 CXX:=g++
 NVDS_VERSION?=9.0
-DS_INC:= ../../includes
+DS_INC:= ../../../includes
 DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
 
 TEST_BIN:= test_msgbroker

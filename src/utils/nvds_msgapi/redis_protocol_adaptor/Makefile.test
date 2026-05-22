@@ -12,7 +12,7 @@
 #######################################################################################################
 # this  Makefile is to be used to build the test application to exercise the sample redis protocol adaptor
 CXX:=g++
-DS_INC:= ../../includes
+DS_INC:= ../../../../includes
 
 NVDS_VERSION?=9.0
 
