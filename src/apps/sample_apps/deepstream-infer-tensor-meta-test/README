@@ -74,12 +74,16 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 4. Usage:
 ===============================================================================
 
-  $ deepstream-infer-tensor-meta-app <H264 filename1> [H264 filename2] ...[H264 filenameN]
-    deepstream-infer-tensor-meta-app /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+NOTE: The executable is not part of DS 9.0 public release. The decision to exclude the
+binary/executable was made a long time ago due to its OpenCV dependency, with only the
+source code intended for inclusion in the DeepStream public release.
+
+  $ /opt/nvidia/deepstream/deepstream-9.0/bin/deepstream-infer-tensor-meta-app <H264 filename1> [H264 filename2] ...[H264 filenameN]
+    /opt/nvidia/deepstream/deepstream-9.0/bin/deepstream-infer-tensor-meta-app /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
 
 Use option "-t inferserver" to select nvinferserver as the inference plugin
-  $ deepstream-infer-tensor-meta-app -t inferserver <H264 filename1> [H264 filename2] ...[H264 filenameN]
-    deepstream-infer-tensor-meta-app -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+  $ /opt/nvidia/deepstream/deepstream-9.0/bin/deepstream-infer-tensor-meta-app -t inferserver <H264 filename1> [H264 filename2] ...[H264 filenameN]
+    /opt/nvidia/deepstream/deepstream-9.0/bin/deepstream-infer-tensor-meta-app -t inferserver /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
 
 This sample creates multiple instances of infer-plugin element. Each instance of
 the infer-plugin uses TensorRT API or TRT-IS model to infer on frames/objects. Every

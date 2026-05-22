@@ -48,7 +48,6 @@ For build and installation instructions, see [build/BUILD.md](../../build/BUILD.
 | `nvmsgconv` | `libnvds_msgconv.so` | Converts DeepStream object metadata to JSON/Protobuf payloads for cloud messaging. See [README](nvmsgconv/README). |
 | `nvmsgconv_mega` | `libnvds_msgconv_mega.so` | Extended message converter for MEGA schema payloads. See [README](nvmsgconv_mega/README). |
 | `nvmsgconv_mega2d` | `libnvds_msgconv_mega2d.so` | Message converter for MEGA 2D schema payloads. See [README](nvmsgconv_mega2d/README). |
-| `nvmsgconv_audio` | `libnvds_msgconv_audio.so` | Message converter for audio metadata payloads. See [README](nvmsgconv_audio/README). |
 | `nvds_msgapi` | — | DeepStream Messaging API (DSMI) — protocol adaptor interface and reference implementations (Kafka, MQTT, Azure, AMQP, Redis). See [README](nvds_msgapi/README.md). |
 
 ### On-Screen Display
