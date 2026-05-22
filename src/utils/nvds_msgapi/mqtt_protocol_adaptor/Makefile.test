@@ -30,7 +30,7 @@
 # this  Makefile is to be used to build the test application to exercise the sample mqtt protocol adaptor
 CXX:=g++
 NVDS_VERSION?=9.0
-DS_INC:= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/sources/includes/
+DS_INC:= ../../../../includes
 
 DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
