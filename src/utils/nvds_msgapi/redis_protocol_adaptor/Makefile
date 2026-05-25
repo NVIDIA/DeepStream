@@ -38,7 +38,7 @@ LIBS:= $(shell pkg-config --libs $(PKGS))
 LDFLAGS:= -shared
 
 DS_INC:= ../../../../includes
-REDIS_INC:=/usr/local/include/hiredis
+REDIS_INC:=/usr/include/hiredis
 
 INC_PATHS:= -I $(DS_INC) -I $(REDIS_INC)
 CFLAGS+= $(INC_PATHS)
