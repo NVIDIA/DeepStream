@@ -1,11 +1,11 @@
 # Yolo DeepStream
 
-##  Description
+## Description
 
-This repo have 4 parts:
+This repo has 3 parts:
 ### 1) yolov7_qat
-In [yolov7_qat](yolov7_qat), We use [TensorRT's pytorch quntization tool](https://github.com/NVIDIA/TensorRT/tree/main/tools/pytorch-quantization) to Finetune training QAT yolov7 from the pre-trained weight. 
-Finally we get the same performance of PTQ in TensorRT on Jetson OrinX. And the accuracy(mAP) of the model only dropped a little.
+In [yolov7_qat](yolov7_qat), We use [TensorRT's pytorch quantization tool](https://github.com/NVIDIA/TensorRT/tree/main/tools/pytorch-quantization) to Finetune training QAT yolov7 from the pre-trained weight. 
+Finally we get the same performance of PTQ in TensorRT on Jetson Orin. And the accuracy(mAP) of the model only dropped a little.
 
 ### 2) tensorrt_yolo
 In [tensorrt_yolo](tensorrt_yolo), We provide a standalone c++ yolov7-app sample here. You can use trtexec to convert FP32 onnx models or QAT-int8 models exported from repo [yolov7_qat](yolov7_qat) to trt-engines. And set the trt-engine as yolov7-app's input. It can do detections on images/videos. Or test mAP on COCO dataset. It also support [yolov8](#onnx-model-list) and [yolov9](#onnx-model-list) models.
@@ -63,7 +63,7 @@ Below table shows the end-to-end performance of processing 1080p videos with thi
   |yolov9s|   FP16         |  16              |    16      |  788    |  608   |46.8|
   |yolov11s|  FP16         |  16              |    16      | 1197    |  768   |46.5|
 
-  #### Performance in Tegra T4
+  #### Performance in Tesla T4
 
   The data in the following table are tested with scaling-compute-hw=1.
   
@@ -79,7 +79,7 @@ Below table shows the end-to-end performance of processing 1080p videos with thi
   |yolov11s| FP16 |  16         |    16      | 1532 | 688 | 46.5 |
 
 
- - Note: trtexec cudaGraph not enabled as deepstream not support cudaGraph
+ - Note: trtexec cudaGraph is not enabled because DeepStream does not support cudaGraph.
 
 
 ## Onnx model list
@@ -89,13 +89,13 @@ we provide the following onnx models
 
 | model name  | calibrationFile      |Hardware              | resolution  | precision | mAP<sup>val<br>0.5:0.95 |
 |-----------  |-----------           |-----------------     | ------      | ------      |------      |
-|  [yolov7_ptq_640.onnx](https://nvidia.box.com/shared/static/rlv3buq7sei2log2d3beyg1jhjyw59hn)         |  explict quant model with QDQ nodes                |  gpu                   |     batch x 3 x 640 x 640       |  int8 |51.00 |
+|  [yolov7_ptq_640.onnx](https://nvidia.box.com/shared/static/rlv3buq7sei2log2d3beyg1jhjyw59hn)         |  explicit quant model with QDQ nodes                |  gpu                   |     batch x 3 x 640 x 640       |  int8 |51.00 |
 |  [yolov7.onnx](https://nvidia.box.com/shared/static/rmh8rttesg4cgrysb2qm12udpvd95as1)         |  -                |  gpu                   |     batch x 3 x 640 x 640       |  fp16 | 	51.24|
-|  [yolov7_qat_640.onnx](https://nvidia.box.com/shared/static/v1ze885p35hfjl96xtw8s0xbcpv64tfr)         |      explict quant model with QDQ            |  gpu                  |    batch x 3 x 640 x 640       |  int8 | 51.13 |
+|  [yolov7_qat_640.onnx](https://nvidia.box.com/shared/static/v1ze885p35hfjl96xtw8s0xbcpv64tfr)         |      explicit quant model with QDQ            |  gpu                  |    batch x 3 x 640 x 640       |  int8 | 51.13 |
 |  [yolov8s_DAT_640_noqdq.onnx](https://nvidia.box.com/shared/static/ownxazhmtpnlo3jvbkx4r62ffccm8hu5)     |  [yolov8s_DAT_precision_config_calib.cache](https://nvidia.box.com/shared/static/6bua0bo57cb6s44048os9qq9i1xjw5u1)                |  dla                  |     1 x 3 x 640 x 640       | int8 |44.6|
 |  [yolov8s_640_dynamic.onnx](https://nvidia.box.com/shared/static/yie26fuadn2wdm21bqqagbjat68ih38p)     |  [yolov8s_gpu_precision_config_calib.cache](https://nvidia.box.com/shared/static/041fltrp4i0u8nv37fy3oj31453bjbp3)                |  gpu                  |     batch x 3 x 640 x 640       | int8/fp16 |44.5/44.9 |
 |  [yolov9-s-converted.sim.trans.onnx](https://nvidia.box.com/shared/static/dzch7bx0xlap4hoc5nk9huy72w33wbc9)     |     -            |  gpu                 |     1 x 3 x 640 x 640       | fp16 |46.8|
-|  [yolov11s_qat_int8_672_dynamic.onnx](https://nvidia.box.com/shared/static/87pt9tlgx588l9j9a9wfdk2yjljjrffn)         |      explict quant model with QDQ            |  gpu                  |    batch x 3 x 672 x 672       |  int8 | 46.5 |
+|  [yolov11s_qat_int8_672_dynamic.onnx](https://nvidia.box.com/shared/static/87pt9tlgx588l9j9a9wfdk2yjljjrffn)         |      explicit quant model with QDQ            |  gpu                  |    batch x 3 x 672 x 672       |  int8 | 46.5 |
 
 
 ## Code structure
