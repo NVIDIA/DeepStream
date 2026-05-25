@@ -155,7 +155,7 @@ DeepStream/
 Summary of benchmarks; for detailed performance numbers and hardware used, refer to the [DeepStream Performance Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Performance.html).
 
 ## Releases & Roadmap
-- Releases/Changelog: <link>
+- Releases/Changelog: [CHANGELOG.md](https://github.com/NVIDIA/DeepStream/blob/main/CHANGELOG.md)
 - [deepstream_libraries](https://github.com/NVIDIA-AI-IOT/deepstream_libraries) is not currently part of this GitHub OSS repository.<br>
   For details and usage, refer to the [DeepStream Libraries documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html).
 - [deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers/) is not currently part of this GitHub OSS repository.<br>
