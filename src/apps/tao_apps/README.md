@@ -6,7 +6,7 @@
   - [Download](#download)
     - [1. Download Source Code with SSH or HTTPS](#1-download-source-code-with-ssh-or-https)
     - [2. Download Models](#2-download-models)
-  - [Triton Inference Server](#triton-inference-server)
+  - [Triton Inference Server](#3-triton-inference-server)
   - [Build](#build)
     - [Build Sample Application](#build-sample-application)
   - [Run](#run)
@@ -38,7 +38,6 @@ This repository provides a DeepStream sample application based on [NVIDIA DeepSt
 - **configs**: DeepStream nvinfer configure file and label files
 - **post_processor**: include inference postprocessor for the models
 - **models**: The models which will be used as samples.
-- **TRT-OSS**: The OSS nvinfer plugin build and download instructions. The OSS plugins are needed for some models with DeepStream 7.1 GA.
 
 The pipeline of the sample:
 
@@ -87,15 +86,7 @@ Run below script to download models except multi_task and YoloV5 models.
 sudo ./download_models.sh  # (sudo not required in case of docker containers)
 ```
 
-### 3. Download Pre-built TensorRT OSS nvinfer plugin library
-
-Please download the TensorRT OSS plugin according to your platforms
-
-[x86 platform TRT OSS plugin download instruction](TRT-OSS/x86/README.md)
-
-[Jetson platform TRT OSS plugin download instruction](TRT-OSS/Jetson/README.md)
-
-## Triton Inference Server
+### 3. Triton Inference Server
 
 The sample provides three inferencing methods. For the TensorRT based gst-nvinfer inferencing, please skip this part.
 
