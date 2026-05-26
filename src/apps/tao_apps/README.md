@@ -76,8 +76,8 @@ uridecoderbin -->streammux-->nvinfer(detection)-->nvosd-->
 sudo apt update
 sudo apt install git-lfs
 git lfs install --skip-repo
-git clone https://github.com/NVIDIA/deepstream.git
-//download submoudle
+git clone https://github.com/NVIDIA/DeepStream.git
+# download submodule
 git submodule update --init --recursive
 ```
 ### 2. Download Models
@@ -99,7 +99,7 @@ Please download the TensorRT OSS plugin according to your platforms
 
 The sample provides three inferencing methods. For the TensorRT based gst-nvinfer inferencing, please skip this part.
 
-The DeepStream sample application can work as Triton client with the [Triton Inference Server](https://developer.nvidia.com/nvidia-triton-inference-server), one of the following two methods can be used to set up the Triton Inference Server before starting a gst-nvinferserver inferncing DeepStream application.
+The DeepStream sample application can work as Triton client with the [Triton Inference Server](https://developer.nvidia.com/nvidia-triton-inference-server), one of the following two methods can be used to set up the Triton Inference Server before starting a gst-nvinferserver inferencing DeepStream application.
 
  - Native Triton Inference Server, please refer to [Triton Server](triton_server.md)
  - Stand-alone Triton Inference server, please refer to [Triton grpc server](triton_server_grpc.md)
@@ -280,13 +280,13 @@ cd models/peoplenet_transformer/
 ```
 ## Others Models
 
-There are some special models which are not exactly detector, classifier or segmetation. The sample application of these special models are put in apps/tao_others. These samples should run on DeepStream 6.1 or above versions. Please refer to apps/tao_others/README.md document for details.
+There are some special models which are not exactly detector, classifier or segmentation. The sample application of these special models are put in apps/tao_others. These samples should run on DeepStream 6.1 or above versions. Please refer to apps/tao_others/README.md document for details.
 
 ## TAO pyservicemaker samples
 
 PyServiceMaker is a python framework that aims to streamline the development process for Deepstream applications. It provides a convenient and efficient means to rapidly construct application prototypes, enabling developers to expedite the prototyping phase and focus on the core functionality of their projects.
 
-Please refer to [REAME](pysm-apps/README.md) file for more details.
+Please refer to [README](pysm-apps/README.md) file for more details.
 
 ## Known issues
 
