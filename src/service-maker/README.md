@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
             .add("nvurisrcbin",   "src",   "uri", argv[1])
             .add("nvstreammux",   "mux",   "batch-size", 1, "width", 1280, "height", 720)
             .add("nvinferbin",    "infer", "config-file-path", "/path/to/config.txt")
-            .add("nvdsosdbin",    "osd")
+            .add("nvosdbin",    "osd")
             .add("nveglglessink", "sink");
         pipeline
             .link({"src", "mux"}, {"", "sink_%u"})

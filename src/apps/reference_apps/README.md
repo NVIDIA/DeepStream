@@ -1,16 +1,11 @@
 # Reference Apps using DeepStream 9.0
 
-This repository contains the reference applications for video analytics tasks using TensorRT and DeepSTream SDK 9.0.
+This repository contains the reference applications for video analytics tasks using TensorRT and DeepStream SDK 9.0.
 
 ## Getting Started ##
-We currently provide three different reference applications:
+The reference applications listed below are built in place from this repository by `build/build.sh`, which compiles each app under `src/apps/reference_apps/` and installs the resulting binaries into `/opt/nvidia/deepstream/deepstream-9.0/bin/`. See [`build/BUILD.md`](../../../build/BUILD.md) for full build instructions.
 
-Preferably copy all the apps from reference_apps dir to
-`/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/`
-
-To clone the project in the above directory, sudo permission may be required.
-
-For further details, please see each project's README.
+For further details on each app, please see each project's README.
 
 ### Anomaly Detection : [README](anomaly/README.md) ###
   The project contains auxiliary dsdirection plugin to show the capability of DeepstreamSDK in anomaly detection.

@@ -18,7 +18,7 @@ For installation instructions, refer to the official [DeepStream SDK Installatio
 
 ---
 
-### Clone the Repository
+### Install cmake
 
 ```bash
 sudo apt-get install cmake

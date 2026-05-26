@@ -46,9 +46,6 @@ git clone --recurse-submodules https://github.com/NVIDIA/DeepStream.git && cd De
 
 # Pull LFS-tracked files
 git lfs install && git lfs pull
-
-# Build. The script prompts for sudo only when installing to system paths.
-bash build/build.sh
 ```
 
 See **[build/BUILD.md](build/BUILD.md)** for full build instructions, including system package dependencies (x86, aarch64, SBSA / DGX Spark), `build/build.sh` usage and environment variables (`CUDA_VER`, `NVDS_VERSION`), and build output locations under `/opt/nvidia/deepstream/deepstream-9.0/`.
@@ -60,6 +57,11 @@ See **[build/BUILD.md](build/BUILD.md)** for full build instructions, including 
 | x86 dGPU | x86_64 | Ubuntu 24.04, CUDA 13.1, TensorRT 10.14.x, driver 590+ |
 | Jetson | aarch64 | JetPack 7.1 GA (CUDA 13.0, TensorRT 10.13.x) |
 | SBSA / DGX Spark | aarch64 | No DS tar/deb package; build and run inside the NVIDIA SBSA Docker container |
+
+```bash
+# Build. The script prompts for sudo only when installing to system paths.
+bash build/build.sh
+```
 
 # Usage
 
