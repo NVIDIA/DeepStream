@@ -43,6 +43,3 @@ For further details, please see each project's README.
 
 ## Pyservicemaker Sample apps
 The apps in pyservicemaker_sample_apps are additional samples demonstrating usage of the Python API for DeepStream Service Maker, either by flow API or by pipeline API. See the [Python Service Maker documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_python.html) for details.
-
-## Legacy DeepStream Reference Samples
-Some old samples are not supported any more for different reasons. The legacy samples are moved to the legacy folder /legacy_apps.
