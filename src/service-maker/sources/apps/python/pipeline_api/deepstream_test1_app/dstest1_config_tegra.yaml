@@ -35,7 +35,6 @@ deepstream:
     name: infer
     properties:
       config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test1/dstest1_pgie_config.yml
-      # output-tensor-meta: true
 ## Inference using nvinferserver: replace the above infer definition with below
 #  - type: nvinferserver
 #    name: infer
@@ -45,7 +44,7 @@ deepstream:
     name: nvvideoconvert
   - type: nvdsosd
     name: nvdsosd
-  - type: nveglglessink
+  - type: nv3dsink
     name: sink
     properties:
       sync: false
@@ -58,6 +57,8 @@ deepstream:
     h264parse: nvv4l2decoder
     nvv4l2decoder: nvstreammux
     nvstreammux: infer
-    infer: nvvideoconvert
+    infer.src:
+    - nvvideoconvert
+    - samplevideoprobe
     nvvideoconvert: nvdsosd
     nvdsosd: sink
