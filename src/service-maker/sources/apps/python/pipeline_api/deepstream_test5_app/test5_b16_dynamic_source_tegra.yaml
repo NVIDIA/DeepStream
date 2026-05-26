@@ -63,8 +63,8 @@ deepstream:
   - type: nvmultistreamtiler
     name: tiler
     properties:
-      width: 1920
-      height: 1080
+      width: 1280
+      height: 720
   - type: nvdsosd
     name: osd
   - type: nvvideoconvert
@@ -91,7 +91,7 @@ deepstream:
     name: queue_sink
   - type: queue
     name: queue_msgbroker
-  - type: nveglglessink
+  - type: nv3dsink
     name: sink
     properties:
       async: false

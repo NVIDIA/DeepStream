@@ -87,7 +87,7 @@ deepstream:
     name: queue_sink
   - type: queue
     name: queue_msgbroker
-  - type: nveglglessink
+  - type: nv3dsink
     name: sink
     properties:
       async: false
@@ -100,7 +100,7 @@ deepstream:
     name: osd_counter
     properties:
       font-size: 15
-  edges:
+edges:
     pgie: [queue_tracker, osd_counter]
     queue_tracker: tracker
     tracker: queue_vehicle_type_classifier

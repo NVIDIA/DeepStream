@@ -70,7 +70,7 @@ deepstream:
     name: converter
   - type: nvdsosd
     name: nvdsosd
-  - type: nveglglessink
+  - type: nv3dsink
     name: sink
     properties:
       sync: false

@@ -50,8 +50,8 @@ deepstream:
     type: queue
   - name: queue1
     type: queue
-  - name: nveglglessink
-    type: nveglglessink
+  - name: nv3dsink
+    type: nv3dsink
   - name: nvmsgconv
     properties:
       config: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4/dstest4_msgconv_config.yml
@@ -76,7 +76,7 @@ deepstream:
     nvstreammux: infer
     nvv4l2decoder: nvstreammux
     nvvideoconvert: nvdsosd
-    queue.src: nveglglessink
+    queue.src: nv3dsink
     queue1.src: nvmsgconv
     tee:
     - queue

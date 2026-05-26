@@ -69,8 +69,8 @@ deepstream:
     type: queue
   - name: queue4
     type: queue
-  - name: nveglglessink
-    type: nveglglessink
+  - name: sink
+    type: nv3dsink
   - name: nvdsosd
     type: nvdsosd
   - name: samplevideoprobe
@@ -88,7 +88,7 @@ deepstream:
     queue1: nvdslogger
     queue2: converter
     queue3: nvdsosd
-    queue4: nveglglessink
+    queue4: sink
     uridecodebin: nvstreammux
     uridecodebin1: nvstreammux
     uridecodebin2: nvstreammux
