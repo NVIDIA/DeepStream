@@ -6,7 +6,7 @@ This repository contains the reference applications for video analytics tasks us
 We currently provide different DeepStream reference applications:
 All c/c++ reference apps are built and installed automatically by `bash build/build.sh`. See [build/BUILD.md](../../../build/BUILD.md) for full instructions.
 
-For further details, please see each project's README.
+For further details on each app, please see each project's README.
 
 ### Anomaly Detection : [README](anomaly/README.md) ###
   The project contains auxiliary dsdirection plugin to show the capability of DeepstreamSDK in anomaly detection.
@@ -35,5 +35,5 @@ For further details, please see each project's README.
 ### DeepStream VLLM Plugin: [README](deepstream-vllm-plugin/README.md) ###
  A GStreamer plugin for NVIDIA DeepStream that integrates Vision-Language Models (VLM) using VLLM for real-time video understanding and analysis.
 
-## Pyservicemaker Sample apps [README](pyservicemaker_sample_apps/README.md)
+## Pyservicemaker Sample apps: [README](pyservicemaker_sample_apps/README.md)
 The apps in pyservicemaker_sample_apps are additional samples demonstrating usage of the Python API for DeepStream Service Maker, either by flow API or by pipeline API. See the [Python Service Maker documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_python.html) for details.
