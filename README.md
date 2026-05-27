@@ -17,7 +17,7 @@ This repository contains the complete source code for DeepStream 9.0.
 - [`src/service-maker/`](src/README.md#service-maker) — Service Maker C++/Python SDK and apps
 
 **Tools** ([`tools/`](tools/)):
-- [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder) — visual inference pipeline builder
+- [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/1227c31d3649defc6bc8c16dc55b2e3c8780561b) — visual inference pipeline builder
 - [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
@@ -119,7 +119,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [TAO Apps](https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps) | DeepStream sample apps integrating TAO-trained models (detection, classification, segmentation, pose, LPR). |
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
-| [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
+| [Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/1227c31d3649defc6bc8c16dc55b2e3c8780561b) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
 | [Auto Magic Calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) | Automatic camera calibration tool for multi-camera DeepStream deployments. |
 | [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
 
