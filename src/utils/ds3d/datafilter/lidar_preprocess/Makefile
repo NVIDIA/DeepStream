@@ -21,7 +21,7 @@ ifeq ($(CUDA_VER),)
 endif
 
 
-LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/
 CC:= g++
 
 NVCC:=/usr/local/cuda-$(CUDA_VER)/bin/nvcc

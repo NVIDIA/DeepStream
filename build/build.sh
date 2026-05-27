@@ -79,12 +79,14 @@ PLATFORM_MAKE_FLAGS=
 #  /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/.)
 # ---------------------------------------------------------------------------
 echo "==> Installing open-source dependencies"
-run_as_root env NVDS_VERSION="$NVDS_VERSION" bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
+run_as_root env NVDS_VERSION="$NVDS_VERSION" PLATFORM="$PLATFORM" bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
 
 echo "==> Building PLATFORM=$PLATFORM CUDA_VER=$CUDA_VER (outputs directly to /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/)"
 echo "==> Using cmake: $CMAKE_BIN"
 
 MK="CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION $PLATFORM_MAKE_FLAGS"
+
+FAILED_BUILDS=()
 
 # nvds_rest_server must be built before gstnvdscustomhelper (it links against it)
 run_as_root make -C src/utils/nvds_rest_server $MK
@@ -96,7 +98,8 @@ run_as_root make -C src/gst-utils/gstnvdscustomhelper $MK
 
 # Utils (no top-level Makefile — build each individually)
 for dir in src/utils/*/; do
-  run_as_root make -C "$dir" $MK 2>/dev/null || true
+  [ -f "$dir/Makefile" ] || continue
+  run_as_root make -C "$dir" $MK 2>/dev/null || FAILED_BUILDS+=("$dir")
 done
 
 # nvds_msgapi message broker adaptors (Makefiles live one level deeper than
@@ -104,17 +107,32 @@ done
 # device_client/ and module_client/).
 for dir in src/utils/nvds_msgapi/*/; do
   if [ -f "$dir/Makefile" ]; then
-    run_as_root make -C "$dir" $MK 2>/dev/null || true
+    run_as_root make -C "$dir" $MK 2>/dev/null || FAILED_BUILDS+=("$dir")
   else
     for sub in "$dir"*/; do
-      [ -f "$sub/Makefile" ] && run_as_root make -C "$sub" $MK 2>/dev/null || true
+      if [ -f "$sub/Makefile" ]; then
+        run_as_root make -C "$sub" $MK 2>/dev/null || FAILED_BUILDS+=("$sub")
+      fi
+    done
+  fi
+done
+
+# ds3d utilities (Makefiles are two levels deep: category/component/Makefile)
+for dir in src/utils/ds3d/*/; do
+  if [ -f "$dir/Makefile" ]; then
+    run_as_root make -C "$dir" $MK 2>/dev/null || FAILED_BUILDS+=("$dir")
+  else
+    for sub in "$dir"*/; do
+      if [ -f "$sub/Makefile" ]; then
+        run_as_root make -C "$sub" $MK 2>/dev/null || FAILED_BUILDS+=("$sub")
+      fi
     done
   fi
 done
 
 # GStreamer plugins (no top-level Makefile — build each individually)
 for dir in src/gst-plugins/*/; do
-  run_as_root make -C "$dir" $MK 2>/dev/null || true
+  run_as_root make -C "$dir" $MK 2>/dev/null || FAILED_BUILDS+=("$dir")
 done
 
 # Sample apps (no top-level Makefile — build each individually)
@@ -129,10 +147,13 @@ for dir in src/apps/sample_apps/*/; do
     echo "Skipping deepstream-ucx-test on $PLATFORM (x86 only)"
     continue
   fi
-  make -C "$dir" $MK BIN_DIR="$SA_BIN_STAGE" 2>/dev/null || true
-  for bin in "$SA_BIN_STAGE"/deepstream-*; do
-    [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true
-  done
+  if make -C "$dir" $MK BIN_DIR="$SA_BIN_STAGE" 2>/dev/null; then
+    for bin in "$SA_BIN_STAGE"/deepstream-*; do
+      [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true
+    done
+  else
+    FAILED_BUILDS+=("$dir")
+  fi
   rm -f "$SA_BIN_STAGE"/deepstream-*
 done
 rm -rf "$SA_BIN_STAGE"
@@ -143,20 +164,23 @@ run_as_root apt install -y libeigen3-dev
 run_as_root ln -sf /usr/include/eigen3/Eigen /usr/include/Eigen
 
 #Customized Yolo postprocessing lib
-make -C tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/ $MK 2>/dev/null || true
+make -C tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/ $MK 2>/dev/null || FAILED_BUILDS+=("tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/")
 
 # tao-apps — build and install via top-level Makefile
 git submodule update --init --recursive || true
-run_as_root make -C src/apps/tao_apps $MK 2>/dev/null || true
+run_as_root make -C src/apps/tao_apps $MK 2>/dev/null || FAILED_BUILDS+=("src/apps/tao_apps")
 
 # Reference apps (no top-level Makefile — build each individually)
 RA_BIN_STAGE=/tmp/ds-reference-apps-bin
 mkdir -p "$RA_BIN_STAGE"
 for dir in src/apps/reference_apps/*/; do
-  make -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE" 2>/dev/null || true
-  for bin in "$RA_BIN_STAGE"/deepstream-*; do
-    [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true
-  done
+  if make -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE" 2>/dev/null; then
+    for bin in "$RA_BIN_STAGE"/deepstream-*; do
+      [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true
+    done
+  else
+    FAILED_BUILDS+=("$dir")
+  fi
   rm -f "$RA_BIN_STAGE"/deepstream-*
 done
 rm -rf "$RA_BIN_STAGE"
@@ -186,4 +210,13 @@ for dir in src/service-maker/sources/modules/*/; do
 done
 rm -rf "$SM_MOD_BUILD"
 
-echo "==> Done"
+if [ ${#FAILED_BUILDS[@]} -gt 0 ]; then
+  echo ""
+  echo "==> Build completed with ${#FAILED_BUILDS[@]} failure(s):"
+  for fb in "${FAILED_BUILDS[@]}"; do
+    echo "    FAILED: $fb"
+  done
+  echo ""
+else
+  echo "==> Done (all builds succeeded)"
+fi

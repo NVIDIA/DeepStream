@@ -22,12 +22,12 @@ CXX:=g++
 
 PKGS:= glib-2.0 
 
-DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+DS_LIB:=/opt/nvidia/deepstream/deepstream/lib
 
 SRCS:=  azure_module_client.cpp
 TARGET_LIB:= libnvds_azure_edge_proto.so
 
-UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream/lib
 
 CFLAGS:= -fPIC -Wall
 
