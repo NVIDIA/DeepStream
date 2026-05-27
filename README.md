@@ -18,7 +18,7 @@ This repository contains the complete source code for DeepStream 9.0.
 
 **Tools** ([`tools/`](tools/)):
 - [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder) — visual inference pipeline builder
-- [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) — camera auto-calibration tool
+- [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
 
