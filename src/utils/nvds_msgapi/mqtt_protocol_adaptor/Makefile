@@ -21,7 +21,7 @@ CXX:=g++
 
 PKGS:= glib-2.0 
 
-DS_LIB := /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+DS_LIB := /opt/nvidia/deepstream/deepstream/lib/
 
 SRCS:=  nvds_mqtt_proto.cpp ../common_src/nvds_utils.cpp
 
@@ -36,7 +36,7 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS:= $(shell pkg-config --libs $(PKGS))
 LDFLAGS:= -shared
 
-UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream/lib
 DS_INC:= ../../../../includes
 MOSQ_INC:=/usr/local/include/
 
