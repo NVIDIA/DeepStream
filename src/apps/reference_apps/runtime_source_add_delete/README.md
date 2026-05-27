@@ -11,18 +11,19 @@ to install the prequisites for Deepstream SDK apps.
 
 ## Getting Started
 
-- Preferably clone the app in
-  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/`
-
 - Edit all the inference models config files according to the location of the models to be used
 
 ## Compilation Steps and Execution:
+The app can be built by the [mono-repo build](../../../../build/BUILD.md)
+The app can also be built separatedly by the following commands:
 ```
   $ Set CUDA_VER in the MakeFile as per platform.
       For x86, CUDA_VER=13.1
       For Jetson, CUDA_VER=13.0
   $ sudo make
-
+```
+The app run command may be different on different devices:
+```
   $ ./deepstream-test-rt-src-add-del <uri> <run forever> <sink> <sync>
   $ ./deepstream-test-rt-src-add-del file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4 0 nveglglessink 1 #dGPU - nveglglessink Jetson - nv3dsink
   $ ./deepstream-test-rt-src-add-del rtsp://127.0.0.1/video 0 nveglglessink 1 #dGPU
@@ -38,8 +39,4 @@ uridecodebin -> nvstreammux -> nvinfer -> nvtracker -> nvtiler -> nvvideoconvert
   source is present in the pipeline
 - The app exits, when final source End of Stream is reached or if the last source is deleted.
 - filesink and nv3dsink (only Jetson) are also supported.
-
-
-
-
 
