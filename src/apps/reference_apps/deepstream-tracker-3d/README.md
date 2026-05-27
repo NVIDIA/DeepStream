@@ -13,7 +13,7 @@ This sample application can be run on both x86 and Jetson platforms inside DeepS
     docker pull $DS_IMG_NAME
     ```
 
-2. Git clone the current `deepstream_reference_apps` repository to the host machine, and enter single-view 3D tracking directory inside the repository.
+2. Git clone the current `deepstream` repository to the host machine, and enter single-view 3D tracking directory inside the repository.
     ```bash
     git clone https://github.com/NVIDIA/deepstream.git
     cd deepstream/src/apps/reference_apps/deepstream-tracker-3d

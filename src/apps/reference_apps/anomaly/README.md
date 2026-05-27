@@ -10,14 +10,11 @@ Please follow instructions in the `apps/sample_apps/deepstream-app/README` on ho
 to install the prequisites for Deepstream SDK apps.
 
 ## Getting Started
-
-- Preferably clone the app in
-  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/`
-
 - Edit the `dsanomaly_pgie_config.txt` or `dsanomaly_pgie_nvinferserver_config.txt` according to the location of the models to be used
 
 
 ## Compilation Steps for dsdirection plugin
+The dsdirection plugin can be built and installed separatedly.
 ```
   $ cd plugins/gst-dsdirection/
   $ sudo make && sudo make install

@@ -15,9 +15,7 @@ The pretrained TAO models [PeopleNet](https://catalog.ngc.nvidia.com/orgs/nvidia
 ## Installation
 Follow https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html to setup the DeepStream SDK
 
-1. Preferably clone the app in
-  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/`
-and define project home as `export BODYPOSE3D_HOME=<parent-path>/deepstream-bodypose-3d`.
+1. Define sample app home as `export BODYPOSE3D_HOME=<parent-path>/deepstream-bodypose-3d`.
 
 2. Install Eigen development packages
 ```
@@ -26,18 +24,9 @@ and define project home as `export BODYPOSE3D_HOME=<parent-path>/deepstream-body
   sudo ln -sf eigen3/Eigen Eigen
 ```
 
-3. For Deepstream SDK version older than 6.2, copy and build custom `NvDsEventMsgMeta` into Deepstream SDK installation path. Copy and build custom `NvDsEventMsgMeta` into Deepstream SDK installation path.
-The custom `NvDsEventMsgMeta` structure handles pose3d and pose25d meta data.
-```bash
-# Copy deepstream sources
-cp $BODYPOSE3D_HOME/sources/deepstream-sdk/eventmsg_payload.cpp /opt/nvidia/deepstream/deepstream/sources/libs/nvmsgconv/deepstream_schema
-# Build new nvmsgconv library for custom Product metadata
-cd /opt/nvidia/deepstream/deepstream/sources/libs/nvmsgconv
-make; make install
-```
-Please note that this step is not necessary for Deepstream SDK version 6.2 or newer.
-
 ## Build the applications
+The app can be built by [mono-repo build](../../../../build/BUILD.md).
+The separated compilation of the app and related library can refer to the following commands:
 ```bash
 # Build custom nvinfer parser of BodyPose3DNet
 cd $BODYPOSE3D_HOME/sources/nvdsinfer_custom_impl_BodyPose3DNet
