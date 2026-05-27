@@ -142,9 +142,15 @@ SA_BIN_STAGE=/tmp/ds-sample-apps-bin
 DS_BIN=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin
 mkdir -p "$SA_BIN_STAGE"
 for dir in src/apps/sample_apps/*/; do
-  # deepstream-ucx-test is x86-only (no aarch64 UCX support shipped)
-  if [ "$PLATFORM" != "x86" ] && [ "$(basename "$dir")" = "deepstream-ucx-test" ]; then
-    echo "Skipping deepstream-ucx-test on $PLATFORM (x86 only)"
+  app=$(basename "$dir")
+  # x86-only apps
+  if [ "$PLATFORM" != "x86" ] && [[ "$app" == "deepstream-ucx-test" || "$app" == "deepstream-multigpu-nvlink-test" ]]; then
+    echo "Skipping $app on $PLATFORM (x86 only)"
+    continue
+  fi
+  # Jetson-only apps
+  if [ "$PLATFORM" = "x86" ] && [ "$app" = "deepstream-ipc-test" ]; then
+    echo "Skipping $app on $PLATFORM (Jetson only)"
     continue
   fi
   if make -C "$dir" $MK BIN_DIR="$SA_BIN_STAGE" 2>/dev/null; then
