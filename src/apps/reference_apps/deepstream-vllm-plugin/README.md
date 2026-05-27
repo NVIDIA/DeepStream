@@ -48,6 +48,7 @@ sudo docker run -it --rm --runtime=nvidia --gpus all --network=host \
 
 # Inside DeepStream container install dependencies
 cd /home/vllm_ds_plugin/deepstream-vllm-plugin
+chmod +x install.sh
 ./install.sh
 ```
 
