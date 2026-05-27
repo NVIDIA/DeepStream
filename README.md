@@ -192,3 +192,7 @@ Provide the channel for community communications.
 # License
 This project is licensed under [CC-BY-4.0 AND Apache-2.0](./LICENSE).
 - SPDX-License-Identifier: CC-BY-4.0 AND Apache-2.0
+
+## Third‑Party License/Notice
+
+Refer [THIRD_PARTY_LICENSES](./THIRD_PARTY_LICENSES.txt) for all 3rd Party OSS licenses and Notices
