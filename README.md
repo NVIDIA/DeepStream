@@ -120,7 +120,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
 | [Inference Builder](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Inference_Builder.html) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
-| [Auto Magic Calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) | Automatic camera calibration tool for multi-camera DeepStream deployments. |
+| [Auto Magic Calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) | Automatic camera calibration tool for multi-camera DeepStream deployments. |
 | [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
 
 # Repository Structure
