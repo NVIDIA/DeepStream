@@ -31,7 +31,7 @@ NVDS_VERSION?=9.0
 
 CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
-	 -I ../../../includes
+	 -I ../../../../includes
 
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
