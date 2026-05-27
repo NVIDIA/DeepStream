@@ -36,7 +36,7 @@ ifeq ($(NVDS_VERSION),)
   NVDS_VERSION:=$(shell basename $(FULL_PATH) | cut -f2 -d -)
 endif
 
-DS_HOME=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)
+DS_HOME=/opt/nvidia/deepstream/deepstream
 LIB_INSTALL_DIR=$(DS_HOME)/lib
 
 $(info NVDS_VERSION=$(NVDS_VERSION))

@@ -8,14 +8,38 @@
 #   prometheus-cpp     v1.2.4             -> libprometheus-cpp-core.so
 #   azure-iot-sdk-c    commit dbeb521e     -> libiothub_client.so (v1.11.0)
 #
+# Additional prerequisites installed:
+#   half               v2.1.0             -> /opt/half
+#   triton gRPC client v2.65.0            -> /opt/tritonclient
+#   protobuf compiler  v3.21.12           -> /opt/proto
+#   apt packages: libpango, libcairo, libjson-glib, librabbitmq, librdkafka, etc.
+#   mosquitto (from PPA)
+#
 # Usage:
-#   sudo bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.0]
+#   sudo PLATFORM=x86 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.0]
+#   sudo PLATFORM=aarch64 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.0]
 
 set -e
 
 NVDS_VERSION=${NVDS_VERSION:-9.0}
 INSTALL_DIR=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
 BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
+
+# Detect platform if not passed via environment
+if [ -z "${PLATFORM:-}" ]; then
+  ARCH=$(uname -m)
+  case "$ARCH" in
+    x86_64)  PLATFORM=x86 ;;
+    aarch64)
+      if [ -f /etc/nv_tegra_release ]; then
+        PLATFORM=aarch64
+      else
+        PLATFORM=sbsa
+      fi
+      ;;
+    *)  echo "Unsupported architecture: $ARCH"; exit 1 ;;
+  esac
+fi
 
 echo "==> Installing open-source DeepStream dependencies"
 echo "    Install dir : $INSTALL_DIR"
@@ -108,29 +132,108 @@ cmake --install "$BUILD_ROOT/prom-build"
 find "$BUILD_ROOT/prom-install/lib" -name "libprometheus-cpp-core.so*" -exec cp -Pv {} "$INSTALL_DIR/" \;
 
 # ---------------------------------------------------------------------------
-# 4. azure-iot-sdk-c LTS_01_2023_Ref01 (v1.11.0)
+# 4. azure-iot-sdk-c v1.11.0
+#    (follows README in src/utils/nvds_msgapi/azure_protocol_adaptor/module_client)
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- azure-iot-sdk-c v1.11.0 (commit dbeb521e) ---"
+echo "--- azure-iot-sdk-c v1.11.0 ---"
 AZURE_DIR=$BUILD_ROOT/azure-iot-sdk-c
-# LTS_01_2023_Ref01 tag = v1.10.0; v1.11.0 is the next commit (dbeb521e)
-git clone --recursive https://github.com/Azure/azure-iot-sdk-c.git "$AZURE_DIR"
-git -C "$AZURE_DIR" checkout dbeb521e
-git -C "$AZURE_DIR" submodule update --init --recursive
-cmake -S "$AZURE_DIR" -B "$BUILD_ROOT/azure-build" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -Dbuild_as_dynamic=ON \
-    -Duse_edge_modules=ON \
-    -Dskip_samples=ON \
-    -Duse_amqp=ON \
-    -Duse_mqtt=ON \
-    -Duse_http=ON \
-    -DCMAKE_INSTALL_PREFIX="$BUILD_ROOT/azure-install" \
-    -Wno-dev
-cmake --build "$BUILD_ROOT/azure-build" -j$(nproc)
-cmake --install "$BUILD_ROOT/azure-build"
+git clone https://github.com/Azure/azure-iot-sdk-c.git "$AZURE_DIR"
+git -C "$AZURE_DIR" checkout tags/1.11.0
+git -C "$AZURE_DIR" submodule update --init
 
-find "$BUILD_ROOT/azure-install/lib" -name "libiothub_client.so*" -exec cp -Pv {} "$INSTALL_DIR/" \;
+# Enable build_as_dynamic and use_edge_modules in CMakeLists.txt
+sed -i 's/\(option(build_as_dynamic.*\)OFF)/\1ON)/' "$AZURE_DIR/CMakeLists.txt"
+sed -i 's/\(option(use_edge_modules.*\)OFF)/\1ON)/' "$AZURE_DIR/CMakeLists.txt"
+
+mkdir -p "$AZURE_DIR/cmake"
+cmake -S "$AZURE_DIR" -B "$AZURE_DIR/cmake" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -Dskip_samples=ON \
+    -Wno-dev
+cmake --build "$AZURE_DIR/cmake" -j$(nproc)
+cmake --install "$AZURE_DIR/cmake"
+
+find /usr/local/lib -name "libiothub_client.so*" -exec cp -Pv {} "$INSTALL_DIR/" \;
+
+# ---------------------------------------------------------------------------
+# 5. Half v2.1.0
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Half v2.1.0 ---"
+mkdir -p /opt/half
+wget -q -P /tmp https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip
+unzip -o /tmp/half-2.1.0.zip -d /opt/half/
+rm -f /tmp/half-2.1.0.zip
+
+# ---------------------------------------------------------------------------
+# 6. Triton gRPC Client v2.65.0
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Triton gRPC Client v2.65.0 (PLATFORM=$PLATFORM) ---"
+mkdir -p /opt/tritonclient/
+if [ "$PLATFORM" = "x86" ]; then
+  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.65.0/v2.65.0_ubuntu2404.clients.tar.gz
+  tar xzf /tmp/v2.65.0_ubuntu2404.clients.tar.gz -C /opt/tritonclient/ lib include
+  rm -f /tmp/v2.65.0_ubuntu2404.clients.tar.gz
+else
+  # Jetson (aarch64) — use the igpu tar; switch to tritonserver2.60.0-agx.tar for AGX systems
+  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.60.0/tritonserver2.60.0-agx.tar
+  tar xf /tmp/tritonserver2.60.0-agx.tar -C /opt/tritonclient/ --strip-components=2 tritonserver/clients/lib/ tritonserver/clients/include/
+  rm -f /tmp/tritonserver2.60.0-agx.tar
+fi
+
+# ---------------------------------------------------------------------------
+# 7. Protobuf compiler v3.21.12
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Protobuf compiler v3.21.12 (PLATFORM=$PLATFORM) ---"
+mkdir -p /opt/proto
+PB_REL="https://github.com/protocolbuffers/protobuf/releases"
+if [ "$PLATFORM" = "x86" ]; then
+  curl -Lo /tmp/protoc-21.12.zip "$PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip"
+else
+  curl -Lo /tmp/protoc-21.12.zip "$PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip"
+fi
+unzip -o /tmp/protoc-21.12.zip -d /opt/proto
+chmod -R +rx /opt/proto/
+rm -f /tmp/protoc-21.12.zip
+
+# ---------------------------------------------------------------------------
+# 8. APT library dependencies
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- APT library dependencies ---"
+apt-get update
+apt-get install -y \
+  libpango1.0-dev libcairo2-dev libjpeg-dev \
+  libglib2.0-dev libjson-glib-dev uuid-dev libyaml-cpp-dev \
+  librabbitmq-dev librdkafka-dev \
+  libjansson4 libjansson-dev \
+  libssl-dev libcjson-dev libhiredis-dev
+
+# ---------------------------------------------------------------------------
+# 9. Mosquitto
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Mosquitto ---"
+apt-add-repository -y ppa:mosquitto-dev/mosquitto-ppa
+apt-get update
+apt-get install -y libmosquitto-dev mosquitto
+
+# ---------------------------------------------------------------------------
+# 10. Sample-app build prerequisites
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Sample-app build prerequisites ---"
+apt-get update
+apt-get install -y \
+  libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+  libgstrtspserver-1.0-dev libx11-dev \
+  gstreamer1.0-libav libavahi-compat-libdnssd-dev \
+  libjson-glib-dev libjsoncpp-dev libyaml-cpp-dev \
+  libgbm1 libglapi-mesa libgles2-mesa-dev \
+  rapidjson-dev
 
 # ---------------------------------------------------------------------------
 # Cleanup and ldconfig

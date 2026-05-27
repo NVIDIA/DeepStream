@@ -27,7 +27,7 @@ CFLAGS:= -Wall -std=c++11 -shared -fPIC
 
 CFLAGS+= -fPIC -DDS_VERSION=\"9.0\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
-	 -I ../../../includes
+	 -I ../../../../includes
 
 CFLAGS+= -I/opt/tritonclient/include
 

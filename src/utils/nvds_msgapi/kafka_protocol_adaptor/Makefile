@@ -21,7 +21,7 @@ CXX:=g++
 
 PKGS:= glib-2.0
 
-DS_LIB:=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+DS_LIB:=/opt/nvidia/deepstream/deepstream/lib
 
 PROTOBUF_BUILD_DIR:= .
 PROTOBUF_BIN_DIR ?= /opt/proto/bin
@@ -29,7 +29,7 @@ PROTOBUF_BIN_DIR ?= /opt/proto/bin
 SRCS:=  nvds_kafka_proto.cpp kafka_client.cpp json_helper.cpp ../common_src/nvds_utils.cpp $(PROTOBUF_BUILD_DIR)/schema.pb.cc
 TARGET_LIB:= libnvds_kafka_proto.so
 
-UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream/lib
 
 CFLAGS:= -fPIC -Wall
 
