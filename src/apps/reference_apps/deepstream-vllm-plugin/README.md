@@ -32,6 +32,7 @@ The `nvvllmvlm` plugin enables integration of vision-language models (Cosmos-Rea
 - NVIDIA DeepStream SDK 9.0.0+
 - Docker with NVIDIA Container Runtime
 - Python 3.12+
+- VLLM 0.21.0 with PyTorch 2.11.0 (installed by `./install.sh`)
 - 40GB+ GPU memory required
 - Currently supported on x86 based GPU platforms
 
