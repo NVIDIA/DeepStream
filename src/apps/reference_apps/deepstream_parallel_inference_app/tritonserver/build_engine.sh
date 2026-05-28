@@ -4,6 +4,12 @@ IS_JETSON_PLATFORM=`uname -i | grep aarch64`
 
 export PATH=$PATH:/usr/src/tensorrt/bin
 
+mkdir -p ./models/bodypose2d/1
+wget https://nvidia.box.com/shared/static/7jpb8hboo5kwpwkj1956m4lpss3mnzi9 -O ./models/bodypose2d/1/model.onnx
+
+mkdir -p ./models/yolov4/1
+wget https://nvidia.box.com/shared/static/achcifjwl1ac99tdvfwtfmxgec5d0pro -O ./models/yolov4/1/yolov4_-1_3_416_416_dynamic.onnx.nms.onnx
+
 trtexec --fp16 --onnx=./models/yolov4/1/yolov4_-1_3_416_416_dynamic.onnx.nms.onnx --saveEngine=./models/yolov4/1/yolov4_-1_3_416_416_dynamic.onnx_b32_gpu0.engine  --minShapes=input:1x3x416x416 --optShapes=input:16x3x416x416 --maxShapes=input:32x3x416x416 --shapes=input:16x3x416x416
 
 mkdir -p models/trafficcamnet/1/
