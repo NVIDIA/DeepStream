@@ -38,7 +38,7 @@ nvbuf-memory-type=0
 enable=1
 #Type - 1=CameraV4L2 2=URI 3=MultiURI 4=RTSP
 type=3
-uri=file://../../samples/streams/sample_1080p_h264.mp4
+uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
 num-sources=4
 #drop-frame-interval=2
 gpu-id=0
@@ -154,11 +154,11 @@ tracker-width=960
 tracker-height=544
 ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
 # ll-config-file required to set different tracker types
-# ll-config-file=../deepstream-app/config_tracker_IOU.yml
-# ll-config-file=../deepstream-app/config_tracker_NvSORT.yml
-ll-config-file=../deepstream-app/config_tracker_NvDCF_perf.yml
-# ll-config-file=../deepstream-app/config_tracker_NvDCF_accuracy.yml
-# ll-config-file=../deepstream-app/config_tracker_NvDeepSORT.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_IOU.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvSORT.yml
+ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvDCF_accuracy.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvDeepSORT.yml
 gpu-id=0
 display-tracking-id=1
 

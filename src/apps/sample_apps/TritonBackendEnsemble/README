@@ -145,6 +145,14 @@ NOTE: Run with "sudo -E" or root if there is file permission issues.
    $ cd build
    $ make install
    $ cp install/backends/recommended/libtriton_recommended.so ../triton_model_repo/deepstream_triton_custom_cpp_backend/1/
+   $ cp install/backends/recommended/libtriton_recommended.so /opt/tritonserver/backends/recommended/
+
+   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ ./prepare_ds_triton_model_repo.sh
+   $ cd -   # back to: .../src/apps/sample_apps/TritonBackendEnsemble
+   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Primary_Detector triton_model_repo/Primary_Detector
+   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleMake triton_model_repo/Secondary_VehicleMake
+   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleTypes triton_model_repo/Secondary_VehicleTypes
 
 NOTE: To compile the sources, run make with "sudo -E" or root permission.
 
