@@ -1,19 +1,12 @@
-################################################################################
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-################################################################################
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -33,10 +26,8 @@ endif
 
 GENCODE_FLAGS ?= $(GENCODES)
 
-KERNEL_PATH := ../modules/Lidar_AI_Solution/libraries/roiconvert/roi_conversion
-
 SRCS:= nvdspreprocess_lib.cpp \
-       $(KERNEL_PATH)/roi_conversion.cu
+       roi_conversion.cu
 
 INCS:= $(wildcard *.h)
 LIB:=libcustom2d_preprocess.so
@@ -44,8 +35,7 @@ LIB:=libcustom2d_preprocess.so
 CFLAGS += -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror \
          -I/usr/local/cuda-$(CUDA_VER)/include \
          -I/opt/nvidia/deepstream/deepstream/sources/includes \
-         -I/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspreprocess/include \
-         -I$(KERNEL_PATH)
+         -I/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspreprocess/include
 
 GST_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/
@@ -69,8 +59,8 @@ all: $(LIB)
 %.o: %.cpp $(INCS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-%.o: $(KERNEL_PATH)/%.cu $(KERNEL_PATH)/roi_conversion.hpp
-	$(NVCC) -c -O3 -o $@ $(GENCODE_FLAGS) -I$(KERNEL_PATH) --compiler-options '-fPIC' $<
+%.o: %.cu roi_conversion.hpp
+	$(NVCC) -c -O3 -o $@ $(GENCODE_FLAGS) --compiler-options '-fPIC' $<
 
 $(LIB): $(OBJS) $(DEP)
 	$(CXX) -o $@ $(OBJS) $(LIBS)
