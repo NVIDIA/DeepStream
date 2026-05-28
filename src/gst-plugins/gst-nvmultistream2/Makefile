@@ -22,6 +22,7 @@ endif
 
 PKGS:= glib-2.0 gobject-2.0 json-glib-1.0 uuid
 PKGS += gstreamer-1.0 gstreamer-base-1.0 gstreamer-audio-1.0 gstreamer-video-1.0
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
 CXX:= g++
 
@@ -43,6 +44,9 @@ CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
+ifeq ($(TARGET_DEVICE),aarch64)
+	LIBS := -L/usr/lib/aarch64-linux-gnu/tegra
+endif
 
 LIBS+= -shared -Wl,-no-undefined \
 	-L$(GST_INSTALL_DIR) -lnvdsgst_multistream_legacy \
