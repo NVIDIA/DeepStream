@@ -217,6 +217,8 @@ apt-get install -y \
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Mosquitto ---"
+apt-get update
+apt install -y software-properties-common
 apt-add-repository -y ppa:mosquitto-dev/mosquitto-ppa
 apt-get update
 apt-get install -y libmosquitto-dev mosquitto
