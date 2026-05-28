@@ -33,10 +33,8 @@ endif
 
 GENCODE_FLAGS ?= $(GENCODES)
 
-KERNEL_PATH := ../modules/Lidar_AI_Solution/libraries/roiconvert/roi_conversion
-
 SRCS:= nvdspreprocess_lib.cpp \
-       $(KERNEL_PATH)/roi_conversion.cu
+       roi_conversion.cu
 
 INCS:= $(wildcard *.h)
 LIB:=libcustom2d_preprocess.so
@@ -44,8 +42,7 @@ LIB:=libcustom2d_preprocess.so
 CFLAGS += -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror \
          -I/usr/local/cuda-$(CUDA_VER)/include \
          -I/opt/nvidia/deepstream/deepstream/sources/includes \
-         -I/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspreprocess/include \
-         -I$(KERNEL_PATH)
+         -I/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspreprocess/include
 
 GST_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/
@@ -69,8 +66,8 @@ all: $(LIB)
 %.o: %.cpp $(INCS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-%.o: $(KERNEL_PATH)/%.cu $(KERNEL_PATH)/roi_conversion.hpp
-	$(NVCC) -c -O3 -o $@ $(GENCODE_FLAGS) -I$(KERNEL_PATH) --compiler-options '-fPIC' $<
+%.o: %.cu roi_conversion.hpp
+	$(NVCC) -c -O3 -o $@ $(GENCODE_FLAGS) --compiler-options '-fPIC' $<
 
 $(LIB): $(OBJS) $(DEP)
 	$(CXX) -o $@ $(OBJS) $(LIBS)
