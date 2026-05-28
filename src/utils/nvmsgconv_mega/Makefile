@@ -49,19 +49,18 @@ SRCFILES:= nvmsgconv_mega.cpp  \
 
 TARGET_LIB:= libnvds_msgconv_mega.so
 
-UTILS_LIB_DIR?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+all: $(TARGET_LIB)
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
-all: $(UTILS_LIB_DIR)/$(TARGET_LIB)
-
-$(UTILS_LIB_DIR)/$(TARGET_LIB): $(SRCFILES)
-	@mkdir -p $(UTILS_LIB_DIR)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
-
-install: $(UTILS_LIB_DIR)/$(TARGET_LIB)
+install: $(TARGET_LIB)
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 	ldconfig
 
+$(TARGET_LIB) : $(SRCFILES)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
 clean:
-	rm -rf $(UTILS_LIB_DIR)/$(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*
+	rm -rf $(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*
 
 SCHEMA_PROTOS:=$(wildcard deepstream_schema/*.proto)
 $(PROTOBUF_BUILD_DIR)/%.pb.cc: $(SCHEMA_PROTOS) Makefile

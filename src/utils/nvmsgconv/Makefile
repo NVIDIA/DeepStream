@@ -48,21 +48,21 @@ SRCFILES:= nvmsgconv.cpp  \
   $(PROTOBUF_BUILD_DIR)/lidar_schema.pb.cc
 
 TARGET_LIB:= libnvds_msgconv.so
-LIB_DIR := /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
 OBJ_DIR := .build
 include ../../Rules.mk
 
-all: $(LIB_DIR)/$(TARGET_LIB)
+all: $(TARGET_LIB)
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
-$(LIB_DIR)/$(TARGET_LIB): $(SRCFILES)
-	@mkdir -p $(LIB_DIR)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
-
-install: $(LIB_DIR)/$(TARGET_LIB)
+install: $(TARGET_LIB)
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 	ldconfig
 
+$(TARGET_LIB) : $(SRCFILES)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
 clean:
-	rm -rf $(LIB_DIR)/$(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*
+	rm -rf $(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*
 
 SCHEMA_PROTOS:=$(wildcard deepstream_schema/*.proto)
 $(PROTOBUF_BUILD_DIR)/%.pb.cc: $(SCHEMA_PROTOS) Makefile
