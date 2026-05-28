@@ -79,3 +79,4 @@ std::shared_ptr<ROIConversion> create();
 }; // namespace roiconv
 
 #endif // __ROI_CONVERSION_HPP__
+
