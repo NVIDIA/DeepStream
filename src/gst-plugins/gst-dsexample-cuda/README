@@ -25,22 +25,92 @@ Pre-requisites:
 Install using:
     $ sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev 
 
-Install OpenCV CUDA enabled Development package:
+Building OpenCV 4.10.0 with CUDA support (cudaimgproc, cudafilters):
+
+The CUDA modules opencv_cudaimgproc and opencv_cudafilters are not shipped by
+any apt package — they live in opencv_contrib and must be built from source with
+CUDA enabled. These steps install the libraries to /usr/local/lib and headers to
+/usr/local/include/opencv4.
+
+cuDNN and the DNN CUDA backend are disabled. The CUDA image-processing modules
+do not depend on cuDNN, so this keeps the build minimal and avoids any cuDNN
+version coupling.
+
+1. Prerequisites
+
+CUDA Toolkit must already be installed. Verify:
+    $ nvcc --version
+
+Install build dependencies:
+    $ sudo apt update
+    $ sudo apt install -y build-essential cmake git pkg-config \
+        libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev \
+        libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev \
+        libtiff-dev gfortran openexr libatlas-base-dev python3-dev \
+        python3-numpy libtbbmalloc2 libtbb-dev libdc1394-dev
+
+2. Install gcc-12 (required by CUDA)
+
+CUDA's host_config.h rejects gcc > 12. Install gcc-12 side-by-side without
+changing the system default:
+    $ sudo apt install -y gcc-12 g++-12
+    $ gcc-12 --version
+
+3. Clone OpenCV and opencv_contrib at tag 4.10.0
+
     $ cd ~
     $ git clone https://github.com/opencv/opencv.git
     $ git clone https://github.com/opencv/opencv_contrib.git
+    $ cd opencv && git checkout 4.10.0 && cd ..
+    $ cd opencv_contrib && git checkout 4.10.0 && cd ..
+
+Both repositories must be on the same tag.
+
+4. Find your GPU's compute capability
+
+    $ nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+
+Note the value (e.g. 8.6 for RTX 30xx, 7.5 for RTX 20xx/T4, 8.7 for Orin).
+Use it for CUDA_ARCH_BIN in the next step.
+
+5. Configure with CMake
+
     $ cd ~/opencv
-    $ mkdir build
-    $ cd build
-    $ cmake -D CMAKE_BUILD_TYPE=Release \
-        -D CMAKE_INSTALL_PREFIX=/usr/local \
-        -D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib/modules \
-        -D WITH_CUDA=ON \
-        -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
-        -D WITH_CUDNN=ON \
-        -D OPENCV_DNN_CUDA=ON \
-        -D BUILD_EXAMPLES=ON ..
-    $ make -j12
+    $ mkdir -p build && cd build
+    $ cmake -D CMAKE_BUILD_TYPE=RELEASE \
+          -D CMAKE_INSTALL_PREFIX=/usr/local \
+          -D CMAKE_C_COMPILER=/usr/bin/gcc-12 \
+          -D CMAKE_CXX_COMPILER=/usr/bin/g++-12 \
+          -D CUDA_HOST_COMPILER=/usr/bin/gcc-12 \
+          -D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib/modules \
+          -D WITH_CUDA=ON \
+          -D WITH_CUDNN=OFF \
+          -D OPENCV_DNN_CUDA=OFF \
+          -D BUILD_opencv_dnn=OFF \
+          -D ENABLE_FAST_MATH=ON \
+          -D CUDA_FAST_MATH=ON \
+          -D WITH_CUBLAS=ON \
+          -D CUDA_ARCH_BIN=8.6 \
+          -D BUILD_opencv_cudaimgproc=ON \
+          -D BUILD_opencv_cudafilters=ON \
+          -D BUILD_opencv_cudaarithm=ON \
+          -D BUILD_opencv_cudawarping=ON \
+          -D OPENCV_GENERATE_PKGCONFIG=ON \
+          -D BUILD_EXAMPLES=OFF \
+          -D BUILD_TESTS=OFF \
+          -D BUILD_PERF_TESTS=OFF \
+          ..
+
+Replace CUDA_ARCH_BIN=8.6 with the value from step 4.
+
+In the cmake output, confirm:
+- C++ Compiler points to /usr/bin/g++-12
+- The CUDA section shows YES
+- The To be built module list includes cudaimgproc and cudafilters
+
+6. Build and install
+
+    $ make -j"$(nproc)"
     $ sudo make install
     $ sudo ldconfig
 

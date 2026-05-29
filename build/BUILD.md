@@ -145,6 +145,11 @@ From the repo root:
 bash build/build.sh
 ```
 
+`build/build.sh` does **not** build `gst-nvdsudp` or `gst-dsexample-cuda`. Compile and install those plugins separately by following their READMEs:
+
+- [`src/gst-plugins/gst-nvdsudp/README`](../src/gst-plugins/gst-nvdsudp/README)
+- [`src/gst-plugins/gst-dsexample-cuda/README`](../src/gst-plugins/gst-dsexample-cuda/README)
+
 Default CUDA version is architecture-dependent (`13.1` for x86_64, `13.0` for aarch64/sbsa/DGX Spark). To override:
 
 ```bash
