@@ -216,8 +216,6 @@ for dir in src/service-maker/sources/modules/*/; do
 done
 rm -rf "$SM_MOD_BUILD"
 
-# run update_rtpmanager.sh
-run_as_root bash /opt/nvidia/deepstream/deepstream/update_rtpmanager.sh
 if [ ${#FAILED_BUILDS[@]} -gt 0 ]; then
   echo ""
   echo "==> Build completed with ${#FAILED_BUILDS[@]} failure(s):"
