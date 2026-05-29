@@ -34,6 +34,7 @@ sudo apt-get install cmake
    sudo apt remove libglapi-amber
    sudo apt install ./deepstream-9.0_9.0.0-1_amd64.deb
    sudo /opt/nvidia/deepstream/deepstream-9.0/install.sh
+   sudo bash /opt/nvidia/deepstream/deepstream/update_rtpmanager.sh
    export LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream-9.0/lib:$LD_LIBRARY_PATH
    ```
    Append the `export` line to `~/.bashrc` to persist it across shells.
@@ -71,6 +72,7 @@ sudo apt-get install cmake
    sudo apt remove libglapi-amber
    sudo apt install ./deepstream-9.0_9.0.0-1_arm64.deb
    sudo /opt/nvidia/deepstream/deepstream-9.0/install.sh
+   sudo bash /opt/nvidia/deepstream/deepstream/update_rtpmanager.sh
    export LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream-9.0/lib:$LD_LIBRARY_PATH
    ```
    Append the `export` line to `~/.bashrc` to persist it across shells.
