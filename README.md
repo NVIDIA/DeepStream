@@ -172,7 +172,7 @@ This project is currently not accepting contributions.
 - Labeling/triage policy: <link>
 
 ## Security
-- Vulnerability disclosure: `SECURITY.md`
+- Vulnerability disclosure: [SECURITY.md](https://github.com/NVIDIA/DeepStream/blob/main/SECURITY.md)
 - Do not file public issues for security reports.
 
 ## Support
