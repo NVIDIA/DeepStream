@@ -167,7 +167,7 @@ Summary of benchmarks; for detailed performance numbers and hardware used, refer
 This project is currently not accepting contributions.
 
 ## Security
-- Vulnerability disclosure: `SECURITY.md`
+- Vulnerability disclosure: [SECURITY.md](https://github.com/NVIDIA/DeepStream/blob/main/SECURITY.md)
 - Do not file public issues for security reports.
 
 ## Support
