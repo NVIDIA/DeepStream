@@ -145,6 +145,43 @@ From the repo root:
 bash build/build.sh
 ```
 
+Each run writes a full transcript to `build/build.log`. Output still appears on the terminal.
+
+Show all options:
+
+```bash
+bash build/build.sh --help
+```
+
+### CLI flags
+
+| Flag | Purpose |
+|---|---|
+| `--skip-deps` | Skip `scripts/install_opensource_deps.sh` (open-source dependency rebuild) |
+| `--only=STAGE[,STAGE]` | Build only named stage(s); see list below |
+| `--verbose` | Show sub-make stderr (no `2>/dev/null` suppression) |
+| `-j N` | Parallel make/cmake jobs (default: `nproc`) |
+
+**Stages** for `--only=`: `gst-utils`, `utils`, `gst-plugins`, `sample_apps`, `tao_apps`, `reference_apps`, `service-maker`
+
+Open-source dependencies [install_opensource_deps.sh](https://github.com/NVIDIA/DeepStream/blob/main/scripts/install_opensource_deps.sh) always run as part of a full build; use `--skip-deps` to skip dependencies. They are not selectable via `--only`.
+
+Examples:
+
+```bash
+# Full build (default)
+bash build/build.sh
+
+# Rebuild only GStreamer plugins after deps are already installed
+bash build/build.sh --only=gst-plugins --skip-deps
+
+# Debug a failing sub-make with full stderr
+bash build/build.sh --only=utils --skip-deps --verbose
+
+# Rebuild service-maker only, 8-way parallel
+bash build/build.sh --only=service-maker --skip-deps -j8
+```
+
 Default CUDA version is architecture-dependent (`13.1` for x86_64, `13.0` for aarch64/sbsa/DGX Spark). To override:
 
 ```bash

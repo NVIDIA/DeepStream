@@ -22,6 +22,7 @@ src/apps/reference_apps/**/*.engine
 src/apps/sample_apps/deepstream-testsr/With_BBox_*.mp4
 src/apps/sample_apps/deepstream-testsr/smart_record.log
 src/**/.build/
+build/build.log
 src/service-maker/sources/**/build/
 
 # Proprietary prebuilt libs (not migrated to NVIDIA/DeepStream)
