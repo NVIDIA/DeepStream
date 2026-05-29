@@ -124,7 +124,7 @@ A sample of pose classification:
 
 A sample of the car license plate recognition:
 
-`./deepstream-lpr-app ../../../configs/app/lpr_app_infer_us_config.yml`
+`./deepstream-lpr-app ../../../configs/app/lpr_app_us_config.yml`
 
 ## Known Issue
 1.For the deepstream-nvocdr-app, if the DeepStream version is lower than 6.4, the TensorRT OSS plugin is needed. Please refer to [NVOCDR_README](./deepstream-nvocdr-app/README.md). To avoid affecting the results of other apps, please replace the TensorRT plugin with the original one after running this app.
