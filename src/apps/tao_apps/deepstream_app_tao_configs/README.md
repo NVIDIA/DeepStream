@@ -88,6 +88,6 @@ $ sudo deepstream-app -c deepstream_app_source1_trafficcamnet_vehiclemakenet_veh
 *******************************************************************************
 ## 4. Related Links
 *******************************************************************************
-deepstream-tao-app : https://github.com/DeepStream/deepstream/-/tree/main/src/apps/tao_apps
+deepstream-tao-app : https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps
 
 TAO Toolkit Guide : https://docs.nvidia.com/tao/tao-toolkit/index.html

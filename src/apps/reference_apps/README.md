@@ -1,6 +1,6 @@
 # Reference Apps using DeepStream 9.0
 
-This repository contains the reference applications for video analytics tasks using TensorRT and DeepSTream SDK 9.0.
+This repository contains the reference applications for video analytics tasks using TensorRT and DeepStream SDK 9.0.
 
 ## Getting Started ##
 We currently provide different DeepStream reference applications:

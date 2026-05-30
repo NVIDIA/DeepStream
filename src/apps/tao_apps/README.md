@@ -53,7 +53,7 @@ uridecoderbin -->streammux-->nvinfer(detection)-->nvosd-->
 
 * [DeepStream SDK 9.0 GA](https://developer.nvidia.com/deepstream-sdk)
 
-   Make sure deepstream-test1 sample can run successful to verify your installation. According to the
+   Make sure deepstream-test1 sample can run successfully to verify your installation. According to the
    [document](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html),
    please run below command to install additional audio video packages.
 

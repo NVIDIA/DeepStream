@@ -69,7 +69,7 @@ cp libnvinfer_plugin.so.8.6.x /usr/lib/aarch64-linux-gnu/libnvinfer_plugin.so.8.
 ```
 
 ## Build And Run
-The application can be build and run seperately.
+The application can be built and run separately.
 
 Prepare OCDNet/OCRNet engine file
 ```bash
