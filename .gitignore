@@ -17,6 +17,9 @@ src/apps/sample_apps/**/*.o
 src/apps/tao_apps/**/*.o
 src/apps/tao_apps/**/*.onnx
 src/apps/tao_apps/**/*.engine
+src/apps/reference_apps/**/*.o
+src/apps/reference_apps/**/*.so
+src/apps/reference_apps/**/*.a
 src/apps/reference_apps/**/*.onnx
 src/apps/reference_apps/**/*.engine
 src/apps/sample_apps/deepstream-testsr/With_BBox_*.mp4

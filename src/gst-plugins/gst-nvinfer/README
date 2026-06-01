@@ -38,6 +38,6 @@ NOTE:
 1. To compile the sources, run make with "sudo" or root permission.
 2. OpenCV has been deprecated by default, so GroupRectangles will not work.
    To use GroupRectangles, enable `WITH_OPENCV=1` in the Makefile of nvdsinfer
-   (/opt/nvidia/deepstream/deepstream/sources/libs/nvdsinfer/Makefile) and
+   (src/utils/nvdsinfer/Makefile, relative to the repository root) and
    follow compilation and installation instructions present in the README
-   (/opt/nvidia/deepstream/deepstream/sources/libs/nvdsinfer/README).
+   (src/utils/nvdsinfer/README, relative to the repository root).

@@ -71,15 +71,17 @@ SGIE2_UNIQUE_ID = 6    # Unique identifier for make/model classification
 Kafka Protocol Configuration:
 ```
 PROTO_LIB_PATH = "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"
-PROTO_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt"
+PROTO_CONFIG_FILE = "src/utils/nvds_msgapi/kafka_protocol_adaptor/cfg_kafka.txt"
 ```
+Above path is relative to the repository root.
 
 Message Broker Configuration:
 ```
-MSGCONV_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+MSGCONV_CONFIG_FILE = "src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
 MSGBROKER_CONN_STR = "localhost;9092"  # Kafka broker connection string
 MGSBROKER_TOPIC = "test5app"           # Kafka topic for message publishing
 ```
+Above path is relative to the repository root.
 
 Smart Recording Configuration:
 ```

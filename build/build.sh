@@ -369,12 +369,29 @@ if begin_stage reference_apps; then
   RA_BIN_STAGE=/tmp/ds-reference-apps-bin
   DS_BIN=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin
   mkdir -p "$RA_BIN_STAGE"
+  # Directories that ship only configs/assets (no Makefile to build).
+  REF_APPS_SKIP=(
+    "deepstream-masktracker"
+    "deepstream-tracker-3d-multi-view"
+    "deepstream-tracker-3d"
+    "deepstream-vllm-plugin"
+    "pyservicemaker_sample_apps"
+  )
   for dir in src/apps/reference_apps/*/; do
-    if [ ! -f "$dir/Makefile" ]; then
-      echo "Skipping $(basename "$dir") (no Makefile; see its README for build steps)"
+    app=$(basename "$dir")
+    skip=0
+    for s in "${REF_APPS_SKIP[@]}"; do
+      if [ "$app" = "$s" ]; then skip=1; break; fi
+    done
+    if [ "$skip" -eq 1 ]; then
+      echo "Skipping $app (config-only, no build required)"
       continue
     fi
-     if run_submake -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE"; then
+    if [ ! -f "$dir/Makefile" ]; then
+      echo "Skipping $app (no Makefile; see its README for build steps)"
+      continue
+    fi
+    if run_submake -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE"; then
       for bin in "$RA_BIN_STAGE"/deepstream-*; do
         [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true
       done

@@ -717,12 +717,14 @@ Features supported with this application are:
   curl -XPOST 'http://localhost:9000/api/v1/analytics/reload-config' -d '{
   "stream":
     {
-      "config_file_path":"/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-server/config_nvdsanalytics.txt"
+      "config_file_path":"src/apps/sample_apps/deepstream-server/config_nvdsanalytics.txt"
     }
   }'
 
+Above path is relative to the repository root.
+
   Assumption: The sample deepstream-server-app uses "config_nvdsanalytics.txt"
-  config file available at "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-server/".
+  config file available at "src/apps/sample_apps/deepstream-server/ (relative to the repository root)".
   Hence, in the sample REST request same path and config file name is used.
   User should ensure to reload the same config file which has been used to run
   with the sample application.

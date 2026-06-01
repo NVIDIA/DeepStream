@@ -72,39 +72,63 @@ PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in 
 
 $ ./deepstream-test5-app -s source-lists -c config-files [-l label-file] [--perf-measurement-interval-sec] [--hide-stream-name]
 
+Run from the build directory (see section 3). Config paths below are relative to
+that directory. Use *_x86.yaml pipeline configs on x86_64 and *_tegra.yaml on aarch64.
+
 Use nvurisrcbin for static input:
 
-$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_static.yaml
+x86:
+$ ./deepstream-test5-app -c ../test5_b2_x86.yaml -s ../source_list_static.yaml
+
+aarch64:
+$ ./deepstream-test5-app -c ../test5_b2_tegra.yaml -s ../source_list_static.yaml
 
 Use nvmultiurisrcbin for dynamic input:
 
-$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_dynamic.yaml
+x86:
+$ ./deepstream-test5-app -c ../test5_b16_dynamic_source_x86.yaml -s ../source_list_dynamic.yaml
 
-Use camerabin for V4L2/CSI camera source
-$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/camera_list.yaml
+aarch64:
+$ ./deepstream-test5-app -c ../test5_b16_dynamic_source_tegra.yaml -s ../source_list_dynamic.yaml
+
+Use camerabin for V4L2/CSI camera source:
+
+x86:
+$ ./deepstream-test5-app -c ../test5_b2_x86.yaml -s ../camera_list.yaml
+
+aarch64:
+$ ./deepstream-test5-app -c ../test5_b2_tegra.yaml -s ../camera_list.yaml
 
 Multiple pipelines are supported with multiple pipeline config files and source lists separated by ','
 
-$ ./deepstream-test5-app -s ../source_list_dynamic.yaml,../source_list_static.yaml -c ../test5_b16_dynamic_source.yaml,../test5_b2.yaml
+x86:
+$ ./deepstream-test5-app -s ../source_list_dynamic.yaml,../source_list_static.yaml -c ../test5_b16_dynamic_source_x86.yaml,../test5_b2_x86.yaml
 
-Enable/Disable the element within the pipeline
+aarch64:
+$ ./deepstream-test5-app -s ../source_list_dynamic.yaml,../source_list_static.yaml -c ../test5_b16_dynamic_source_tegra.yaml,../test5_b2_tegra.yaml
 
-$ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source_with_enable_property.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/source_list_dynamic.yaml
+Enable/Disable the element within the pipeline:
+
+x86:
+$ ./deepstream-test5-app -c ../test5_b16_dynamic_source_with_enable_property_x86.yaml -s ../source_list_dynamic.yaml
+
+aarch64:
+$ ./deepstream-test5-app -c ../test5_b16_dynamic_source_with_enable_property_tegra.yaml -s ../source_list_dynamic.yaml
 
 ===============================================================================
 5. Option [-l] 
 ===============================================================================
   5.1 This is an optional argument used to set label file for primary inference engine.
-  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml -l labels.txt
+  $ ./deepstream-test5-app -c ../test5_b16_dynamic_source_x86.yaml -s ../source_list_dynamic.yaml -l labels.txt
 
 ===============================================================================
 6. Option [--perf-measurement-interval-sec][Default: 1]
 ===============================================================================
   6.1 This is an optional argument used to set the interval between perf logs.
-  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml --perf-measurement-interval-sec 5
+  $ ./deepstream-test5-app -c ../test5_b16_dynamic_source_x86.yaml -s ../source_list_dynamic.yaml --perf-measurement-interval-sec 5
 
 ===============================================================================
 7. Option [--hide-stream-name][Default: false]
 ===============================================================================
   7.1 This argument is used to hide stream name in the perf logs
-  $ ./deepstream-test5-app -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/cpp/deepstream_test5_app/test5_b16_dynamic_source.yaml -s source_list_dynamic.yaml --hide-stream-name
+  $ ./deepstream-test5-app -c ../test5_b16_dynamic_source_x86.yaml -s ../source_list_dynamic.yaml --hide-stream-name

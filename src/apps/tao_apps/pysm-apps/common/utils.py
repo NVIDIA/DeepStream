@@ -156,7 +156,10 @@ class Config:
                         return self._config[sgie_key].get("bitrate")  or 2000000
                     case _ if "msg_conv_config" in name:
                         return self._config[sgie_key].get("msg-conv-config")  or \
-                        "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+                        os.path.abspath(os.path.join(
+                            os.path.dirname(__file__),
+                            "../../../sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt",
+                        ))
                     case _ if "msg_broker_proto_lib" in name:
                         return self._config[sgie_key].get("msg-broker-proto-lib")  or \
                         "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"

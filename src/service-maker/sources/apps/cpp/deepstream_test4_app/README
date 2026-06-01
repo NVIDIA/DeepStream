@@ -37,14 +37,14 @@ Dependencies
  Azure Iot:
  ----------
     Refer to the README files available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    src/utils/nvds_msgapi/azure_protocol_adaptor
     for detailed documentation on prerequisites and usages of Azure protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
  Kafka:
  ------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    src/utils/nvds_msgapi/kafka_protocol_adaptor
     for detailed documentation on prerequisites and usages of kafka protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
@@ -53,17 +53,18 @@ Dependencies
     Install rabbitmq-c library
     --------------------------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    src/utils/nvds_msgapi/amqp_protocol_adaptor
     for detailed documentation on prerequisites and usages of rabbitmq based
     amqp protocol adaptor with the message broker plugin for sending messages to cloud.
 
  Redis:
  ------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    src/utils/nvds_msgapi/redis_protocol_adaptor
     for detailed documentation on prerequisites and usages of redis protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
+ Above paths are relative to the repository root.
 ===============================================================================
 2. Purpose:
 ===============================================================================
