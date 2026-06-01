@@ -28,6 +28,7 @@ INCS:= $(wildcard *.h)
 LIB:=libnvds_sei_serialization.so
 
 NVDS_VERSION?=9.0
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
 CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
@@ -36,7 +37,9 @@ CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
-
+ifeq ($(TARGET_DEVICE),aarch64)
+        LIBS := -L/usr/lib/aarch64-linux-gnu/tegra
+endif
 
 LIBS += -shared -Wl,-no-undefined \
 	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -ldl -lpthread \
