@@ -151,7 +151,7 @@ int main(int argc, char** argv){
             nchwMats = yolo.preProcess4Validate(bgr_imgs);
         }
         else{
-            std::err << "the resolution must be 672 or 640, but got  :"<< resolution <<std::endl;
+            std::cerr << "the resolution must be 672 or 640, but got  :"<< resolution <<std::endl;
         }
         
         nchwMats = yolo.preProcess(bgr_imgs);

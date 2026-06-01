@@ -34,7 +34,7 @@ The application pipeline graph
 ![MDX perception application pipeline](mdx_perception_pipeline.png)
 
 ## Build And Run
-The application can be build and run seperately. Download the pre-trained models if haven't.
+The application can be built and run separately. Download the pre-trained models if you haven't.
 ```
 export DS_TAO_APPS_HOME=<path to tao_apps>
 cd $DS_TAO_APPS_HOME

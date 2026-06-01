@@ -30,7 +30,16 @@ Install gstreamer developement packages using:
    sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
 
 Rivermax SDK:
-   Follow the instructions at https://developer.nvidia.com/networking/rivermax-getting-started to install the Rivermax SDK.
+   1. Go to https://developer.nvidia.com/networking/rivermax-getting-started and
+      log in or sign up for an NVIDIA Developer account.
+   2. Download the Rivermax SDK installation package for your Ubuntu version.
+      For example, on Ubuntu 24.04:
+         https://developer.nvidia.com/downloads/networking/secure/Rivermax-Linux-SDK/Installation-Package/Version-1.80.x/rivermax_ubuntu2404_1.80.24.tar.gz
+   3. Extract the downloaded tarball:
+         tar -xvf rivermax_ubuntu2404_<rivermax version>.tar.gz
+   4. Install the Rivermax SDK .deb package from the extracted directory:
+         cd <rivermax version>/Ubuntu.24.04/deb-dist/x86_64/
+         sudo dpkg -i rivermax_<rivermax version>_amd64.deb
 
 --------------------------------------------------------------------------------
 Compiling and installing the plugin:

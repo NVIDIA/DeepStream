@@ -99,11 +99,7 @@ Start to run the car license plate recognition sample application
     ##For Chinese car plate recognition
     cp dict_ch.txt dict.txt
     ##Run the sample app
-    ./deepstream-lpr-app/deepstream-lpr-app <1:US car plate model|2: Chinese car plate model> \
-         <1: output as mp4 file| 2:fakesink| 3:display output> <0:ROI disable|1:ROI enable> <infer|triton|tritongrpc> \
-         <input mp4 file name> ... <input mp4 file name> <output file name>
-    ##OR
-    ./deepstream-lpr-app/deepstream-lpr-app <app YAML config file>
+    ./deepstream-lpr-app <app YAML config file>
 ```
 
 Start to run the custom preprocessing sample application
@@ -128,10 +124,7 @@ A sample of pose classification:
 
 A sample of the car license plate recognition:
 
-`./deepstream-lpr-app/deepstream-lpr-app 1 1 1 infer /opt/nvidia/deepstream/deepstream/samples/streams/sample_qHD.mp4 out.mp4`
-
-or
-`./deepstream-lpr-app/deepstream-lpr-app ../../../configs/app/lpr_app_infer_us_config.yml`
+`./deepstream-lpr-app ../../../configs/app/lpr_app_us_config.yml`
 
 ## Known Issue
 1.For the deepstream-nvocdr-app, if the DeepStream version is lower than 6.4, the TensorRT OSS plugin is needed. Please refer to [NVOCDR_README](./deepstream-nvocdr-app/README.md). To avoid affecting the results of other apps, please replace the TensorRT plugin with the original one after running this app.

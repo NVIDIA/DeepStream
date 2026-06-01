@@ -166,22 +166,21 @@ Summary of benchmarks; for detailed performance numbers and hardware used, refer
 # Contribution Guidelines
 This project is currently not accepting contributions.
 
-## Governance & Maintainers
-- Governance: `GOVERNANCE.md`
-- Maintainers: <team/handles>
-- Labeling/triage policy: <link>
-
 ## Security
 - Vulnerability disclosure: [SECURITY.md](https://github.com/NVIDIA/DeepStream/blob/main/SECURITY.md)
 - Do not file public issues for security reports.
 
 ## Support
-- Level: <Experimental | Maintained | Stable>
-- How to get help: Issues/Discussions/<channel link>
-- Response expectations (if any).
+- Level: Maintained
+- How to get help: [Issues](https://github.com/NVIDIA/DeepStream/issues) / [Discussions](https://github.com/NVIDIA/DeepStream/discussions) / [DeepStream SDK Developer Forum](https://forums.developer.nvidia.com/c/accelerated-computing/intelligent-video-analytics/deepstream-sdk/15)
 
 # Community
-Provide the channel for community communications.
+
+Join the DeepStream community to ask questions, share feedback, and report issues.
+
+- [GitHub Issues](https://github.com/NVIDIA/DeepStream/issues)
+- [GitHub Discussions](https://github.com/NVIDIA/DeepStream/discussions)
+- [DeepStream SDK Developer Forum](https://forums.developer.nvidia.com/c/accelerated-computing/intelligent-video-analytics/deepstream-sdk/15)
 
 # References
 
