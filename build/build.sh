@@ -179,7 +179,24 @@ run_as_root make -C src/apps/tao_apps $MK 2>/dev/null || FAILED_BUILDS+=("src/ap
 # Reference apps (no top-level Makefile — build each individually)
 RA_BIN_STAGE=/tmp/ds-reference-apps-bin
 mkdir -p "$RA_BIN_STAGE"
+# Directories that ship only configs/assets (no Makefile to build).
+REF_APPS_SKIP=(
+  "deepstream-masktracker"
+  "deepstream-tracker-3d-multi-view"
+  "deepstream-tracker-3d"
+  "deepstream-vllm-plugin"
+  "pyservicemaker_sample_apps"
+)
 for dir in src/apps/reference_apps/*/; do
+  app=$(basename "$dir")
+  skip=0
+  for s in "${REF_APPS_SKIP[@]}"; do
+    if [ "$app" = "$s" ]; then skip=1; break; fi
+  done
+  if [ "$skip" -eq 1 ]; then
+    echo "Skipping $app (config-only, no build required)"
+    continue
+  fi
   if make -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE" 2>/dev/null; then
     for bin in "$RA_BIN_STAGE"/deepstream-*; do
       [ -f "$bin" ] && [ -x "$bin" ] && run_as_root cp -v "$bin" "$DS_BIN/" || true

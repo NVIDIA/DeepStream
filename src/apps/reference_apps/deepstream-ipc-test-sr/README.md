@@ -6,7 +6,7 @@ The client pipeline looks like "......-> nvstreammux -> pgie ->nvvideoconvert ->
 
 ## Prerequisites
 
-Please follow instructions in the /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-app/README on how
+Please follow instructions in the src/apps/sample_apps/deepstream-app/README on how
 to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself, and the apps.
 
 You must have the following development packages installed

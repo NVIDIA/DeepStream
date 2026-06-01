@@ -29,7 +29,7 @@ Run the sample with four video files and dislay on the screen
 ./deepstream-custom-tile-config -i file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
                                    file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
                                    file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
-                                   file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
+                                   file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4
 ```
 
 ## Known Issue

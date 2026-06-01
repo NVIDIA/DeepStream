@@ -137,6 +137,7 @@ find "$BUILD_ROOT/prom-install/lib" -name "libprometheus-cpp-core.so*" -exec cp 
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- azure-iot-sdk-c v1.11.0 ---"
+apt-get install uuid-dev
 AZURE_DIR=$BUILD_ROOT/azure-iot-sdk-c
 git clone https://github.com/Azure/azure-iot-sdk-c.git "$AZURE_DIR"
 git -C "$AZURE_DIR" checkout tags/1.11.0

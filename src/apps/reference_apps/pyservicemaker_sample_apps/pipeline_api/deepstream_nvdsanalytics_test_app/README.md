@@ -2,7 +2,7 @@
 
 This document describes the sample deepstream_nvdsanalytics_test application.
 
-This sample builds on top of the service-maker deepstream_test1 sample at at `/opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test1_app` to demonstrate how to:
+This sample builds on top of the service-maker deepstream_test1 sample at at `service-maker/sources/apps/python/pipeline_api/deepstream_test1_app` to demonstrate how to:
 
 * Use multiple sources in the pipeline.
 * Use a uridecodebin so that any type of input (e.g. RTSP/File), any GStreamer
