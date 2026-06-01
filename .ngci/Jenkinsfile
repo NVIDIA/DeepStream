@@ -2,25 +2,27 @@ pipeline {
     agent { label 'vss-x86' }
 
     options {
-        // The default declarative checkout pulls Git LFS objects via a separate
-        // `ssh git@github.com` batch request that does NOT inherit Jenkins' SSH
-        // credential, so it fails with "Permission denied (publickey)" and aborts
-        // the checkout. Skip the implicit checkout and re-run it below with LFS
-        // smudge disabled -- a Sonar scan analyzes source, not the LFS media blobs.
+        // Skip the implicit declarative checkout so the checkout below (which we
+        // wrap in sshagent) is the only one that runs. The implicit checkout cannot
+        // be wrapped, and git-lfs there fails to authenticate (see Checkout stage).
         skipDefaultCheckout(true)
     }
 
     environment {
         SCANNER_HOME = tool 'DeepStream_SonarScanner'
-        GIT_LFS_SKIP_SMUDGE = '1'
     }
 
     stages {
         stage('Checkout main') {
             steps {
-                // Reuse the job's configured SCM (correct SSH credential + branch);
-                // GIT_LFS_SKIP_SMUDGE above keeps the checkout from fetching LFS objects.
-                checkout scm
+                // git-lfs resolves LFS objects through its own `ssh git@github.com`
+                // batch request, which does NOT inherit the git plugin's GIT_SSH
+                // credential and fails with "Permission denied (publickey)", aborting
+                // the checkout. sshagent loads the job's SSH key into the ssh-agent so
+                // that git-lfs's ssh call authenticates and the LFS smudge succeeds.
+                sshagent(credentials: ['ankitat']) {
+                    checkout scm
+                }
             }
         }
 
