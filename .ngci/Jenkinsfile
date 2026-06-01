@@ -1,0 +1,34 @@
+pipeline {
+    agent { label 'vss-x86' }
+
+    environment {
+        SCANNER_HOME = tool 'DeepStream_SonarScanner'
+    }
+
+    stages {
+        stage('Checkout main') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/NVIDIA/DeepStream.git'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('DeepStream_SonarQube') {
+                    sh """
+                        ${SCANNER_HOME}/bin/sonar-scanner
+                    """
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false
+                }
+            }
+        }
+    }
+}
