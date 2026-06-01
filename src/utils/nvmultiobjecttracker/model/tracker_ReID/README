@@ -46,17 +46,14 @@ The `config_tracker_MaskTracker.yml` configuration enables high-accuracy multi-o
 
 1. **Prepare Model Files**
    ```bash
-   mkdir -p ../../samples/models/Tracker/
-   git clone https://github.com/NVIDIA-AI-IOT/sam2-onnx-tensorrt.git
-   cd sam2-onnx-tensorrt
+   mkdir -p /opt/nvidia/deepstream/deepstream/samples/models/Tracker
+   cd ../../../../../tools/sam2-onnx-tensorrt
    python3 -m venv sam2_env
    source sam2_env/bin/activate
    bash run.sh
    ```
 
-   Visit [SAM2 ONNX TensorRT Conversion](https://github.com/NVIDIA-AI-IOT/sam2-onnx-tensorrt) to convert SAM2 models to ONNX.
-
-   Place the following four ONNX files in the `Tracker` directory:
+   The following four ONNX files will be generated in the `Tracker` directory:
    - `image_encoder.onnx`
    - `mask_decoder.onnx`
    - `memory_attention.onnx`
@@ -93,8 +90,8 @@ The `config_tracker_NvDCF_accuracy.yml` and `config_tracker_NvDeepSORT.yml` conf
 
 1. **Prepare Model Files**
    ```bash
-   mkdir -p ../../samples/models/Tracker/
-   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/reidentificationnet/versions/deployable_v1.0/files/resnet50_market1501.etlt' -P ../../samples/models/Tracker/
+   mkdir -p /opt/nvidia/deepstream/deepstream/samples/models/Tracker
+   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/reidentificationnet/versions/deployable_v1.0/files/resnet50_market1501.etlt' -P /opt/nvidia/deepstream/deepstream/samples/models/Tracker
    ```
 
 2. **Configure DeepStream App**
@@ -132,7 +129,7 @@ onnxFile: "change-to-model-name.onnx"
 
 ## Pose Estimation
 
-For 3D tracking examples, refer to the [DeepStream Reference Apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps). Currently, only NVIDIA TAO BodyPose3DNet is supported.
+For 3D tracking examples, refer to the `../../../../apps/reference_apps/deepstream-tracker-3d`. Currently, only NVIDIA TAO BodyPose3DNet is supported.
 
 ### Model Source
 - **Model**: NVIDIA TAO BodyPose3DNet
@@ -142,13 +139,13 @@ For 3D tracking examples, refer to the [DeepStream Reference Apps](https://githu
 
 1. **Prepare Model Files**
    ```bash
-   mkdir -p ../../samples/models/Tracker/
-   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/bodypose3dnet/versions/deployable_accuracy_v1.0/files/bodypose3dnet_accuracy.etlt' -P ../../samples/models/Tracker/
+   mkdir -p /opt/nvidia/deepstream/deepstream/samples/models/Tracker
+   wget 'https://api.ngc.nvidia.com/v2/models/nvidia/tao/bodypose3dnet/versions/deployable_accuracy_v1.0/files/bodypose3dnet_accuracy.etlt' -P /opt/nvidia/deepstream/deepstream/samples/models/Tracker
    ```
 
 2. **Configure and Run DeepStream App**
 
-   Visit [DeepStream Reference Apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps) for how to setup and use single and multi-view 3D tracking.
+   Visit `../../../../apps/reference_apps` for how to setup and use single and multi-view 3D tracking.
 
 ## Additional Resources
 
