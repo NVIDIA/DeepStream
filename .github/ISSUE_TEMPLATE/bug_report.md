@@ -18,7 +18,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment details (please complete the following information):**
  - Environment location: [Bare-metal, Docker, Cloud(specify cloud provider)]
- - Method of DeepStream install: [conda, Docker, pip, or from source]
+ - Method of DeepStream install: [Debian package, Docker, tarball, or from source]
    - If method of install is [Docker], provide `docker pull` & `docker run` commands used
  - Run `scripts/print_env.sh` from the project root and paste the results here
  
@@ -27,4 +27,4 @@ A clear and concise description of what you expected to happen.
 Add any other context about the problem here.
 
 -----
-By submitting this issue, you agree to follow our [code of conduct](https://docs.rapids.ai/resources/conduct/) and our [contributing guidelines](https://github.com/jarmak-nv/rapids-repo-template/blob/main/CONTRIBUTING.md).
+By submitting this issue, you agree to follow our [code of conduct](https://github.com/NVIDIA/DeepStream/blob/main/CODE_OF_CONDUCT.md) and our [contribution guidelines](https://github.com/NVIDIA/DeepStream#contribution-guidelines).
