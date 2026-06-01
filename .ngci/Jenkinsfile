@@ -1,15 +1,26 @@
 pipeline {
     agent { label 'vss-x86' }
 
+    options {
+        // The default declarative checkout pulls Git LFS objects via a separate
+        // `ssh git@github.com` batch request that does NOT inherit Jenkins' SSH
+        // credential, so it fails with "Permission denied (publickey)" and aborts
+        // the checkout. Skip the implicit checkout and re-run it below with LFS
+        // smudge disabled -- a Sonar scan analyzes source, not the LFS media blobs.
+        skipDefaultCheckout(true)
+    }
+
     environment {
         SCANNER_HOME = tool 'DeepStream_SonarScanner'
+        GIT_LFS_SKIP_SMUDGE = '1'
     }
 
     stages {
         stage('Checkout main') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/NVIDIA/DeepStream.git'
+                // Reuse the job's configured SCM (correct SSH credential + branch);
+                // GIT_LFS_SKIP_SMUDGE above keeps the checkout from fetching LFS objects.
+                checkout scm
             }
         }
 
