@@ -159,12 +159,13 @@ example:
 
 Before running the sample applications, enable logs by running the logger setup script:
 For x86,
- chmod u+x ~/deepstream_x86_public/sources/tools/nvds_logger/setup_nvds_logger.sh
- sudo ~/deepstream_x86_public/sources/tools/nvds_logger/setup_nvds_logger.sh
+ chmod u+x src/utils/nvds_logger/setup_nvds_logger.sh
+ sudo src/utils/nvds_logger/setup_nvds_logger.sh
 On Jetson,
- chmod u+x ~/deepstream_sdk_on_jetson/sources/tools/nvds_logger/setup_nvds_logger.sh
- sudo ~/deepstream_sdk_on_jetson/sources/tools/nvds_logger/setup_nvds_logger.sh
+ chmod u+x src/utils/nvds_logger/setup_nvds_logger.sh
+ sudo src/utils/nvds_logger/setup_nvds_logger.sh
 
+Above paths are relative to the repository root.
 Note that for complete set of logs, set the logger level to 7 (DEBUG), as described in the logger README.
 
 To run test program:

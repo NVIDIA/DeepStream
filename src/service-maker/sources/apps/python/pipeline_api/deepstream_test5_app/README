@@ -59,40 +59,63 @@ PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in 
 
 $ python3 deepstream_test5.py -s source-lists -c config-files [-l label-file] [--perf-measurement-interval-sec] [--hide-stream-name]
 
+Run from this app directory. Config paths below are relative to that directory.
+Use *_x86.yaml pipeline configs on x86_64 and *_tegra.yaml on aarch64.
+
 Use nvurisrcbin for static input:
 
-$ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_static.yaml
+x86:
+$ python3 deepstream_test5.py -c test5_b2_x86.yaml -s source_list_static.yaml
+
+aarch64:
+$ python3 deepstream_test5.py -c test5_b2_tegra.yaml -s source_list_static.yaml
 
 Use nvmultiurisrcbin for dynamic input:
 
-$ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml
+x86:
+$ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml
+
+aarch64:
+$ python3 deepstream_test5.py -c test5_b16_dynamic_source_tegra.yaml -s source_list_dynamic.yaml
 
 Use camerabin for V4L2/CSI camera source:
 
-$ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b2.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/camera_list.yaml
+x86:
+$ python3 deepstream_test5.py -c test5_b2_x86.yaml -s camera_list.yaml
+
+aarch64:
+$ python3 deepstream_test5.py -c test5_b2_tegra.yaml -s camera_list.yaml
 
 Multiple pipelines are supported with multiple pipeline config files and source lists separated by ' ':
 
-$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source.yaml test5_b2.yaml
+x86:
+$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source_x86.yaml test5_b2_x86.yaml
 
-Enable/Disable the element within the pipeline
+aarch64:
+$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source_tegra.yaml test5_b2_tegra.yaml
 
-$ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_with_enable_property.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml
+Enable/Disable the element within the pipeline:
+
+x86:
+$ python3 deepstream_test5.py -c test5_b16_dynamic_source_with_enable_property_x86.yaml -s source_list_dynamic.yaml
+
+aarch64:
+$ python3 deepstream_test5.py -c test5_b16_dynamic_source_with_enable_property_tegra.yaml -s source_list_dynamic.yaml
 
 ===============================================================================
 4. Option [-l]
 ===============================================================================
   4.1 This is an optional argument used to set label file for primary inference engine.
-  $ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml -l labels.txt
+  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml -l labels.txt
 
 ===============================================================================
 5. Option [--perf-measurement-interval-sec][Default: 1]
 ===============================================================================
   5.1 This is an optional argument used to set the interval between perf logs.
-  $ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml --perf-measurement-interval-sec 5
+  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml --perf-measurement-interval-sec 5
 
 ===============================================================================
 6. Option [--hide-stream-name][Default: false]
 ===============================================================================
   6.1 This argument is used to hide stream name in the perf logs
-  $ python3 deepstream_test5.py -c /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source.yaml -s /opt/nvidia/deepstream/deepstream/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml --hide-stream-name
+  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml --hide-stream-name
