@@ -167,22 +167,22 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 
 Test 1:
    Server Setup:
-   $ ./deepstream-ucx-test-app -t 1 -s <IP> <PORT> <HEIGHT> <WIDTH> \
+   $ deepstream-ucx-test-app -t 1 -s <IP> <PORT> <HEIGHT> <WIDTH> \
    <VIDEO_URI>
 
    Client Setup:
    After starting the server, initiate the client application.
-   $ ./deepstream-ucx-test-app -t 1 -c <SERVER_IP> <SERVER_PORT> <HEIGHT> \
+   $ deepstream-ucx-test-app -t 1 -c <SERVER_IP> <SERVER_PORT> <HEIGHT> \
    <WIDTH> <SAVE_PATH>
 
    Example:
    Server:
-   $ ./deepstream-ucx-test-app -t 1 -s 192.168.100.1 4000 1920 1080 \
+   $ deepstream-ucx-test-app -t 1 -s 192.168.100.1 4000 1920 1080 \
    file:////opt/nvidia/deepstream/deepstream/samples/streams/\
    sample_1080p_h264.mp4
 
    Client:
-   $ ./deepstream-ucx-test-app -t 1 -c 192.168.100.1 4000 1920 1080 \
+   $ deepstream-ucx-test-app -t 1 -c 192.168.100.1 4000 1920 1080 \
    output.mp4
 
 Test 2:
@@ -199,27 +199,27 @@ Test 2:
 
 
    Server Setup:
-   $ ./deepstream-ucx-test-app -t 2 -s <IP> <PORT> <HEIGHT> <WIDTH> \
+   $ deepstream-ucx-test-app -t 2 -s <IP> <PORT> <HEIGHT> <WIDTH> \
    <METADATA_LIB_PATH> <OUTPUT_PATH>
 
    Client Setup:
    After initiating the server, launch the client application.
-   $ ./deepstream-ucx-test-app -t 2 -c <SERVER_IP> <SERVER_PORT> \
+   $ deepstream-ucx-test-app -t 2 -c <SERVER_IP> <SERVER_PORT> \
    <NVINFER_CONFIG_PATH> <METADATA_LIB_PATH> <VIDEO_PATH>
 
    Use option "-i" and provide inferserver config file to select nvinferserver
    as the inference plugin:
-   $ ./deepstream-ucx-test-app -t 2 -c -i <SERVER_IP> <SERVER_PORT> \
+   $ deepstream-ucx-test-app -t 2 -c -i <SERVER_IP> <SERVER_PORT> \
    <INFERSERVER_CONFIG_PATH> <METADATA_LIB_PATH> <VIDEO_PATH>
 
    Example:
    Server:
-   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 2 -s 192.168.100.1\
+   $ USE_NEW_NVSTREAMMUX=yes deepstream-ucx-test-app -t 2 -s 192.168.100.1\
    4000 1920 1080 /opt/nvidia/deepstream/deepstream/lib/\
    libnvds_video_metadata_serialization.so output.mp4
 
    Client:
-   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 2 -c 192.168.100.1\
+   $ USE_NEW_NVSTREAMMUX=yes deepstream-ucx-test-app -t 2 -c 192.168.100.1\
    4000 /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/\
    config_infer_primary.txt /opt/nvidia/deepstream/deepstream/lib/\
    libnvds_video_metadata_serialization.so /opt/nvidia/deepstream/deepstream\
@@ -240,23 +240,23 @@ Test 3:
    $ export USE_NEW_NVSTREAMMUX=yes
 
    Server Setup:
-   $ ./deepstream-ucx-test-app -t 3 -s <IP> <PORT> \
+   $ deepstream-ucx-test-app -t 3 -s <IP> <PORT> \
    <AUDIO_METADATA_LIB_PATH> <INPUT_FILE_PATH>
 
    Client Setup:
    After starting the server, run the client application.
-   $ ./deepstream-ucx-test-app -t 3 -c <SERVER_IP> <SERVER_PORT> \
+   $ deepstream-ucx-test-app -t 3 -c <SERVER_IP> <SERVER_PORT> \
    <AUDIO_METADATA_LIB_PATH> <OUTPUT_AUDIO_PATH>
 
    Example:
    Server:
-   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 3 -s 192.168.100.1\
+   $ USE_NEW_NVSTREAMMUX=yes deepstream-ucx-test-app -t 3 -s 192.168.100.1\
    4000 /opt/nvidia/deepstream/deepstream/lib/\
    libnvds_audio_metadata_serialization.so \
    file:////opt/nvidia/deepstream/deepstream/samples/streams/\
    sonyc_mixed_audio.wav
 
    Client:
-   $ USE_NEW_NVSTREAMMUX=yes ./deepstream-ucx-test-app -t 3 -c 192.168.100.1\
+   $ USE_NEW_NVSTREAMMUX=yes deepstream-ucx-test-app -t 3 -c 192.168.100.1\
    4000 /opt/nvidia/deepstream/deepstream/lib/\
    libnvds_audio_metadata_serialization.so out.wav
