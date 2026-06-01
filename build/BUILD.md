@@ -145,6 +145,11 @@ From the repo root:
 bash build/build.sh
 ```
 
+> **Note:** `build/build.sh` does **not** build `gst-nvdsudp` or `gst-dsexample-cuda`. Compile and install those plugins separately by following their READMEs:
+>
+> - [`src/gst-plugins/gst-nvdsudp/README`](../src/gst-plugins/gst-nvdsudp/README)
+> - [`src/gst-plugins/gst-dsexample-cuda/README`](../src/gst-plugins/gst-dsexample-cuda/README)
+
 Each run writes a full transcript to `build/build.log`. Output still appears on the terminal.
 
 Show all options:
@@ -181,10 +186,6 @@ bash build/build.sh --only=utils --skip-deps --verbose
 # Rebuild service-maker only, 8-way parallel
 bash build/build.sh --only=service-maker --skip-deps -j8
 ```
-`build/build.sh` does **not** build `gst-nvdsudp` or `gst-dsexample-cuda`. Compile and install those plugins separately by following their READMEs:
-
-- [`src/gst-plugins/gst-nvdsudp/README`](../src/gst-plugins/gst-nvdsudp/README)
-- [`src/gst-plugins/gst-dsexample-cuda/README`](../src/gst-plugins/gst-dsexample-cuda/README)
 
 Default CUDA version is architecture-dependent (`13.1` for x86_64, `13.0` for aarch64/sbsa/DGX Spark). To override:
 

@@ -291,6 +291,11 @@ fi
 # ---------------------------------------------------------------------------
 if begin_stage gst-plugins; then
   for dir in src/gst-plugins/*/; do
+    plugin=$(basename "$dir")
+    if [[ "$plugin" == "gst-nvdsudp" || "$plugin" == "gst-dsexample-cuda" ]]; then
+      echo "Skipping $plugin (see its README for build steps)"
+      continue
+    fi
     run_submake -C "$dir" $MK || FAILED_BUILDS+=("$dir")
   done
 fi
