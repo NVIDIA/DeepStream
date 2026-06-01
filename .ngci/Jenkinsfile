@@ -2,9 +2,8 @@ pipeline {
     agent { label 'vss-x86' }
 
     options {
-        // Skip the implicit declarative checkout so the checkout below (which we
-        // wrap in sshagent) is the only one that runs. The implicit checkout cannot
-        // be wrapped, and git-lfs there fails to authenticate (see Checkout stage).
+        // Do the checkout manually below (the implicit declarative checkout can't be
+        // given a working git-lfs SSH credential, see Checkout stage).
         skipDefaultCheckout(true)
     }
 
@@ -15,13 +14,30 @@ pipeline {
     stages {
         stage('Checkout main') {
             steps {
-                // git-lfs resolves LFS objects through its own `ssh git@github.com`
-                // batch request, which does NOT inherit the git plugin's GIT_SSH
-                // credential and fails with "Permission denied (publickey)", aborting
-                // the checkout. sshagent loads the job's SSH key into the ssh-agent so
-                // that git-lfs's ssh call authenticates and the LFS smudge succeeds.
-                sshagent(credentials: ['ankitat']) {
-                    checkout scm
+                // The git-client plugin's checkout fails at git-lfs smudge: git-lfs
+                // resolves objects via its own `ssh git@github.com` batch request that
+                // does NOT inherit the plugin's GIT_SSH credential ("Permission denied
+                // (publickey)"). The sshagent step isn't installed on this controller,
+                // and pipeline env vars don't reach the plugin's git subprocess, so do
+                // the checkout directly in sh: bind the SSH key to a file and point
+                // GIT_SSH_COMMAND at it. Both git fetch and git-lfs's ssh then use the
+                // key, so LFS downloads and the checkout succeeds.
+                withCredentials([sshUserPrivateKey(credentialsId: 'ankitat', keyFileVariable: 'SSH_KEY')]) {
+                    sh '''
+                        set -eu
+                        export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
+                        if [ ! -d .git ]; then
+                            git init -q
+                        fi
+                        if git remote | grep -qx origin; then
+                            git remote set-url origin git@github.com:NVIDIA/DeepStream.git
+                        else
+                            git remote add origin git@github.com:NVIDIA/DeepStream.git
+                        fi
+                        git fetch --force --prune origin +refs/heads/main:refs/remotes/origin/main
+                        git checkout -f -B main origin/main
+                        git reset --hard origin/main
+                    '''
                 }
             }
         }
