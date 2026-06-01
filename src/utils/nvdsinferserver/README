@@ -33,7 +33,7 @@ TRITON_GRPC_CLIENT ?= /opt/tritonclient
 HALF_PRECISION_LIB ?= /opt/half
 
 For installing the Triton gRPC client library and the protobuf compiler please
-check the steps in /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvinferserver/README 
+check the steps in src/gst-plugins/gst-nvinferserver/README (relative to the repository root).
 
 Installing Half v2.1.0:
 mkdir /opt/half

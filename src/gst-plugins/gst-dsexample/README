@@ -42,7 +42,7 @@ NOTE:
 of buffers. Refer to the Makefile for using optimized sample.
 3. OpenCV has been deprecated by default, so blur-objects will not work.
    To enable OpenCV in dsexample, set `WITH_OPENCV=1` in the plugin Makefile
-   (/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-dsexample/Makefile)
+   (src/gst-plugins/gst-dsexample/Makefile, relative to the repository root)
    and follow compilation and installation instructions present in this README.
 
 --------------------------------------------------------------------------------

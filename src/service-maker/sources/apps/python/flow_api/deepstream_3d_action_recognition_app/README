@@ -44,7 +44,7 @@ These Models support following classes :
   push;fall_floor;walk;run;ride_bike
 
 For More Info:
-    Check /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/README
+    Check src/apps/sample_apps/deepstream-3d-action-recognition/README (Relative to the repository root)
 
 ===============================================================================
 2. Purpose:

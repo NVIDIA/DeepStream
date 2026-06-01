@@ -44,7 +44,7 @@ These Models support following classes :
   push;fall_floor;walk;run;ride_bike
 
 For More Info:
-    Check /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/README
+    Check src/apps/sample_apps/deepstream-3d-action-recognition/README (Relative to the repository root)
 
 
 ===============================================================================
@@ -80,7 +80,7 @@ input and the 2D model has NSHW shapes.
 For more custom 3D preprocessing details, see source files in /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/custom_sequence_preprocess.
 
 For More Info:
-    Check /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-action-recognition/README
+    Check src/apps/sample_apps/deepstream-3d-action-recognition/README (Relative to the repository root).
 
 ===============================================================================
 3. To compile:

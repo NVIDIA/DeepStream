@@ -142,7 +142,28 @@ serialized metadata via the Gst-NvDsMetaUtils library.
 4. Usage:
 ===============================================================================
 
-Compilation: To compile the sources, run make with "sudo" or root permission.
+This sample demonstrates the nvdsgst_ucx (Gst-NvDsUcx) plugin for transferring
+DeepStream buffers between a client and a server over an RDMA-capable network
+using UCX. Each test runs as a two-process pipeline on separate hosts with a
+ConnectX NIC; start the server first, then launch the client with matching IP,
+port, and stream parameters.
+
+Three test modes are supported via the -t option:
+
+  - Test 1 (-t 1): Basic video transmission. The server decodes a video source
+    and sends frames over UCX; the client receives, encodes, and writes the
+    output to a file.
+
+  - Test 2 (-t 2): Video with serialized metadata. The client runs inference
+    (nvinfer or nvinferserver), serializes object metadata with
+    Gst-NvDsMetaUtils, and sends video plus metadata; the server deserializes
+    the metadata, overlays it with nvdsosd, and writes the output file.
+
+  - Test 3 (-t 3): Audio with serialized metadata. The server extracts audio,
+    attaches serialized metadata from nvstreammux, and sends over UCX; the
+    client deserializes the metadata and writes the processed audio to a file.
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
 
 Test 1:
    Server Setup:
@@ -168,8 +189,8 @@ Test 2:
    Pre-requisites:
    Navigate to the video_metadata_serialization directory and compile the
    library:
-   $ cd /opt/nvidia/deepstream/deepstream/sources/gst-plugins/\
-   gst-nvdsmetautils/video_metadata_serialization
+   $ cd src/gst-plugins/gst-nvdsmetautils/video_metadata_serialization
+   # Path is relative to the repository root.
    $ make
    $ sudo make install
 
@@ -210,8 +231,8 @@ Test 3:
    Pre-requisites:
    Navigate to the audio_metadata_serialization directory and compile the
    library:
-   $ cd /opt/nvidia/deepstream/deepstream/sources/gst-plugins/\
-   gst-nvdsmetautils/audio_metadata_serialization
+   $ cd src/gst-plugins/gst-nvdsmetautils/audio_metadata_serialization.
+   # Path is relative to the repository root.
    $ make
    $ sudo make install
 

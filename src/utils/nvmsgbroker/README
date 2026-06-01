@@ -64,11 +64,12 @@ The following information is expected for each protocol:
     Redis: libnvds_redis_proto.so
 
   - Protocol-specific Connection string and/or configuration file
-    See README for each of the supported protocols:
-    Kafka: /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
-    AMQP: /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
-    Azure Device Client: /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
-    Redis: /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    See README for each of the supported protocols (below paths are relative to the repository root):
+    Kafka: src/utils/nvds_msgapi/kafka_protocol_adaptor
+    AMQP: src/utils/nvds_msgapi/amqp_protocol_adaptor
+    Azure Device Client: src/utils/nvds_msgapi/azure_protocol_adaptor
+    Redis: src/utils/nvds_msgapi/redis_protocol_adaptor
+
 
 Compiling and installing the plugin
 -----------------------------------

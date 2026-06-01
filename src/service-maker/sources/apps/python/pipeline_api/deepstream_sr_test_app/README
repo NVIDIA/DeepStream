@@ -78,7 +78,7 @@ The smart recording feature is configured with the following parameters:
 
 The application uses Kafka for event-based recording control (when run with -r kafka):
 * Kafka protocol library: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
-* Kafka configuration: /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt
+* Kafka configuration: src/utils/nvds_msgapi/kafka_protocol_adaptor/cfg_kafka.txt
 * Kafka connection: localhost;9092
 * Kafka topic: sr-test
 
@@ -89,7 +89,7 @@ The application uses Kafka for event-based recording control (when run with -r k
 1. Smart Record feature only works with live RTSP streams
 2. MSGCONV_CONFIG_FILE is required only when running with "-r kafka"
 3. A sample MSGCONV_CONFIG_FILE is available at:
-   "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+   "src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
 4. The smart record feature allows for:
    - Event-based recording through Kafka messaging
    - Configurable recording duration and cache
@@ -177,5 +177,5 @@ Notes:
 **Notes:**
 - Update the UTC time according to your current time and date
 - Sensor ID mapping is configured using the file:
-  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
+  `src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
 - Update the sensor ID accordingly based on your configuration

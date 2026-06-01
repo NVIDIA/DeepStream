@@ -128,7 +128,7 @@ NOTE:
 4. This plugin contains additional sample to demonstrate CUDA memory usecases.
    It uses OpenCV CUDA to perform in-place operations on CUDA memory.
 5. To enable OpenCV in dsexample, set `WITH_OPENCV=1` in the plugin Makefile
-   (/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-dsexample-cuda/Makefile)
+   (src/gst-plugins/gst-dsexample-cuda/Makefile, relative to the repository root)
    and follow compilation and installation instructions present in this README.
 6. The plugin demonstrates two in-place usecases:
    Swap Channels: Swaps the color channels leading to change in visual output.

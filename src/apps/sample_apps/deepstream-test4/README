@@ -54,14 +54,14 @@ Dependencies
  Azure Iot:
  ----------
     Refer to the README files available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
+    src/utils/nvds_msgapi/azure_protocol_adaptor
     for detailed documentation on prerequisites and usages of Azure protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
  Kafka:
  ------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
+    src/utils/nvds_msgapi/kafka_protocol_adaptor
     for detailed documentation on prerequisites and usages of kafka protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
@@ -70,17 +70,17 @@ Dependencies
     Install rabbitmq-c library
     --------------------------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
+    src/utils/nvds_msgapi/amqp_protocol_adaptor
     for detailed documentation on prerequisites and usages of rabbitmq based
     amqp protocol adaptor with the message broker plugin for sending messages to cloud.
 
  Redis:
  ------
     Refer to the README file available under
-    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
+    src/utils/nvds_msgapi/redis_protocol_adaptor
     for detailed documentation on prerequisites and usages of redis protocol
     adaptor with the message broker plugin for sending messages to cloud.
-
+  Note: Above paths are relative to the repository root.
 SETUP:
   1.Use --proto-lib or -p command line option to set the path of adaptor library.
     Adaptor library can be found at /opt/nvidia/deepstream/deepstream/lib
@@ -119,7 +119,7 @@ SETUP:
   8.Use --cfg-file or -c command line option to set adaptor configuration file.
     This is optional if connection string has all relevent information.
 
-    For kafka: use /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt as reference.
+    For kafka: use src/utils/nvds_msgapi/kafka_protocol_adaptor/cfg_kafka.txt as reference.
     This file is used to define the parition key field to be used while sending messages to the
     kafka broker. Refer Kafka Protocol Adaptor section in the DeepStream Plugin Manual for
     more details about using this config option. The partition-key setting within the cfg_kafka.txt
@@ -127,7 +127,7 @@ SETUP:
     "sensor.id" in case of Full message schema, and to "sensorId" in case of Minimal message schema
 
 
-    For Azure, use /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor/device_client/cfg_azure.txt as reference.
+    For Azure, use src/utils/nvds_msgapi/azure_protocol_adaptor/device_client/cfg_azure.txt as reference.
     It has the following section:
         [message-broker]
         #connection_str = HostName=<my-hub>.azure-devices.net;DeviceId=<device_id>;SharedAccessKey=<my-policy-key>
@@ -143,7 +143,7 @@ SETUP:
 
         you can pass in full connection string with --conn-str option
 
-    For AMQP, use /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor/cfg_amqp.txt as reference.
+    For AMQP, use src/utils/nvds_msgapi/amqp_protocol_adaptor/cfg_amqp.txt as reference.
     It has the following default options:
         [message-broker]
         password = guest
@@ -162,7 +162,7 @@ SETUP:
 
         you can pass in full connection string with --conn-str option in format: "hostname;port;username;password"
 
-    For Redis, use /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor/cfg_redis.txt as reference.
+    For Redis, use src/utils/nvds_msgapi/redis_protocol_adaptor/cfg_redis.txt as reference.
     It has the following default options:
         [message-broker]
         hostname=localhost
@@ -181,6 +181,7 @@ SETUP:
         you can pass in full connection string with --conn-str option in format: "hostname;port"
 
   NOTE:
+    - Above paths are relative to the repository root.
     - DO NOT delete the line [message-broker] in cfg file. Its the section identifier used for parsing
     - Share connection
       ----------------
@@ -320,7 +321,7 @@ Azure Iotedge runtime integration of deepstream-test4-app:
            "HostConfig": {
              "Runtime": "nvidia",
            },
-           "WorkingDir": "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4",
+           "WorkingDir": "src/apps/sample_apps/deepstream-test4",
            "ENTRYPOINT":
            [
             "/opt/nvidia/deepstream/deepstream/bin/deepstream-test4-app",
@@ -334,7 +335,7 @@ Azure Iotedge runtime integration of deepstream-test4-app:
             "mytopic"
            ]
          }
-
+  Note: Above paths are relative to the repository root.
   - specify route options for the module:
 
     option 1) Default route where every message from every module is sent upstream
