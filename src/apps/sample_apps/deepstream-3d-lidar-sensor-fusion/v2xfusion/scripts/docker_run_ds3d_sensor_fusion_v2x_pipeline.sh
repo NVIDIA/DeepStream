@@ -23,9 +23,9 @@ set -e
 # debug
 # set -x
 
-version=$(basename $(realpath /opt/nvidia/deepstream/deepstream) | awk -F'-' '{print $2}')
+NVDS_VERSION=${NVDS_VERSION:-9.0}
 DEFAULT_CONFIG_FILE="ds3d_lidar_video_sensor_v2x_fusion.yaml"
-TARGET_IMAGE="nvcr.io/nvidia/deepstream:${version}-triton-multiarch"
+TARGET_IMAGE="nvcr.io/nvidia/deepstream:${NVDS_VERSION}-triton-multiarch"
 TARGET_DEVICE=$(uname -m)
 TARGET_WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
 TARGET_MODEL_ROOT=/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion
@@ -48,12 +48,12 @@ else
     exit 1
 fi
 
-if [[ ! -d ${TARGET_MODEL_ROOT} ]];then
+if [[ ! -d ./v2xfusion/models/v2xfusion/ ]];then
     echoRed "Please run sudo v2xfusion/scripts/docker_run_generate_v2x_trt_engine_model.sh to build model first"
     exit 1
 fi
 
-if [[ ! -d ${TARGET_WORKSPACE}/v2xfusion/example-data ]];then
+if [[ ! -d ./v2xfusion/example-data ]];then
     echoRed "Please download V2X-Seq-SPD-Example.zip from https://github.com/AIR-THU/DAIR-V2X?tab=readme-ov-file#dataset"
     echoRed "Put it to v2xfusion/scripts"
     echoRed "Then cd v2xfusion/scripts;./prepare.sh dataset"
@@ -71,8 +71,9 @@ MOUNT_OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock \
   "
 
 # mount local sample data for test
-MOUNT_OPTIONS+=" -v ${TARGET_WORKSPACE}/v2xfusion/example-data:${TARGET_WORKSPACE}/v2xfusion/example-data"
-MOUNT_OPTIONS+=" -v ${TARGET_MODEL_ROOT}:${TARGET_MODEL_ROOT}"
+MOUNT_OPTIONS+=" -v ./v2xfusion/example-data:${TARGET_WORKSPACE}/v2xfusion/example-data"
+MOUNT_OPTIONS+=" -v ./v2xfusion/models/v2xfusion:${TARGET_MODEL_ROOT}"
+MOUNT_OPTIONS+=" -v $(pwd):${TARGET_WORKSPACE}"
 
 DOCKER_GPU_ARG="--gpus all"
 if [ "${TARGET_DEVICE}" = "x86_64" ]; then
@@ -85,6 +86,8 @@ else
 fi
 
 echo "Starting deepstream-3d-lidar-sensor-fusion pipeline for v2xfusion."
+echo "docker run ${DOCKER_GPU_ARG} --rm --net=host ${MOUNT_OPTIONS} -w ${TARGET_WORKSPACE} -e DISPLAY=$DISPLAY --sig-proxy --privileged --entrypoint ${APP} ${TARGET_IMAGE} ${TARGET_WORKSPACE}/${APP_CMD}"
+
 docker run \
     ${DOCKER_GPU_ARG} --rm --net=host \
     ${MOUNT_OPTIONS} \

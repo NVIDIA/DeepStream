@@ -30,10 +30,10 @@ function cleanup() {
 
 trap cleanup EXIT
 
-version=$(basename $(realpath /opt/nvidia/deepstream/deepstream) | awk -F'-' '{print $2}')
-DEFAULT_IMAGE="nvcr.io/nvidia/deepstream:${version}-triton-multiarch"
+NVDS_VERSION=${NVDS_VERSION:-9.0}
+DEFAULT_IMAGE="nvcr.io/nvidia/deepstream:${NVDS_VERSION}-triton-multiarch"
 CONTAINER_NAME="v2x-trt-model-builder"
-TARGET_WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/scripts
+TARGET_WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/sample_apps/deepstream-3d-lidar-sensor-fusion
 TARGET_MODEL_ROOT=/opt/nvidia/deepstream/deepstream/samples/triton_model_repo
 TARGET_DEVICE=$(uname -m)
 
@@ -48,16 +48,20 @@ else
 fi
 
 # delete old model
-rm -rf ${TARGET_MODEL_ROOT}/v2xfusion
+#rm -rf ../models/v2xfusion/1
 
 # generate TRT engine files
 docker run ${DOCKER_GPU_ARG} \
           --name ${CONTAINER_NAME} \
           --net=host \
           --privileged \
-          -w ${TARGET_WORKSPACE} \
+          -v $(pwd):${TARGET_WORKSPACE}/v2xfusion/scripts \
+		  -v $(pwd)/../models:${TARGET_WORKSPACE}/v2xfusion/models \
+		  -v ../../../../../utils/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess/:${TARGET_WORKSPACE}/lib \
+          -w ${TARGET_WORKSPACE}/v2xfusion/scripts \
           ${DEFAULT_IMAGE} \
           ./prepare.sh engine
 
 # copy to host
-docker cp -a ${CONTAINER_NAME}:${TARGET_MODEL_ROOT}/v2xfusion ${TARGET_MODEL_ROOT}
+docker cp -a ${CONTAINER_NAME}:${TARGET_MODEL_ROOT}/v2xfusion ./
+

@@ -19,7 +19,7 @@
 set -e
 
 max_batch=4
-plugins=/opt/nvidia/deepstream/deepstream/lib/libnvds_3d_v2x_infer_custom_preprocess.so
+plugins=${plugins:-/opt/nvidia/deepstream/deepstream/sources/sample_apps/deepstream-3d-lidar-sensor-fusion/lib/libnvds_3d_v2x_infer_custom_preprocess.so}
 
 MODEL_NAME=v2xfusionmodel-int8-sparsity-seq
 DATASET=v2x-seq.4scenes.10Hz.200frame
@@ -34,8 +34,10 @@ function echoGreen() {
 }
 
 function prepareEngine() {
+    echo "PWD $(pwd)"
     if [ ! -f ../models/v2xfusion/${MODEL_NAME}.onnx ];then
         echoGreen "Download ${MODEL_NAME}.onnx"
+		mkdir -p ../models/v2xfusion
         wget ${MODEL_DOWNLOAD_URL} -O ../models/v2xfusion/${MODEL_NAME}.onnx
     fi
 
@@ -56,7 +58,7 @@ function prepareEngine() {
     echoGreen "Moving the generated model engine file and configs to triton_model_repo"
     rm -rf /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion
     mkdir -p /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/1
-    mv ../models/v2xfusion/1/*.engine /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/1
+    cp ../models/v2xfusion/1/*.engine /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/1
     cp ../models/v2xfusion/config.pbtxt /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/
 }
 
