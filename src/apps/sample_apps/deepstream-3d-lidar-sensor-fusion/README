@@ -195,16 +195,7 @@ https://www.nuscenes.org/terms-of-use
 4. To compile:
 ===============================================================================
 
-To compile sample app deepstream-3d-lidar-sensor-fusion:
-
-  $ Set CUDA_VER in the MakeFile as per platform.
-      For x86, CUDA_VER=13.1
-      For Jetson & SBSA, CUDA_VER=13.0
-
-  $ make
-  $ sudo make install (sudo not required in case of docker containers)
-
-NOTE: To compile the sources, run make with "sudo" or root permission.
+The app build should follow the instruction in https://github.com/NVIDIA/DeepStream/blob/main/build/BUILD.md
 
 ===============================================================================
 5. Usage:
