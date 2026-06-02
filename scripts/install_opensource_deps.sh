@@ -21,6 +21,8 @@
 
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+
 NVDS_VERSION=${NVDS_VERSION:-9.0}
 INSTALL_DIR=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
 BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
@@ -137,7 +139,7 @@ find "$BUILD_ROOT/prom-install/lib" -name "libprometheus-cpp-core.so*" -exec cp 
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- azure-iot-sdk-c v1.11.0 ---"
-apt-get install uuid-dev
+apt-get -y install uuid-dev
 AZURE_DIR=$BUILD_ROOT/azure-iot-sdk-c
 git clone https://github.com/Azure/azure-iot-sdk-c.git "$AZURE_DIR"
 git -C "$AZURE_DIR" checkout tags/1.11.0
