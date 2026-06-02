@@ -109,3 +109,19 @@ Run the ONNX sample with DeepStream Triton gRPC remote inference:
 
   Then run gRPC test:
   $ deepstream-app -c deepstream_app_triton_config_yolov3.txt
+
+===============================================================================
+5. Known Issues:
+===============================================================================
+DGX Spark ONNX Runtime backend limitation:
+  The Triton ONNX Runtime backend bundled in the `nvcr.io/nvidia/deepstream:9.0-triton-sbsa-dgx-spark`
+  container uses ONNX Runtime 1.23.0, which is not compatible with DGX Spark. This affects the ONNX Runtime backend path for this sample.
+
+  Workaround:
+  Update `deepstream_app_triton_config_yolov3.txt`:
+    plugin-type=0
+    config-file=config_nvinfer.txt
+
+  Then build and run:
+    $ make -C nvdsinfer_custom_impl_yolo
+    $ deepstream-app -c deepstream_app_triton_config_yolov3.txt
