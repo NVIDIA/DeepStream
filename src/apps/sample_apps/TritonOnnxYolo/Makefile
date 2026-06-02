@@ -15,8 +15,8 @@
 # limitations under the License.
 ################################################################################
 
-# Delegates to the custom-process libraries so the mono-repo build.sh
-# sample_apps loop picks this sample up.
+# Delegates to the nvdsinferserver custom-process libraries so the mono-repo
+# build.sh sample_apps loop picks this sample up.
 
 SUBDIRS := nvdsinferserver_custom_impl_yolo \
            nvdsinfer_custom_impl_yolo
