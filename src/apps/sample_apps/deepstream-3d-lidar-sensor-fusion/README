@@ -54,17 +54,20 @@ The following sensor fusion pipeline are integrated in this sample.
 1. Prerequisites:
 ===============================================================================
 
-Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+Please follow instructions in the https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Installation.html on how
 to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
 and the apps.
 
 Get started from directory:
-$ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+$ git clone https://github.com/NVIDIA/DeepStream.git
+$ cd DeepStream
+$ git lfs pull
+$ cd src/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/
 
 To make the rest of the pipeline setup easier, optionally grant read/write
 permission for all of the files in this folder:
 
-$ sudo chmod -R a+rw
+$ sudo chmod -R a+rw *
 
 Note: run commands with 'sudo' if user does not have file read/write permissions.
 
@@ -87,7 +90,7 @@ found from
 https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
 
 Usage:
-    bevfusion/docker_build_bevfusion_image.sh [BASE_IMAGE] [TARGET_IMAGE] [COMMIT_ID] [SPCONV_CUDA_VERSION]
+    bevfusion/docker_build_bevfusion_image.sh [BASE_IMAGE] [NVDS_VERSION] [TARGET_IMAGE] [COMMIT_ID] [SPCONV_CUDA_VERSION]
       BASE_IMAGE: base image for build bevfusion image
       TARGET_IMAGE: user defined the target image name, default: deepstream-triton-bevfusion
       COMMIT_ID: commit id of CUDA-BEVFusion repository
@@ -106,7 +109,7 @@ Then move the model.zip you download to the bevfusion/model_root directory befor
 
 To move your downloaded model to the default file location:
 $ mkdir bevfusion/model_root
-$ sudo cp {PATH TO YOUR model.zip DOWNLOAD} /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/bevfusion/model_root/model.zip
+$ sudo cp {PATH TO YOUR model.zip DOWNLOAD} ./bevfusion/model_root/model.zip
 
 Then run script based on the target docker image to build the models:
 
@@ -290,7 +293,7 @@ User can update triton_lmm/helper/nuscene_data_setup.py to different sample scen
  it to generate the data for ds3d sensor fusion use case.
 To reproduce the sample data and get calibration matrix. Users need follow the cmdlines
 
-  $ export TARGET_WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+  $ export TARGET_WORKSPACE=$(pwd)
   $ cd ${TARGET_WORKSPACE}
   $ mkdir -p dataset/nuscene data
   $ docker run --rm --net=host \

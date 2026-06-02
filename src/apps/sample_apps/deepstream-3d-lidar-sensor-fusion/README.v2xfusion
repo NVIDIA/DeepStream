@@ -24,7 +24,8 @@
 1. Prerequisites:
 ===============================================================================
 
-Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+Please follow instructions in the
+https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Installation.html on how
 to install the prerequisites for the Deepstream SDK, the DeepStream SDK itself,
 and the apps.
 
@@ -57,9 +58,6 @@ $ sudo ./triton_backend_setup.sh
 Please install the following python package first
   $ sudo pip install numpy python-lzf --break-system-packages
 
-Please make sure you have write permissions to /opt/nvidia/deepstream/deepstream
-If not, try sudo or sudo chmod -R a+w /opt/nvidia/deepstream/deepstream
-
   $ cd ./v2xfusion/script/
 
 1.1.1 Preprocess the dataset
@@ -88,7 +86,7 @@ For Docker User:
   $ sudo docker_run_generate_v2x_trt_engine_model.sh
 
 In Host:
-  $ ./prepare.sh engine
+  $ plugins=../../../../../utils/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess/libnvds_3d_v2x_infer_custom_preprocess.so ./prepare.sh engine
 
 This script will help you download the model and generate it to tensorrt engine file.
 
@@ -102,7 +100,7 @@ As a shortcut, put V2X-Seq-SPD-Example.zip into v2xfusion/scripts and
 run prepare.sh without parameters, which will directly generate the tensorrt engine file
 and preprocessed dataset.
 
-$ ./prepare.sh
+$ plugins=../../../../../utils/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess/libnvds_3d_v2x_infer_custom_preprocess.so ./prepare.sh
 
 If the prepare.sh script runs successfully,
 you will find v2xfusionmodel-int8-sparsity-seq.onnx at deepstream-3d-lidar-sensor-fusion/v2xfusion/models/
@@ -147,16 +145,7 @@ In Host:
 4. To compile:
 ===============================================================================
 
-To compile sample app deepstream-3d-lidar-sensor-fusion:
-
-  $ Set CUDA_VER in the MakeFile as per platform.
-      For x86, CUDA_VER=13.1
-      For SBSA, CUDA_VER=13.0
-
-  $ make
-  $ sudo make install (sudo not required in case of docker containers)
-
-NOTE: To compile the sources, run make with "sudo" or root permission.
+The app build should follow the instruction in https://github.com/NVIDIA/DeepStream/blob/main/build/BUILD.md
 
 ===============================================================================
 5. DS3D Components used in pipeline

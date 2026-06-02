@@ -23,8 +23,8 @@ set -e
 # debug
 # set -x
 
-version=$(basename $(realpath /opt/nvidia/deepstream/deepstream) | awk -F'-' '{print $2}')
-DEFAULT_TARGET_IMAGE="deepstream-triton-bevfusion:${version}"
+NVDS_VERSION=${NVDS_VERSION:-9.0}
+DEFAULT_TARGET_IMAGE="deepstream-triton-bevfusion:${NVDS_VERSION}"
 DEFAULT_MODEL_ROOT=bevfusion/model_root
 
 function usage() {
