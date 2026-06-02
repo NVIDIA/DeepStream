@@ -35,7 +35,7 @@ ifeq ($(TARGET_DEVICE),aarch64)
   CFLAGS:= -DPLATFORM_TEGRA
 endif
 
-SRCS:= $(wildcard ../../apps-common/src/*.c)
+SRCS:= $(wildcard ../../common/src/*.c)
 SRCS+= $(wildcard ../deepstream-app/deepstream_app.c ../deepstream-app/deepstream_app_config_parser.c)
 NVDS_UTILS_CPP_PATH:= /opt/nvidia/deepstream/deepstream/sources/libs/nvds_msgapi_common_src/nvds_utils.cpp
 SRCS_CPP:= $(shell if [ -f $(NVDS_UTILS_CPP_PATH) ]; then echo $(NVDS_UTILS_CPP_PATH); fi)
@@ -51,7 +51,7 @@ OBJS_CPP:= $(SRCS_CPP:.cpp=.o)
 endif
 OBJS+= deepstream_nvdsanalytics_meta.o deepstream_app_main.o
 
-CFLAGS+= -I./ -I../../apps-common/includes -I../../../../includes  -I../deepstream-app/ -DDS_VERSION_MINOR=0 -DDS_VERSION_MAJOR=5 \
+CFLAGS+= -I./ -I../../common/includes -I../../../../includes  -I../deepstream-app/ -DDS_VERSION_MINOR=0 -DDS_VERSION_MAJOR=5 \
 		 -I /usr/local/cuda-$(CUDA_VER)/include
 
 LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvdsgst_helper -lnvdsgst_customhelper \
