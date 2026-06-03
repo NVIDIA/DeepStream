@@ -59,7 +59,7 @@ plugin_init_2 (GstPlugin * plugin)
 #if 0
 /** NOTE: Disabling all static Gst APIs for loading streammux2
  * based on ENV var: USE_NEW_NVSTREAMMUX
- * TODO: Revert https://git-master.nvidia.com/r/#/c/2127642/
+ * TODO: Revert the change that disabled these static Gst APIs
  * when we are ready to drop legacy muxer
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
