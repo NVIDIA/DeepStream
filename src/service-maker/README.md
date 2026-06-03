@@ -11,7 +11,6 @@ Service Maker is a C++ and Python SDK that provides a high-level abstraction ove
 service-maker/
 ├── cmake/                        # CMake find-modules and toolchain files
 ├── includes/                     # Public C++ headers
-├── python/                       # Python bindings
 └── sources/
     ├── apps/
     │   ├── cpp/                  # C++ sample applications
