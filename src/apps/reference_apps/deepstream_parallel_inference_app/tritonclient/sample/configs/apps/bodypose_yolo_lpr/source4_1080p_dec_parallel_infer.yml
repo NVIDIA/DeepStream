@@ -113,7 +113,7 @@ sink4:
   msg-conv-frame-interval: 30
   msg-broker-proto-lib: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
   #Provide your msg-broker-conn-str here
-  msg-broker-conn-str: localhost;9092
+  msg-broker-conn-str: kafka_server_addr
   topic: dstest
   disable-msgconv: 1
   #Optional:
