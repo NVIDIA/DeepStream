@@ -2074,13 +2074,14 @@ parse_st2038_packet (BitReader *br, AncPacketInfo *info)
   info->horizontal_offset = bit_reader_read (br, 12);
   info->did = bit_reader_read (br, 10);
   info->sdid = bit_reader_read (br, 10);
-  info->data_count = (guint8)(bit_reader_read (br, 10) & 0xFF);
+  info->data_count = bit_reader_read (br, 10);
 
-  guint needed = (guint)info->data_count * 10 + 10;
+  guint num_udw = (guint)(info->data_count & 0xFF);
+  guint needed = num_udw * 10 + 10;
   if (!bit_reader_has_bits (br, needed))
     return FALSE;
 
-  for (guint i = 0; i < info->data_count; i++)
+  for (guint i = 0; i < num_udw; i++)
     info->user_data[i] = bit_reader_read (br, 10);
 
   info->checksum = bit_reader_read (br, 10);
@@ -2129,7 +2130,8 @@ write_rfc8331_anc_packet (BitWriter *bw, const AncPacketInfo *info)
   bit_writer_write (bw, 10, info->sdid);
   bit_writer_write (bw, 10, info->data_count);
 
-  for (guint i = 0; i < info->data_count; i++)
+  guint num_udw = (guint)(info->data_count & 0xFF);
+  for (guint i = 0; i < num_udw; i++)
     bit_writer_write (bw, 10, info->user_data[i]);
 
   bit_writer_write (bw, 10, info->checksum);
@@ -2223,7 +2225,7 @@ build_rtp_anc_payload (const guint8 *st2038_data, guint st2038_size,
       break;
     }
 
-    guint pkt_size = rfc8331_anc_packet_size (info.data_count);
+    guint pkt_size = rfc8331_anc_packet_size ((guint8)(info.data_count & 0xFF));
 
     if (anc_count > 0 &&
         (payload_pos + pkt_size > max_payload_size || anc_count >= 255)) {
