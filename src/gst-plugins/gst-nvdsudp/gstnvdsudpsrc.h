@@ -70,6 +70,7 @@ struct _GstNvDsUdpSrc
   guint num_streams;         /* Number of active streams (primary + redundant) */
   guint num_source_addresses; /* Number of source addresses for filtering */
   guint num_local_interfaces; /* Number of local interfaces */
+  gboolean enable_dhds;
 
   StreamType streamType;
   VideoType videoType;
@@ -80,6 +81,7 @@ struct _GstNvDsUdpSrc
   uint8_t *dataPtr2;
   guint len1;
   guint len2;
+  guint rxPayloadSize;
   gboolean mBit;
   gboolean ffFound;
   guint packetCounter;
@@ -123,6 +125,7 @@ struct _GstNvDsUdpSrc
   size_t payload_mem_block_id;
   size_t header_mem_block_id;
   gboolean isGpuDirect;
+  gboolean dhds_active[MAX_ST2022_7_STREAMS];
   gpointer dataPtr;
   gpointer hdrPtr;
   size_t alignedMemSize;
