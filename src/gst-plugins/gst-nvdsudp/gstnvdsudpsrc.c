@@ -72,6 +72,8 @@ static GstClock* gst_nvdsudpsrc_provide_clock (GstElement * element);
 static GstCaps *gst_nvdsudpsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
 
 static gboolean nvdsudpsrc_allocate_memory (GstNvDsUdpSrc *src);
+static void nvdsudpsrc_enable_dhds (GstNvDsUdpSrc *src);
+static void nvdsudpsrc_unset_dhds (GstNvDsUdpSrc *src);
 static gpointer nvdsudpsr_data_fetch_loop (gpointer data);
 static rmx_status
 create_stream (GstNvDsUdpSrc *src, struct sockaddr_in *local_nic_addr,
@@ -119,7 +121,8 @@ enum
   PROP_ADJUST_LEAP_SECONDS,
   PROP_PTP_SOURCE,
   PROP_ST2022_7_STREAMS,
-  PROP_BUFFER_PTS_OFFSET
+  PROP_BUFFER_PTS_OFFSET,
+  PROP_ENABLE_DHDS
 };
 
 static GstStaticPadTemplate src_template =
@@ -739,6 +742,13 @@ gst_nvdsudpsrc_class_init (GstNvDsUdpSrcClass * klass)
       0, G_MAXUINT64, 0,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_ENABLE_DHDS,
+      g_param_spec_boolean ("enable-dhds", "Enable Dynamic HDS",
+      "Enable RTP Dynamic Header Data Split on the Rivermax device.\n"
+      "\t\t\tRequired for correct multi-SRD header data split.\n"
+      "\t\t\tHas no effect when header-size is 0.",
+      TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS(klass),
       &src_template);
 
@@ -812,11 +822,13 @@ gst_nvdsudpsrc_init (GstNvDsUdpSrc *src)
   src->gpuId = -1;
   src->outputMemType = MEM_TYPE_UNKNOWN;
   src->is_nvmm = TRUE;
+  src->enable_dhds = TRUE;
   for (guint i = 0; i < MAX_ST2022_7_STREAMS; i++) {
     src->streamId[i] = INVALID_STREAM_ID;
     src->dstStream[i].ip = NULL;
     src->srcAddress[i] = NULL;
     src->localIfaceIp[i] = NULL;
+    src->dhds_active[i] = FALSE;
   }
 
   g_mutex_init (&src->qLock);
@@ -963,6 +975,9 @@ gst_nvdsudpsrc_set_property (GObject * object, guint property_id,
     case PROP_BUFFER_PTS_OFFSET:
       src->latency_offset = g_value_get_uint64 (value);
       break;
+    case PROP_ENABLE_DHDS:
+      src->enable_dhds = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -1051,6 +1066,9 @@ gst_nvdsudpsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_BUFFER_PTS_OFFSET:
       g_value_set_uint64 (value, src->latency_offset);
+      break;
+    case PROP_ENABLE_DHDS:
+      g_value_set_boolean (value, src->enable_dhds);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1528,6 +1546,20 @@ nvdsudpsrc_allocate_memory (GstNvDsUdpSrc *src)
   /* Initialize stream parameters*/
   rmx_input_init_stream(&src->stream_params, RMX_INPUT_APP_PROTOCOL_PACKET);
 
+  /* DHDS HW requires a minimum ~32-byte header stride. The literal RFC 4175
+     single-SRD header (20 = RTP 12 + ext-seq 2 + SRD 6) is below it, which
+     leaks a 12-byte gap into the payload (chroma corruption) and destabilizes
+     ST 2022-7 completion handling (the no_m_bit freeze). Gate on dhds_active
+     (set by nvdsudpsrc_enable_dhds) rather than the enable-dhds property so
+     that NIC firmware without dynamic RTP header support keeps the configured
+     header-size and does not get a fixed 32-byte split without DYNAMIC_HDS.
+     Streams already at/above the minimum (e.g. multi-SRD) are left untouched. */
+  if (src->dhds_active[0] && src->headerSize > 0 && src->headerSize < 32) {
+    GST_INFO_OBJECT (src, "DHDS: header-size %u below HW minimum, bumping to 32",
+        src->headerSize);
+    src->headerSize = 32;
+  }
+
   /* Set memory configuration */
   rmx_input_set_mem_capacity_in_packets(&src->stream_params, src->numPackets);
 
@@ -1546,6 +1578,14 @@ nvdsudpsrc_allocate_memory (GstNvDsUdpSrc *src)
   } else if (src->st2022_7_streams) {
     rmx_input_enable_stream_option(&src->stream_params, RMX_INPUT_STREAM_RTP_SEQN_PLACEMENT_ORDER);
     is_page_aligned = true;
+  }
+
+  /* Set 2110-20 DHDS flag on buffer to support a multi-SRD stream. The
+     stream_params memory is shared across all ST 2022-7 legs, so this is a
+     single mode decision; dhds_active[0] (the primary leg) is representative
+     since all legs are configured together in nvdsudpsrc_enable_dhds. */
+  if (src->dhds_active[0]) {
+    rmx_input_enable_stream_option(&src->stream_params, RMX_INPUT_STREAM_RTP_SMPTE_2110_20_DYNAMIC_HDS);
   }
 
   rmx_input_set_stream_nic_address(&src->stream_params, (struct sockaddr*)(&src->localNicAddr));
@@ -1881,6 +1921,108 @@ nvdsudpsrc_parse_audio_params (GstNvDsUdpSrc *src, GstStructure *structure)
   return TRUE;
 }
 
+static void
+nvdsudpsrc_enable_dhds (GstNvDsUdpSrc *src)
+{
+  rmx_status status;
+  rmx_device_capabilities caps;
+  rmx_device_config config;
+  rmx_device_iface dev;
+  struct in_addr ip;
+
+  for (guint i = 0; i < MAX_ST2022_7_STREAMS; i++)
+    src->dhds_active[i] = FALSE;
+
+  if (!src->enable_dhds || src->headerSize == 0 ||
+      src->streamType != VIDEO_2110_20_STREAM)
+    return;
+
+  /* Configure RTP Dynamic Header Data Split on EVERY ST 2022-7 leg's device.
+     Each redundant stream is created on its own local interface
+     (localIfaceIp[i]); Rivermax requires DHDS configured per device or stream
+     creation on that leg fails ("device <ip> is not configured for dynamic
+     header data split", error 353). For non-redundant receive num_streams==1,
+     so this is identical to the previous single-leg behavior. A per-leg failure
+     warns and continues (that leg degrades to non-multi-SRD) rather than
+     aborting the whole receiver. */
+  for (guint i = 0; i < src->num_streams; i++) {
+    const gchar *iface = src->localIfaceIp[i];
+    if (!iface)
+      continue;
+
+    inet_aton (iface, &ip);
+    status = rmx_retrieve_device_iface_ipv4 (&dev, &ip);
+    if (status != RMX_OK) {
+      GST_WARNING_OBJECT (src, "Failed to retrieve device iface for DHDS on %s - status %d, multi-SRD will not be supported on leg %u",
+          iface, status, i);
+      continue;
+    }
+
+    memset (&caps, 0, sizeof (caps));
+    rmx_clear_device_capabilities_enquiry (&caps);
+    rmx_mark_device_capability_for_enquiry (&caps, RMX_DEVICE_CAP_RTP_DYNAMIC_HDS);
+    status = rmx_enquire_device_capabilities (&dev, &caps);
+    if (status != RMX_OK) {
+      GST_WARNING_OBJECT (src, "Failed to query DHDS capability on interface %s - status %d, multi-SRD will not be supported on leg %u",
+          iface, status, i);
+      continue;
+    }
+
+    if (!rmx_is_device_capability_supported (&caps, RMX_DEVICE_CAP_RTP_DYNAMIC_HDS)) {
+      GST_WARNING_OBJECT (src, "Interface %s does not support RTP Dynamic HDS, multi-SRD will not be supported on leg %u",
+          iface, i);
+      continue;
+    }
+
+    memset (&config, 0, sizeof (config));
+    rmx_clear_device_config_attributes (&config);
+    rmx_set_device_config_attribute (&config, RMX_DEVICE_CONFIG_RTP_SMPTE_2110_20_DYNAMIC_HDS);
+    status = rmx_apply_device_config (&dev, &config);
+    if (status != RMX_OK) {
+      GST_WARNING_OBJECT (src, "Failed to set DHDS config on interface %s - status %d, multi-SRD will not be supported on leg %u",
+          iface, status, i);
+      continue;
+    }
+
+    src->dhds_active[i] = TRUE;
+    GST_INFO_OBJECT (src, "DHDS enabled on interface %s (leg %u)", iface, i);
+  }
+}
+
+static void
+nvdsudpsrc_unset_dhds (GstNvDsUdpSrc *src)
+{
+  rmx_device_config config;
+  rmx_device_iface dev;
+  struct in_addr ip;
+
+  /* Revert DHDS config on every leg it was applied to (mirror of
+     nvdsudpsrc_enable_dhds). src->device is transient, so re-retrieve each
+     leg's device by its local interface IP. */
+  for (guint i = 0; i < MAX_ST2022_7_STREAMS; i++) {
+    if (!src->dhds_active[i] || !src->localIfaceIp[i])
+      continue;
+
+    inet_aton (src->localIfaceIp[i], &ip);
+    if (rmx_retrieve_device_iface_ipv4 (&dev, &ip) != RMX_OK) {
+      GST_WARNING_OBJECT (src, "Failed to retrieve device iface to unset DHDS on %s (leg %u)",
+          src->localIfaceIp[i], i);
+      src->dhds_active[i] = FALSE;
+      continue;
+    }
+
+    memset (&config, 0, sizeof (config));
+    rmx_clear_device_config_attributes (&config);
+    rmx_set_device_config_attribute (&config, RMX_DEVICE_CONFIG_RTP_SMPTE_2110_20_DYNAMIC_HDS);
+    rmx_status unset_status = rmx_revert_device_config (&dev, &config);
+    if (unset_status != RMX_OK) {
+      GST_WARNING_OBJECT (src, "Failed to unset DHDS config on %s (leg %u) - status %d",
+          src->localIfaceIp[i], i, unset_status);
+    }
+    src->dhds_active[i] = FALSE;
+  }
+}
+
 static gboolean
 nvdsudpsrc_parse_video_params (GstNvDsUdpSrc *src, GstStructure *structure)
 {
@@ -2070,9 +2212,16 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
     }
   }
 
+  memset (&src->localNicAddr, 0, sizeof (src->localNicAddr));
+  src->localNicAddr.sin_family = AF_INET;
+  src->localNicAddr.sin_addr.s_addr = inet_addr (src->localIfaceIp[0]);
+
+  nvdsudpsrc_enable_dhds (src);
+
   ret = nvdsudpsrc_allocate_memory (src);
   if (!ret) {
     GST_ERROR_OBJECT (src, "Failed to register memory");
+    nvdsudpsrc_unset_dhds (src);
     rmx_cleanup ();
     return FALSE;
   }
@@ -2095,6 +2244,7 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
     if (status != RMX_OK) {
       GST_ERROR_OBJECT(src, "Failed to create primary stream - error %d", status);
       deallocate_buffer(src);
+      nvdsudpsrc_unset_dhds (src);
       rmx_cleanup();
       return FALSE;
     }
@@ -2135,6 +2285,7 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
     if (!ret) {
       GST_ERROR_OBJECT(src, "Failed to initialize event channel for stream %d", i);
       deallocate_buffer(src);
+      nvdsudpsrc_unset_dhds (src);
       rmx_cleanup();
       return FALSE;
     }
@@ -2154,6 +2305,7 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
   if (!src->pool) {
     GST_ERROR_OBJECT (src, "failed to create internal pool");
     deallocate_buffer (src);
+    nvdsudpsrc_unset_dhds (src);
     rmx_cleanup ();
     return FALSE;
   }
@@ -2242,6 +2394,7 @@ gst_nvdsudpsrc_stop (GstBaseSrc *psrc)
   }
 
   deallocate_buffer (src);
+  nvdsudpsrc_unset_dhds (src);
   rmx_cleanup ();
 
   g_mutex_lock (&src->qLock);
@@ -2385,6 +2538,15 @@ check_rtp_header (uint8_t *rtp_hdr, uint8_t *rtp_data, guint16 data_size, GstNvD
     mBit = !!(rtp_hdr[1] & 0x80);
     fBit = !!(rtp_hdr[16] & 0x80);
     size = GST_READ_UINT16_BE (rtp_hdr + 14);
+
+    gboolean continuation = !!(rtp_hdr[18] & 0x80);
+    if (continuation) {
+      if (!src->dhds_active[0] && src->headerSize > 0)
+        GST_WARNING ("Multi-SRD packet detected but DHDS is not active, header data split may be incorrect");
+      guint16 srd2_len = GST_READ_UINT16_BE (rtp_hdr + 20);
+      GST_TRACE ("Multi-SRD: SRD1=%u SRD2=%u total=%u", size, srd2_len, size + srd2_len);
+      size += srd2_len;
+    }
   } else {
     size = data_size;
   }
@@ -2399,7 +2561,14 @@ check_rtp_header (uint8_t *rtp_hdr, uint8_t *rtp_data, guint16 data_size, GstNvD
   if (src->packetCounter == 1) {
     src->dataPtr1 = rtp_data;
     src->len1 = size;
+    src->rxPayloadSize = size;
   } else {
+    if (src->rxPayloadSize > 0 && size != src->rxPayloadSize && !mBit) {
+      GST_WARNING_OBJECT (src, "SRD total payload changed mid-frame: "
+          "expected %u but got %u (packet %u)",
+          src->rxPayloadSize, size, src->packetCounter);
+    }
+
     if (src->dataPtr2 == NULL && rtp_data < src->dataPtr1) {
       // wrap around case
       src->dataPtr2 = rtp_data;
