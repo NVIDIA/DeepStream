@@ -24,7 +24,13 @@ This repository contains the complete source code for DeepStream 9.0.
 
 **AI agent skills** ([`skills/`](skills/README.md), for Claude Code & compatible coding agents):
 - [`deepstream-dev`](skills/deepstream-dev/SKILL.md) — general DeepStream development
+- [`deepstream-generate-pipeline`](skills/deepstream-generate-pipeline/SKILL.md) — interactive `gst-launch` pipeline builder
+- [`deepstream-profile-pipeline`](skills/deepstream-profile-pipeline/SKILL.md) — Nsight Systems profiling & config derivation
+- [`deepstream-sop`](skills/deepstream-sop/SKILL.md) — SOP step-sequence compliance microservice
 - [`deepstream-import-vision-model`](skills/deepstream-import-vision-model/SKILL.md) — autonomous vision-model onboarding
+- [`amc-setup-calibration-stack`](skills/amc-setup-calibration-stack/SKILL.md) — launch the AutoMagicCalib microservice and UI
+- [`amc-run-sample-calibration`](skills/amc-run-sample-calibration/SKILL.md) — verify AMC with the bundled sample dataset
+- [`amc-run-video-calibration`](skills/amc-run-video-calibration/SKILL.md) — calibrate user-provided MP4 camera videos
 
 # Requirements
 
@@ -138,7 +144,13 @@ DeepStream/
 │   ├── install_opensource_deps.sh           # builds open-source deps (OpenTelemetry, civetweb, …)
 │   └── print_env.sh                         # env diagnostic helper for bug reports
 ├── skills/
+│   ├── amc-run-sample-calibration/          # AMC sample-dataset calibration skill
+│   ├── amc-run-video-calibration/           # AMC custom-video calibration skill
+│   ├── amc-setup-calibration-stack/         # AMC microservice + UI launch skill
 │   ├── deepstream-dev/                      # general DS development skill
+│   ├── deepstream-generate-pipeline/        # interactive gst-launch pipeline builder
+│   ├── deepstream-profile-pipeline/         # Nsight Systems profiling & config derivation
+│   ├── deepstream-sop/                      # SOP step-sequence compliance microservice
 │   └── deepstream-import-vision-model/      # autonomous vision-model onboarding skill
 ├── src/
 │   ├── apps/                                # sample, reference, and TAO sample applications
