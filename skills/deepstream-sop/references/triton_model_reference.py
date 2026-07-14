@@ -149,7 +149,7 @@ class DDMTensorRTEngine:
         """
         state = self._get_thread_state()
         trt_stream = state["stream"]
-        # NVBug 6289256 — TRT/gst-CV CUDA ordering fix.
+        # TRT/gst-CV CUDA ordering fix: per-stream sync leaves TRT aux-stream work in flight → SIGSEGV.
         # input_tensor is produced by torch ops (cat/contiguous in execute()) on the
         # caller's CUDA stream, so order the TRT stream after it (read-before-write hazard).
         # Crucially, execute_async_v3 can enqueue work on TRT *auxiliary* streams beyond

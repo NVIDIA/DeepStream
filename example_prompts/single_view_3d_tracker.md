@@ -8,4 +8,4 @@ Use DeepStream SDK pyservicemaker APIs to develop the python application that ca
 **Important**
 Save the generated code in single_view_3d_tracker_app directory.
 Also generate a README.md with setup instructions, how to download required models and camera calibration requirements, and how to run the application.
-In tracker configuraton file, set minPoseConfidence to 0.925 and outputConvexHull to 0.
+In tracker configuration file, set minPoseConfidence to 0.925 and outputConvexHull to 0.

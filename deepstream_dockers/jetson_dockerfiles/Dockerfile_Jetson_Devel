@@ -1,0 +1,251 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ARG L4T_VERSION
+
+# Jetson Thor/Orin is SBSA based
+
+
+FROM nvcr.io/nvidia/tritonserver:26.04-py3
+
+ENV DS_VERSION=9.1
+
+
+# Configure nvidia external apt repo
+#
+RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+
+RUN echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" >> /etc/apt/sources.list
+
+
+# GStreamer + deepstream devel dependencies
+RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
+        mkdir -p /root/tmp ; mkdir -p /lib/firmware ; mkdir /tmp99 ; \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive 	apt-get install -y --no-install-recommends \
+        linux-libc-dev \
+        libglew2.2 libjpeg8 libjson-glib-1.0-0 \
+        gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools \
+        gstreamer1.0-alsa \
+        libuuid1 \
+        libjansson4 \
+        libjansson-dev \
+        librabbitmq4 \
+        libv4l-dev \
+        gdb bash-completion libboost-dev \
+        uuid-dev libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libglew-dev \
+        libssl-dev \
+        libjpeg-dev \
+        freeglut3-dev \
+        libjpeg-dev \
+        libjson-glib-dev \
+        libboost-dev \
+        librabbitmq-dev \
+        libgles2-mesa-dev \
+        pkg-config \
+        libxau-dev \
+        libxdmcp-dev \
+        libxcb1-dev \
+        libxext-dev \
+        libx11-dev \
+        git \
+        wget \
+        unzip \
+        openssl \
+        libssl-dev \
+        python3-apt \
+        python3 \
+        libyaml-cpp-dev \
+        rsyslog \
+        tzdata \
+        libcurl4 libcurl4-openssl-dev ca-certificates \
+        vim g++  \
+        tar \
+        libjsoncpp-dev \
+        gstreamer1.0-rtsp \
+        libc-bin \
+        locales \
+        rsync \
+        libc6 \
+        libcurl3-gnutls \
+        linux-libc-dev \
+        libc-dev-bin \
+        libcjson-dev \
+        libssh-4 \
+        libbinutils \
+        binutils \
+        gpgv \
+        python3.12-minimal \
+        python3.12 \
+        libsqlite3-0 \
+        libarchive13t64 \
+        xz-utils \
+        perl \
+        libkrb5-3 \
+        libpam0g \
+        libexpat1 \
+        libtasn1-6 \
+        libjq1 \
+        jq \
+        python3-setuptools \
+        python3-pkg-resources \
+        python3-pip \
+        libgnutls30t64 \
+        apparmor-utils \
+        mosquitto \
+        libmosquitto-dev \
+        libssl-dev \
+        libhiredis-dev \
+        libcjson-dev \
+        librdkafka1 && \
+        tar --version ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v9.1.0_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
+        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
+        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
+        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
+        cp /tmp/docker/rsyslog /etc/init.d/ && \
+        chmod +x /etc/init.d/rsyslog && \
+        cp /tmp/docker/user_additional_install_devel.sh /opt/nvidia/deepstream/deepstream/ && \
+        cp /tmp/docker/user_deepstream_python_apps_install.sh /opt/nvidia/deepstream/deepstream/ && \
+        cp /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
+        cp /tmp/docker/entrypoint.sh /opt/nvidia/deepstream/deepstream/ && \
+        chmod +x /opt/nvidia/deepstream/deepstream/entrypoint.sh && \
+        mv  /opt/nvidia/deepstream/deepstream/user_additional_install_devel.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /root/tmp && \
+        apt autoremove
+
+RUN mkdir -p /opt/tritonclient/ && \
+        mkdir -p /tmp/temp_triton99 && \
+        mkdir -p /opt/proto && \
+        mkdir -p /tmp/temp_proto99 && \
+        mkdir -p /opt/half && \
+        mkdir -p /tmp/half99 && \
+        cd /tmp/temp_triton99 && \
+        wget https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -nv && \
+        /usr/bin/unzip -q tritonserver_sdk-2.68.0+nv26.04-*.zip && \
+        mv tritonserver_sdk/install/lib64   /opt/tritonclient/lib && \
+        mv tritonserver_sdk/install/include /opt/tritonclient/include && \
+        rm -rf tritonserver_sdk && \
+        cd /tmp/temp_proto99 && \
+        apt-get update && \
+        apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3 && \
+        apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.3 && \
+        mkdir -p /opt/proto/bin && \
+        ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \    
+        cd /tmp/half99 && \
+        wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
+        /usr/bin/unzip /tmp/half99/half-2.1.0.zip -d /opt/half && \
+        cd / && \
+        rm -rf /tmp/temp_triton99 && \
+        rm -rf /tmp/temp_proto99 && \
+        rm -rf /tmp/half99 
+
+# open telemetry
+RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
+     mkdir -p /tmp/temp_otel99 && \
+     cd /tmp/temp_otel99 && \
+     cp  /tmp/docker/optel/* . && \
+     dpkg -i *.deb && \
+     cd / && \
+     rm -rf /tmp/temp_otel99
+
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3 
+
+
+RUN rm -f /usr/local/cuda-13.2/lib64/libnvjpeg.so
+
+# Fix CVE for h11 - CVE-2025-43859
+RUN pip3 install httpcore==1.0.9
+# RUN pip install h11==0.16.0  (already included in httpcore 1.0.9 update)
+
+# Fix CVE-2025-47273 (setuptools) and CVE-2026-24049
+RUN pip3 install setuptools==78.1.1 jaraco.context==6.1.0
+
+# Fix CVE-2025-62727 (Starlette)
+RUN pip3 install starlette==0.52.1 fastapi
+
+RUN mkdir -p /root/tmp ; cd /root/tmp ; \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        libnvvpi4 \
+        vpi4-dev && \
+        rm -rf /root/tmp
+
+
+
+# Base image included only development symlinks but not the actual OpenCV runtime libraries
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libopencv-dev=4.6.0+dfsg-13.1ubuntu1 && \ 
+    ldconfig
+
+
+# workaround for directory rename from tegra to nvidia (symlink for jetson triton base docker)
+RUN ln -s /usr/lib/aarch64-linux-gnu/nvidia /usr/lib/aarch64-linux-gnu/tegra
+
+# IP requirement for removal
+ RUN rm -f /usr/lib/aarch64-linux-gnu/libavresample* /usr/lib/aarch64-linux-gnu/libavutil* \
+        /usr/lib/aarch64-linux-gnu/libavcodec* /usr/lib/aarch64-linux-gnu/libavformat* \
+        /usr/lib/aarch64-linux-gnu/libavfilter*
+ RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstaudioparsers.so
+ RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstfaad.so
+ RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstvoaacenc.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstx264.so /usr/lib/aarch64-linux-gnu/libx264.so* \
+        /usr/lib/aarch64-linux-gnu/libmpeg2.so* /usr/lib/aarch64-linux-gnu/libmpeg2convert.so* /usr/lib/aarch64-linux-gnu/libmpeg2encpp-2.1.so* 
+ RUN rm -f /usr/lib/aarch64-linux-gnu/libmpg123.so* /usr/lib/aarch64-linux-gnu/libvpx.so* /usr/lib/aarch64-linux-gnu/libx265.so* \
+        /usr/lib/aarch64-linux-gnu/libde265.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstx265.so* \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstde265.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstvpx.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstopenh264.so /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstnvcodec.so \
+        /usr/lib/aarch64-linux-gnu/libvo-aacenc.so* /usr/lib/aarch64-linux-gnu/libjbig.so* /usr/lib/aarch64-linux-gnu/libmplex2-2.1.so*
+
+# new IP additions
+
+RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstuvch264.so /usr/lib/aarch64-linux-gnu/libopenh264.so.2.2.0 /usr/lib/aarch64-linux-gnu/libopenh264.so* \
+        /usr/lib/aarch64-linux-gnu/libvo-aacenc.so.0 /usr/lib/aarch64-linux-gnu/libvo-aacenc.so.0.0.4 /usr/lib/aarch64-linux-gnu/libmp3lame.so.0.0.0 \
+        /usr/lib/aarch64-linux-gnu/libmp3lame.so.0 /usr/lib/aarch64-linux-gnu/libfaad* /usr/lib/aarch64-linux-gnu/libFLAC.so* \
+        /usr/lib/aarch64-linux-gnu/libmjpegutils-2.1.so.0* /usr/lib/aarch64-linux-gnu/libxvidcore.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpegpsmux.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so
+
+# remove for DS 8.0 VSS
+
+RUN rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /usr/lib/*-linux-gnu/libdvdread.so* \
+          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so* 
+
+RUN rm -f /usr/lib/aarch64-linux-gnu/libswresample.a* /usr/lib/aarch64-linux-gnu/libswresample.so*
+
+RUN rm -rf  /opt/tritonserver/backends/dali
+
+
+CMD ["/bin/bash"]
+WORKDIR /opt/nvidia/deepstream/deepstream
+
+
+RUN ldconfig
+
+ENV LD_LIBRARY_PATH=/opt/tritonserver/lib:/opt/tritonclient/lib/:/usr/local/cuda-13.2/lib64
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+
+ENV PATH=/opt/proto/bin:$PATH
+
+ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
+
+

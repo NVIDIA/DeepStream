@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # DeepStream Container: Step-by-step Instructions
 
 This page provides detailed step-by-step instructions for running MV3DT using the DeepStream Container. For quick start scripts, see the [main README](../README.md#option-1-running-mv3dt-using-deepstream-container).
@@ -72,7 +89,7 @@ This page provides detailed step-by-step instructions for running MV3DT using th
         -v /tmp/.X11-unix/:/tmp/.X11-unix \
         -e DISPLAY=$DISPLAY \
         -w /workspace/experiments \
-        nvcr.io/nvidia/deepstream:9.0-triton-multiarch \
+        nvcr.io/nvidia/deepstream:9.1-triton-multiarch \
         deepstream-test5-app -c config_deepstream.txt
 
     # [Expected output] You should see a window named "DeepStreamTest5App" pop up and will display 4 camera views in a grid.

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_COMMON_ABI_FRAME__H
 #define _DS3D_COMMON_ABI_FRAME__H
 

@@ -80,7 +80,16 @@ def main(file_path):
     if isinstance(file_path, list):
         file_list = file_path if isinstance(file_path, list) else [file_path]
         pipeline = Pipeline(PIPELINE_NAME)
-        pipeline.add("nvstreammux", "mux", {"batch-size": len(file_list), "batched-push-timeout": BATCHED_PUSH_TIMEOUT, "width": MUXER_WIDTH, "height": MUXER_HEIGHT, "compute-hw": 1, "nvbuf-memory-type": 2})
+        pipeline.add(
+            "nvstreammux",
+            "mux",
+            {
+                "batch-size": len(file_list),
+                "batched-push-timeout": BATCHED_PUSH_TIMEOUT,
+                "width": MUXER_WIDTH,
+                "height": MUXER_HEIGHT,
+            },
+        )
         for i, file in enumerate(file_list):
             pipeline.add("uridecodebin", f"src_{i}", {"uri": file})
             pipeline.link((f"src_{i}", "mux"), ("", "sink_%u"))

@@ -1,9 +1,26 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 ## Manual Setup Instructions
 
 
 1. Please check [Deepstream Container Prerequisites](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html#prerequisites) for Deepstream container setup, and download the latest DeepStream container image. 
     ```bash
-    docker pull nvcr.io/nvidia/deepstream:9.0-triton-multiarch
+    docker pull nvcr.io/nvidia/deepstream:9.1-triton-multiarch
     ```
 2. Git clone the current `deepstream_reference_apps` repository to the host machine and enter `deepstream-tracker-3d-multi-view` directory
     ```bash
@@ -38,7 +55,7 @@
         -v $PWD/models:/workspace/models \
         -w /workspace/models/PeopleNetTransformer \
         --entrypoint /bin/bash \
-        nvcr.io/nvidia/deepstream:9.0-triton-multiarch \
+        nvcr.io/nvidia/deepstream:9.1-triton-multiarch \
         -c "cd custom_parser && make clean && make"
     # [Expected output] You should see "libnvds_infercustomparser_tao.so" built under models/PeopleNetTransformer/custom_parser/. Warnings during build are expected.
 
@@ -47,7 +64,7 @@
         -v $PWD/models:/workspace/models \
         -w /workspace/models/RTDETR \
         --entrypoint /bin/bash \
-        nvcr.io/nvidia/deepstream:9.0-triton-multiarch \
+        nvcr.io/nvidia/deepstream:9.1-triton-multiarch \
         -c "cd custom_parser && make clean && make"
     # [Expected output] You should see "libnvds_infercustomparser_tao.so" built under models/RTDETR/custom_parser/. Warnings during build are expected.
     ```
@@ -164,12 +181,12 @@
 
 8. (Optional) This step is only needed if you choose to use Option 2: Inference Builder.
 
-    Set up [Deepstream Inference Builder](https://github.com/NVIDIA/deepstream/-/tree/master/tools/inference_builder). It is recommended to clone the `inference_builder` repo outside of the current repo.
+    Set up [Deepstream Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/de226c076db9e3fd4f2be87117491b457607149a). It is recommended to clone the `inference_builder` repo outside of the current repo.
     * Clone the inference builder repo
 
     ```bash
-    git clone https://github.com/NVIDIA/deepstream.git
-    cd tools/inference_builder
+    git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder && cd inference_builder && git checkout de226c076db9e3fd4f2be87117491b457607149a && cd ..
+    cd inference_builder
     git submodule update --init --recursive
     ```
     * Create a new virtual environment for inference builder and install prerequisites. Please follow the following instructions exactly for quick start. **Note that there are 2 virtual environments used in this repo, `mv3dt_venv` and `ib_venv`. The scripts provided in the repo assumes that a `mv3dt_venv` folder is under the current repo, and a `ib_venv` folder is under the inference_builder repo.**
@@ -196,7 +213,7 @@
     ```bash
     # Create a temporary Dockerfile
     cat > ./Dockerfile.ib_mv3dt << 'EOF'
-    FROM nvcr.io/nvidia/deepstream:9.0-triton-multiarch
+    FROM nvcr.io/nvidia/deepstream:9.1-triton-multiarch
     RUN pip3 install torch==2.7.0 omegaconf==2.3.0
     ENV GST_PLUGIN_PATH=/opt/nvidia/deepstream/deepstream/lib/gst-plugins
     ENV LD_LIBRARY_PATH=/opt/nvidia/deepstream/deepstream/lib:$LD_LIBRARY_PATH

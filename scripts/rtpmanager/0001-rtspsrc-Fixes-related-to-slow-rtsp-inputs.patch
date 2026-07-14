@@ -1,0 +1,146 @@
+From a038baacb187187efc2d34f723c60d3ac61d8297 Mon Sep 17 00:00:00 2001
+From: csethi <Chetan Sethi>
+Date: Fri, 19 Sep 2025 15:06:31 +0530
+Subject: [PATCH] rtspsrc: Fixes related to slow rtsp inputs
+
+1. Change default socker buffer size to 1 Mb
+2. Configurable timeout interval to allow slow inputs
+   need to set timeout value in sec to environment variable
+   GST_RTP_TIMEOUT_INTERVAL
+---
+ .../gst/rtpmanager/rtpsession.c               | 31 +++++++++++-
+ .../gst-plugins-good/gst/rtsp/gstrtspsrc.c    | 49 +++++++++++++++++++
+ 2 files changed, 79 insertions(+), 1 deletion(-)
+
+diff --git a/subprojects/gst-plugins-good/gst/rtpmanager/rtpsession.c b/subprojects/gst-plugins-good/gst/rtpmanager/rtpsession.c
+index f9202a7e8a..950257d70d 100644
+--- a/subprojects/gst-plugins-good/gst/rtpmanager/rtpsession.c
++++ b/subprojects/gst-plugins-good/gst/rtpmanager/rtpsession.c
+@@ -1,5 +1,6 @@
+ /* GStreamer
+  * Copyright (C) <2007> Wim Taymans <wim.taymans@gmail.com>
++ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Library General Public
+@@ -35,6 +36,27 @@
+ GST_DEBUG_CATEGORY (rtp_session_debug);
+ #define GST_CAT_DEFAULT rtp_session_debug
+ 
++// --- BEGIN CUSTOM TIMEOUT INTERVAL CODE ---
++#include <glib/gthread.h>
++
++static GOnce timeout_init_once = G_ONCE_INIT;
++static gint timeout_interval = 5; // Default value
++static gpointer init_timeout_interval(gpointer user_data) {
++    const gchar *env_val = g_getenv("GST_RTP_TIMEOUT_INTERVAL");
++    if (env_val != NULL) {
++        gint64 val = g_ascii_strtoll(env_val, NULL, 10);
++        if (val > 0) {
++            timeout_interval = (gint)val;
++            g_print("GST_RTP_TIMEOUT_INTERVAL: Environment variable set to '%s', using timeout_interval=%d seconds\n", 
++                    env_val, timeout_interval);
++        } else {
++            GST_WARNING("Invalid GST_RTP_TIMEOUT_INTERVAL '%s', using default 5", env_val);
++        }
++    }
++    return NULL;
++}
++// --- END CUSTOM TIMEOUT INTERVAL CODE ---
++
+ /* signals and args */
+ enum
+ {
+@@ -4212,7 +4234,14 @@ session_cleanup (const gchar * key, RTPSource * source, ReportData * data)
+     /* mind old time that might pre-date last time going to PLAYING */
+     btime = MAX (source->last_activity, sess->start_time);
+     if (data->current_time > btime) {
+-      interval = MAX (binterval * 5, 5 * GST_SECOND);
++      if (g_getenv("GST_ENABLE_CUSTOM_RTP_MODIFICATIONS")) {
++        // --- BEGIN CUSTOM TIMEOUT INTERVAL USAGE ---
++        g_once(&timeout_init_once, init_timeout_interval, NULL);
++        interval = MAX (binterval * 5, timeout_interval * GST_SECOND);
++        // --- END CUSTOM TIMEOUT INTERVAL USAGE ---
++      } else {
++        interval = MAX (binterval * 5, 5 * GST_SECOND);
++      }
+       if (data->current_time - btime > interval) {
+         GST_DEBUG ("removing timeout source %08x, last %" GST_TIME_FORMAT,
+             source->ssrc, GST_TIME_ARGS (btime));
+diff --git a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
+index 65fe6d0f88..f93adf344a 100644
+--- a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
++++ b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
+@@ -1,6 +1,7 @@
+ /* GStreamer
+  * Copyright (C) <2005,2006> Wim Taymans <wim at fluendo dot com>
+  *               <2006> Lutz Mueller <lutz at topfrose dot de>
++ * Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved. 
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Library General Public
+@@ -106,6 +107,9 @@
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdarg.h>
++#include <sys/socket.h>
++#include <netinet/in.h>
++#include <netinet/tcp.h>
+ 
+ #include <gst/net/gstnet.h>
+ #include <gst/sdp/gstsdpmessage.h>
+@@ -8312,6 +8316,51 @@ restart:
+   if ((res = gst_rtsp_conninfo_connect (src, &src->conninfo, async)) < 0)
+     goto connect_failed;
+ 
++  if (g_getenv("GST_ENABLE_CUSTOM_RTP_MODIFICATIONS") && src->conninfo.connection) {
++    // Declare ALL variables at the start of the block
++    int sockfd;
++    int recv_buffer_size = 1048576;  // 1MB
++    int send_buffer_size = 1048576;  // 1MB
++    int actual_recv_size = 0;
++    int actual_send_size = 0;
++    socklen_t size_len = sizeof(int);
++    GSocket *socket;
++
++    // Get the socket
++    socket = gst_rtsp_connection_get_read_socket(src->conninfo.connection);
++    if (socket) {
++      sockfd = g_socket_get_fd(socket);
++
++      if (sockfd >= 0) {
++        // Set socket receive buffer size to 1MB
++        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
++            &recv_buffer_size, sizeof(recv_buffer_size)) == 0) {
++          // Get the actual size after setting
++          if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
++              &actual_recv_size, &size_len) == 0) {
++            g_print ("Set socket receive buffer size: requested=%d, actual=%d bytes\n",
++                recv_buffer_size, actual_recv_size);
++          }
++        } else {
++          g_print ("Failed to set socket receive buffer size to %d bytes\n", recv_buffer_size);
++        }
++
++        // Set socket send buffer size to 1MB
++        if (setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,
++            &send_buffer_size, sizeof(send_buffer_size)) == 0) {
++          // Get the actual size after setting
++          if (getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF,
++              &actual_send_size, &size_len) == 0) {
++            g_print ("Set socket send buffer size: requested=%d, actual=%d bytes\n",
++                send_buffer_size, actual_send_size);
++          }
++        } else {
++          g_print ("Failed to set socket send buffer size to %d bytes\n", send_buffer_size);
++        }
++      }
++    }
++  }
++
+   /* create OPTIONS */
+   GST_DEBUG_OBJECT (src, "create options... (%s)", async ? "async" : "sync");
+   res =
+-- 
+2.34.1
+

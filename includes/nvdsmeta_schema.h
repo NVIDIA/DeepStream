@@ -325,8 +325,6 @@ typedef struct _NvDsBbox3dObjectList {
   gfloat ptWorldFeet[2];
   /** Holds the object's estimated foot location in frame coordinates. */
   gfloat ptImgFeet[2];
-  /** Holds the object's visibility. */
-  gfloat visibility;
   /** Holds the object's convex hull information */
   NvDsConvexHull convexHull;
   NvDsBbox3dObject bbox3d;
@@ -460,6 +458,8 @@ typedef struct NvDsEventMsgMeta {
   bool has3DTracking;
   /** Holds the single view 3D tracking metadata if available. */
   NvDs3DTracking singleView3DTracking;
+  /** Holds the object's visibility. */
+  gfloat visibility;
 } NvDsEventMsgMeta;
 
 /**

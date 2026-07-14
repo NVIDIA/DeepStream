@@ -1,7 +1,6 @@
 bin/x86/
 bin/aarch64/
 bin/sbsa/
-artifacts/samples/models/**/*.engine
 libs/x86/gst-plugins/
 libs/x86/gst-utils/
 libs/x86/utils/
@@ -26,6 +25,7 @@ src/apps/sample_apps/deepstream-testsr/With_BBox_*.mp4
 src/apps/sample_apps/deepstream-testsr/smart_record.log
 src/**/.build/
 build/build.log
+build/.stage-state*
 src/service-maker/sources/**/build/
 
 # Proprietary prebuilt libs (not migrated to NVIDIA/DeepStream)
@@ -38,3 +38,5 @@ artifacts/
 *.tar.gz
 *.tgz
 *.zip
+.mcp.json
+.claude/settings.local.json

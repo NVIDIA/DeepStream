@@ -1,0 +1,173 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# Jetson Thor/Orin is SBSA based
+
+FROM nvcr.io/nvidia/cuda:13.2.1-cudnn-runtime-ubuntu24.04
+
+ENV DS_VERSION=9.1
+
+RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+
+RUN echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" >> /etc/apt/sources.list
+
+
+RUN  apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget 
+
+# GStreamer + deepstream dependencies
+RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
+        mkdir -p /lib/firmware ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; mkdir -p /tmp/temp_trt ; ls -ltr /root ;  \
+        cd /tmp/temp_trt && \
+        cp /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_arm64.deb /tmp/temp_trt && \
+        dpkg -i /tmp/temp_trt/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_arm64.deb && \
+        ls -l /tmp/temp_trt/ && \
+        cp /var/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2/nv-tensorrt-local-F91007A3-keyring.gpg /usr/share/keyrings/ && \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        rsyslog git \
+        tzdata \
+        tar \
+        ca-certificates \
+        libgstrtspserver-1.0-0 \
+        gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools \
+        libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev \
+        libjansson4 \
+        libglib2.0-dev \
+        libjson-glib-1.0-0 \
+        librabbitmq4 \
+        gstreamer1.0-rtsp \
+        libgstreamer1.0-0 \
+        gstreamer1.0-tools \
+        libyaml-cpp-dev \
+        libjsoncpp-dev \
+        libjpeg-dev \
+        openssl \
+        libssl3 \
+        build-essential \
+        libssl-dev \
+        libcurl4-openssl-dev \
+        libcjson-dev \
+        apparmor-utils \
+        libprotoc32t64 \
+        libprotobuf32t64 \
+        mosquitto \
+        libhiredis-dev \
+        librdkafka1 \
+        python3-pip \
+        gnupg2 \
+        tensorrt-libs=10.16.1.11-1+cuda13.2 \
+        libnvvpi4 \
+        vpi4-dev && \
+        cd /tmp && \
+        dpkg --purge nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2 && \
+        apt-mark hold tensorrt-libs libnvinfer-dispatch10 libnvinfer-lean10 libnvinfer-plugin10 libnvinfer-vc-plugin10 libnvinfer10 libnvonnxparsers10 && \
+        rm -rf /root/tmp && \
+        rm -rf temp_trt && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /root/tmp && \       
+        apt autoremove
+
+
+# Fix Base image included only development symlinks but not the actual OpenCV runtime libraries
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libopencv-dev=4.6.0+dfsg-13.1ubuntu1 && \
+    ldconfig
+
+# open telemetry
+RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
+     mkdir -p /tmp/temp_otel99 && \
+     cd /tmp/temp_otel99 && \
+     cp  /tmp/docker/optel/* . && \
+     dpkg -i *.deb && \
+     cd / && \
+     rm -rf /tmp/temp_otel99
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3
+
+RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
+        tar --version ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v*_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
+        cp /tmp/docker/rsyslog /etc/init.d/  && \
+        chmod +x /etc/init.d/rsyslog && \
+        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
+        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
+        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
+        ln -s /usr/lib/aarch64-linux-gnu/nvidia /usr/lib/aarch64-linux-gnu/tegra && \
+        ln -s /usr/src/tensorrt/bin/trtexec /usr/bin/trtexec && \
+        cp /tmp/docker/entrypoint.sh /opt/nvidia/deepstream/deepstream/ && \
+        chmod +x /opt/nvidia/deepstream/deepstream/entrypoint.sh && \
+        cp  /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
+        cp  /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
+        mv  /opt/nvidia/deepstream/deepstream/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /root/tmp && \
+        apt autoremove 
+
+# WAR for CUDA compatability so DeepStream will run without errors with JP 7.2 - 580.xx drivers
+RUN apt purge -y cuda-compat-13-2 cuda-compat-orin-13-2
+
+
+# Workaround for deepstream-app --version-all
+RUN  ln -s /usr/local/cuda-13.2/lib64/libcufft.so.12.2.0.46 /usr/local/cuda-13.2/lib64/libcufft.so && \
+     ln -s /usr/local/cuda-13.2/lib64/libcublas.so.13.4.0.1 /usr/local/cuda-13.2/lib64/libcublas.so && \
+     ln -s /usr/lib/aarch64-linux-gnu/libcudnn.so.9.20.0 /usr/lib/aarch64-linux-gnu/libcudnn.so && \
+     ln -s /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so.13.2.75 /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so 
+
+# IP requirement for removal
+RUN rm -f /usr/lib/aarch64-linux-gnu/libavresample* /usr/lib/aarch64-linux-gnu/libavutil* \
+        /usr/lib/aarch64-linux-gnu/libavcodec* /usr/lib/aarch64-linux-gnu/libavformat* \
+        /usr/lib/aarch64-linux-gnu/libavfilter*
+RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstaudioparsers.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstfaad.so
+
+RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstvoaacenc.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstx264.so /usr/lib/aarch64-linux-gnu/libx264.so*  \
+        /usr/lib/aarch64-linux-gnu/libmpeg2.so* /usr/lib/aarch64-linux-gnu/libmpeg2convert.so* /usr/lib/aarch64-linux-gnu/libmpeg2encpp-2.1.so* 
+RUN rm -f  /usr/lib/aarch64-linux-gnu/libmpg123.so* /usr/lib/aarch64-linux-gnu/libvpx.so* /usr/lib/aarch64-linux-gnu/libx265.so*  \
+        /usr/lib/aarch64-linux-gnu/libde265.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstx265.so*  \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstde265.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstvpx.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstopenh264.so /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstnvcodec.so \
+        /usr/lib/aarch64-linux-gnu/libjbig.so* /usr/lib/aarch64-linux-gnu/libmplex2-2.1.so*
+
+# new IP additions
+
+RUN rm -f /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstuvch264.so /usr/lib/aarch64-linux-gnu/libopenh264.so.2.2.0 /usr/lib/aarch64-linux-gnu/libopenh264.so* \
+        /usr/lib/aarch64-linux-gnu/libvo-aacenc.so.0 /usr/lib/aarch64-linux-gnu/libvo-aacenc.so.0.0.4 /usr/lib/aarch64-linux-gnu/libmp3lame.so.0.0.0 \
+        /usr/lib/aarch64-linux-gnu/libmp3lame.so.0 /usr/lib/aarch64-linux-gnu/libfaad* /usr/lib/aarch64-linux-gnu/libFLAC.so* \
+        /usr/lib/aarch64-linux-gnu/libmjpegutils-2.1.so.0* /usr/lib/aarch64-linux-gnu/libxvidcore.so* /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpegpsmux.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so
+
+# remove for DS 8.0 VSS
+RUN rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /usr/lib/*-linux-gnu/libdvdread.so* \
+          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so*
+
+RUN rm -f /usr/lib/aarch64-linux-gnu/libswresample.a* /usr/lib/aarch64-linux-gnu/libswresample.so*
+
+CMD ["/bin/bash"]
+WORKDIR /opt/nvidia/deepstream/deepstream
+
+
+ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
+
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-13.2/lib64:/opt/nvidia/deepstream/deepstream-9.1/lib
+
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+#
+RUN ldconfig
+

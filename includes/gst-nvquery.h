@@ -263,6 +263,89 @@ gboolean gst_nvquery_text_embedding_parse_request (GstQuery * query,
                                                      const gchar **text_input,
                                                      const gchar **model);
 
+/**
+ * Creates a new image embedding query, which can be used to request
+ * image embedding generation from the nvdsvisionencoder plugin.
+ *
+ * params[in] image_path   Filesystem path to the input image.
+ * params[in] model        Model name string (for response metadata).
+ * params[in] has_bbox     Whether a bounding box crop is specified.
+ * params[in] bbox_left    Bounding box left coordinate (ignored if !has_bbox).
+ * params[in] bbox_top     Bounding box top coordinate.
+ * params[in] bbox_width   Bounding box width.
+ * params[in] bbox_height  Bounding box height.
+ *
+ * @return  A pointer to the new image embedding query.
+ */
+GstQuery * gst_nvquery_image_embedding_new (const gchar *image_path,
+                                             const gchar *model,
+                                             gboolean has_bbox,
+                                             gdouble bbox_left,
+                                             gdouble bbox_top,
+                                             gdouble bbox_width,
+                                             gdouble bbox_height);
+
+/**
+ * Determines whether a query is an image embedding query.
+ *
+ * params[in] query     A pointer to the query to be checked.
+ *
+ * @return  True if the query is an image embedding query.
+ */
+gboolean gst_nvquery_is_image_embedding (GstQuery * query);
+
+/**
+ * Sets the image embedding response data, used by elements responding
+ * to the image embedding query.
+ *
+ * params[in] query     A pointer to an image embedding query.
+ * params[in] id        A pointer to the unique identifier string.
+ * params[in] created   The creation timestamp (epoch).
+ * params[in] model     A pointer to the model name string.
+ * params[in] data      A pointer to a GValue containing the embedding data array.
+ */
+void gst_nvquery_image_embedding_set (GstQuery * query, const gchar *id,
+                                       guint64 created, const gchar *model,
+                                       const GValue *data);
+
+/**
+ * Parses the image embedding response from an image embedding query.
+ *
+ * params[in] query     A pointer to an image embedding query.
+ * params[out] id       A pointer to store the unique identifier string.
+ * params[out] created  A pointer to store the creation timestamp.
+ * params[out] model    A pointer to store the model name string.
+ * params[out] data     A pointer to store the GValue containing embedding data.
+ *
+ * @return  True if the query was successfully parsed.
+ */
+gboolean gst_nvquery_image_embedding_parse (GstQuery * query, const gchar **id,
+                                             guint64 *created, const gchar **model,
+                                             const GValue **data);
+
+/**
+ * Parses the image embedding request parameters from an image embedding query.
+ *
+ * params[in] query         A pointer to an image embedding query.
+ * params[out] image_path   A pointer to store the image path string.
+ * params[out] model        A pointer to store the model name string.
+ * params[out] has_bbox     A pointer to store the bbox flag.
+ * params[out] bbox_left    A pointer to store left coordinate.
+ * params[out] bbox_top     A pointer to store top coordinate.
+ * params[out] bbox_width   A pointer to store width.
+ * params[out] bbox_height  A pointer to store height.
+ *
+ * @return  True if the query was successfully parsed.
+ */
+gboolean gst_nvquery_image_embedding_parse_request (GstQuery * query,
+                                                      const gchar **image_path,
+                                                      const gchar **model,
+                                                      gboolean *has_bbox,
+                                                      gdouble *bbox_left,
+                                                      gdouble *bbox_top,
+                                                      gdouble *bbox_width,
+                                                      gdouble *bbox_height);
+
 /** @} */
 
 #ifdef __cplusplus

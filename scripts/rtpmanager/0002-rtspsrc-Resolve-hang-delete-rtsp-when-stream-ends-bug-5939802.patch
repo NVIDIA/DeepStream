@@ -1,0 +1,207 @@
+From 920b18b7bd0d6e7d75f22089688a0186504ad856 Mon Sep 17 00:00:00 2001
+From: Chetan Sethi <csethi@nvidia.com>
+Date: Tue, 31 Mar 2026 09:57:49 +0530
+Subject: [PATCH] rtspsrc: Resolve hang issue in delete rtsp when stream ends
+
+Bug 5939802
+
+Applies on top of 0001-rtspsrc-Fixes-related-to-slow-rtsp-inputs.patch in the
+GStreamer 1.24.2 monorepo checkout (subprojects/gst-plugins-good).
+
+Change-Id: I4ac53a1d030fd4b6654dbb1e6209c0afa1fed344
+---
+diff --git a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
+index 65fe6d0f..f4b28f5c 100644
+--- a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
++++ b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.c
+@@ -2431,6 +2431,7 @@ gst_rtspsrc_create_stream (GstRTSPSrc * src, GstSDPMessage * sdp, gint idx,
+   stream->skipped = FALSE;
+   stream->id = idx;
+   stream->eos = FALSE;
++  stream->eos_guard = FALSE;
+   stream->discont = TRUE;
+   stream->seqbase = -1;
+   stream->timebase = -1;
+@@ -3750,7 +3751,11 @@ on_timeout_common (GObject * session, GObject * source, GstRTSPStream * stream)
+     gboolean all_eos = TRUE;
+ 
+     GST_DEBUG_OBJECT (src, "setting stream for session %u to EOS", stream->id);
+-    stream->eos = TRUE;
++
++    /* Push EOS for this stream (the CAS inside gst_rtspsrc_stream_push_event
++     * atomically sets stream->eos = TRUE).  Do NOT pre-set stream->eos here;
++     * that would cause the CAS to fail and silently drop the EOS event. */
++    gst_rtspsrc_do_stream_eos (src, stream);
+ 
+     /* Only EOS all streams at once if they're all EOS. Otherwise it is
+      * possible for timed out streams to reappear at a later time time: they
+@@ -3758,13 +3763,13 @@ on_timeout_common (GObject * session, GObject * source, GstRTSPStream * stream)
+      */
+ 
+     for (walk = src->streams; walk; walk = g_list_next (walk)) {
+-      GstRTSPStream *stream = (GstRTSPStream *) walk->data;
++      GstRTSPStream *ostream = (GstRTSPStream *) walk->data;
+ 
+       /* Skip streams that were not set up at all */
+-      if (!stream->setup)
++      if (!ostream->setup)
+         continue;
+ 
+-      if (!stream->eos) {
++      if (!g_atomic_int_get (&ostream->eos)) {
+         all_eos = FALSE;
+         break;
+       }
+@@ -3773,8 +3778,8 @@ on_timeout_common (GObject * session, GObject * source, GstRTSPStream * stream)
+     if (all_eos) {
+       GST_DEBUG_OBJECT (src, "sending EOS on all streams");
+       for (walk = src->streams; walk; walk = g_list_next (walk)) {
+-        GstRTSPStream *stream = (GstRTSPStream *) walk->data;
+-        gst_rtspsrc_stream_push_event (src, stream, gst_event_new_eos ());
++        GstRTSPStream *ostream = (GstRTSPStream *) walk->data;
++        gst_rtspsrc_stream_push_event (src, ostream, gst_event_new_eos ());
+       }
+     }
+   }
+@@ -3819,7 +3824,7 @@ on_ssrc_active (GObject * session, GObject * source, GstRTSPStream * stream)
+   GST_DEBUG_OBJECT (stream->parent, "source in session %u is active",
+       stream->id);
+ 
+-  stream->eos = FALSE;
++  g_atomic_int_set (&stream->eos, FALSE);
+ }
+ 
+ static void
+@@ -5097,6 +5102,9 @@ gst_rtspsrc_activate_streams (GstRTSPSrc * src)
+   for (walk = src->streams; walk; walk = g_list_next (walk)) {
+     GstRTSPStream *stream = (GstRTSPStream *) walk->data;
+ 
++    g_atomic_int_set (&stream->eos_guard, FALSE);
++    g_atomic_int_set (&stream->eos, FALSE);
++
+     if (stream->udpsrc[0]) {
+       /* remove timeout, we are streaming now and timeouts will be handled by
+        * the session manager and jitter buffer */
+@@ -5253,16 +5261,38 @@ gst_rtspsrc_stream_push_event (GstRTSPSrc * src, GstRTSPStream * stream,
+ {
+   gboolean res = TRUE;
+ 
++  /* If rtspsrc is shutting down (target state <= READY), skip the event push.
++   * Pushing events during state teardown causes an AB-BA STREAM_LOCK deadlock:
++   * the close thread deactivates pads (holds lock A, waits for lock B) while
++   * the streaming thread in on_bye_ssrc holds lock B and waits for lock A. */
++  {
++    GstState target;
++    GST_OBJECT_LOCK (src);
++    target = GST_STATE_TARGET (src);
++    GST_OBJECT_UNLOCK (src);
++    if (target <= GST_STATE_READY)
++      goto done;
++  }
++
++  /* Atomically claim the right to push EOS for this stream.
++   * Uses eos_guard (separate from eos status flag) so that on_ssrc_active
++   * resetting stream->eos cannot defeat this guard.  eos_guard is only
++   * reset at safe synchronization points (activate_streams, FLUSH_STOP). */
++  if (GST_EVENT_TYPE (event) == GST_EVENT_EOS
++      && !g_atomic_int_compare_and_exchange (&stream->eos_guard, FALSE, TRUE))
++    goto done;
++
+   /* only streams that have a connection to the outside world */
+   if (!stream->setup)
+     goto done;
+ 
+   switch (GST_EVENT_TYPE (event)) {
+     case GST_EVENT_EOS:
+-      stream->eos = TRUE;
++      g_atomic_int_set (&stream->eos, TRUE);
+       break;
+     case GST_EVENT_FLUSH_STOP:
+-      stream->eos = FALSE;
++      g_atomic_int_set (&stream->eos, FALSE);
++      g_atomic_int_set (&stream->eos_guard, FALSE);
+       break;
+     default:
+       break;
+@@ -5278,7 +5308,22 @@ gst_rtspsrc_stream_push_event (GstRTSPSrc * src, GstRTSPStream * stream,
+       sent_event = gst_event_ref (event);
+     }
+ 
+-    res = gst_element_send_event (stream->udpsrc[0], sent_event);
++    /* Use gst_pad_push_event instead of gst_element_send_event to avoid
++     * acquiring udpsrc's STATE_LOCK.  gst_element_send_event takes
++     * STATE_LOCK (gstelement.c) which deadlocks when a concurrent state
++     * change (PAUSED->READY) already holds it and waits for this streaming
++     * thread to finish.  Pushing directly on the srcpad is equivalent for
++     * downstream events and matches the channelpad path below. */
++    {
++      GstPad *srcpad = gst_element_get_static_pad (stream->udpsrc[0], "src");
++      if (srcpad) {
++        res = gst_pad_push_event (srcpad, sent_event);
++        gst_object_unref (srcpad);
++      } else {
++        gst_event_unref (sent_event);
++        res = FALSE;
++      }
++    }
+   } else if (stream->channelpad[0]) {
+     GstEvent *sent_event;
+ 
+@@ -5301,7 +5346,16 @@ gst_rtspsrc_stream_push_event (GstRTSPSrc * src, GstRTSPStream * stream,
+       sent_event = gst_event_ref (event);
+     }
+ 
+-    res &= gst_element_send_event (stream->udpsrc[1], sent_event);
++    {
++      GstPad *srcpad = gst_element_get_static_pad (stream->udpsrc[1], "src");
++      if (srcpad) {
++        res &= gst_pad_push_event (srcpad, sent_event);
++        gst_object_unref (srcpad);
++      } else {
++        gst_event_unref (sent_event);
++        res &= FALSE;
++      }
++    }
+   } else if (stream->channelpad[1]) {
+     GstEvent *sent_event;
+ 
+@@ -5777,8 +5831,11 @@ gst_rtspsrc_handle_data (GstRTSPSrc * src, GstRTSPMessage * message)
+         /* only streams that have a connection to the outside world */
+         if (ostream->setup) {
+           if (ostream->udpsrc[0]) {
+-            gst_element_send_event (ostream->udpsrc[0],
+-                gst_event_new_caps (caps));
++            GstPad *srcpad = gst_element_get_static_pad (ostream->udpsrc[0], "src");
++            if (srcpad) {
++              gst_pad_push_event (srcpad, gst_event_new_caps (caps));
++              gst_object_unref (srcpad);
++            }
+           } else if (ostream->channelpad[0]) {
+             if (GST_PAD_IS_SRC (ostream->channelpad[0]))
+               gst_pad_push_event (ostream->channelpad[0],
+@@ -5796,8 +5853,11 @@ gst_rtspsrc_handle_data (GstRTSPSrc * src, GstRTSPMessage * message)
+             caps = gst_caps_new_empty_simple ("application/x-rtcp");
+ 
+           if (ostream->udpsrc[1]) {
+-            gst_element_send_event (ostream->udpsrc[1],
+-                gst_event_new_caps (caps));
++            GstPad *srcpad = gst_element_get_static_pad (ostream->udpsrc[1], "src");
++            if (srcpad) {
++              gst_pad_push_event (srcpad, gst_event_new_caps (caps));
++              gst_object_unref (srcpad);
++            }
+           } else if (ostream->channelpad[1]) {
+             if (GST_PAD_IS_SRC (ostream->channelpad[1]))
+               gst_pad_push_event (ostream->channelpad[1],
+diff --git a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.h b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.h
+index 2adfcba0..2758c522 100644
+--- a/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.h
++++ b/subprojects/gst-plugins-good/gst/rtsp/gstrtspsrc.h
+@@ -105,6 +105,7 @@ struct _GstRTSPStream {
+   gboolean      setup;
+   gboolean      skipped;
+   gboolean      eos;
++  gint          eos_guard;  /* atomic CAS flag for DL3 prevention */
+   gboolean      discont;
+   gboolean      need_caps;
+   gboolean      waiting_setup_response;

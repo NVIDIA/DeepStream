@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_COMMON_FUNC_UTILS__H
 #define _DS3D_COMMON_FUNC_UTILS__H
 

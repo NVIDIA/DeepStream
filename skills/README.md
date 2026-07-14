@@ -18,34 +18,42 @@ No GPU, SDK, or special hardware is required — the skill and example prompts w
 
 The following are required on the target execution environment:
 
-- **NVIDIA DeepStream SDK 9.0** — installed locally or available via [NVIDIA NGC container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
+- **NVIDIA DeepStream SDK** — installed locally or available via [NVIDIA NGC container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
 - **Python 3.12+** with the `pyservicemaker` package
-- **NVIDIA GPU** with driver version 590 or later
-- **CUDA 13.1** and **TensorRT 10.14.1.48**
+- **NVIDIA GPU** with driver version 595 or later
+- **CUDA 13.2** and **TensorRT 10.16.0.72**
 - **Supported OS:** Ubuntu 24.04 (x86_64 or ARM64/Jetson)
 
 > The `deepstream-import-vision-model` skill needs a few extra runtime tools (`trtexec`, `wkhtmltopdf`, `mediainfo`, `deepstream-app`, an `optimum`-capable Python venv). They are listed and auto-checked by the pre-flight script in [`skills/deepstream-import-vision-model/SKILL.md`](deepstream-import-vision-model/SKILL.md#pre-flight-checks).
 
 > For detailed environment setup, refer to the [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/).
 
+### DeepStream Version Compatibility
+
+Some skills may document a specific DeepStream SDK version or container image that is not the latest DeepStream release version. Use the version documented by the skill unless you have a reason to test with a newer DeepStream image.
+
+Skills that mention older DeepStream base images may still work out of the box with newer DeepStream versions. If you need to use a newer image, update the image tag and run the skill's setup, test, or benchmark steps to confirm the workflow.
+
 ---
 
 ## Project Structure
 
-This README sits under `skills/` inside the DeepStream mono-repo. Layout of this subtree, plus the related top-level `example_prompts/` directory:
+This README sits under `skills/` inside the DeepStream repository. Layout of this subtree, plus the related top-level `example_prompts/` directory:
 
 ```
-deepstream/                                 # mono-repo root
+deepstream/                                 # repository root
 ├── skills/                                 # Agentic skills for guided DeepStream development
 │   ├── README.md                           # This file
 │   ├── deepstream-dev/                     # DeepStream development skill with condensed references
 │   ├── deepstream-generate-pipeline/       # Interactive gst-launch pipeline builder (BM25 retrieval over 270+ pipelines)
 │   ├── deepstream-profile-pipeline/        # Nsight Systems profiling & config derivation skill
 │   ├── deepstream-import-vision-model/     # Autonomous vision-model onboarding & benchmarking pipeline skill
+│   ├── deepstream-run-mv3dt/               # MV3DT reference-app operations skill
 │   ├── deepstream-sop/                     # DeepStream SOP microservice skill (step-sequence compliance via GEBD + VLM)
 │   ├── amc-setup-calibration-stack/        # AutoMagicCalib MS + UI launch skill
 │   ├── amc-run-sample-calibration/         # AutoMagicCalib bundled-sample validation skill
-│   └── amc-run-video-calibration/          # AutoMagicCalib user-video calibration skill
+│   ├── amc-run-video-calibration/          # AutoMagicCalib user-video calibration skill
+│   └── amc-run-rtsp-calibration/           # AutoMagicCalib RTSP-stream calibration skill
 └── example_prompts/                        # Pre-built prompts for code generation
 ```
 
@@ -66,7 +74,7 @@ An **agentic skill** is a structured knowledge package that an AI coding assista
 
 Each subdirectory under `skills/` contains a DeepStream agentic skill that follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and others.
 
-This project ships **eight complementary skills**:
+This project ships **nine complementary skills**:
 
 | Skill | Mode | Use when you want to… |
 |-------|------|----------------------|
@@ -74,16 +82,18 @@ This project ships **eight complementary skills**:
 | [`deepstream-generate-pipeline`](deepstream-generate-pipeline/) | Interactive questionnaire + retrieval | Generate a ready-to-run `gst-launch-1.0` pipeline by answering a few questions; the agent retrieves and adapts from 270+ verified pipelines and validates the result. |
 | [`deepstream-profile-pipeline`](deepstream-profile-pipeline/) | Measure-then-derive (Nsight Systems) | Build an efficient/performant pipeline or benchmark, tune, and measure FPS — the agent profiles with `nsys`, derives configs from the measured inference plateau batch and HW ceiling, and reports per-plugin NVTX timings. |
 | [`deepstream-import-vision-model`](deepstream-import-vision-model/) | Autonomous orchestration (the agent runs an end-to-end pipeline) | Take any HuggingFace or NGC object-detection model and produce a TensorRT engine, a DeepStream multi-stream benchmark, and a PDF report — fully unattended. |
+| [`deepstream-run-mv3dt`](deepstream-run-mv3dt/) | Reference-app operations (the agent sets up and runs MV3DT) | Run the DeepStream Multi-View 3D Tracking reference app on shipped samples or synchronized MP4 datasets, including calibration handoff, Kafka metadata, and OSD/BEV outputs. |
 | [`deepstream-sop`](deepstream-sop/) | Microservice scaffold + evaluate-and-fix loop | Build, deploy, evaluate, debug, or measure latency for a DeepStream SOP (Standard Operating Procedure) inference microservice — GPU-accelerated operator step-sequence compliance on industrial video via GEBD + VLM (Cosmos Reason 1/2), with file / RTSP / Basler camera inputs and SSE / Kafka output. |
 | [`amc-setup-calibration-stack`](amc-setup-calibration-stack/) | Deployment runbook | Launch the AutoMagicCalib microservice and web UI from NGC release images via Docker Compose. |
 | [`amc-run-sample-calibration`](amc-run-sample-calibration/) | Validation runbook + script | Verify a running AMC stack with the bundled synthetic sample dataset. |
 | [`amc-run-video-calibration`](amc-run-video-calibration/) | Calibration runbook + script | Calibrate a camera rig from user-provided pre-recorded MP4 files via the AMC REST API. |
+| [`amc-run-rtsp-calibration`](amc-run-rtsp-calibration/) | RTSP capture + calibration runbook | Calibrate a camera rig from live RTSP streams through VIOS capture and the AMC REST API. |
 
-Skip ahead to [Skill: deepstream-import-vision-model](#skill-deepstream-import-vision-model) for the model-onboarding workflow.
+Skip ahead to [Skill: deepstream-import-vision-model](#skill-deepstream-import-vision-model) for the model-onboarding workflow, or [Skill: deepstream-run-mv3dt](#skill-deepstream-run-mv3dt) for the MV3DT reference-app workflow.
 
 ### Skill: deepstream-dev
 
-This skill targets NVIDIA DeepStream SDK 9.0 development using the Python `pyservicemaker` API. When activated, it instructs the AI agent to consult bundled reference documents before generating any code, significantly reducing inaccuracies and ensuring correct API usage.
+This skill targets NVIDIA DeepStream SDK development using the Python `pyservicemaker` API. When activated, it instructs the AI agent to consult bundled reference documents before generating any code, significantly reducing inaccuracies and ensuring correct API usage.
 
 **Bundled reference topics:**
 
@@ -103,6 +113,8 @@ This skill targets NVIDIA DeepStream SDK 9.0 development using the Python `pyser
 | `rest_api_dynamic.md` | REST API, dynamic source management |
 | `metamux_config.md` | nvdsmetamux config, parallel multi-model inference, metadata merging |
 | `docker_containers.md` | Docker images, Dockerfile examples, pyservicemaker install, container run commands |
+| `streaming_sources.md` | Streaming ingest sources: HTTP progressive, HLS, MPEG-DASH, RTSP |
+| `nvds_msgapi_adapter.md` | nvds_msgapi protocol adapter interface for message brokers |
 
 ### Installing the Skill
 
@@ -167,7 +179,9 @@ After copying, the directory structure should look like:
         ├── use_cases_pipelines.md
         ├── utilities_config.md
         ├── metamux_config.md
-        └── docker_containers.md
+        ├── docker_containers.md
+        ├── streaming_sources.md
+        └── nvds_msgapi_adapter.md
 ```
 
 #### Step 3: Verify the Installation
@@ -368,6 +382,58 @@ The final PDF (`reports/benchmark_report_<model_name>.pdf`) being **>500 KB** is
 
 ---
 
+### Skill: deepstream-run-mv3dt
+
+`deepstream-run-mv3dt` operates the DeepStream Multi-View 3D Tracking reference app in `src/apps/reference_apps/deepstream-tracker-3d-multi-view`. It supports setup checks, shipped 4-camera and 12-camera sample runs, synchronized MP4 datasets, AutoMagicCalib handoff for missing calibration, display or headless execution, OSD/BEV outputs, and Kafka metadata inspection.
+
+#### Installing the skill
+
+Same install paths as `deepstream-dev`:
+
+```bash
+# Example: Cursor user-level
+cp -r skills/deepstream-run-mv3dt ~/.cursor/skills/
+
+# Example: Claude Code user-level
+cp -r skills/deepstream-run-mv3dt ~/.claude/skills/
+
+# Example: Codex user-level
+cp -r skills/deepstream-run-mv3dt ~/.codex/skills/
+
+# Or workspace-level
+cp -r skills/deepstream-run-mv3dt <workspace>/.cursor/skills/
+```
+
+#### Verifying the installation
+
+Ask for an MV3DT workflow, for example:
+
+```text
+Run the DeepStream MV3DT 4-camera sample headlessly and save output artifacts.
+```
+
+The agent should activate `deepstream-run-mv3dt`, resolve the MV3DT reference-app directory, run preflight checks, request approval before privileged Docker launch commands, and verify current-run artifacts rather than stale files.
+
+#### Example prompts
+
+```text
+Deploy MV3DT on the default sample dataset.
+```
+
+```text
+Run the MV3DT 12-camera sample headlessly with RTDETR and save videos.
+```
+
+```text
+Run MV3DT on synchronized MP4s under /path/to/my-dataset using PeopleNetTransformer.
+```
+
+```text
+My MV3DT videos under /path/to/my-dataset do not have calibration. Use AutoMagicCalib with resnet, then run MV3DT.
+```
+
+---
+
 ### Skill: deepstream-sop
 
 `deepstream-sop` is a domain-specific skill for building, deploying, evaluating, debugging, and measuring latency on the **DeepStream SOP (Standard Operating Procedure) Inference Microservice** — a GPU-accelerated FastAPI service that combines GEBD (Generic Event Boundary Detection, e.g. DDM) with VLM-based step classification (Cosmos Reason 1/2 via embedded vLLM) to verify operator step sequence on industrial video. It supports file, RTSP, and Basler GigE camera inputs, and emits results over SSE and/or Kafka.
@@ -431,15 +497,52 @@ Measure TTFC and C2C latency on /path/to/test_video.mp4 — follow the deepstrea
 
 ---
 
-### AutoMagicCalib Skills
+### Skill: AutoMagicCalib
 
 The AMC skills provide guided AutoMagicCalib setup and calibration workflows. When these skills mention the root `README.md`, `assets/`, `compose/`, `projects/`, or `models/`, they mean the resolved `auto-magic-calib` checkout. The setup skill finds an existing checkout or asks before cloning one.
+
+These AMC skills are runtime-operation skills. Running setup or calibration requires a host with an NVIDIA GPU with NVENC, NVIDIA driver, Docker without sudo, NVIDIA Container Toolkit, and NGC image access. Optional VGGT refinement also requires HuggingFace access and the VGGT model. In restricted or no-GPU sandboxes, use the skills for planning and command preparation only.
 
 | Skill | What it does |
 |-------|--------------|
 | [`amc-setup-calibration-stack`](amc-setup-calibration-stack/SKILL.md) | Launches the AMC microservice and UI from NGC release images, handles NGC login, resolves ports, configures `compose/.env`, verifies `/v1/ready`, and reports MS, Swagger, and UI URLs. |
 | [`amc-run-sample-calibration`](amc-run-sample-calibration/SKILL.md) | Runs the shipped sample dataset (`assets/sdg_08_2_sample_data_010926.zip`) through the AMC REST API using the bundled Python script or a documented Swagger UI path. |
 | [`amc-run-video-calibration`](amc-run-video-calibration/SKILL.md) | Runs calibration for user-supplied `cam_*.mp4` videos through the AMC REST API, with local config/alignment/layout detection, UI fallback, optional GT, focal lengths, detector selection, and optional VGGT refinement. |
+| [`amc-run-rtsp-calibration`](amc-run-rtsp-calibration/SKILL.md) | Records live RTSP streams through VIOS, ingests clips into AMC, then runs the same verify, calibrate, poll, and results workflow. |
+
+#### Installing AMC skills
+
+Copy all AMC skill directories into your assistant's skill directory. Examples:
+
+```bash
+# Claude Code user-level
+mkdir -p ~/.claude/skills
+cp -r skills/amc-* ~/.claude/skills/
+
+# Codex user-level
+mkdir -p ~/.codex/skills
+cp -r skills/amc-* ~/.codex/skills/
+```
+
+Restart or reopen the coding assistant after copying the skills.
+
+#### Example prompts
+
+```text
+launch auto calibration
+```
+
+```text
+calibrate sample dataset
+```
+
+```text
+calibrate these videos - /path/to/NV-Warehouse-4Cam/videos
+```
+
+```text
+calibrate these streams - rtsp://<host>:<port>/<path>/cam_00.mp4, rtsp://<host>:<port>/<path>/cam_01.mp4, rtsp://<host>:<port>/<path>/cam_02.mp4. Use resnet; I will upload alignment/layout/settings in the UI.
+```
 
 ---
 
@@ -461,7 +564,11 @@ The `example_prompts/` directory contains pre-built prompts for generating DeepS
 | `video_parallel_infer_app.md` | Parallel multi-model inference with demux stream selection and metadata merging |
 | `yolov26s_detection.md` | YOLOv26s model download, ONNX export, and custom parsing library |
 | `nvdsdynamicsrcbin_app.md` | Use of nvdsdynamicsrcbin plugin |
+| `nvdsanalytics_config_sample.md` | Video inference with nvdsanalytics — ROI filtering, line-crossing, overcrowding, and direction detection |
 | `msgconv_kafka.md` | Video inference with message converter sending detection results to Kafka |
+| `msgbroker_nats.md` | Publish detection results to NATS via a custom NATS protocol adapter (JetStream, auth, TLS) |
+| `ds_profiling_efficient_pipeline.md` | Build and profile an efficient multi-stream RTSP pipeline; report bottleneck and max sustainable streams (pairs with `deepstream-profile-pipeline`) |
+| `import_vision_model_detection_pipeline.md` | Interactive detection-model onboarding & benchmark prompt (pairs with `deepstream-import-vision-model`) |
 | `single_view_3d_tracker.md` | The single-view 3D tracking. Given the camera matrix and human model of a static camera, estimates and keeps tracking of object states in the 3D physical world |
 
 ---

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_COMMON_HPP_OBJ_HPP
 #define _DS3D_COMMON_HPP_OBJ_HPP
 

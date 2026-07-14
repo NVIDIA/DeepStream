@@ -1,0 +1,258 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+FROM nvcr.io/nvidia/tritonserver:26.03-py3
+
+ENV DS_VERSION=9.1
+
+
+RUN apt-get update && \
+        DEBIAN_FRONTEND=noninteractive  apt-get install -y --no-install-recommends \
+        wget \
+        libxml2 \
+        tzdata \
+        libyaml-cpp-dev \
+        gnutls-bin && \
+        rm -rf /var/lib/apt/lists/* && \
+        apt autoremove
+
+RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
+        ls -l /tmp/docker ; mkdir -p /tmp99 ; mkdir -p /root/tmp ; apt-get update && \
+        DEBIAN_FRONTEND=noninteractive  apt-get install -y --no-install-recommends \
+        linux-libc-dev \
+        libglew2.2 libssl3 libjpeg8 libjson-glib-1.0-0 libglib2.0-0t64 \
+        gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools \
+        gstreamer1.0-alsa \
+        libcurl4 \
+        libuuid1 \
+        libjansson4 \
+        libjsoncpp25 \
+        libjansson-dev \
+        librabbitmq4 \
+        libgstrtspserver-1.0 \
+        libv4l-dev \
+        gdb bash-completion libboost-dev \
+        uuid-dev libgstrtspserver-1.0-dev \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libglew-dev \
+        libssl-dev \
+        freeglut3-dev \
+        libjpeg-dev \
+        libcurl4-gnutls-dev \
+        libjson-glib-dev \
+        libboost-dev \
+        libpango1.0-dev \
+        librabbitmq-dev \
+        libgles2-mesa-dev \
+        pkg-config \
+        libxau-dev \
+        libxdmcp-dev \
+        libxcb1-dev \
+        libxext-dev \
+        libx11-dev \
+        libnss3 \
+        linux-libc-dev \
+        libxml2 \
+        openssl \
+        git \
+        sudo \
+        openssh-server \
+        openssh-sftp-server \
+        openssh-client \
+        libbinutils \
+        binutils \
+        gpgv \
+        libsqlite3-0 \
+        libarchive13t64 \
+        xz-utils \
+        perl \
+        libkrb5-3 \
+        libpam0g \
+        libexpat1 \
+        libtasn1-6 \
+        python3-setuptools \
+        python3-pkg-resources \
+        wget \
+        gnutls-bin \
+        sshfs \
+        python3-apt \
+        python3 \
+        python3-pip \
+        python3.12-minimal \
+        python3.12 \
+        libpython3.12-minimal \
+        libpython3.12t64 \
+        libtiff6 \
+        libssh-4 \
+        libjq1 \
+        jq \
+        rsyslog \
+        libjsoncpp-dev \
+        vim  rsync \
+        gstreamer1.0-rtsp \
+        libcairo2 \
+        libpangocairo-1.0-0 \
+        libx11-6 \
+        libyaml-cpp-dev \
+        libc-dev-bin\
+        libc6 \
+        libcurl3-gnutls \
+        libc-bin \
+        libpmi2-0 \
+        libcurl4 \
+        apparmor-utils \
+        mosquitto \
+        libmosquitto-dev \
+        libhiredis-dev \
+        librdkafka1 \
+        libcups2t64 \
+        libdpkg-perl \
+        libcjson-dev \
+        dpkg-dev \
+        dpkg \
+        curl && \
+        tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+        /tmp/docker/gRPC_installation.sh && \
+        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
+        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
+        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
+        cp /tmp/docker/rsyslog /etc/init.d/ && \
+        chmod +x /etc/init.d/rsyslog && \
+        mkdir -p /usr/share/glvnd/egl_vendor.d/ && \
+        cp /tmp/docker/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json && \
+        cp /tmp/docker/entrypoint.sh /opt/nvidia/deepstream/deepstream/ && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /root/tmp && \
+        apt autoremove && \
+        cp /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
+        cp  /tmp/docker/user_additional_install_devel.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
+        cp  /tmp/docker/user_deepstream_python_apps_install.sh /opt/nvidia/deepstream/deepstream/user_deepstream_python_apps_install.sh && \
+        cp /tmp/docker/entrypoint.sh /opt/nvidia/deepstream/deepstream/ && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /root/tmp && \
+        apt autoremove
+
+
+# Fix CVE for h11 - CVE-2025-43859
+RUN pip3 install httpcore==1.0.9
+
+# Fix CVE-2025-47273 (setuptools) and CVE-2026-24049 
+RUN pip3 install setuptools==78.1.1 jaraco.context==6.1.0 
+
+# Fix CVE-2025-62727 (Starlette) 
+RUN pip3 install starlette==0.52.1 fastapi
+
+# open telemetry
+ RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
+     mkdir -p /tmp/temp_otel99 && \
+     cd /tmp/temp_otel99 && \
+     cp  /tmp/docker/optel/* . && \
+     dpkg -i *.deb && \
+     cd / && \
+     rm -rf /tmp/temp_otel99
+
+
+RUN mkdir -p /opt/tritonclient/ && \
+        mkdir -p /tmp/temp_triton99 && \
+        mkdir -p /opt/proto && \
+        mkdir -p /tmp/temp_proto99 && \
+        mkdir -p /opt/half && \
+        mkdir -p /tmp/half99 && \
+        cd /tmp/temp_triton99 && \
+        wget https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -nv && \
+        /usr/bin/unzip -q tritonserver-sdk-2.67.0+nv26.03-*.zip && \
+        mv tritonserver_sdk/install/lib64   /opt/tritonclient/lib && \
+        mv tritonserver_sdk/install/include /opt/tritonclient/include && \
+        rm -rf tritonserver_sdk && \
+        cd /tmp/temp_proto99 && \
+        cd /tmp/half99 && \
+        wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
+        /usr/bin/unzip /tmp/half99/half-2.1.0.zip -d /opt/half && \
+        cd / && \
+        rm -rf /tmp/temp_triton99 && \
+        rm -rf /tmp/temp_proto99 && \
+        rm -rf /tmp/half99
+
+
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3 && \
+    apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.3 && \
+    mkdir -p /opt/proto/bin && \
+    ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphics,utility
+
+ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
+ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
+
+WORKDIR /opt/nvidia/deepstream/deepstream/
+
+
+RUN ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-encode.so && \
+ ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so 
+
+ENV PATH="/opt/proto/bin:${PATH}:${HOME}/.local/bin"
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/.local/lib"
+ENV PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${HOME}/.local/lib/pkgconfig"
+
+RUN ldconfig
+
+# IP requirement for removal
+RUN rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaudioparsers.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstx264.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstfaad.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvoaacenc.so 
+RUN rm -f /usr/lib/x86_64-linux-gnu/libavresample* /usr/lib/x86_64-linux-gnu/libavutil* \
+        /usr/lib/x86_64-linux-gnu/libavcodec* /usr/lib/x86_64-linux-gnu/libavformat* \
+        /usr/lib/x86_64-linux-gnu/libavfilter*  /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstde265.so* \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstx265.so* /usr/lib/x86_64-linux-gnu/libde265.so* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvpx.so*
+RUN rm -f /usr/lib/x86_64-linux-gnu/libmpeg2.so* /usr/lib/x86_64-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/x86_64-linux-gnu/libmpg123.so*  \
+        /usr/lib/x86_64-linux-gnu/libx265.so* /usr/lib/x86_64-linux-gnu/libx264.so* /usr/lib/x86_64-linux-gnu/libvpx.so*  \
+        /usr/lib/x86_64-linux-gnu/libmpeg2convert.so* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstopenh264.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnvcodec.so
+
+# new IP removal
+
+RUN rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstuvch264.so /usr/lib/x86_64-linux-gnu/libopenh264.so.2.2.0 /usr/lib/x86_64-linux-gnu/libopenh264.so.6 \
+        /usr/lib/x86_64-linux-gnu/libvo-aacenc.so.0 /usr/lib/x86_64-linux-gnu/libvo-aacenc.so.0.0.4 /usr/lib/x86_64-linux-gnu/libmp3lame.so.0.0.0 \
+        /usr/lib/x86_64-linux-gnu/libmp3lame.so.0 /usr/lib/x86_64-linux-gnu/libfaad* /usr/lib/x86_64-linux-gnu/libFLAC.so* \
+        /usr/lib/x86_64-linux-gnu/libmjpegutils-2.1.so.0* /usr/lib/x86_64-linux-gnu/libxvidcore.so* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpegpsmux.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so
+
+RUN rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so  /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so \
+        /usr/lib/x86_64-linux-gnu/libopenh264.so.7 /usr/lib/x86_64-linux-gnu/libopenh264.so.2.4.1 \
+        /usr/lib/x86_64-linux-gnu/libmplex2-2.1.so* /usr/lib/x86_64-linux-gnu/libjbig.so*
+
+RUN rm -rf /usr/lib/x86_64-linux-gnu/mfx && \
+        rm -f /usr/lib/x86_64-linux-gnu/libmfx-tracer.so.1 /usr/lib/x86_64-linux-gnu/libmfx.so.1.35 \
+        /usr/lib/x86_64-linux-gnu/libmfx-tracer.so.1.35 /usr/lib/x86_64-linux-gnu/libmfxhw64.so.1 \
+        /usr/lib/x86_64-linux-gnu/libmfx.so.1 /usr/lib/x86_64-linux-gnu/libmfxhw64.so.1.35
+
+# remove for DS 8.0 VSS
+
+RUN rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /usr/lib/*-linux-gnu/libdvdread.so* \
+          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so* \
+
+
+ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libgomp.so.1:$LD_PRELOAD
+
+RUN rm -rf  /opt/tritonserver/backends/dali 

@@ -1,15 +1,32 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 #  Multi-View 3D Tracking in DeepStream
 
 <img src="figures/MV3DT_12cam_live.gif" alt="MV3DT 12-camera live demo" width="100%"/>
 
 ## Introduction
 
-This repository provides sample applications for Multi-View 3D Tracking (MV3DT) with DeepStream 9.0 SDK. MV3DT is a distributed, real-time multi-view multi-target 3D tracking framework built for large-scale, calibrated camera networks. It is designed to deliver robust object tracking and identity consistency across complex environments, leveraging camera calibration data as a prerequisite for accurate geometric reasoning. The sample applications support three detector models: [PeopleNet Transformer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2?version=deployable_v1.0), a general-purpose people detection transformer model, [PeopleNet v2.6.3](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet), a high-performance people detection model based on DetectNet_v2, and [RT-DETR 2D Warehouse](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse?version=deployable_efficientvit_l2_v1.0), a real-time DETR model optimized for warehouse environments with multiple object classes.
+This repository provides sample applications for Multi-View 3D Tracking (MV3DT) with DeepStream 9.1 SDK. MV3DT is a distributed, real-time multi-view multi-target 3D tracking framework built for large-scale, calibrated camera networks. It is designed to deliver robust object tracking and identity consistency across complex environments, leveraging camera calibration data as a prerequisite for accurate geometric reasoning. The sample applications support three detector models: [PeopleNet Transformer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2?version=deployable_v1.0), a general-purpose people detection transformer model, [PeopleNet v2.6.3](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet), a high-performance people detection model based on DetectNet_v2, and [RT-DETR 2D Warehouse](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse?version=deployable_efficientvit_l2_v1.0), a real-time DETR model optimized for warehouse environments with multiple object classes.
 
 This repository aims to demonstrate MV3DT through live visualization of 3D tracking results, and is structured as follows:
 - **[Prerequisites](#prerequisites)** - System requirements and setup instructions
 - **[Option 1: Sample applications using DeepStream Container](#option-1-running-mv3dt-using-deepstream-container)** - The DeepStream Container has the DeepStream SDK pre-installed. The samples automate MV3DT config generation and launch the DeepStream app inside the container.
-- **[Option 2: Sample applications using Inference Builder](#option-2-running-mv3dt-using-inference-builder)** - Inference Builder is an open-source tool that automates inference pipeline generation across AI frameworks and packages them as deployable containers. The samples in this repo are solely intended to demonstrate building and running MV3DT using Inference Builder. For additional capabilities, see the [Inference Builder README](https://github.com/NVIDIA/deepstream/-/tree/master/tools/inference_builder).
+- **[Option 2: Sample applications using Inference Builder](#option-2-running-mv3dt-using-inference-builder)** - Inference Builder is an open-source tool that automates inference pipeline generation across AI frameworks and packages them as deployable containers. The samples in this repo are solely intended to demonstrate building and running MV3DT using Inference Builder. For additional capabilities, see the [Inference Builder README](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/de226c076db9e3fd4f2be87117491b457607149a).
 - **[Output Visualization Explanations](#output-visualization)** - Expected visualization from DeepStream On-Screen Display (OSD) and real-time Bird's Eye View (BEV) app
 - **[Receiving 3D Tracking Metadata from Kafka](#receiving-3d-tracking-metadata-from-kafka)** - How to consume MV3DT tracking metadata from Kafka broker for downstream applications
 - **[Customization](#customization)** - How to use MV3DT on custom datasets, and how to convert existing 2D DeepStream tracking pipelines to MV3DT pipeline
@@ -23,7 +40,7 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
 
 > On **Jetson Thor**, Option 2 Sample 2 (with Inference Builder, on 12-camera dataset) may hang due to file descriptor limitation in the third-party library libmosquitto. This issue is planned to be fixed in the next release.
 
-> On **DGX Spark**, the RT-DETR model requires TensorRT strongly-typed mode to produce valid inference outputs. Without it, detections may be missing and no bounding boxes will be shown. If you are running on DGX Spark with the RT-DETR detector, please add `strongly-typed=1` to the `[property]` section of `config_templates/config_pgie_rt_detr.txt` before launching the pipeline.
+> On **Blackwell-based GPUs** such as RTX PRO 2000-6000 Blackwell, GB10, GB200, DGX Spark, and related platforms, the RT-DETR model requires TensorRT strongly typed mode to produce valid inference outputs. Without it, the app may complete successfully but produce empty detections, tracker output, Kafka metadata, and BEV output. If you are running RT-DETR on these GPUs, add `strongly-typed=1` to the `[property]` section of `config_templates/config_pgie_rt_detr.txt` before launching the pipeline. If an RT-DETR engine was already built without this setting, remove the matching cached `models/RTDETR/*.engine` file so DeepStream rebuilds it.
 
 > On **B200**, the sample apps with PeopleNetTransformer model may occasionally crash with a segmentation fault during inference. If this occurs, add `-e MALLOC_CHECK_=3` to the `docker run` command in launch scripts to mitigate the issue.
 
@@ -37,8 +54,8 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
     sudo apt install git-lfs
     git lfs install
 
-    git clone https://github.com/NVIDIA/deepstream.git
-    cd deepstream/src/apps/reference_apps/deepstream-tracker-3d-multi-view
+    git clone https://github.com/NVIDIA/DeepStream.git
+    cd DeepStream/src/apps/reference_apps/deepstream-tracker-3d-multi-view
     git lfs pull  # In case repo is already cloned before installing git-lfs
     ```
 
@@ -60,7 +77,7 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
     **Environment Variables:**
     - `USE_INFERENCE_BUILDER` - Enable Inference Builder setup (default: false, DeepStream Container only)
     - `BASE_DIR` - Base directory for Kafka and Inference Builder installations (default: `$HOME`)
-    - `DEEPSTREAM_IMAGE` - DeepStream Docker image (default: `nvcr.io/nvidia/deepstream:9.0-triton-multiarch` for x86 and Jetson platforms)
+    - `DEEPSTREAM_IMAGE` - DeepStream Docker image (default: `nvcr.io/nvidia/deepstream:9.1-triton-multiarch` for x86 and Jetson platforms)
 
     * **Use case 1: If you want to use a different base directory** for Kafka and Inference Builder installations other than `$HOME`, you can set the `BASE_DIR` environment variable before running the script.
         ```bash
@@ -72,7 +89,7 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
         ```
     * **Use case 2: If you are on ARM SBSA platforms**, the DeepStream docker image will be different from the default one. Please set the `DEEPSTREAM_IMAGE` environment variable before running the script.
         ```bash
-        export DEEPSTREAM_IMAGE=nvcr.io/nvidia/deepstream:9.0-triton-arm-sbsa
+        export DEEPSTREAM_IMAGE=nvcr.io/nvidia/deepstream:9.1-triton-arm-sbsa
         # If you want to use Inference Builder (Option 2), uncomment the line below
         # export USE_INFERENCE_BUILDER=true
         ./scripts/setup_prerequisites.sh
@@ -429,7 +446,7 @@ If you have an existing 2D detection and tracking pipeline using DeepStream, the
         -v /tmp/.X11-unix/:/tmp/.X11-unix \
         -e DISPLAY=$DISPLAY \
         -w /workspace/experiments \
-        nvcr.io/nvidia/deepstream:9.0-triton-multiarch \
+        nvcr.io/nvidia/deepstream:9.1-triton-multiarch \
         deepstream-test5-app -c config_deepstream.txt
     ```
 

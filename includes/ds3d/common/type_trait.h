@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_COMMON_TYPE_TRAIT__H
 #define _DS3D_COMMON_TYPE_TRAIT__H
 #include <ds3d/common/common.h>

@@ -1,0 +1,87 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+---
+- name: Derive driver branch from nv_driver_prod
+  set_fact:
+    nv_driver_branch: "{{ nv_driver_prod.split('.')[0] }}"
+
+- name: Install NVIDIA driver pinning metapackage ({{ nv_driver_prod }})
+  apt:
+    name: "nvidia-driver-pinning-{{ nv_driver_prod }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  become: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Install nvidia-open-{{ nv_driver_branch }}
+  apt:
+    name:
+      - "nvidia-open-{{ nv_driver_branch }}"
+      - nvidia-xconfig
+    state: present
+    force_apt_get: yes
+  become: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  register: nv_driver_install
+
+- name: Reboot host after driver installation
+  reboot:
+    post_reboot_delay: 15
+    reboot_timeout: 500
+  when: inventory_hostname != 'localhost' and nv_driver_install.changed
+
+- name: Wait for host after reboot
+  ansible.builtin.wait_for_connection:
+    connect_timeout: 30
+    sleep: 15
+    timeout: 900
+  when: inventory_hostname != 'localhost' and nv_driver_install.changed
+
+- name: Verify nvidia-smi
+  command: nvidia-smi
+  become: yes
+  ignore_errors: true
+
+- name: Stop display-manager service
+  service:
+    name: display-manager
+    state: stopped
+  become: yes
+
+- name: Kill Xorg processes
+  shell: "pkill -9 Xorg || true"
+  become: yes
+
+- name: Get GPU PCI BusID
+  shell: nvidia-xconfig --query-gpu-info | grep -i 'PCI BusID' | head -n 1 | awk '{print $4}'
+  register: pci_id
+  become: yes
+  failed_when: pci_id.stdout | trim == ""
+
+- name: Generate Xorg config (1920x1080)
+  shell: nvidia-xconfig -a --allow-empty-initial-configuration --virtual=1920x1080 --cool-bits=4 --busid {{ pci_id.stdout }}
+  become: yes
+  when: pci_id.stdout | trim != ""
+
+- name: Start display-manager service
+  service:
+    name: display-manager
+    state: started
+  become: yes

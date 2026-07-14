@@ -1,0 +1,41 @@
+From e6eb7294af6ed149bccd0aaed8b0112aeb333fee Mon Sep 17 00:00:00 2001
+From: csethi <Chetan Sethi>
+Date: Fri, 28 Nov 2025 11:55:59 +0530
+Subject: [PATCH] h264parser: Avoid meta parsing conditionally
+
+To avoid below core dump in h264parse plugin
+gst_buffer_add_video_sei_user_data_unregistered_meta: assertion
+'data != NULL' failed
+Segmentation fault      (core dumped)
+
+Metadata parsing needs to be disabled in parser
+Added environment setting GST_ENABLE_CUSTOM_PARSER_MODIFICATIONS=1
+which if set to 1, metadata parsing in parser will be disabled
+
+Unit Test:
+deepstream-test5-app -c \
+    test5_config_file_nvmultiurisrcbin_src_list_attr_all.txt
+---
+ subprojects/gst-plugins-bad/gst/videoparsers/gsth264parse.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/subprojects/gst-plugins-bad/gst/videoparsers/gsth264parse.c b/subprojects/gst-plugins-bad/gst/videoparsers/gsth264parse.c
+index d7fea7c026..8cc2a3ec07 100644
+--- a/subprojects/gst-plugins-bad/gst/videoparsers/gsth264parse.c
++++ b/subprojects/gst-plugins-bad/gst/videoparsers/gsth264parse.c
+@@ -3504,8 +3504,10 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
+   gst_video_push_user_data ((GstElement *) h264parse, &h264parse->user_data,
+       parse_buffer);
+ 
+-  gst_video_push_user_data_unregistered ((GstElement *) h264parse,
+-      &h264parse->user_data_unregistered, parse_buffer);
++  if (!g_getenv("GST_ENABLE_CUSTOM_PARSER_MODIFICATIONS")) {
++    gst_video_push_user_data_unregistered ((GstElement *) h264parse,
++        &h264parse->user_data_unregistered, parse_buffer);
++  }
+ 
+   gst_h264_parse_reset_frame (h264parse);
+ 
+-- 
+2.34.1
+

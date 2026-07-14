@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import os, tkinter as tk, argparse
 from datetime import datetime
@@ -154,11 +169,17 @@ def load_map_and_transforms(dataset_path):
     
     return map_img, T_ov2px
 
-def setup_map_scaling(map_img, target_width_ratio=0.8, target_height_ratio=0.8):
+def setup_map_scaling(map_img, target_width_ratio=0.8, target_height_ratio=0.8, allow_headless=False):
     """Setup map scaling based on screen size"""
-    root = tk.Tk()
-    screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
-    root.destroy()
+    try:
+        root = tk.Tk()
+        screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+        root.destroy()
+    except tk.TclError:
+        if not allow_headless:
+            raise
+        screen_width = int(os.environ.get('MV3DT_BEV_WIDTH', 1280))
+        screen_height = int(os.environ.get('MV3DT_BEV_HEIGHT', 720))
 
     target_width = int(screen_width * target_width_ratio)
     target_height = int(screen_height * target_height_ratio)
@@ -172,11 +193,12 @@ def setup_map_scaling(map_img, target_width_ratio=0.8, target_height_ratio=0.8):
 
     return map_img_resized, scale_matrix, new_width, new_height
 
-def create_kafka_consumer(group_id, consumer_timeout_ms=None):
+def create_kafka_consumer(group_id, consumer_timeout_ms=None, broker='localhost:9092',
+                          topic='mv3dt', auto_offset_reset='earliest', from_end=False):
     """Create and configure Kafka consumer"""
     config = {
-        'bootstrap_servers': 'localhost:9092',
-        'auto_offset_reset': 'earliest',
+        'bootstrap_servers': broker,
+        'auto_offset_reset': auto_offset_reset,
         'value_deserializer': lambda x: x,
         'group_id': group_id,
         'enable_auto_commit': True
@@ -186,8 +208,23 @@ def create_kafka_consumer(group_id, consumer_timeout_ms=None):
         config['consumer_timeout_ms'] = consumer_timeout_ms
 
     consumer = KafkaConsumer(**config)
-    consumer.subscribe(['mv3dt'])
-    print("Connected to Kafka and subscribed to 'mv3dt' topic")
+    consumer.subscribe([topic])
+    if broker == 'localhost:9092' and topic == 'mv3dt':
+        print("Connected to Kafka and subscribed to 'mv3dt' topic")
+    else:
+        print(f"Connected to Kafka broker '{broker}' and subscribed to '{topic}' topic")
+
+    if from_end:
+        assignment_deadline = time.time() + 10
+        while not consumer.assignment() and time.time() < assignment_deadline:
+            consumer.poll(timeout_ms=100)
+            time.sleep(0.1)
+        if consumer.assignment():
+            consumer.seek_to_end()
+            print(f"Seeking to current end offsets for topic '{topic}'")
+        else:
+            print(f"Warning: no partitions assigned for topic '{topic}' before seek-to-end")
+
     return consumer
 
 def draw_objects_on_map(frame_data, T_ov2px, map_img, trajectories, object_colors, frame_id, frame_history, show_ids=False, average_multi_cam=False):
@@ -358,7 +395,9 @@ def draw_objects_on_map(frame_data, T_ov2px, map_img, trajectories, object_color
     
     return vis_img, frame_history
 
-def collect_all_messages(consumer, expected_sensors, max_timeout=300, verbose=False):
+def collect_all_messages(consumer, expected_sensors, max_timeout=300,
+                         first_message_timeout=10, idle_timeout=10,
+                         skip_first_frame_filter=False, verbose=False):
     frame_buffer = FrameBuffer(expected_sensors=expected_sensors)
     start_time = time.time()
     last_msg_time = start_time
@@ -369,7 +408,12 @@ def collect_all_messages(consumer, expected_sensors, max_timeout=300, verbose=Fa
     
     while True:
         current_time = time.time()
-        if current_time - start_time > max_timeout or current_time - last_msg_time > 10:
+        if current_time - start_time > max_timeout:
+            break
+        if count == 0:
+            if current_time - start_time > first_message_timeout:
+                break
+        elif current_time - last_msg_time > idle_timeout:
             break
         
         batch = consumer.poll(timeout_ms=1000)
@@ -385,14 +429,15 @@ def collect_all_messages(consumer, expected_sensors, max_timeout=300, verbose=Fa
                     frame_id = frame_dict.get('id', 'unknown')
                     
                     if first_frame and frame_id != 'unknown':
-                        try:
-                            if int(frame_id) > 100:
-                                if verbose:
-                                    print(f"Discarding frame {frame_id} (from previous run)")
-                                first_frame = False
-                                continue
-                        except (ValueError, TypeError):
-                            pass
+                        if not skip_first_frame_filter:
+                            try:
+                                if int(frame_id) > 100:
+                                    if verbose:
+                                        print(f"Discarding frame {frame_id} (from previous run)")
+                                    first_frame = False
+                                    continue
+                            except (ValueError, TypeError):
+                                pass
                         first_frame = False
 
                     frame_buffer.add_frame(frame_id, frame_dict.get('sensorId', 'unknown'), frame_dict)
@@ -401,31 +446,55 @@ def collect_all_messages(consumer, expected_sensors, max_timeout=300, verbose=Fa
                 except:
                     continue
     
+    frame_buffer.message_count = count
     print(f"Collected {count} messages")
     return frame_buffer
 
-def generate_video(dataset_path, output_path, show_ids, expected_sensors, average_multi_cam, verbose=False):
+def generate_video(dataset_path, output_path, show_ids, expected_sensors, average_multi_cam,
+                   broker='localhost:9092', topic='mv3dt', from_end=False,
+                   first_message_timeout=10, idle_timeout=10, max_timeout=300, verbose=False):
     os.makedirs(output_path, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     video_output_path = os.path.join(output_path, f"trajectory_video_{timestamp}.mp4")
     
     # Setup common components
     map_img, T_ov2px = load_map_and_transforms(dataset_path)
-    map_img_resized, scale_matrix, new_width, new_height = setup_map_scaling(map_img)
+    map_img_resized, scale_matrix, new_width, new_height = setup_map_scaling(map_img, allow_headless=True)
     T_ov2px_scaled = np.dot(scale_matrix, T_ov2px)
     
     try:
-        consumer = create_kafka_consumer('mv3dt_bev_video')
+        group_id = f'mv3dt_bev_video_{int(time.time())}' if from_end else 'mv3dt_bev_video'
+        consumer = create_kafka_consumer(
+            group_id,
+            broker=broker,
+            topic=topic,
+            from_end=from_end,
+        )
         
-        frame_buffer = collect_all_messages(consumer, expected_sensors, verbose=verbose)
+        frame_buffer = collect_all_messages(
+            consumer,
+            expected_sensors,
+            max_timeout=max_timeout,
+            first_message_timeout=first_message_timeout,
+            idle_timeout=idle_timeout,
+            skip_first_frame_filter=from_end,
+            verbose=verbose,
+        )
         complete_frames = frame_buffer.get_all_complete_frames()
-        print(frame_buffer.frame_data)
+        if verbose:
+            print(f"Complete frames ready for rendering: {len(complete_frames)}")
+        elif not from_end:
+            print(frame_buffer.frame_data)
         
         if not complete_frames:
+            print(f"No complete frames collected; BEV video was not generated: {video_output_path}")
             return
         
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         video_writer = cv2.VideoWriter(video_output_path, fourcc, 30, (new_width, new_height))
+        if not video_writer.isOpened():
+            print(f"Error: failed to open video writer for {video_output_path}")
+            return
         
         trajectories, object_colors, frame_history = defaultdict(list), {}, []
         
@@ -526,7 +595,7 @@ def real_time_visualization(dataset_path, output_path, show_ids, expected_sensor
                 if not frame_data:
                     break
                             
-                # If the first frame is > 100, it's likely from previous run.
+                # If the first frame is > 100, it is likely from a previous run.
                 if last_frame_id is None and frame_id > 100:
                     if verbose:
                         print(f"Discarding frame {frame_id} (from previous run)")
@@ -602,8 +671,20 @@ def parse_args():
                        default='output_videos',
                        help='Output directory for videos')
     parser.add_argument('--offline', action='store_true',
-                       help='Run in offline mode (save a video from all messages instead of real-time visualization). \
-                           Please run this script after launching the MV3DT app.')
+                       help='Run in offline mode and save a BEV video from Kafka messages. \
+                           Use --from-end when starting before a fresh MV3DT run.')
+    parser.add_argument('--broker', type=str, default='localhost:9092',
+                       help='Kafka broker server for offline recording')
+    parser.add_argument('--topic', type=str, default='mv3dt',
+                       help='Kafka topic to consume for offline recording')
+    parser.add_argument('--from-end', action='store_true',
+                       help='Start offline recording at the current topic end offset before a fresh run')
+    parser.add_argument('--first-message-timeout', type=float, default=10,
+                       help='Seconds to wait for the first Kafka message in offline mode. Default preserves previous behavior; increase when using --from-end before DeepStream startup')
+    parser.add_argument('--idle-timeout', type=float, default=10,
+                       help='Seconds to wait after the latest Kafka message before finishing offline capture')
+    parser.add_argument('--max-timeout', type=float, default=300,
+                       help='Maximum seconds to collect Kafka messages in offline mode')
     parser.add_argument('--show-ids', action='store_true',
                        help='Show object IDs near trajectory heads')
     parser.add_argument('--average-multi-cam', action='store_true',
@@ -618,9 +699,29 @@ def main():
     expected_sensors = extract_expected_sensors(args.msgconv_config)
     print(f"Expected sensors: {expected_sensors}")
     if args.offline:
-        generate_video(args.dataset_path, args.output_path, args.show_ids, expected_sensors, args.average_multi_cam, args.verbose)
+        generate_video(
+            args.dataset_path,
+            args.output_path,
+            args.show_ids,
+            expected_sensors,
+            args.average_multi_cam,
+            broker=args.broker,
+            topic=args.topic,
+            from_end=args.from_end,
+            first_message_timeout=args.first_message_timeout,
+            idle_timeout=args.idle_timeout,
+            max_timeout=args.max_timeout,
+            verbose=args.verbose,
+        )
     else:
-        real_time_visualization(args.dataset_path, args.output_path, args.show_ids, expected_sensors, args.average_multi_cam, args.verbose)
+        real_time_visualization(
+            args.dataset_path,
+            args.output_path,
+            args.show_ids,
+            expected_sensors,
+            args.average_multi_cam,
+            verbose=args.verbose,
+        )
 
 
 if __name__ == "__main__":

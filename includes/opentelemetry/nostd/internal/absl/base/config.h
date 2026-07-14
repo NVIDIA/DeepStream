@@ -1,49 +1,19 @@
-//
-// Copyright 2017 The Abseil Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// -----------------------------------------------------------------------------
-// File: config.h
-// -----------------------------------------------------------------------------
-//
-// This header file defines a set of macros for checking the presence of
-// important compiler and platform features. Such macros can be used to
-// produce portable code by parameterizing compilation based on the presence or
-// lack of a given feature.
-//
-// We define a "feature" as some interface we wish to program to: for example,
-// a library function or system call. A value of `1` indicates support for
-// that feature; any other value indicates the feature support is undefined.
-//
-// Example:
-//
-// Suppose a programmer wants to write a program that uses the 'mmap()' system
-// call. The Abseil macro for that feature (`OTABSL_HAVE_MMAP`) allows you to
-// selectively include the `mmap.h` header and bracket code using that feature
-// in the macro:
-//
-//   #include "absl/base/config.h"
-//
-//   #ifdef OTABSL_HAVE_MMAP
-//   #include "sys/mman.h"
-//   #endif  //OTABSL_HAVE_MMAP
-//
-//   ...
-//   #ifdef OTABSL_HAVE_MMAP
-//   void *ptr = mmap(...);
-//   ...
-//   #endif  // OTABSL_HAVE_MMAP
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef OTABSL_BASE_CONFIG_H_
 #define OTABSL_BASE_CONFIG_H_

@@ -1,0 +1,51 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+---
+- name: Check if cuda-keyring is already installed
+  command: dpkg -l cuda-keyring
+  register: cuda_keyring_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Normalize architecture for CUDA repo URL
+  set_fact:
+    cuda_arch: "{{ 'sbsa' if ansible_architecture == 'aarch64' else ansible_architecture }}"
+
+- name: Download CUDA keyring for {{ ansible_architecture }}
+  get_url:
+    url: https://developer.download.nvidia.com/compute/cuda/repos/{{ ubuntu_release.stdout }}04/{{ cuda_arch }}/cuda-keyring_1.1-1_all.deb
+    dest: /tmp/cuda-keyring_1.1-1_all.deb
+    checksum: "sha256:{{ cuda_keyring_sha256_sbsa if ansible_architecture == 'aarch64' else cuda_keyring_sha256_x86_64 }}"
+  when: cuda_keyring_check.rc != 0
+
+- name: Install CUDA keyring
+  command: dpkg -i /tmp/cuda-keyring_1.1-1_all.deb
+  become: yes
+  when: cuda_keyring_check.rc != 0
+
+- name: Update APT package index
+  apt:
+    update_cache: yes
+  become: yes
+
+- name: Install cuda-toolkit-{{ cuda_version_prod }}
+  apt:
+    name: cuda-toolkit-{{ cuda_version_prod }}
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  become: yes

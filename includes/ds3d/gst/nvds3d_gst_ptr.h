@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef NVDS3D_GST_NVDS3D_GST_H
 #define NVDS3D_GST_NVDS3D_GST_H
 

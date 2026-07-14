@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_COMMON_HPP_DATA_MIXER_HPP
 #define DS3D_COMMON_HPP_DATA_MIXER_HPP
 

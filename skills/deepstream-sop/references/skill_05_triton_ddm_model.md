@@ -259,7 +259,7 @@ the input; run `execute_async_v3` inside `with torch.cuda.stream(trt_stream)`; t
 `execute_async_v3` can enqueue work on TRT *auxiliary* streams beyond `trt_stream`, so a
 per-stream sync leaves TRT GPU work in flight and the downstream DeepStream gst-CV
 `NvBufSurfTransform` / `cudaMemcpy2DAsync` then races freed/in-use surface memory → driver-layer
-SIGSEGV (fix for NVBug 6289256; surfaces on the cached-engine reload path). A device-wide sync
+SIGSEGV (surfaces on the cached-engine reload path). A device-wide sync
 drains all TRT work — including aux streams — before the pipeline reuses the surfaces.
 
 **Fixed batch** — the engine is built with a **static batch = `SEQUENCE_BATCH`** (DDM's pairwise-

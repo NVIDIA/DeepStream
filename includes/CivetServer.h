@@ -67,6 +67,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handleGet(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for GET request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handleGet(CivetServer *server,
+	                       struct mg_connection *conn,
+	                       int *status_code);
 
 	/**
 	 * Callback method for POST request.
@@ -77,6 +88,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handlePost(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for POST request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handlePost(CivetServer *server,
+	                        struct mg_connection *conn,
+	                        int *status_code);
 
 	/**
 	 * Callback method for HEAD request.
@@ -87,6 +109,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handleHead(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for HEAD request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handleHead(CivetServer *server,
+	                        struct mg_connection *conn,
+	                        int *status_code);
 
 	/**
 	 * Callback method for PUT request.
@@ -97,6 +130,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handlePut(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for PUT request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handlePut(CivetServer *server,
+	                       struct mg_connection *conn,
+	                       int *status_code);
 
 	/**
 	 * Callback method for DELETE request.
@@ -107,6 +151,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handleDelete(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for DELETE request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handleDelete(CivetServer *server,
+	                          struct mg_connection *conn,
+	                          int *status_code);
 
 	/**
 	 * Callback method for OPTIONS request.
@@ -117,6 +172,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handleOptions(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for OPTIONS request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handleOptions(CivetServer *server,
+	                           struct mg_connection *conn,
+	                           int *status_code);
 
 	/**
 	 * Callback method for PATCH request.
@@ -127,6 +193,17 @@ class CIVETWEB_CXX_API CivetHandler
 	 */
 	virtual bool handlePatch(CivetServer *server, struct mg_connection *conn);
 
+	/**
+	 * Callback method for PATCH request.
+	 *
+	 * @param server - the calling server
+	 * @param conn - the connection information
+	 * @param status_code - pointer to return status code
+	 * @returns true if implemented, false otherwise
+	 */
+	virtual bool handlePatch(CivetServer *server,
+	                         struct mg_connection *conn,
+	                         int *status_code);
 };
 
 /**

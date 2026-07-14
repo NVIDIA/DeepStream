@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Parallel Multiple Models App
 ## Introduction
 The parallel inferencing application constructs the parallel inferencing branches pipeline as the following graph, so that the multiple models can run in parallel in one piepline.
@@ -37,7 +54,7 @@ The sample should be downloaded and built with **root** permission.
    ```
    apt install git-lfs
    git lfs install --skip-repo
-   cd deepstream/src/apps/reference_apps/deepstream_parallel_inference_app
+   cd DeepStream/src/apps/reference_apps/deepstream_parallel_inference_app
    git lfs pull
    ```
 
@@ -49,12 +66,13 @@ The sample should be downloaded and built with **root** permission.
 
    ```
    apt-get install -y libjson-glib-dev libgstrtspserver-1.0-dev
-   /opt/nvidia/deepstream/deepstream/samples/triton_backend_setup.sh
+   <DS_ROOT>/scripts/triton_backend_setup.sh
    ## Only DeepStream 6.1.1 GA need to copy the metamux plugin library. Skip this copy command if DeepStream version is above 6.1.1 GA
    cp tritonclient/sample/gst-plugins/gst-nvdsmetamux/libnvdsgst_metamux.so /opt/nvidia/deepstream/deepstream/lib/gst-plugins/libnvdsgst_metamux.so
    ## set power model and boost CPU/GPU/EMC clocks
    nvpmodel -m 0 && jetson_clocks
    ```
+   NOTE: <DS_ROOT> is the path where the repo is cloned.
 
    Below instructions are needed for both  **Jetson** and **dGPU** (DeepStream Triton docker - [6.1.1-triton or above](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream/tags))
 

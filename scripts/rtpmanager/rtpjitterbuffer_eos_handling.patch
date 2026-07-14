@@ -1,0 +1,20 @@
+diff --git a/subprojects/gst-plugins-good/gst/rtpmanager/gstrtpjitterbuffer.c b/subprojects/gst-plugins-good/gst/rtpmanager/gstrtpjitterbuffer.c
+index db43cc8de0..40b5a5fe13 100644
+--- a/subprojects/gst-plugins-good/gst/rtpmanager/gstrtpjitterbuffer.c
++++ b/subprojects/gst-plugins-good/gst/rtpmanager/gstrtpjitterbuffer.c
+@@ -10,6 +10,7 @@
+  *  Copyright 2016 Pexip AS
+  *   @author: Havard Graff <havard@pexip.com>
+  *   @author: Stian Selnes <stian@pexip.com>
++ *  Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Library General Public
+@@ -3490,6 +3491,7 @@ update_estimated_eos (GstRtpJitterBuffer * jitterbuffer,
+     rtp_timer_queue_set_eos (priv->timers, estimated,
+         timeout_offset (jitterbuffer));
+     priv->estimated_eos = estimated;
++    update_current_timer (jitterbuffer);
+   }
+ }
+

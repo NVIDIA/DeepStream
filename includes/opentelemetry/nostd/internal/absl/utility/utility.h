@@ -1,41 +1,19 @@
-// Copyright 2017 The Abseil Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// This header file contains C++11 versions of standard <utility> header
-// abstractions available within C++14 and C++17, and are designed to be drop-in
-// replacement for code compliant with C++14 and C++17.
-//
-// The following abstractions are defined:
-//
-//   * integer_sequence<T, Ints...>  == std::integer_sequence<T, Ints...>
-//   * index_sequence<Ints...>       == std::index_sequence<Ints...>
-//   * make_integer_sequence<T, N>   == std::make_integer_sequence<T, N>
-//   * make_index_sequence<N>        == std::make_index_sequence<N>
-//   * index_sequence_for<Ts...>     == std::index_sequence_for<Ts...>
-//   * apply<Functor, Tuple>         == std::apply<Functor, Tuple>
-//   * exchange<T>                   == std::exchange<T>
-//   * make_from_tuple<T>            == std::make_from_tuple<T>
-//
-// This header file also provides the tag types `in_place_t`, `in_place_type_t`,
-// and `in_place_index_t`, as well as the constant `in_place`, and
-// `constexpr` `std::move()` and `std::forward()` implementations in C++11.
-//
-// References:
-//
-//  https://en.cppreference.com/w/cpp/utility/integer_sequence
-//  https://en.cppreference.com/w/cpp/utility/apply
-//  http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3658.html
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef OTABSL_UTILITY_UTILITY_H_
 #define OTABSL_UTILITY_UTILITY_H_

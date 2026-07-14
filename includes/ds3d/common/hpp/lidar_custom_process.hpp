@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_COMMON_HPP_LIDAR_CUSTOM_PROCESS_HPP
 #define DS3D_COMMON_HPP_LIDAR_CUSTOM_PROCESS_HPP
 

@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[application]
+enable-perf-measurement=1
+perf-measurement-interval-sec=5
+#gie-kitti-output-dir=streamscl
+
+[tiled-display]
+enable=1
+rows=2
+columns=2
+width=1280
+height=720
+gpu-id=0
+#(0): nvbuf-mem-default - Default memory allocated, specific to particular platform
+#(1): nvbuf-mem-cuda-pinned - Allocate Pinned/Host cuda memory, applicable for Tesla
+#(2): nvbuf-mem-cuda-device - Allocate Device cuda memory, applicable for Tesla
+#(3): nvbuf-mem-cuda-unified - Allocate Unified cuda memory, applicable for Tesla
+#(4): nvbuf-mem-surface-array - Allocate Surface Array memory, applicable for Jetson
+nvbuf-memory-type=0
+
+
+[source0]
+enable=1
+#Type - 1=CameraV4L2 2=URI 3=MultiURI
+type=3
+uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+num-sources=2
+gpu-id=0
+nvbuf-memory-type=0
+
+[source1]
+enable=1
+#Type - 1=CameraV4L2 2=URI 3=MultiURI
+type=3
+uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4
+num-sources=2
+gpu-id=0
+nvbuf-memory-type=0
+
+[sink0]
+enable=1
+#Type - 1=FakeSink 2=EglSink 3=File
+type=2
+sync=1
+source-id=0
+gpu-id=0
+nvbuf-memory-type=0
+
+[sink1]
+enable=1
+#Type - 1=FakeSink 2=EglSink 3=File 4=UDPSink 5=nvdrmvideosink 6=MsgConvBroker
+type=6
+msg-conv-config=dstest5_msgconv_sample_config.txt
+#(0): PAYLOAD_DEEPSTREAM - Deepstream schema payload
+#(1): PAYLOAD_DEEPSTREAM_MINIMAL - Deepstream schema payload minimal
+#(256): PAYLOAD_RESERVED - Reserved type
+#(257): PAYLOAD_CUSTOM   - Custom schema payload
+msg-conv-payload-type=0
+msg-broker-proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+msg-broker-conn-str=<host>;<port>;<topic>
+topic=<topic>
+#Optional:
+#msg-broker-config=../../deepstream-test4/cfg_kafka.txt
+
+[sink2]
+enable=0
+type=3
+#1=mp4 2=mkv
+container=1
+#1=h264 2=h265 3=mpeg4
+## only SW mpeg4 is supported right now.
+codec=3
+sync=1
+bitrate=2000000
+output-file=out.mp4
+source-id=0
+
+# sink type = 6 by default creates msg converter + broker.
+# To use multiple brokers use this group for converter and use
+# sink type = 6 with disable-msgconv = 1
+[message-converter]
+enable=0
+msg-conv-config=dstest5_msgconv_sample_config.txt
+#(0): PAYLOAD_DEEPSTREAM - Deepstream schema payload
+#(1): PAYLOAD_DEEPSTREAM_MINIMAL - Deepstream schema payload minimal
+#(256): PAYLOAD_RESERVED - Reserved type
+#(257): PAYLOAD_CUSTOM   - Custom schema payload
+msg-conv-payload-type=0
+# Name of library having custom implementation.
+#msg-conv-msg2p-lib=<val>
+# Id of component in case only selected message to parse.
+#msg-conv-comp-id=<val>
+
+# Configure this group to enable cloud message consumer.
+[message-consumer0]
+enable=0
+proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+conn-str=<host>;<port>
+config-file=<broker config file e.g. cfg_kafka.txt>
+subscribe-topic-list=<topic1>;<topic2>;<topicN>
+# Use this option if message has sensor name as id instead of index (0,1,2 etc.).
+#sensor-list-file=dstest5_msgconv_sample_config.txt
+
+[osd]
+enable=1
+gpu-id=0
+border-width=1
+text-size=15
+text-color=1;1;1;1;
+text-bg-color=0.3;0.3;0.3;1
+font=Arial
+show-clock=0
+clock-x-offset=800
+clock-y-offset=820
+clock-text-size=12
+clock-color=1;0;0;0
+nvbuf-memory-type=0
+
+[streammux]
+gpu-id=0
+##Boolean property to inform muxer that sources are live
+live-source=0
+batch-size=4
+##time out in usec, to wait after the first buffer is available
+##to push the batch even if the complete batch is not formed
+batched-push-timeout=40000
+## Set muxer output width and height
+width=1920
+height=1080
+##Enable to maintain aspect ratio wrt source, and allow black borders, works
+##along with width, height properties
+enable-padding=0
+nvbuf-memory-type=0
+## If set to TRUE, system timestamp will be attached as ntp timestamp
+## If set to FALSE, ntp timestamp from rtspsrc, if available, will be attached
+# attach-sys-ts-as-ntp=1
+
+[primary-gie]
+enable=1
+gpu-id=0
+batch-size=4
+## 0=FP32, 1=INT8, 2=FP16 mode
+bbox-border-color0=1;0;0;1
+bbox-border-color1=0;1;1;1
+bbox-border-color2=0;1;1;1
+bbox-border-color3=0;1;0;1
+nvbuf-memory-type=0
+interval=0
+gie-unique-id=1
+model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx_b4_gpu0_fp16.engine
+labelfile-path=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt
+config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt
+#infer-raw-output-dir=/opt/nvidia/deepstream/deepstream/samples/primary_detector_raw_output/
+
+[tracker]
+enable=1
+# For NvDCF and NvDeepSORT tracker, tracker-width and tracker-height must be a multiple of 32, respectively
+tracker-width=960
+tracker-height=544
+ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+# ll-config-file required to set different tracker types
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_IOU.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvSORT.yml
+ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_accuracy.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDeepSORT.yml
+gpu-id=0
+display-tracking-id=1
+
+[secondary-gie0]
+enable=1
+model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleTypes/resnet18_vehicletypenet_pruned.onnx_b16_gpu0_fp16.engine
+gpu-id=0
+batch-size=16
+gie-unique-id=4
+operate-on-gie-id=1
+operate-on-class-ids=0;
+config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt
+
+[secondary-gie1]
+enable=1
+model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/resnet18_vehiclemakenet_pruned.onnx_b16_gpu0_fp16.engine
+batch-size=16
+gpu-id=0
+gie-unique-id=5
+operate-on-gie-id=1
+operate-on-class-ids=0;
+config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt
+
+[tests]
+file-loop=1

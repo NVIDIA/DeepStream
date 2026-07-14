@@ -93,6 +93,7 @@ typedef struct
 typedef struct {
   GMutex *lock;
   int num_sources;
+  NvDsFrameLatencyInfo *latency_info;
 }LatencyCtx;
 
 /**
@@ -136,8 +137,7 @@ latency_measurement_buf_prob(GstPad * pad, GstPadProbeInfo * info, gpointer u_da
     GstBuffer *buf = (GstBuffer *) info->data;
     NvDsFrameLatencyInfo *latency_info = NULL;
     g_mutex_lock (ctx->lock);
-    latency_info = (NvDsFrameLatencyInfo *)
-      calloc(1, ctx->num_sources * sizeof(NvDsFrameLatencyInfo));;
+    latency_info = ctx->latency_info;
     g_print("\n************BATCH-NUM = %d soure %d**************\n",batch_num,ctx->num_sources);
     num_sources_in_batch = nvds_measure_buffer_latency(buf, latency_info);
 
@@ -153,6 +153,24 @@ latency_measurement_buf_prob(GstPad * pad, GstPadProbeInfo * info, gpointer u_da
   }
 
   return GST_PAD_PROBE_OK;
+}
+
+static void
+latency_measurement_ctx_free(gpointer data)
+{
+  LatencyCtx *ctx = (LatencyCtx *) data;
+
+  if (!ctx) {
+    return;
+  }
+
+  if (ctx->lock) {
+    g_mutex_clear(ctx->lock);
+    g_free(ctx->lock);
+  }
+
+  free(ctx->latency_info);
+  g_free(ctx);
 }
 
 GST_DEBUG_CATEGORY (NVDS_APP);
@@ -1534,9 +1552,13 @@ int main(int argc, char *argv[])
                         osd_sink_pad_buffer_probe, NULL, NULL);
       LatencyCtx *ctx = (LatencyCtx *)g_malloc0(sizeof(LatencyCtx));
       ctx->lock = (GMutex *)g_malloc0(sizeof(GMutex));
+      g_mutex_init(ctx->lock);
       ctx->num_sources = config->num_source_sub_bins;
+      ctx->latency_info = (NvDsFrameLatencyInfo *)
+          calloc(1, config->num_source_sub_bins * sizeof(NvDsFrameLatencyInfo));
       gst_pad_add_probe (osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-          latency_measurement_buf_prob, ctx, NULL);
+          latency_measurement_buf_prob, ctx, latency_measurement_ctx_free);
+      gst_object_unref(osd_sink_pad);
     }
   }
 

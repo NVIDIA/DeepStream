@@ -1,43 +1,19 @@
-// Copyright 2018 The Abseil Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// -----------------------------------------------------------------------------
-// variant.h
-// -----------------------------------------------------------------------------
-//
-// This header file defines an `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` type for holding a type-safe
-// value of some prescribed set of types (noted as alternative types), and
-// associated functions for managing variants.
-//
-// The `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` type is a form of type-safe union. An `absl::OTABSL_OPTION_NAMESPACE_NAME::variant`
-// should always hold a value of one of its alternative types (except in the
-// "valueless by exception state" -- see below). A default-constructed
-// `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` will hold the value of its first alternative type, provided
-// it is default-constructible.
-//
-// In exceptional cases due to error, an `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` can hold no
-// value (known as a "valueless by exception" state), though this is not the
-// norm.
-//
-// As with `absl::OTABSL_OPTION_NAMESPACE_NAME::optional`, an `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` -- when it holds a value --
-// allocates a value of that type directly within the `variant` itself; it
-// cannot hold a reference, array, or the type `void`; it can, however, hold a
-// pointer to externally managed memory.
-//
-// `absl::OTABSL_OPTION_NAMESPACE_NAME::variant` is a C++11 compatible version of the C++17 `std::variant`
-// abstraction and is designed to be a drop-in replacement for code compliant
-// with C++17.
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef OTABSL_TYPES_VARIANT_H_
 #define OTABSL_TYPES_VARIANT_H_

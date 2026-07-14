@@ -36,7 +36,7 @@
 
 #include <stdint.h>
 #include <string>
-#include <time.h>
+#include <chrono>
 #include <vector>
 
 #include "nvbufsurface.h"
@@ -49,9 +49,27 @@ extern "C"
 
 #define NVMOT_MAX_TRANSFORMS 4
 
+typedef uint64_t NvMOTTimeStamp;
 typedef uint64_t NvMOTStreamId;
 typedef uint32_t NvMOTFrameNum;
 typedef uint16_t NvMOTClassId;
+typedef NvMOTTimeStamp TimeStamp;
+
+/** Wall-clock time in nanoseconds since the Unix epoch (std::chrono::system_clock). */
+static inline TimeStamp NvDsCurrentTimestampNs(void)
+{
+    return static_cast<TimeStamp>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+}
+
+/** Per-frame timing: stream PTS (when valid), host-local ns for deltas, and frame index. */
+typedef struct _NvMOTTimeMeta
+{
+    NvMOTFrameNum frameNum;          /**< Same logical frame as @ref NvMOTFrame::frameNum */
+    NvMOTTimeStamp frameTimeStamp;   /**< Stream/media time (e.g. Gst PTS / NTP) in ns when valid */
+    TimeStamp localTimestamp;        /**< Host wall ns from NvDsCurrentTimestampNs when prepared */
+    bool frameTimeValid;             /**< True if @a frameTimeStamp is populated */
+} NvMOTTimeMeta;
 
 /**
  * @brief Compute target flags.
@@ -271,17 +289,13 @@ typedef struct _NvMOTFrame
     /** Holds the sequential frame number that identifies the frame
      within the stream. */
     NvMOTFrameNum frameNum;
+    /** Holds stream PTS / NTP time, host-local receive time, and frame index */
+    NvMOTTimeMeta timeMeta;
     /** Holds the width of the original source frame. */
     uint32_t srcFrameWidth;
     /** Holds the height of the original source frame. */
     uint32_t srcFrameHeight;
-    /** Holds the timestamp of the frame at the time of capture. */
-    time_t timeStamp;
-    /** Holds a Boolean which is true if the timestamp value is properly
-     populated. */
-    bool timeStampValid;
-    /** Holds a Boolean which is true if objects in this frame are to be
-     tracked. */
+    /** Holds a Boolean which is true if objects in this frame are to be tracked. */
     bool doTracking;
     /** Holds a Boolean which is true to reset tracking for the stream. */
     bool reset;
@@ -293,6 +307,9 @@ typedef struct _NvMOTFrame
     /** Holds a list of objects in this frame which are to be tracked.
      Boundary boxes are scaled for the first buffer configuration. */
     NvMOTObjToTrackList objectsIn;
+    /** Holds the sensor name of the stream source (e.g. from REST API camera_name).
+     May be NULL if not available. */
+    const char* sensorName;
 } NvMOTFrame;
 
 /**

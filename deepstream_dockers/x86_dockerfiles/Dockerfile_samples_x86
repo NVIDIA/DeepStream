@@ -1,0 +1,229 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+FROM nvcr.io/nvidia/cuda:13.2.0-runtime-ubuntu24.04
+
+ARG TENSORRT_VERSION=10.16.1.11-1+cuda13.2
+# ARG CUDNN_VERSION
+
+
+ENV DS_VERSION=9.1
+
+# Add open GL libraries and other required components. Added new gstreamer components and additional components including CVE patches
+# IP removal is included here
+RUN apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        pkg-config \
+        software-properties-common \
+        libglvnd-dev \
+        libgl1-mesa-dev \
+        libegl1-mesa-dev \
+        libgles2-mesa-dev \
+        libegl-mesa0 \
+        libglib2.0-dev \
+        libcjson-dev \
+        libglib2.0-0t64 \
+        libssl-dev \
+        python3-pip \
+        wget \
+        libyaml-cpp-dev \
+        libssl-dev \
+        openssl \
+        libssl3 \
+        gnutls-bin \
+        gstreamer1.0-tools \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-alsa \
+        libssl3  \
+        libgstreamer1.0-0 \
+        libgstrtspserver-1.0 \
+        libjansson4 \
+        librabbitmq4 \
+        libuuid1 \
+        libc-bin \
+        libcurl3-gnutls \
+        libcurl4 \
+        libjson-glib-1.0-0 \
+        gstreamer1.0-rtsp \
+        rsyslog \
+        git \
+        sudo \
+        openssh-server \
+        openssh-sftp-server \
+        openssh-client \
+        libbinutils \
+        binutils \
+        gpgv \
+        libsqlite3-0 \
+        libpam0g \
+        libtasn1-6 \
+        python3 \
+        libssh-4 \
+        libjq1 \
+        jq \
+        libjsoncpp-dev \
+        gcc \
+        g++ \
+        make \
+        tar \
+        bzip2 \
+        libjpeg-dev \
+        libxml2 \
+        zlib1g \
+        apparmor-utils \
+        libhiredis-dev \
+        librdkafka1 \
+        libcups2t64 \
+        mosquitto \
+        libmosquitto-dev \
+        tzdata && \
+        rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaudioparsers.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstfaad.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvoaacenc.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstx264.so && \
+        rm -f /usr/lib/x86_64-linux-gnu/libavresample* /usr/lib/x86_64-linux-gnu/libavutil* \
+        /usr/lib/x86_64-linux-gnu/libavcodec* /usr/lib/x86_64-linux-gnu/libavformat* \
+        /usr/lib/x86_64-linux-gnu/libavfilter* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstde265.so* \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstx265.so* /usr/lib/x86_64-linux-gnu/libde265.so* && \
+        rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvpx.so* \
+        /usr/lib/x86_64-linux-gnu/libmpeg2.so.0* /usr/lib/x86_64-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/x86_64-linux-gnu/libmpg123.so* \
+        /usr/lib/x86_64-linux-gnu/libx265.so* /usr/lib/x86_64-linux-gnu/libx264.so* /usr/lib/x86_64-linux-gnu/libvpx.so*   \
+        /usr/lib/x86_64-linux-gnu/libmpeg2convert.so* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstopenh264.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnvcodec.so \
+        /usr/lib/x86_64-linux-gnu/libopenh264.so* /usr/lib/x86_64-linux-gnu/libvo-aacenc.so* && \
+        rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstuvch264.so /usr/lib/x86_64-linux-gnu/libopenh264.so.2.2.0 /usr/lib/x86_64-linux-gnu/libopenh264.so.6 \
+        /usr/lib/x86_64-linux-gnu/libvo-aacenc.so.0 /usr/lib/x86_64-linux-gnu/libvo-aacenc.so.0.0.4 /usr/lib/x86_64-linux-gnu/libmp3lame.so.0.0.0 \
+        /usr/lib/x86_64-linux-gnu/libmp3lame.so.0 /usr/lib/x86_64-linux-gnu/libfaad* /usr/lib/x86_64-linux-gnu/libFLAC.so* \
+        /usr/lib/x86_64-linux-gnu/libmjpegutils-2.1.so.0* /usr/lib/x86_64-linux-gnu/libxvidcore.so* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpegpsmux.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so && \
+        rm -rf /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstflac.so \
+        /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2enc.so  /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmpeg2dec.so && \
+        rm -f /usr/lib/x86_64-linux-gnu/libopenh264.so.7 /usr/lib/x86_64-linux-gnu/libopenh264.so.2.4.1 && \
+        rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /usr/lib/*-linux-gnu/libdvdread.so* \
+          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so* \
+          /usr/lib/x86_64-linux-gnu/libjbig.so* /usr/lib/x86_64-linux-gnu/libmplex2-2.1.so* && \
+        rm -rf /var/lib/apt/lists/* && \
+        rm -rf /usr/lib/x86_64-linux-gnu/mfx && \
+        rm -f /usr/lib/x86_64-linux-gnu/libmfx-tracer.so.1 /usr/lib/x86_64-linux-gnu/libmfx.so.1.35 \
+        /usr/lib/x86_64-linux-gnu/libmfx-tracer.so.1.35 /usr/lib/x86_64-linux-gnu/libmfxhw64.so.1 \
+        /usr/lib/x86_64-linux-gnu/libmfx.so.1 /usr/lib/x86_64-linux-gnu/libmfxhw64.so.1.35 && \
+        apt autoremove
+
+
+# IP requirement for removal
+
+
+ RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
+       mkdir -p /tmp/temp_trt ; mkdir -p /root/tmp ; mkdir -p /tmp99 && \
+       cd /tmp/temp_trt && \
+       cp /tmp/docker/rsyslog /etc/init.d/ && \
+       ls -l /tmp/temp_trt/ && \
+       chmod +x /etc/init.d/rsyslog && \
+       dpkg -i /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_amd64.deb && \
+       dpkg -i /tmp/docker/cudnn-local-repo-ubuntu2404-9.20.0_1.0-1_amd64.deb && \
+       ls -l /tmp/temp_trt/ && \
+       cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
+       cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
+       cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
+       cp /var/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2/nv-tensorrt-local-DC7BC64E-keyring.gpg /usr/share/keyrings/ && \
+       cp /var/cudnn-local-repo-ubuntu2404-9.20.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
+       apt-get update && \
+       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       libnvinfer-bin=${TENSORRT_VERSION} \
+       libnvinfer-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch10=${TENSORRT_VERSION} \
+       libnvinfer-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean10=${TENSORRT_VERSION} \
+       libnvinfer-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-plugin10=${TENSORRT_VERSION} \
+       libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin10=${TENSORRT_VERSION} \
+       libnvinfer-win-builder-resource10=${TENSORRT_VERSION} \
+       libnvinfer10=${TENSORRT_VERSION} \
+       libnvonnxparsers-dev=${TENSORRT_VERSION} \
+       libnvonnxparsers10=${TENSORRT_VERSION} \
+       python3-libnvinfer-dev=${TENSORRT_VERSION} \
+       python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
+       python3-libnvinfer-lean=${TENSORRT_VERSION} \
+       python3-libnvinfer=${TENSORRT_VERSION} \
+       tensorrt-dev=${TENSORRT_VERSION} \
+       tensorrt-libs=${TENSORRT_VERSION} \
+       tensorrt=${TENSORRT_VERSION} \
+       libcudnn9-cuda-13 && \
+       tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+       /tmp/docker/gRPC_installation.sh && \
+       cp /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
+       cp /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
+       mv  /opt/nvidia/deepstream/deepstream/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
+       cp /tmp/docker/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json && \
+       ln -s /usr/lib/x86_64-linux-gnu/libnvcuvid.so.1 /usr/lib/x86_64-linux-gnu/libnvcuvid.so && \
+       ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-encode.so && \
+       ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so && \
+       cd /tmp && \
+       dpkg --purge nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2 && \
+       dpkg --purge cudnn-local-repo-ubuntu2404-9.20.0 && \
+       rm -rf /root/tmp && \
+       rm -rf temp_trt && \
+       rm -rf /var/lib/apt/lists/* && \
+       apt autoremove ; ldconfig
+
+
+# open telemetry
+ RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
+     mkdir -p /tmp/temp_otel99 && \
+     cd /tmp/temp_otel99 && \
+     cp  /tmp/docker/optel/* . && \
+     dpkg -i *.deb && \
+     cd / && \
+     rm -rf /tmp/temp_otel99
+
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3 && \
+    apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.3 && \
+    mkdir -p /opt/proto/bin && \
+    ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# workaround deepstream-app --version-all for cudnn
+RUN ln -s /usr/lib/x86_64-linux-gnu/libcudnn.so.9 /usr/lib/x86_64-linux-gnu/libcudnn.so
+
+# workaround for deepstream --version-all cuda driver
+RUN ln -s /usr/local/cuda/lib64/libcudart.so.13  /usr/local/cuda/lib64/libcudart.so
+
+# ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video
+ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphics,utility
+
+WORKDIR /opt/nvidia/deepstream/deepstream
+
+
+ENV PATH="${PATH}:${HOME}/.local/bin"
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/.local/lib"
+ENV PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${HOME}/.local/lib/pkgconfig"
+
+ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libgomp.so.1:/usr/lib/x86_64-linux-gnu/libGLdispatch.so:$LD_PRELOAD
+
+RUN ldconfig
+
+

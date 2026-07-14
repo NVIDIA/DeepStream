@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_COMMON_HELPER_CUDA_UTILS_H
 #define DS3D_COMMON_HELPER_CUDA_UTILS_H
 

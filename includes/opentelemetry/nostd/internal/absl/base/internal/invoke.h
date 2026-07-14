@@ -1,36 +1,19 @@
-// Copyright 2017 The Abseil Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// absl::OTABSL_OPTION_NAMESPACE_NAME::base_internal::Invoke(f, args...) is an implementation of
-// INVOKE(f, args...) from section [func.require] of the C++ standard.
-//
-// [func.require]
-// Define INVOKE (f, t1, t2, ..., tN) as follows:
-// 1. (t1.*f)(t2, ..., tN) when f is a pointer to a member function of a class T
-//    and t1 is an object of type T or a reference to an object of type T or a
-//    reference to an object of a type derived from T;
-// 2. ((*t1).*f)(t2, ..., tN) when f is a pointer to a member function of a
-//    class T and t1 is not one of the types described in the previous item;
-// 3. t1.*f when N == 1 and f is a pointer to member data of a class T and t1 is
-//    an object of type T or a reference to an object of type T or a reference
-//    to an object of a type derived from T;
-// 4. (*t1).*f when N == 1 and f is a pointer to member data of a class T and t1
-//    is not one of the types described in the previous item;
-// 5. f(t1, t2, ..., tN) in all other cases.
-//
-// The implementation is SFINAE-friendly: substitution failure within Invoke()
-// isn't an error.
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef OTABSL_BASE_INTERNAL_INVOKE_H_
 #define OTABSL_BASE_INTERNAL_INVOKE_H_

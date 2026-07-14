@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_COMMON_HELPER_SAFE_QUEUE_H
 #define DS3D_COMMON_HELPER_SAFE_QUEUE_H
 

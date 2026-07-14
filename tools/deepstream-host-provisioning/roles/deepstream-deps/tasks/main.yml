@@ -1,0 +1,129 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+---
+- name: Installing Deepstream dependencies
+  apt:
+    name:
+      - libssl-dev
+      - libjson-glib-1.0-0
+      - libyaml-cpp-dev
+      - libgstreamer1.0-0
+      - gstreamer1.0-tools
+      - gstreamer1.0-plugins-good
+      - gstreamer1.0-plugins-bad
+      - gstreamer1.0-plugins-ugly
+      - gstreamer1.0-libav
+      - libgstrtspserver-1.0-0
+      - libjansson4
+      - python3-pip
+      - libmosquitto-dev
+    state: present
+    update_cache: "yes"
+  become: "yes"
+
+# --- OpenTelemetry C++ {{ otel_version }} (built from source) ---
+
+- name: Install OpenTelemetry build prerequisites
+  apt:
+    name:
+      - git
+      - cmake
+      - build-essential
+    state: present
+    update_cache: "yes"
+  become: "yes"
+
+- name: Create OpenTelemetry source root
+  ansible.builtin.file:
+    path: "{{ otel_src_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: "yes"
+
+- name: Clone opentelemetry-cpp {{ otel_version }} with submodules
+  ansible.builtin.git:
+    repo: https://github.com/open-telemetry/opentelemetry-cpp
+    dest: "{{ otel_repo_dir }}"
+    version: "{{ otel_version }}"
+    recursive: yes
+  become: "yes"
+
+- name: Create OpenTelemetry build directory
+  ansible.builtin.file:
+    path: "{{ otel_build_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: "yes"
+
+- name: Check configure stamp for {{ otel_version }}
+  ansible.builtin.stat:
+    path: "{{ otel_build_dir }}/.configured.{{ otel_version }}"
+  register: otel_configure_stamp
+
+- name: Configure OpenTelemetry build with CMake
+  ansible.builtin.command:
+    cmd: >-
+      cmake ..
+      -DBUILD_SHARED_LIBS=ON
+      -DWITH_OTLP_GRPC=ON
+      -DWITH_OTLP_HTTP=ON
+    chdir: "{{ otel_build_dir }}"
+  when: not otel_configure_stamp.stat.exists
+  become: "yes"
+
+- name: Write configure stamp for {{ otel_version }}
+  ansible.builtin.copy:
+    content: "version={{ otel_version }}\nBUILD_SHARED_LIBS=ON\nWITH_OTLP_GRPC=ON\nWITH_OTLP_HTTP=ON\n"
+    dest: "{{ otel_build_dir }}/.configured.{{ otel_version }}"
+  when: not otel_configure_stamp.stat.exists
+  become: "yes"
+
+- name: Build OpenTelemetry
+  ansible.builtin.command:
+    cmd: cmake --build . --parallel {{ ansible_processor_vcpus | default(ansible_processor_count) }}
+    chdir: "{{ otel_build_dir }}"
+  when: not otel_configure_stamp.stat.exists
+  become: "yes"
+
+- name: Check install stamp for {{ otel_version }}
+  ansible.builtin.stat:
+    path: "{{ otel_build_dir }}/.installed.{{ otel_version }}"
+  register: otel_install_stamp
+
+- name: Install OpenTelemetry
+  ansible.builtin.command:
+    cmd: cmake --install .
+    chdir: "{{ otel_build_dir }}"
+  when: not otel_install_stamp.stat.exists
+  become: "yes"
+
+- name: Write install stamp for {{ otel_version }}
+  ansible.builtin.copy:
+    content: "version={{ otel_version }}\n"
+    dest: "{{ otel_build_dir }}/.installed.{{ otel_version }}"
+  when: not otel_install_stamp.stat.exists
+  become: "yes"
+
+- name: Refresh shared library cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  become: "yes"
+  changed_when: false

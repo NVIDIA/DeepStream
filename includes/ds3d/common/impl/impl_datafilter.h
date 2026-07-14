@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_COMMON_IMPL_BASE_DATA_FILTER_H
 #define DS3D_COMMON_IMPL_BASE_DATA_FILTER_H
 

@@ -1,4 +1,18 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # setup_prerequisites.sh - Automated prerequisites setup for MV3DT
 # This script automates all the manual setup steps described in README.md
@@ -13,13 +27,29 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Logging functions
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_info() {
+    local message="$1"
+    echo -e "${BLUE}[INFO]${NC} $message"
+    return 0
+}
+log_success() {
+    local message="$1"
+    echo -e "${GREEN}[SUCCESS]${NC} $message"
+    return 0
+}
+log_warning() {
+    local message="$1"
+    echo -e "${YELLOW}[WARNING]${NC} $message"
+    return 0
+}
+log_error() {
+    local message="$1"
+    echo -e "${RED}[ERROR]${NC} $message" >&2
+    return 0
+}
 
 # Global variables
-export DEEPSTREAM_IMAGE="${DEEPSTREAM_IMAGE:-nvcr.io/nvidia/deepstream:9.0-triton-multiarch}"
+export DEEPSTREAM_IMAGE="${DEEPSTREAM_IMAGE:-nvcr.io/nvidia/deepstream:9.1-triton-multiarch}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
@@ -30,9 +60,16 @@ SCALA_VERSION="2.13"
 KAFKA_DIR="$BASE_DIR/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
 INFERENCE_BUILDER_DIR="$BASE_DIR/inference_builder"
 
+# Reusable string constants
+DPKG_STATUS_FORMAT='${Status}'
+DPKG_INSTALLED="install ok installed"
+SEPARATOR="=============================================="
+
 # Utility functions
 command_exists() {
-    command -v "$1" >/dev/null 2>&1
+    local cmd="$1"
+    command -v "$cmd" >/dev/null 2>&1
+    return $?
 }
 
 check_os() {
@@ -43,7 +80,7 @@ check_os() {
     
     if ! command_exists lsb_release; then
         log_warning "lsb_release not found, checking if lsb-release package is installed"
-        if ! dpkg-query -W -f='${Status}' lsb-release 2>/dev/null | grep -q "install ok installed"; then
+        if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" lsb-release 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
             log_info "Installing lsb-release package..."
             sudo apt update && sudo apt install -y lsb-release || true
         else
@@ -60,6 +97,7 @@ check_os() {
             log_warning "This script is optimized for Ubuntu 24.04, but will attempt to continue on $distro"
         fi
     fi
+    return 0
 }
 
 check_gpu() {
@@ -168,7 +206,7 @@ setup_mosquitto() {
         local packages_to_install=()
         
         for package in "${mosquitto_packages[@]}"; do
-            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
+            if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" "$package" 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
                 packages_to_install+=("$package")
             else
                 log_info "$package is already installed"
@@ -234,7 +272,7 @@ setup_java() {
     fi
     
     log_info "Checking OpenJDK 17 package..."
-    if ! dpkg-query -W -f='${Status}' openjdk-17-jdk 2>/dev/null | grep -q "install ok installed"; then
+    if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" openjdk-17-jdk 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
         log_info "Installing OpenJDK 17..."
         sudo apt update && sudo apt install -y openjdk-17-jdk
     else
@@ -381,7 +419,7 @@ setup_python_env() {
     local required_packages=("python3-tk" "python3.12-venv" "python3.12-dev" "python3-pip")
     
     for package in "${required_packages[@]}"; do
-        if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
+        if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" "$package" 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
             packages_to_install+=("$package")
         else
             log_info "$package is already installed"
@@ -482,7 +520,7 @@ setup_inference_builder() {
     if [[ ! -d "$INFERENCE_BUILDER_DIR" ]]; then
         log_info "Cloning Inference Builder repository..."
         cd "$BASE_DIR"
-        if ! git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git; then
+        if ! git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder || ! git -C inference_builder checkout de226c076db9e3fd4f2be87117491b457607149a; then
             log_warning "Failed to clone Inference Builder repository"
             log_info "This is optional - Inference Builder is skipped by default. Set USE_INFERENCE_BUILDER=true to enable it."
             return 0
@@ -497,7 +535,7 @@ setup_inference_builder() {
     
     # Install system dependencies
     log_info "Checking protobuf-compiler package..."
-    if ! dpkg-query -W -f='${Status}' protobuf-compiler 2>/dev/null | grep -q "install ok installed"; then
+    if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" protobuf-compiler 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
         log_info "Installing protobuf-compiler..."
         sudo apt update && sudo apt install -y protobuf-compiler
     else
@@ -596,6 +634,7 @@ ENVIRONMENT VARIABLES:
     USE_INFERENCE_BUILDER      Set to 'true' to enable Inference Builder setup (default: false)
 
 EOF
+    return 0
 }
 
 main() {
@@ -603,7 +642,8 @@ main() {
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
-        case $1 in
+        local opt="$1"
+        case $opt in
             -h|--help)
                 print_usage
                 exit 0
@@ -613,16 +653,16 @@ main() {
                 shift
                 ;;
             *)
-                log_error "Unknown option: $1"
+                log_error "Unknown option: $opt"
                 print_usage
                 exit 1
                 ;;
         esac
     done
     
-    echo "=============================================="
+    echo "$SEPARATOR"
     echo "    MV3DT Prerequisites Setup Script"
-    echo "=============================================="
+    echo "$SEPARATOR"
     echo
     
     if [[ "$check_only" == "true" ]]; then
@@ -676,9 +716,9 @@ main() {
     fi
     
     echo
-    echo "=============================================="
+    echo "$SEPARATOR"
     echo "           Setup Summary"
-    echo "=============================================="
+    echo "$SEPARATOR"
     
     if [[ ${#failed_steps[@]} -eq 0 ]]; then
         log_success "All setup steps completed successfully!"
@@ -698,7 +738,7 @@ main() {
             echo
         else
             log_error "Setup completed but prerequisites check still failed"
-            echo "Please review the error messages and run the script again"
+            echo "Please review the error messages and run the script again" >&2
             exit 1
         fi
     else
@@ -707,14 +747,15 @@ main() {
             echo "  - $step"
         done
         echo
-        echo "Please review the error messages above and:"
+        echo "Please review the error messages above and:" >&2
         echo "  1. Fix the issues manually"
         echo "  2. Run this script again"
         echo "  3. Or run specific setup steps as needed"
         exit 1
     fi
     
-    echo "=============================================="
+    echo "$SEPARATOR"
+    return 0
 }
 
 # Handle script interruption

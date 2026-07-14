@@ -21,12 +21,14 @@ APP:= deepstream-parallel-infer
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/bin/
 
+APPS_COMMON_DIR:=../../../../../../common
+
 #SRCS:= $(wildcard *.c) $(wildcard *.cpp)
 SRCS:= deepstream_parallel_infer_app.cpp \
 	deepstream_parallel_infer_config_parser.cpp
 
-SRCS+= $(wildcard /opt/nvidia/deepstream/deepstream/sources/apps/apps-common/src/*.c)
-SRCS+= $(wildcard /opt/nvidia/deepstream/deepstream/sources/apps/apps-common/src/deepstream-yaml/*.cpp)
+SRCS+= $(wildcard $(APPS_COMMON_DIR)/src/*.c)
+SRCS+= $(wildcard $(APPS_COMMON_DIR)/src/deepstream-yaml/*.cpp)
 
 INCS:= $(wildcard *.h)
 
@@ -35,8 +37,8 @@ PKGS:= gstreamer-1.0 gstreamer-video-1.0 x11 json-glib-1.0
 OBJS:= $(SRCS:.c=.o)
 OBJS:= $(OBJS:.cpp=.o)
 
-CFLAGS+= -g -I./ -I/opt/nvidia/deepstream/deepstream/sources/apps/apps-common/includes \
-		 -I/opt/nvidia/deepstream/deepstream/sources/includes \
+CFLAGS+= -g -I./ -I$(APPS_COMMON_DIR)/includes \
+		 -I/opt/nvidia/deepstream/deepstream/sources/includes/ \
 		 -I /usr/local/cuda/include
 
 LIBS:= -L/usr/local/cuda/lib64/ -lcudart

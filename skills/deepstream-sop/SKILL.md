@@ -14,13 +14,13 @@ description: >
   Kafka NvProto/JSON output, Basler/Pylon camera + emulation, Docker compose,
   chunk-level latency. Do NOT trigger for generic DeepStream pipelines, object
   detection/tracking, NIM imports, or video summarization.
-owner: "windy@nvidia.com"
+owner: "NVIDIA CORPORATION"
 service: "deepstream-sop"
 version: "1.0.0"
 license: "CC-BY-4.0 AND Apache-2.0"
 reviewed: "2026-04-08"
 metadata:
-  author: "Wind Yuan <windy@nvidia.com>"
+  author: "NVIDIA CORPORATION"
   tags:
     - deepstream
     - sop
@@ -212,7 +212,7 @@ If `configs/actions.json` is absent or invalid, fall back to copying the referen
 | `UNIFORM_CHUNKING_BYPASSES_DDM` | `chunking_options.algorithm="uniform"` → fixed-length chunks; `create_inference_pipeline(uniform_chunk=True)` skips DDM but keeps `tee1` fanout; Stage 2 uses `uniform_clip_post_process` | `skill_02_pydantic_schemas.md`, `skill_03_deepstream_pipeline.md`, `skill_06_sop_process_manager.md` |
 | `DDM_TEMPORAL_CONFIGURABLE` | `SLIDING_WINDOWS_SIZE = 2*FRAMES_PER_SIDE + SEQUENCE_BATCH` rendered into preprocess/nvinferserver (no hard-coded 18); Triton `config.pbtxt` sequence dim `-1` | `skill_04_config_templates.md`, `skill_05_triton_ddm_model.md` |
 | `DDM_TRT_OPTIONAL_PATH` | `DDM_TRT_OPTIMIZATION=true` runs DDM via TensorRT (per-thread contexts, fixed batch = SEQUENCE_BATCH); PyTorch fallback; never both. PyTorch is default | `skill_05_triton_ddm_model.md` |
-| `DDM_TRT_STREAM_ORDERING` | `DDMTensorRTEngine.infer()`: `wait_stream(current)` → `execute_async_v3` → **`torch.cuda.synchronize(device)`** (NOT per-stream). Per-stream sync leaves TRT aux-stream work in flight → gst-CV SIGSEGV (NVBug 6289256) | `skill_05_triton_ddm_model.md` |
+| `DDM_TRT_STREAM_ORDERING` | `DDMTensorRTEngine.infer()`: `wait_stream(current)` → `execute_async_v3` → **`torch.cuda.synchronize(device)`** (NOT per-stream). Per-stream sync leaves TRT aux-stream work in flight → gst-CV SIGSEGV | `skill_05_triton_ddm_model.md` |
 | `METADATA_LICENSE_FROM_FILE` | `/v1/metadata` reads `licenseInfo` from `DS_SOP_LICENSE_PATH` (default `/opt/nvidia/nvds_sop/license.txt`); never hard-code license text | `skill_01_fastapi_endpoints.md` |
 | `CAMERA_EMULATION_FRAMES_RGB` | Pylon emulation PNGs must be explicit 3-channel RGB (matches `Emulation_0815-0000.pfs PixelFormat=RGB8Packed`); generate via `nvvideoconvert ! videoconvert ! "video/x-raw,format=RGB" ! pngenc` | `skill_08_basler_camera.md` |
 | `COMPOSE_ENV_PASSTHROUGH` | `docker compose` only substitutes `${VAR}` references; every runtime env var must be explicitly listed under `environment:` to reach the container. | `skill_09_docker_build_deploy.md` |

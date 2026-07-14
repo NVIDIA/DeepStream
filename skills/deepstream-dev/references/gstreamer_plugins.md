@@ -115,7 +115,7 @@ pipeline.add("nvmultiurisrcbin", "src", {
 # REST API automatically available at http://localhost:9000/api/v1/
 ```
 
-**⚠️ CRITICAL for Dynamic Sources**:
+**CRITICAL for Dynamic Sources**:
 When using dynamic source addition, the sink element MUST have `async=0`:
 ```python
 pipeline.add("nveglglessink", "sink", {
@@ -620,7 +620,7 @@ nvdsosd ! nvvideoconvert ! nveglglessink
 
 **Configuration File Parameters**:
 The config file **must** include a **property** group/section. Other groups define per-stream ROI, line-crossing, overcrowding, and direction rules. Stream index is given by the numeric suffix in the group name (e.g. `roi-filtering-stream-0` for stream 0).
-- `property`: Genral group; Mandatory.
+- `property`: General group; Mandatory.
   - `config-width`,`config-height`:  Reference resolution width and height for analytics coordinate scaling.
   - `enable`: Whether analytics is enabled (aligned with the element **enable** property).
   - `display-font-size`: Optional; OSD font size.

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_COMMON_IMPL_BASE_DATA_PROCESS_H
 #define _DS3D_COMMON_IMPL_BASE_DATA_PROCESS_H
 
