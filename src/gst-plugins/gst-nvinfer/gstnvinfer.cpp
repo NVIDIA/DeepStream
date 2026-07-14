@@ -510,8 +510,9 @@ gst_nvinfer_set_property (GObject * object, guint prop_id,
         /* Parse the initialization parameters from the config file. This function
          * gives preference to values set through the set_property function over
          * the values set in the config file. */
-        if (g_str_has_suffix(nvinfer->config_file_path, ".yml") ||
-                g_str_has_suffix(nvinfer->config_file_path, ".yaml")) {
+        gboolean is_yml  = g_str_has_suffix(nvinfer->config_file_path, ".yml");
+        gboolean is_yaml = g_str_has_suffix(nvinfer->config_file_path, ".yaml");
+        if (is_yml || is_yaml) {
           nvinfer->config_file_parse_successful =
               gst_nvinfer_parse_config_file_yaml (nvinfer, impl->m_InitParams.get(),
                   nvinfer->config_file_path);
@@ -2844,4 +2845,4 @@ gst_nvinfer_parse_dynamic_properties(GstNvInfer *nvinfer, const gchar *propertie
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, nvdsgst_infer,
-    DESCRIPTION, nvinfer_plugin_init, "9.0", LICENSE, BINARY_PACKAGE, URL)
+    DESCRIPTION, nvinfer_plugin_init, "9.1", LICENSE, BINARY_PACKAGE, URL)

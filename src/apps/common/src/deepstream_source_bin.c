@@ -709,8 +709,11 @@ watch_source_status (gpointer data)
         current_time.tv_sec - src_bin->last_reconnect_time.tv_sec;
     if (time_since_last_reconnect_sec >= SOURCE_RESET_INTERVAL_SEC) {
       if (time_diff_msec_since_last_reset > 3000) {
+        if(src_bin->rtsp_reconnect_attempts != -1) {
+          ++src_bin->num_rtsp_reconnects;
+        }
         if (src_bin->rtsp_reconnect_attempts == -1 ||
-            ++src_bin->num_rtsp_reconnects <=
+            src_bin->num_rtsp_reconnects <=
             src_bin->rtsp_reconnect_attempts) {
           last_reset_time_global = current_time;
           // source is still not up, reconfigure it again.
@@ -760,8 +763,10 @@ watch_source_status (gpointer data)
     if (src_bin->rtsp_reconnect_interval_sec > 0 &&
         time_since_last_buf_sec >= src_bin->rtsp_reconnect_interval_sec) {
       if (time_diff_msec_since_last_reset > 3000) {
+        if (src_bin->rtsp_reconnect_attempts != -1)
+          ++src_bin->num_rtsp_reconnects;
         if (src_bin->rtsp_reconnect_attempts == -1 ||
-            ++src_bin->num_rtsp_reconnects <=
+            src_bin->num_rtsp_reconnects <=
             src_bin->rtsp_reconnect_attempts) {
           last_reset_time_global = current_time;
 

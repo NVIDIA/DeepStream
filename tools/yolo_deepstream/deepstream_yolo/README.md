@@ -7,7 +7,6 @@
 - `config_infer_primary_yoloV4.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV4 detector model.
 - `config_infer_primary_yoloV7.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV7 detector model.
 - `config_infer_primary_yoloV8.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV8 detector model.
-- `config_infer_primary_yoloV8_dla.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV8 detector model running with DLA on Jetson.
 - `config_infer_primary_yoloV9.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV9 detector model.
 - `config_infer_primary_yoloV11.txt`: Configuration file for the GStreamer nvinfer plugin for the YoloV11 detector model.
 - `config_infer_primary_yoloV11_obb.txt`: Configuration file for the GStreamer nvinfer plugin for the YOLOv11 OBB (Oriented Bounding Box) detector model.
@@ -18,8 +17,8 @@
 
 ```sh
   $ cd ~/
-  $ git clone https://github.com/NVIDIA/deepstream.git
-  $ cd ~/deepstream/tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo
+  $ git clone https://github.com/NVIDIA/DeepStream.git
+  $ cd ~/DeepStream/tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo
   $ make
   $ cd ..
 ```
@@ -52,12 +51,10 @@ NOTE: To improve performance on specific GPUs, please add "-gencode=arch=compute
 $ python export.py --weights ./yolov7.pt --grid --simplify --topk-all 100 --iou-thres 0.65 --conf-thres 0.35 --img-size 640 640 --dynamic-batch
 ```
 
-- Or use the qat model exported from [yolov7_qat](../yolov7_qat/README.md)
-
 - Generate the TensorRT engine with the following command:
 
 ```bash
-$ /usr/src/tensorrt/bin/trtexec --onnx=yolov7_qat_640.onnx --int8 --fp16 --minShapes=images:1x3x640x640 --optShapes=images:8x3x640x640 --maxShapes=images:16x3x640x640 --saveEngine=yolov7_qat_640_gpu_b16.engine
+$ /usr/src/tensorrt/bin/trtexec --onnx=yolov7_dy.onnx --fp16 --minShapes=images:1x3x640x640 --optShapes=images:8x3x640x640 --maxShapes=images:16x3x640x640 --saveEngine=yolov7_dy_gpu_b16.engine
 ```
 
 - Run
@@ -74,7 +71,7 @@ The output result will output to `yolo.mp4`
 
   ```bash
   # batchsize = 16
-  $ /usr/src/tensorrt/bin/trtexec --onnx=yolov8s_640_dynamic.onnx --fp16 --int8 --verbose --calib=yolov8s_gpu_precision_config_calib.cache --saveEngine=yolov8s_ptq_640_gpu_b16.engine --minShapes=x.1:16x3x640x640 --optShapes=x.1:16x3x640x640 --maxShapes=x.1:16x3x640x640 --precisionConstraints=obey --layerPrecisions=Split_36:fp16,Reshape_37:fp16,Transpose_38:fp16,Softmax_39:fp16,Conv_41:fp16,Sub_64:fp16,Concat_65:fp16,Mul_67:fp16,Sigmoid_68:fp16,Concat_69:fp16
+  $ /usr/src/tensorrt/bin/trtexec --onnx=yolov8s_640_dynamic.onnx --fp16 --verbose --saveEngine=yolov8s_640_dynamic.onnx_b16.engine --minShapes=x.1:16x3x640x640 --optShapes=x.1:16x3x640x640 --maxShapes=x.1:16x3x640x640
   ```
 
 - Enable the configure on config files, edit [deepstream_app_config_yolo.txt](./deepstream_app_config_yolo.txt)
@@ -83,52 +80,7 @@ The output result will output to `yolo.mp4`
   config-file=config_infer_primary_yoloV8.txt
   ```
 
-##### 2. Run on DLA with our DLA-spec-finetuned model(DLA Only)
-- Download sample ONNX models and convert the ONNX model to TensorRT engine 
-
-  Download model and coresponding calibration file from [model-list](../README.md#model-list)
-
-  Choose one of the following methods
-
-  * Convert model with trtexec
-
-      ```bash
-      $ /usr/src/tensorrt/bin/trtexec --onnx=yolov8s_DAT_640_noqdq.onnx --fp16 --int8 --verbose --calib=yolov8s_DAT_precision_config_calib.cache --precisionConstraints=obey --layerPrecisions=Split_36:fp16,Reshape_37:fp16,Transpose_38:fp16,Softmax_39:fp16,Conv_41:fp16,Sub_64:fp16,Concat_65:fp16,Mul_67:fp16,Sigmoid_68:fp16,Concat_69:fp16 --saveEngine=yolov8s_DAT_640_noqdq_DLA.engine --useDLACore=0 --allowGPUFallback
-      ```
-
-  * Run the download and build script
-
-    ```bash
-    ./build_DLA_engine.sh
-    ```
-
-- Enable the configuration for yolov8 in config files, edit [deepstream_app_config_yolo.txt](./deepstream_app_config_yolo.txt)
-
-  ```ini
-  ...
-  num-sources=1
-  ...
-  config-file=config_infer_primary_yoloV8_dla.txt
-  [streammux]
-  ...
-  batch-size=1
-  ...
-
-  [primary-gie]
-  ...
-  batch-size=1
-  ...
-  ```
-
-  Edit [config_infer_primary_yoloV8_dla.txt](./config_infer_primary_yoloV8_dla.txt)
-  ```
-  model-engine-file=yolov8s_DAT_640_noqdq_DLA.engine
-  ...
-  enable-dla=1
-  use-dla-core=1 # or 0
-  ```
-
-##### 3. Run
+##### 2. Run
   ```bash
   $ deepstream-app -c deepstream_app_config_yolo.txt
   ```
@@ -174,7 +126,7 @@ The output result will output to `yolo.mp4`
 - Use the following command to download the yolov11s onnx-model
 
 ```bash
-wget https://nvidia.box.com/shared/static/87pt9tlgx588l9j9a9wfdk2yjljjrffn -O yolov11s_qat_int8_672_dynamic.onnx
+wget https://nvidia.box.com/shared/static/diao78cnzdhakz5fbx4ax5213z70ymi7 -O yolov11s_640_dynamic.onnx
 ```
 
 - Convert model with trtexec
@@ -241,4 +193,3 @@ in [config_infer_primary_yoloV7.txt](config_infer_primary_yoloV7.txt), [config_i
 - `disable-output-host-copy=1` -> `disable-output-host-copy=0`
 
 The performance of the CPU-post-processing and CUDA-post-processing result can be found in [Performance](../#Performance)
-

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -22,4 +20,3 @@ find_package(nvds_service_maker REQUIRED PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../.
 
 add_library(add_message_meta_probe SHARED add_message_meta_probe.cpp)
 target_link_libraries(add_message_meta_probe PRIVATE  nvds_service_maker nvds_service_maker_utils)
-

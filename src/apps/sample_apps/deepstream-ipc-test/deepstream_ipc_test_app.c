@@ -198,6 +198,8 @@ bus_call (GstBus * bus, GstMessage * msg, gpointer data)
     }
     case GST_MESSAGE_STATE_CHANGED:
     {
+      if (!GST_IS_PIPELINE (GST_MESSAGE_SRC (msg)))
+        break;
       GstState oldstate = GST_STATE_NULL, newstate = GST_STATE_NULL;
       gst_message_parse_state_changed (msg, &oldstate, &newstate, NULL);
         switch (newstate) {
@@ -279,7 +281,7 @@ decodebin_child_added (GstChildProxy * child_proxy, GObject * object,
 }
 
 static GstElement *
-create_source_bin (guint index, gchar * uri)
+create_source_bin (guint index, const gchar * uri)
 {
   GstElement *bin = NULL, *uri_decode_bin = NULL;
   gchar bin_name[16] = { };
@@ -388,6 +390,32 @@ create_csi_source_bin (guint index, guint sensor_id) {
   return bin;
 }
 
+static void
+free_ipc_client_urls (NvIpcClientPipeline *ipc, guint n)
+{
+  for (guint j = 0; j < n; j++) {
+    g_free (ipc->uri[j]);
+    g_free (ipc->socket_path[j]);
+    ipc->uri[j] = NULL;
+    ipc->socket_path[j] = NULL;
+  }
+}
+
+static void
+free_ipc_server_completed (AppCtx *ctx, guint n)
+{
+  for (guint j = 0; j < n; j++) {
+    g_source_remove (ctx->ipcserver[j].bus_id);
+    gst_element_set_state (ctx->ipcserver[j].pipeline, GST_STATE_NULL);
+    gst_object_unref (ctx->ipcserver[j].pipeline);
+    ctx->ipcserver[j].pipeline = NULL;
+    g_free (ctx->ipcserver[j].uri);
+    g_free (ctx->ipcserver[j].socket_path);
+    ctx->ipcserver[j].uri = NULL;
+    ctx->ipcserver[j].socket_path = NULL;
+  }
+}
+
 static int
 create_client_pipeline (int argc, char *argv[])
 {
@@ -399,12 +427,21 @@ create_client_pipeline (int argc, char *argv[])
   GstBus *bus = NULL;
   guint bus_watch_id;
   GstPad *tiler_src_pad = NULL;
-  guint i =0, num_sources = 0;
+  guint i = 0;
+  guint num_sources;
   guint tiler_rows, tiler_columns;
   guint pgie_batch_size;
   NvDsGieType pgie_type = NVDS_GIE_PLUGIN_INFER;
   gboolean PERF_MODE = g_getenv("NV_IPC_TEST_PERF_MODE") &&
       !g_strcmp0(g_getenv("NV_IPC_TEST_PERF_MODE"), "1");
+
+  if (argv == NULL || argc < 3
+      || (guint) argc > (guint) MAX_SOURCE_BINS + 2U) {
+    g_printerr ("Invalid client arguments (need: client <ipc_url> [...]; max %u sources).\n",
+        MAX_SOURCE_BINS);
+    return -1;
+  }
+  num_sources = (guint) (argc - 2);
 
   memset(&appCtx, 0, sizeof(AppCtx));
   appCtx.loop = loop = g_main_loop_new (NULL, FALSE);
@@ -422,21 +459,51 @@ create_client_pipeline (int argc, char *argv[])
   }
   gst_bin_add (GST_BIN (pipeline), streammux);
 
-  num_sources = argc - 2;
-
   for (i = 0; i < num_sources; i++) {
     GstPad *sinkpad, *srcpad;
     gchar pad_name[16] = { };
 
     const char *prefix = "ipc://";
-    const char *socket_path = argv[i + 2] + strlen(prefix);
-    appCtx.ipcclient.uri[i] = strdup(argv[i + 2]);
-    appCtx.ipcclient.socket_path[i] = strdup(socket_path);
+    const gchar *ipc_uri = argv[i + 2];
+
+    if (ipc_uri == NULL) {
+      g_printerr ("Missing IPC URL for source %u.\n", i);
+      free_ipc_client_urls (&appCtx.ipcclient, i);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
+      return -1;
+    }
+
+    appCtx.ipcclient.uri[i] = g_strdup (ipc_uri);
+    if (appCtx.ipcclient.uri[i] == NULL) {
+      g_printerr ("Out of memory (IPC URL).\n");
+      free_ipc_client_urls (&appCtx.ipcclient, i);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
+      return -1;
+    }
+
+    const char *socket_path = ipc_uri + strlen (prefix);
+
+    appCtx.ipcclient.socket_path[i] = g_strdup (socket_path);
+    if (appCtx.ipcclient.socket_path[i] == NULL) {
+      g_printerr ("Out of memory (socket path).\n");
+      g_free (appCtx.ipcclient.uri[i]);
+      appCtx.ipcclient.uri[i] = NULL;
+      free_ipc_client_urls (&appCtx.ipcclient, i);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
+      return -1;
+    }
 
     GstElement *source_bin= NULL;
-    source_bin = create_source_bin (i, argv[i + 2]);
-    if (!source_bin) {
+    source_bin = create_source_bin (i, ipc_uri);
+    if (source_bin == NULL) {
       g_printerr ("Failed to create source bin. Exiting.\n");
+      /* uri/socket_path[0..i] were allocated for this iteration. */
+      free_ipc_client_urls (&appCtx.ipcclient, i + 1);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
       return -1;
     }
 
@@ -444,19 +511,31 @@ create_client_pipeline (int argc, char *argv[])
 
     g_snprintf (pad_name, 15, "sink_%u", i);
     sinkpad = gst_element_request_pad_simple (streammux, pad_name);
-    if (!sinkpad) {
+    if (sinkpad == NULL) {
       g_printerr ("Streammux request sink pad failed. Exiting.\n");
+      free_ipc_client_urls (&appCtx.ipcclient, i + 1);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
       return -1;
     }
 
     srcpad = gst_element_get_static_pad (source_bin, "src");
-    if (!srcpad) {
+    if (srcpad == NULL) {
       g_printerr ("Failed to get src pad of source bin. Exiting.\n");
+      gst_object_unref (sinkpad);
+      free_ipc_client_urls (&appCtx.ipcclient, i + 1);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
       return -1;
     }
 
     if (gst_pad_link (srcpad, sinkpad) != GST_PAD_LINK_OK) {
       g_printerr ("Failed to link source bin to stream muxer. Exiting.\n");
+      gst_object_unref (srcpad);
+      gst_object_unref (sinkpad);
+      free_ipc_client_urls (&appCtx.ipcclient, i + 1);
+      gst_object_unref (pipeline);
+      g_main_loop_unref (loop);
       return -1;
     }
 
@@ -599,8 +678,14 @@ create_server_pipeline (int argc, char *argv[])
 {
   AppCtx appCtx;
   guint i =0, num_sources = 0;
-  char **arg = argv + 2;
+  char **arg;
   GMainLoop *loop = NULL;
+
+  if (argv == NULL) {
+    g_printerr ("Invalid arguments (argv is NULL).\n");
+    return -1;
+  }
+  arg = argv + 2;
 
   memset(&appCtx, 0, sizeof(AppCtx));
   appCtx.loop = loop = g_main_loop_new (NULL, FALSE);
@@ -614,8 +699,10 @@ create_server_pipeline (int argc, char *argv[])
     /* Create gstreamer elements */
     /* Create Pipeline element that will form a connection of other elements */
     appCtx.ipcserver[i].pipeline = pipeline = gst_pipeline_new ("ipc-server-pipeline");
-    if (!pipeline) {
+    if (pipeline == NULL) {
       g_printerr ("Failed to create pipeline. Exiting.\n");
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
       return -1;
     }
 
@@ -629,27 +716,64 @@ create_server_pipeline (int argc, char *argv[])
       }
       source_bin = create_csi_source_bin (i, appCtx.ipcserver[i].sensor_id);
     } else {
-      appCtx.ipcserver[i].uri = strdup(*arg++);
+      appCtx.ipcserver[i].uri = g_strdup (*arg++);
       source_bin = create_source_bin (i, appCtx.ipcserver[i].uri);
     }
 
-    if (!source_bin) {
+    if (source_bin == NULL) {
       g_printerr ("Failed to create source bin. Exiting.\n");
+      g_free (appCtx.ipcserver[i].uri);
+      appCtx.ipcserver[i].uri = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
       return -1;
     }
     gst_bin_add (GST_BIN (pipeline), source_bin);
 
     queue = gst_element_factory_make ("queue", NULL);
-    if (!queue) {
+    if (queue == NULL) {
       g_printerr ("Failed to create queue. Exiting.\n");
+      g_free (appCtx.ipcserver[i].uri);
+      appCtx.ipcserver[i].uri = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
       return -1;
     }
     gst_bin_add (GST_BIN (pipeline), queue);
 
-    appCtx.ipcserver[i].socket_path = strdup(*arg++);
+    if (*arg == NULL) {
+      g_printerr ("Missing socket path argument for server source %u.\n", i);
+      g_free (appCtx.ipcserver[i].uri);
+      appCtx.ipcserver[i].uri = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
+      return -1;
+    }
+
+    appCtx.ipcserver[i].socket_path = g_strdup (*arg++);
+    if (appCtx.ipcserver[i].socket_path == NULL) {
+      g_printerr ("Out of memory (socket path).\n");
+      g_free (appCtx.ipcserver[i].uri);
+      appCtx.ipcserver[i].uri = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
+      return -1;
+    }
+
     nvunixfdsink = gst_element_factory_make ("nvunixfdsink", NULL);
-    if (!nvunixfdsink) {
+    if (nvunixfdsink == NULL) {
       g_printerr ("Failed to create nvunixfdsink. Exiting.\n");
+      g_free (appCtx.ipcserver[i].uri);
+      g_free (appCtx.ipcserver[i].socket_path);
+      appCtx.ipcserver[i].uri = NULL;
+      appCtx.ipcserver[i].socket_path = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
       return -1;
     }
     gst_bin_add (GST_BIN (pipeline), nvunixfdsink);
@@ -661,6 +785,13 @@ create_server_pipeline (int argc, char *argv[])
     /* link the elements together */
     if (!gst_element_link_many (source_bin, queue, nvunixfdsink, NULL)) {
       g_printerr ("Elements could not be linked. Exiting.\n");
+      g_free (appCtx.ipcserver[i].uri);
+      g_free (appCtx.ipcserver[i].socket_path);
+      appCtx.ipcserver[i].uri = NULL;
+      appCtx.ipcserver[i].socket_path = NULL;
+      gst_object_unref (pipeline);
+      free_ipc_server_completed (&appCtx, i);
+      g_main_loop_unref (loop);
       return -1;
     }
 
@@ -676,7 +807,7 @@ create_server_pipeline (int argc, char *argv[])
   }
 
   /* Set the pipeline to "playing" state */
-  g_print ("Now playing:");
+  g_print ("Now playing: ");
   for (i = 0; i < num_sources; i++) {
     gst_element_set_state (appCtx.ipcserver[i].pipeline, GST_STATE_PLAYING);
     g_print("server is started path: %s\n", appCtx.ipcserver[i].socket_path);

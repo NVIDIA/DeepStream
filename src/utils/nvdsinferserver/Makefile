@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,13 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 LIB:=libnvds_infer_server.so
-LIB_DIR = /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
-OBJ_DIR := .build
-include ../../Rules.mk
-NVDS_VERSION := 9.0
+NVDS_VERSION := 9.1
 LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 TRITON_SERVER_STUB ?= build/nvdsinferserver
 
@@ -106,22 +101,19 @@ endif
 LIBS := \
     -L$(TRITON_SERVER_STUB) \
     -L$(TRITON_GRPC_CLIENT)/lib \
-    -l:libgrpcclient_static.a \
+    -lgrpcclient \
     -l:libprotobuf.a \
-    -l:libgrpc++.a \
-    -l:libgrpc.a \
-    -l:libgpr.a \
     -l:libcares.a \
-    -l:libaddress_sorting.a  \
     -ltritonserver \
     -lnvbufsurftransform \
     -lnvbufsurface \
-    -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib \
+    -L$(LIB_INSTALL_DIR) \
     -lnvdsgst_helper \
     -lnvdsgst_meta \
     -lnvds_meta \
     -lnvds_inferlogger \
     -lnvds_inferutils \
+    -Wl,--start-group \
     -l:libabsl_bad_optional_access.a \
     -l:libabsl_bad_variant_access.a \
     -l:libabsl_cordz_info.a \
@@ -176,9 +168,13 @@ LIBS := \
     -l:libabsl_crc_internal.a \
     -l:libabsl_flags_commandlineflag.a \
     -l:libabsl_flags_parse.a \
+    -l:libabsl_flags_usage.a \
+    -l:libabsl_flags_usage_internal.a \
     -l:libabsl_flags_marshalling.a \
     -l:libabsl_flags_commandlineflag_internal.a \
-    -l:libupb.a \
+    -l:libabsl_flags_usage.a \
+    -l:libabsl_flags_usage_internal.a \
+    -Wl,--end-group \
     -l:libre2.a \
     -ldl \
     -pthread \
@@ -187,7 +183,7 @@ LIBS := \
     -lssl \
     -L/usr/local/cuda-$(CUDA_VER)/lib64/ \
     -lcudart \
-    -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib \
+    -L$(LIB_INSTALL_DIR) \
      $(NULL)
 
 
@@ -241,32 +237,27 @@ INCS += \
 OBJS:= $(SRCS:.cpp=.o)
 OBJS:= $(OBJS:.cc=.o)
 OBJS:= $(OBJS:.cu=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cc $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cc $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cu $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cu $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(NVCC) -c -o $@ --compiler-options '-fPIC -I../../../includes/nvdsinferserver -I../../../includes'  $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(INCS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
-	$(CXX) -o $@ $(LDFLAGS) $(OBJS)  $(LIBS)
+$(LIB): $(OBJS) $(INCS) $(DEP) Makefile
+	$(CXX) -o $@ $(LDFLAGS) $(OBJS) -Wl,--start-group $(LIBS) -Wl,--end-group
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)
 	rm -rf $(DEPS)/libtritonserver.so $(ALL_PROTOS_PBCC) $(ALL_PROTOS_PBH)
 
 $(DEPS)/libtritonserver.so: tritonserver_stub/libtritonserver_dummy.export Makefile

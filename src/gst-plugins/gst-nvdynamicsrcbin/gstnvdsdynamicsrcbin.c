@@ -177,9 +177,11 @@ static void dynamic_src_bin_dispose(GObject *object) {
     G_OBJECT_CLASS(dynamic_src_bin_parent_class)->dispose(object);
 }
 
-static void post_file_change_message(DynamicSrcBin *srcbin) {
+static void post_file_change_message(DynamicSrcBin *srcbin, gint source_id) {
     GST_INFO_OBJECT(srcbin, "Posting file change message");
-    GstStructure *structure = gst_structure_new_empty("dynamic-src-bin-file-change");
+    GstStructure *structure = gst_structure_new("dynamic-src-bin-file-change",
+                                                "source-id", G_TYPE_INT, source_id,
+                                                NULL);
     GstMessage *message = gst_message_new_application(GST_OBJECT(srcbin), structure);
     GstBus *bus = gst_element_get_bus(GST_ELEMENT(srcbin));
     gst_bus_post(bus, message);
@@ -229,7 +231,7 @@ static GstPadProbeReturn srcbin_src_pad_probe_callback(GstPad *pad, GstPadProbeI
                     g_mutex_lock(&srcbin->source_id_list_lock);
                     g_hash_table_remove(srcbin->source_map, GINT_TO_POINTER(received_source_id));
                     g_queue_pop_head(srcbin->srcbin_source_queue);
-                    post_file_change_message(srcbin);
+                    post_file_change_message(srcbin, received_source_id);
                     g_mutex_unlock(&srcbin->source_id_list_lock);
                 }
                 else {
@@ -494,7 +496,11 @@ static void dynamic_src_bin_remove_source(DynamicSrcBin *srcbin, gint source_id)
 static void dynamic_src_bin_terminate(DynamicSrcBin *srcbin) {
     GST_INFO_OBJECT(srcbin, "TERMINATE SIGNAL received - exiting pipeline");
     // Send EOS event from the decoder element using push_event
-    if (srcbin->decoder && GST_IS_ELEMENT(srcbin->decoder)) {
+    gboolean is_valid_decoder = FALSE;
+    if (srcbin->decoder) {
+        is_valid_decoder = GST_IS_ELEMENT(srcbin->decoder);
+    }
+    if (is_valid_decoder) {
         GstPad *decoder_src_pad = gst_element_get_static_pad(srcbin->decoder, "src");
         if (decoder_src_pad) {
             GstEvent *eos_event = gst_event_new_eos();

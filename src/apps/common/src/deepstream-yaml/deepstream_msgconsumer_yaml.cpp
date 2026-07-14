@@ -28,6 +28,7 @@ gboolean
 parse_msgconsumer_yaml (NvDsMsgConsumerConfig *config, std::string group, gchar *cfg_file_path)
 {
   gboolean ret = FALSE;
+  gchar **topicList = NULL;
   YAML::Node configyml = YAML::LoadFile(cfg_file_path);
   for(YAML::const_iterator itr = configyml[group].begin();
      itr != configyml[group].end(); ++itr)
@@ -60,7 +61,6 @@ parse_msgconsumer_yaml (NvDsMsgConsumerConfig *config, std::string group, gchar 
       }
       g_free (str);
     } else if (paramKey == "subscribe-topic-list") {
-      gchar **topicList;
       std::string temp = itr->second.as<std::string>();
       std::vector<std::string> vec = split_string (temp);
       int length = (int) vec.size();
@@ -75,7 +75,6 @@ parse_msgconsumer_yaml (NvDsMsgConsumerConfig *config, std::string group, gchar 
 
       if (length < 1) {
         NVGSTDS_ERR_MSG_V ("%s at least one topic must be provided", __func__);
-        g_strfreev (topicList);
         goto done;
       }
       if (config->topicList)
@@ -86,6 +85,7 @@ parse_msgconsumer_yaml (NvDsMsgConsumerConfig *config, std::string group, gchar 
         g_ptr_array_add (config->topicList, g_strdup (topicList[i]));
       }
       g_strfreev (topicList);
+      topicList = NULL;
     } else {
       cout << "[WARNING] Unknown param found in msgconsumer: " << paramKey << endl;
     }
@@ -93,6 +93,7 @@ parse_msgconsumer_yaml (NvDsMsgConsumerConfig *config, std::string group, gchar 
 
   ret = TRUE;
   done:
+  g_strfreev (topicList);
   if (!ret) {
     cout <<  __func__ << " failed" << endl;
   }

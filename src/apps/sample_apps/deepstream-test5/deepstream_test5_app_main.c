@@ -402,6 +402,33 @@ meta_copy_func (gpointer data, gpointer user_data)
     }
   }
 
+  if (srcMeta->embedding.embedding_length > 0) {
+    dstMeta->embedding.embedding_length = srcMeta->embedding.embedding_length;
+    dstMeta->embedding.embedding_vector =
+        g_memdup2(srcMeta->embedding.embedding_vector,
+                 srcMeta->embedding.embedding_length * sizeof(float));
+  }
+
+  if(srcMeta->has3DTracking) {
+    dstMeta->has3DTracking = true;
+    dstMeta->singleView3DTracking.ptWorldFeet[0] = srcMeta->singleView3DTracking.ptWorldFeet[0];
+    dstMeta->singleView3DTracking.ptWorldFeet[1] = srcMeta->singleView3DTracking.ptWorldFeet[1];
+    dstMeta->singleView3DTracking.ptImgFeet[0] = srcMeta->singleView3DTracking.ptImgFeet[0];
+    dstMeta->singleView3DTracking.ptImgFeet[1] = srcMeta->singleView3DTracking.ptImgFeet[1];
+    dstMeta->singleView3DTracking.convexHull.numFilled = srcMeta->singleView3DTracking.convexHull.numFilled;
+    dstMeta->singleView3DTracking.convexHull.points =
+        g_memdup2(srcMeta->singleView3DTracking.convexHull.points,
+                    srcMeta->singleView3DTracking.convexHull.numFilled * 2 * sizeof(gint));
+    memcpy(dstMeta->singleView3DTracking.bbox3d.boxes_3d,
+           srcMeta->singleView3DTracking.bbox3d.boxes_3d,
+           sizeof(srcMeta->singleView3DTracking.bbox3d.boxes_3d));
+    dstMeta->singleView3DTracking.bbox3d.scores_3d = srcMeta->singleView3DTracking.bbox3d.scores_3d;
+  }
+  else {
+    dstMeta->has3DTracking = false;
+  }
+
+
   return dstMeta;
 }
 
@@ -429,12 +456,36 @@ meta_free_func (gpointer data, gpointer user_data)
     g_free (srcMeta->sensorStr);
   }
 
-  if (srcMeta->embedding.embedding_length > 0 && srcMeta->embedding.embedding_vector) {
-    g_free (srcMeta->embedding.embedding_vector);
-    srcMeta->embedding.embedding_vector = NULL;
-    srcMeta->embedding.embedding_length = 0;
+  if (srcMeta->embedding.embedding_length > 0 && srcMeta->embedding.embedding_vector)
+  {
+    // First check if the embedding vector is from tracker or some other plugin
+    // If it's from tracker, then NVDS_TRACKER_BATCH_REID_META will be present
+    NvDsMetaList * l_user_meta = NULL;
+    NvDsUserMeta *user_meta_local = NULL;
+    bool is_from_tracker = false;
+    for (l_user_meta = user_meta->base_meta.batch_meta->batch_user_meta_list; l_user_meta != NULL;
+      l_user_meta = l_user_meta->next)
+    {
+      user_meta_local = (NvDsUserMeta *)(l_user_meta->data);
+      if (user_meta_local->base_meta.meta_type == NVDS_TRACKER_BATCH_REID_META)
+      {
+        is_from_tracker = true;
+        break;
+      }
+    }
+    // Free the embedding vector only if it is not from tracker
+    // In case of tracker, the embedding vector memory is owned by tracker, so we don't need to free it here
+    if (!is_from_tracker) {
+      // CS : TBD : Enable the following lines once crash is fixed
+      // g_free (srcMeta->embedding.embedding_vector);
+      // srcMeta->embedding.embedding_vector = NULL;
+      // srcMeta->embedding.embedding_length = 0;
+    }
   }
-
+  if (srcMeta->has3DTracking && srcMeta->singleView3DTracking.convexHull.points) {
+    g_free(srcMeta->singleView3DTracking.convexHull.points);
+    srcMeta->singleView3DTracking.convexHull.numFilled = 0;
+  }
   if (srcMeta->extMsgSize > 0) {
     if (srcMeta->objType == NVDS_OBJECT_TYPE_VEHICLE) {
       NvDsVehicleObject *obj = (NvDsVehicleObject *) srcMeta->extMsg;
@@ -499,7 +550,8 @@ static void nanoseconds_to_rfc3339(int64_t nanoseconds, char *output, size_t out
     time_t seconds = nanoseconds / 1000000000;
     int32_t milliseconds = (nanoseconds % 1000000000) / 1000000;
 
-    struct tm *tm_info = gmtime(&seconds);
+    struct tm tm_buf;
+    struct tm *tm_info = gmtime_r(&seconds, &tm_buf);
 
     char time_str[MAX_TIME_STAMP_LEN];
     strftime(time_str, MAX_TIME_STAMP_LEN, "%Y-%m-%dT%H:%M:%S", tm_info);
@@ -559,13 +611,43 @@ generate_event_msg_meta (AppCtx * appCtx, gpointer data, gint class_id, gboolean
   }
 
   meta->has3DTracking = false;
+  meta->visibility = 1.0;
 
   for (NvDsMetaList *l_user = obj_params->obj_user_meta_list;
              l_user != NULL; l_user = l_user->next) {
-          NvDsUserMeta *user_meta = (NvDsUserMeta *)l_user->data;
-    if (user_meta->base_meta.meta_type == NVDS_OBJ_3D_META) {
+    NvDsUserMeta *user_meta = (NvDsUserMeta *)l_user->data;
+    if (user_meta->base_meta.meta_type == NVDS_OBJ_IMAGE_FOOT_LOCATION)
+    {
       meta->has3DTracking = true;
-      NvDsObj3DBbox *p3DBbox = (NvDsObj3DBbox*)user_meta->user_meta_data;
+      float *pPtFeet = (float *)user_meta->user_meta_data;
+      meta->singleView3DTracking.ptImgFeet[0] = pPtFeet[0];
+      meta->singleView3DTracking.ptImgFeet[1] = pPtFeet[1];
+    }
+    else if (user_meta->base_meta.meta_type == NVDS_OBJ_WORLD_FOOT_LOCATION)
+    {
+      float *pPtFeet = (float *)user_meta->user_meta_data;
+      meta->singleView3DTracking.ptWorldFeet[0] = pPtFeet[0];
+      meta->singleView3DTracking.ptWorldFeet[1] = pPtFeet[1];
+    }
+    else if (user_meta->base_meta.meta_type == NVDS_OBJ_VISIBILITY)
+    {
+      meta->visibility = *(float *)user_meta->user_meta_data;
+    }
+    else if (user_meta->base_meta.meta_type == NVDS_OBJ_IMAGE_CONVEX_HULL)
+    {
+      NvDsObjConvexHull *pConvexHull = (NvDsObjConvexHull *)user_meta->user_meta_data;
+      meta->singleView3DTracking.convexHull.points = g_malloc0(sizeof(gint) * pConvexHull->numPointsAllocated * 2);
+      meta->singleView3DTracking.convexHull.numFilled = pConvexHull->numPoints;
+      for (uint32_t i = 0; i < pConvexHull->numPoints; i++)
+      {
+        meta->singleView3DTracking.convexHull.points[2 * i] = pConvexHull->list[2 * i];
+        meta->singleView3DTracking.convexHull.points[2 * i + 1] = pConvexHull->list[2 * i + 1];
+      }
+    }
+    else if (user_meta->base_meta.meta_type == NVDS_OBJ_3D_META)
+    {
+      meta->has3DTracking = true;
+      NvDsObj3DBbox *p3DBbox = (NvDsObj3DBbox *)user_meta->user_meta_data;
       meta->singleView3DTracking.bbox3d.boxes_3d[0] = p3DBbox->xCentre;
       meta->singleView3DTracking.bbox3d.boxes_3d[1] = p3DBbox->yCentre;
       meta->singleView3DTracking.bbox3d.boxes_3d[2] = p3DBbox->zCentre;
@@ -927,8 +1009,10 @@ perf_cb (gpointer context, NvDsAppPerfStruct * str)
     header_print_cnt++;
 
     time_t t = time (NULL);
-    struct tm *tm = localtime (&t);
-    printf ("%s", asctime (tm));
+    struct tm tm_buf;
+    struct tm *tm = localtime_r (&t, &tm_buf);
+    char time_buf[26];
+    printf ("%s", asctime_r (tm, time_buf));
     if (num_instances > 1)
       g_print ("PERF(%d): ", appCtx->index);
     else
@@ -959,8 +1043,10 @@ perf_cb (gpointer context, NvDsAppPerfStruct * str)
     header_print_cnt++;
 
     time_t t = time (NULL);
-    struct tm *tm = localtime (&t);
-    printf ("%s", asctime (tm));
+    struct tm tm_buf;
+    struct tm *tm = localtime_r (&t, &tm_buf);
+    char time_buf[26];
+    printf ("%s", asctime_r (tm, time_buf));
     if (num_instances > 1)
       g_print ("PERF(%d): ", appCtx->index);
     else

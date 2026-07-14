@@ -29,6 +29,7 @@
 #include <npp.h>
 #include <sys/time.h>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include "nvtx_helper.h"
 #include "nvbufsurface.h"
@@ -1846,7 +1847,10 @@ gst_nvstreammux_2_init (GstNvStreamMux * mux)
   MuxConfigParser default_config;
   default_config.ParseConfigs(&cfg, 1);
   mux->debug_iface = new GstNvStreammuxDebug((GstElement*)mux);
-  mux->helper = new NvStreamMux(new SourcePad(0,(void *)mux->srcpad), mux->debug_iface);
+  /* cpp:S5502: use a scoped owner so SourcePad is freed if NvStreamMux ctor throws */
+  std::unique_ptr<SourcePad> sourcePadOwner(new SourcePad(0, (void *)mux->srcpad));
+  mux->helper = new NvStreamMux(sourcePadOwner.get(), mux->debug_iface);
+  sourcePadOwner.release(); /* ownership of SourcePad transferred to NvStreamMux */
   mux->helper->set_policy(cfg);
   mux->query_resolution = DEFAULT_QUERY_RESOLUTION;
   mux->helper->set_num_surfaces_per_frame(1);

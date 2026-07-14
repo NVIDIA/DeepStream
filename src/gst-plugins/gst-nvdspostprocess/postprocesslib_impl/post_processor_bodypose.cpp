@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "post_processor_bodypose.h"
 #include <algorithm>
 using namespace std;

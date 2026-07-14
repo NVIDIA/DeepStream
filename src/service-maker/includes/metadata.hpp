@@ -32,6 +32,7 @@
 
 #include "nvll_osd_struct.h"
 #include "nvds_tracker_meta.h"
+#include "nvds_audio_meta.h"
 
 namespace deepstream {
 
@@ -91,7 +92,9 @@ class AbstractIterator {
   virtual bool done() = 0;
 
   /** @brief check if two iterator point to the same position */
-  virtual bool operator==(const AbstractIterator<T>& other) const = 0;
+  bool operator==(const AbstractIterator<T>& other) const {
+    return equals(other);
+  }
 
   /** @brief check if two iterator point to different position */
   bool operator!=(const AbstractIterator<T>& other) const {
@@ -99,6 +102,7 @@ class AbstractIterator {
   }
 
  protected:
+  virtual bool equals(const AbstractIterator<T>& other) const = 0;
   T data_;
 };
 
@@ -138,6 +142,7 @@ class UserMetadata : public Metadata {
 
   friend class BatchMetadata;
   friend class FrameMetadata;
+  friend class AudioFrameMetadata;
   friend class ObjectMetadata;
 
  protected:
@@ -237,6 +242,7 @@ class ObjectMetadata : public Metadata {
 
 
 class FrameMetadata;
+class AudioFrameMetadata;
 /**
  * @brief User metadata for event message
  *
@@ -256,6 +262,12 @@ class EventMessageUserMetadata : public UserMetadata {
     const std::string sensor="N/A",
     const std::string uri="N/A",
     const std::vector<std::string>labels=std::vector<std::string>());
+
+  /** @brief generate an audio classification event */
+  void generate(
+    const AudioFrameMetadata&,
+    const std::string sensor="N/A",
+    const std::string uri="N/A");
 };
 
 /**
@@ -502,6 +514,73 @@ class FrameMetadata : public Metadata {
 };
 
 /**
+ * @brief Holds information for a single audio frame.
+ *
+ * Audio batches reuse NvDsBatchMeta::frame_meta_list, but the list entries are
+ * NvDsAudioFrameMeta instead of NvDsFrameMeta.
+ */
+class AudioFrameMetadata : public Metadata {
+ public:
+  typedef std::unique_ptr<AbstractIterator<AudioFrameMetadata>> Iterator;
+
+  /**
+   * @brief Constructor through opaque data pointer
+   *
+   * By default an empty audio frame metadata object is created.
+   *
+   */
+  AudioFrameMetadata(void* data=nullptr);
+  /** @brief Destructor */
+  virtual ~AudioFrameMetadata();
+
+  /** @brief Iterate the classifier metadata within it */
+  unsigned int iterate(const std::function<void(const ClassifierMetadata&)>& func) const;
+  /** @brief Get the iterator for classifier metadata within it */
+  void initiateIterator(ClassifierMetadata::Iterator&) const;
+
+  /** @brief Iterate the user metadata within it */
+  unsigned int iterate(const std::function<void(const UserMetadata&)>& func, int meta_type) const;
+  /** @brief Get the iterator for user metadata within it */
+  void initiateIterator(UserMetadata::Iterator&, int meta_type) const;
+
+  /** @brief Append user metadata to the audio frame */
+  void append(const UserMetadata&);
+
+  /** @brief Index of the pad from which the audio frame is generated */
+  unsigned int padIndex() const;
+  /** @brief Location the audio frame in the batch */
+  unsigned int batchId() const;
+  /** @brief Frame number */
+  int frameNum() const;
+  /** @brief Identify the source of the frame, e.g. camera ID */
+  unsigned int sourceId() const;
+  /** @brief Number of samples in the audio frame */
+  int numSamplesPerFrame() const;
+  /** @brief Audio sample rate */
+  unsigned int sampleRate() const;
+  /** @brief Audio channel count */
+  unsigned int numChannels() const;
+  /** @brief Audio sample format */
+  int format() const;
+  /** @brief Audio channel layout */
+  int layout() const;
+  /** @brief Holds the presentation timestamp (PTS) of the frame. */
+  uint64_t bufferPTS() const;
+  /** @brief Holds the ntp timestamp. */
+  uint64_t ntpTimestamp() const;
+  /** @brief Whether inference was performed on the audio frame */
+  bool inferDone() const;
+  /** @brief Class id of the last classified event */
+  int classId() const;
+  /** @brief Confidence of the last classified event */
+  float confidence() const;
+  /** @brief Label of the last classified event */
+  std::string classLabel() const;
+
+  friend class BatchMetadata;
+};
+
+/**
  * @brief Metadata for preprocessed tensor
  *
  * This user metadata object is associated with a preprocessed tensor structure
@@ -733,6 +812,11 @@ class BatchMetadata : public Metadata {
   /** @brief Get the iterator for frame metadata within it */
   void initiateIterator(FrameMetadata::Iterator&) const;
 
+  /** @brief Iterate the audio frame metadata within it */
+  unsigned int iterate(const std::function<void(const AudioFrameMetadata&)>& func) const;
+  /** @brief Get the iterator for audio frame metadata within it */
+  void initiateIterator(AudioFrameMetadata::Iterator&) const;
+
   /** @brief Iterate the user metadata within it */
   unsigned int iterate(const std::function<void(const UserMetadata&)>& func, int meta_type) const;
   /** @brief Get the iterator for user metadata within it */
@@ -768,6 +852,8 @@ class BatchMetadata : public Metadata {
 
   /** @brief Number of frames in the batch*/
   unsigned int nFrames() const;
+  /** @brief Whether the batch contains NvDsAudioFrameMeta entries */
+  bool isAudioBatch() const;
 
  protected:
   UserMetadata acquireUserMetadata_(

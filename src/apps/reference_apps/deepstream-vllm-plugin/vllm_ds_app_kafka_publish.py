@@ -30,6 +30,8 @@ Features:
 - File and RTSP source support via uridecodebin
 """
 
+import ctypes
+import ctypes.util
 import json
 import os
 import sys
@@ -44,6 +46,13 @@ from gi.repository import GLib, Gst  # noqa: E402, I003
 import gstnvvllmvlm  # noqa: E402
 
 Gst.Element.register(None, "nvvllmvlm", Gst.Rank.NONE, gstnvvllmvlm.NvVllmVLM)
+
+NVBUF_MEM_DEFAULT = 0
+NVBUF_MEM_CUDA_DEVICE = 2
+NVBUF_TRANSFORM_COMPUTE_GPU = 1
+NVBUF_TRANSFORM_COPY_GPU = 1
+NVBUF_DRIVER_TYPE_NVGPU = 1
+NVBUF_PLATFORM_TYPE_UNKNOWN = 0
 
 # Kafka imports (with graceful fallback)
 try:
@@ -61,6 +70,116 @@ def to_uri(path_or_uri: str) -> str:
     if "://" in path_or_uri:
         return path_or_uri
     return "file://" + os.path.abspath(path_or_uri)
+
+
+def set_gst_property_if_supported(element, property_name, value):
+    """Set a GStreamer property only when this plugin build exposes it."""
+    if element.find_property(property_name):
+        try:
+            element.set_property(property_name, value)
+            return True
+        except (TypeError, ValueError) as exc:
+            print(
+                f"Warning: could not set {element.get_name()} "
+                f"property {property_name}={value}: {exc}"
+            )
+    return False
+
+
+class NvBufSurfaceDeviceInfo(ctypes.Structure):
+    """ctypes mirror of DeepStream's NvBufSurfaceDeviceInfo."""
+
+    _fields_ = [
+        ("driverType", ctypes.c_int),
+        ("isVicPresent", ctypes.c_bool),
+        ("isIntegratedGpu", ctypes.c_bool),
+        ("reserved1", ctypes.c_bool),
+        ("reserved2", ctypes.c_bool),
+        ("platformType", ctypes.c_int),
+        ("reserved", ctypes.c_uint8 * 60),
+    ]
+
+
+def get_nvbuf_surface_device_info():
+    """Return DeepStream NvBufSurface device info when the library is present."""
+    lib_name = ctypes.util.find_library("nvbufsurface")
+    candidates = [
+        lib_name,
+        "libnvbufsurface.so",
+        "libnvbufsurface.so.1.0.0",
+    ]
+    for candidate in filter(None, candidates):
+        try:
+            lib = ctypes.CDLL(candidate)
+            get_device_info = lib.NvBufSurfaceGetDeviceInfo
+            get_device_info.argtypes = [
+                ctypes.POINTER(NvBufSurfaceDeviceInfo)
+            ]
+            get_device_info.restype = ctypes.c_int
+            device_info = NvBufSurfaceDeviceInfo()
+            if get_device_info(ctypes.byref(device_info)) == 0:
+                return device_info
+        except (AttributeError, OSError):
+            continue
+    return None
+
+
+def has_tegra_runtime_marker() -> bool:
+    """Fallback detector for Jetson/Thor containers without ctypes access."""
+    marker_paths = (
+        "/etc/nv_tegra_release",
+        "/proc/device-tree/compatible",
+        "/sys/firmware/devicetree/base/compatible",
+        "/sys/devices/soc0/family",
+    )
+    for marker_path in marker_paths:
+        try:
+            with open(marker_path, "rb") as marker:
+                marker_text = marker.read(4096).lower()
+            if b"tegra" in marker_text or b"nvidia" in marker_text:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def is_tegra_platform() -> bool:
+    """Return True for Jetson/Thor-style platforms, not ARM SBSA."""
+    device_info = get_nvbuf_surface_device_info()
+    if device_info:
+        return (
+            device_info.driverType == NVBUF_DRIVER_TYPE_NVGPU
+            or device_info.isVicPresent
+            or device_info.isIntegratedGpu
+            or device_info.platformType != NVBUF_PLATFORM_TYPE_UNKNOWN
+        )
+
+    return has_tegra_runtime_marker()
+
+
+def configure_rgb_converter(element, mode: str) -> str:
+    """Configure nvvideoconvert for RGB NVMM output."""
+    if mode == "auto":
+        mode = "gpu" if is_tegra_platform() else "default"
+
+    if mode == "gpu":
+        # RGB/BGR transforms are not supported by VIC on Jetson/Thor. Force
+        # the converter onto CUDA/GPU memory before feeding the VLM plugin.
+        set_gst_property_if_supported(
+            element, "compute-hw", NVBUF_TRANSFORM_COMPUTE_GPU
+        )
+        set_gst_property_if_supported(
+            element, "copy-hw", NVBUF_TRANSFORM_COPY_GPU
+        )
+        set_gst_property_if_supported(
+            element, "nvbuf-memory-type", NVBUF_MEM_CUDA_DEVICE
+        )
+    else:
+        set_gst_property_if_supported(
+            element, "nvbuf-memory-type", NVBUF_MEM_DEFAULT
+        )
+
+    return mode
 
 
 class VLMKafkaSignalPublisher:
@@ -213,7 +332,14 @@ class VLMKafkaApp:
     """DeepStream VLM app with Kafka publishing via signals
     (single or multi-stream, file or RTSP sources)"""
 
-    def __init__(self, input_uris, kafka_config, topic, dry_run=False):
+    def __init__(
+        self,
+        input_uris,
+        kafka_config,
+        topic,
+        dry_run=False,
+        converter_mode="auto",
+    ):
         """
         Initialize application.
 
@@ -222,12 +348,14 @@ class VLMKafkaApp:
             kafka_config: Kafka connection configuration
             topic: Kafka topic name
             dry_run: If True, print messages instead of sending to Kafka
+            converter_mode: nvvideoconvert mode: auto, default, or gpu
         """
         self.input_uris = input_uris
         self.num_sources = len(input_uris)
         self.pipeline = None
         self.loop = None
         self.streams_eos = set()
+        self.converter_mode = converter_mode
 
         # Initialize Kafka publisher
         self.kafka_publisher = VLMKafkaSignalPublisher(
@@ -346,7 +474,10 @@ class VLMKafkaApp:
 
         # Video converter
         nvvidconv = Gst.ElementFactory.make("nvvideoconvert", "convertor")
-        nvvidconv.set_property("nvbuf-memory-type", 0)
+        converter_mode = configure_rgb_converter(
+            nvvidconv, self.converter_mode
+        )
+        print(f"  RGB converter mode: {converter_mode}")
 
         # Caps filter for RGB
         caps_filter = Gst.ElementFactory.make("capsfilter", "caps-filter")
@@ -466,6 +597,16 @@ Examples:
         action="store_true",
         help="Print messages to console instead of sending to Kafka",
     )
+    parser.add_argument(
+        "--converter-mode",
+        choices=("auto", "default", "gpu"),
+        default="auto",
+        help=(
+            "RGB converter mode for nvvideoconvert. auto keeps DeepStream "
+            "defaults on dGPU/SBSA and uses GPU/CUDA on Jetson/Thor "
+            "(default: auto)"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -492,6 +633,7 @@ Examples:
         kafka_config=kafka_config,
         topic=args.topic,
         dry_run=args.dry_run,
+        converter_mode=args.converter_mode,
     )
     app.run()
 

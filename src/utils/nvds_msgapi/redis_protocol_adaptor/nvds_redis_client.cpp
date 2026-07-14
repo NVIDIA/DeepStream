@@ -39,6 +39,7 @@ using namespace std;
 #define DFLT_PAYLOAD_KEY "metadata"
 #define DFLT_CONSUMER_GRP "redis-consumer-group"
 #define DFLT_CONSUMER_NAME "redis-consumer"
+#define REDIS_FLUSH_TIMEOUT_MS 10000
 
 #define PASSWORD_VAR "PASSWORD_REDIS"
 
@@ -47,7 +48,7 @@ string get_default_sensor_id();
 string extract_sensor_id_from_payload(const uint8_t *payload, size_t nbuf);
 
 // Parse connection string
-NvDsMsgApiErrorType parse_config(char *str, char *config, string &ip_addr, string &password, string &port, string &stream_size, string &stream_key, string &cgrp, string &cname);
+NvDsMsgApiErrorType parse_config(char *str, char *config, string &ip_addr, string &password, string &port, string &stream_size, string &stream_key, string &cgrp, string &cname, int &flush_timeout_ms);
 void consumer(NvDsMsgApiHandle h_ptr, nvds_msgapi_subscribe_request_cb_t  cb, void *user_ctx);
 
 /* send message info
@@ -77,6 +78,7 @@ typedef struct {
  * subscribe_thread : thread used for the redis subscriber
  * disconnect : flag used to notify consumer thread disconnect or not
  * subscription: flag to indicate if subscription is on
+ * flush_timeout_ms : max time in ms to flush async send queue on disconnect
  * primary_queue : main queue where publisher place msgs
  * secondary_queue : secondary queue used for double buffering
  * publisher_mutex : mutex used by publisher to place outgoing msgs in queue
@@ -96,10 +98,16 @@ typedef struct {
   bool disconnect;
   bool subscription;
   nvds_msgapi_connect_cb_t connect_cb;
+  int flush_timeout_ms;
   queue<send_msg_info_t> primary_queue;
   queue<send_msg_info_t> secondary_queue;
   mutex publisher_mutex;
 } nvds_redis_context_data_t;
+
+static NvDsMsgApiErrorType redis_send_queued_msg(nvds_redis_context_data_t *rh, send_msg_info_t &node);
+static void redis_complete_queued_msg(send_msg_info_t &node, NvDsMsgApiErrorType status);
+static bool redis_flush_pending_msgs(nvds_redis_context_data_t *rh, gint64 deadline_us);
+static size_t redis_purge_pending_msgs(nvds_redis_context_data_t *rh, NvDsMsgApiErrorType status);
 
 // Alternative approach: Use a global default sensor ID that can be set via environment variable
 string get_default_sensor_id() {
@@ -173,8 +181,105 @@ string extract_sensor_id_from_payload(const uint8_t *payload, size_t nbuf) {
     return sensor_id;
 }
 
+static NvDsMsgApiErrorType redis_send_queued_msg(nvds_redis_context_data_t *rh, send_msg_info_t &node) {
+    redisReply *reply;
+
+    // Check if DeepStream format is enabled
+    const char* enable_deepstream_format = getenv("DEEPSTREAM_ENABLE_SENSOR_ID_EXTRACTION");
+    if (enable_deepstream_format != NULL && strcmp(enable_deepstream_format, "1") == 0) {
+        // DeepStream format: key, value, headers
+        string sensor_id = extract_sensor_id_from_payload((const uint8_t *)node.msg, node.msg_len);
+
+        if(rh->stream_size == ""){
+            reply = (redisReply *) redisCommand(rh->c, "XADD %s * key %s value %b headers {}", node.topic.c_str(), sensor_id.c_str(), node.msg, node.msg_len);
+        }
+        else {
+            reply = (redisReply *) redisCommand(rh->c, "XADD %s MAXLEN ~ %s * key %s value %b headers {}", node.topic.c_str(), rh->stream_size.c_str(), sensor_id.c_str(), node.msg, node.msg_len);
+        }
+    } else {
+        // Original format: only value field
+        if(rh->stream_size == ""){
+            reply = (redisReply *) redisCommand(rh->c, "XADD %s * %s %b", node.topic.c_str(), rh->payload_key.c_str(), node.msg, node.msg_len);
+        }
+        else {
+            reply = (redisReply *) redisCommand(rh->c, "XADD %s MAXLEN ~ %s * %s %b", node.topic.c_str(), rh->stream_size.c_str(), rh->payload_key.c_str(), node.msg, node.msg_len);
+        }
+    }
+
+    if(reply == NULL) {
+        nvds_log(LOG_CAT, LOG_ERR, "redis_send_queued_msg: Redis send failed");
+        // Treat any send/consume failure as connection failure
+        if(rh->connect_cb)
+            (rh->connect_cb) ((NvDsMsgApiHandle) rh , NVDS_MSGAPI_EVT_SERVICE_DOWN);
+        return NVDS_MSGAPI_ERR;
+    }
+
+    freeReplyObject(reply);
+    nvds_log(LOG_CAT, LOG_DEBUG , "redis_send_queued_msg: Message sent = %.*s\n", node.msg_len, node.msg);
+    return NVDS_MSGAPI_OK;
+}
+
+static void redis_complete_queued_msg(send_msg_info_t &node, NvDsMsgApiErrorType status) {
+    if(node.user_cb_func)
+        (node.user_cb_func) (node.user_ctx , status);
+    delete[] (uint8_t *)node.msg;
+    node.msg = NULL;
+}
+
+static bool redis_flush_pending_msgs(nvds_redis_context_data_t *rh, gint64 deadline_us) {
+    while(g_get_monotonic_time() <= deadline_us) {
+        if(rh->secondary_queue.empty()) {
+            rh->publisher_mutex.lock();
+            if(rh->primary_queue.empty()) {
+                rh->publisher_mutex.unlock();
+                return true;
+            }
+            rh->primary_queue.swap(rh->secondary_queue);
+            rh->publisher_mutex.unlock();
+        }
+
+        while(!rh->secondary_queue.empty()) {
+            if(g_get_monotonic_time() > deadline_us)
+                return false;
+
+            send_msg_info_t &node = rh->secondary_queue.front();
+            NvDsMsgApiErrorType status = (rh->c != NULL) ? redis_send_queued_msg(rh, node) : NVDS_MSGAPI_ERR;
+            redis_complete_queued_msg(node, status);
+            rh->secondary_queue.pop();
+        }
+    }
+
+    return false;
+}
+
+static size_t redis_purge_queue(queue<send_msg_info_t> &msg_queue, NvDsMsgApiErrorType status) {
+    size_t purged = 0;
+    while(!msg_queue.empty()) {
+        send_msg_info_t &node = msg_queue.front();
+        redis_complete_queued_msg(node, status);
+        msg_queue.pop();
+        purged++;
+    }
+    return purged;
+}
+
+static size_t redis_purge_pending_msgs(nvds_redis_context_data_t *rh, NvDsMsgApiErrorType status) {
+    queue<send_msg_info_t> secondary_queue;
+    queue<send_msg_info_t> primary_queue;
+
+    rh->publisher_mutex.lock();
+    secondary_queue.swap(rh->secondary_queue);
+    primary_queue.swap(rh->primary_queue);
+    rh->publisher_mutex.unlock();
+
+    size_t purged = redis_purge_queue(secondary_queue, status);
+    purged += redis_purge_queue(primary_queue, status);
+
+    return purged;
+}
+
 // Parse connection string
-NvDsMsgApiErrorType parse_config(char *str, char *config, string &ip_addr, string &password, string &port, string &stream_size, string &stream_key, string &cgrp, string &cname) {
+NvDsMsgApiErrorType parse_config(char *str, char *config, string &ip_addr, string &password, string &port, string &stream_size, string &stream_key, string &cgrp, string &cname, int &flush_timeout_ms) {
     string cfg_ipaddr;
     string cfg_port;
     string cfg_pwd;
@@ -223,6 +328,19 @@ NvDsMsgApiErrorType parse_config(char *str, char *config, string &ip_addr, strin
                 else if (!g_strcmp0(*key, "consumername")) {
                     val = g_key_file_get_string(gcfg_file, grpname, "consumername", &error);
                     cname = string(val);
+                }
+                else if (!g_strcmp0(*key, "flush-timeout")) {
+                    val = g_key_file_get_string(gcfg_file, grpname, "flush-timeout", &error);
+                    if (val != NULL) {
+                        int parsed_timeout_ms = atoi(val);
+                        if (parsed_timeout_ms > 0) {
+                            flush_timeout_ms = parsed_timeout_ms;
+                        }
+                        else {
+                            nvds_log(LOG_CAT, LOG_ERR, "Invalid Redis flush-timeout value: %s. Using default %d ms",
+                                     val, REDIS_FLUSH_TIMEOUT_MS);
+                        }
+                    }
                 }
                 else if (!g_strcmp0(*key, "sensorid")) {
                     val = g_key_file_get_string(gcfg_file, grpname, "sensorid", &error);
@@ -275,6 +393,7 @@ NvDsMsgApiHandle nvds_msgapi_connect(char *connection_str, nvds_msgapi_connect_c
     string payloadkey=DFLT_PAYLOAD_KEY;
     string consumer_grp=DFLT_CONSUMER_GRP;
     string consumer_name=DFLT_CONSUMER_NAME;
+    int flush_timeout_ms = REDIS_FLUSH_TIMEOUT_MS;
 
     // If file dump is enabled, skip actual Redis connection and return a dummy handle
     // This allows the pipeline to start even when Redis server is not available
@@ -291,6 +410,7 @@ NvDsMsgApiHandle nvds_msgapi_connect(char *connection_str, nvds_msgapi_connect_c
         rh->payload_key = DFLT_PAYLOAD_KEY;
         rh->consumer_grp = DFLT_CONSUMER_GRP;
         rh->consumer_name = DFLT_CONSUMER_NAME;
+        rh->flush_timeout_ms = flush_timeout_ms;
         return (NvDsMsgApiHandle) rh;
     }
 
@@ -300,7 +420,7 @@ NvDsMsgApiHandle nvds_msgapi_connect(char *connection_str, nvds_msgapi_connect_c
     }
 
     // Parse config and connection string
-    if(parse_config(connection_str, config_path, hostname, password, port, stream_size, payloadkey, consumer_grp, consumer_name)) {
+    if(parse_config(connection_str, config_path, hostname, password, port, stream_size, payloadkey, consumer_grp, consumer_name, flush_timeout_ms)) {
         nvds_log(LOG_CAT, LOG_ERR , "nvds_msgapi_connect: Failure to fetch login credentails");
         return NULL;
     }
@@ -374,10 +494,12 @@ NvDsMsgApiHandle nvds_msgapi_connect(char *connection_str, nvds_msgapi_connect_c
     rh->disconnect=false;
     rh->subscription=false;
     rh->connect_cb=connect_cb;
+    rh->flush_timeout_ms=flush_timeout_ms;
 
     nvds_log(LOG_CAT, LOG_INFO , "nvds_msgapi_connect: Connection Success.");
     nvds_log(LOG_CAT, LOG_INFO , "Connection details: Host[%s], port[%s], consumer grp[%s], consumer name[%s]", \
                                   hostname.c_str(), port.c_str(), consumer_grp.c_str(), consumer_name.c_str());
+    nvds_log(LOG_CAT, LOG_INFO , "Redis flush timeout: %d ms", rh->flush_timeout_ms);
     return (NvDsMsgApiHandle) rh;
 }
 
@@ -445,23 +567,36 @@ NvDsMsgApiErrorType nvds_msgapi_send_async(NvDsMsgApiHandle h_ptr, char  *topic,
     // Retrieve handle
     nvds_redis_context_data_t *rh = (nvds_redis_context_data_t *) h_ptr;
 
+    rh->publisher_mutex.lock();
+    if(rh->disconnect) {
+        rh->publisher_mutex.unlock();
+        nvds_log(LOG_CAT, LOG_ERR, "Redis disconnect in progress. Send failed\n");
+        return NVDS_MSGAPI_ERR;
+    }
+
     // Copy message into data
     uint8_t *data = new (nothrow) uint8_t[nbuf];
+    if(data == NULL) {
+        rh->publisher_mutex.unlock();
+        nvds_log(LOG_CAT, LOG_ERR, "Redis: Failed to allocate async send payload. Send failed\n");
+        return NVDS_MSGAPI_ERR;
+    }
     memset(data,'\0', nbuf);
     memcpy(data, payload, nbuf);
 
     // Create msg_info
     send_msg_info_t msg_info = {(void *) data, nbuf, topic, send_callback, user_ptr};
     // Add msg_info to message queue
-    rh->publisher_mutex.lock();
     rh->primary_queue.push(msg_info);
     rh->publisher_mutex.unlock();
 
     return NVDS_MSGAPI_OK;
 }
 
-/* nvds_msgapi function for performing work. In redis case, send the messages added to queue for async send
-*/
+/* nvds_msgapi function for performing work. In redis case, send the messages added to queue for async send.
+ * This must not run concurrently with nvds_msgapi_disconnect() for the same handle;
+ * disconnect flushes/purges async-send queues and then frees the handle.
+ */
 void nvds_msgapi_do_work(NvDsMsgApiHandle h_ptr) {
     if(h_ptr == NULL ) {
         nvds_log(LOG_CAT, LOG_ERR, "Null connection handle passed in do_work(). Error\n");
@@ -477,45 +612,9 @@ void nvds_msgapi_do_work(NvDsMsgApiHandle h_ptr) {
 
     // Check if any async send operations pending
     while(!rh->secondary_queue.empty()) {
-        // Send messages in queue
         send_msg_info_t &node = rh->secondary_queue.front();
-        redisReply *reply;
-
-        // Check if DeepStream format is enabled
-        const char* enable_deepstream_format = getenv("DEEPSTREAM_ENABLE_SENSOR_ID_EXTRACTION");
-        if (enable_deepstream_format != NULL && strcmp(enable_deepstream_format, "1") == 0) {
-            // DeepStream format: key, value, headers
-            string sensor_id = extract_sensor_id_from_payload((const uint8_t *)node.msg, node.msg_len);
-            
-            if(rh->stream_size == ""){
-                reply = (redisReply *) redisCommand(rh->c, "XADD %s * key %s value %b headers {}", node.topic.c_str(), sensor_id.c_str(), node.msg, node.msg_len);
-            }
-            else {
-                reply = (redisReply *) redisCommand(rh->c, "XADD %s MAXLEN ~ %s * key %s value %b headers {}", node.topic.c_str(), rh->stream_size.c_str(), sensor_id.c_str(), node.msg, node.msg_len);
-            }
-        } else {
-            // Original format: only value field
-            if(rh->stream_size == ""){
-                reply = (redisReply *) redisCommand(rh->c, "XADD %s * %s %b", node.topic.c_str(), rh->payload_key.c_str(), node.msg, node.msg_len);
-            }
-            else {
-                reply = (redisReply *) redisCommand(rh->c, "XADD %s MAXLEN ~ %s * %s %b", node.topic.c_str(), rh->stream_size.c_str(), rh->payload_key.c_str(), node.msg, node.msg_len);
-            }
-        }
-        
-        if(reply == NULL) {
-            nvds_log(LOG_CAT, LOG_ERR, "nvds_msgapi_do_work: Redis send failed");
-            (node.user_cb_func) (node.user_ctx , NVDS_MSGAPI_ERR);
-            //Treat any send/consume failure as connection failure
-            if(rh->connect_cb)
-                (rh->connect_cb) ((NvDsMsgApiHandle) rh , NVDS_MSGAPI_EVT_SERVICE_DOWN);
-        }
-        else {
-            nvds_log(LOG_CAT, LOG_DEBUG , "nvds_msgapi_do_work: Message sent = %.*s\n", node.msg_len, node.msg);
-            (node.user_cb_func) (node.user_ctx , NVDS_MSGAPI_OK);
-        }
-        freeReplyObject(reply);
-        delete[] (uint *)node.msg;
+        NvDsMsgApiErrorType status = redis_send_queued_msg(rh, node);
+        redis_complete_queued_msg(node, status);
         rh->secondary_queue.pop();
     }
 }
@@ -692,8 +791,9 @@ NvDsMsgApiErrorType nvds_msgapi_subscribe (NvDsMsgApiHandle h_ptr, char ** topic
     return NVDS_MSGAPI_OK;
 }
 
-/* nvds_msgapi function for disconnect
-*/
+/* nvds_msgapi function for disconnect.
+ * The caller must stop nvds_msgapi_do_work() for this handle before disconnecting.
+ */
 NvDsMsgApiErrorType nvds_msgapi_disconnect(NvDsMsgApiHandle h_ptr) {
     if (!h_ptr) {
         nvds_log(LOG_CAT, LOG_DEBUG, "nvds_msgapi_disconnect called with null handle\n");
@@ -702,15 +802,19 @@ NvDsMsgApiErrorType nvds_msgapi_disconnect(NvDsMsgApiHandle h_ptr) {
     //Retrieve handle
     nvds_redis_context_data_t *rctx = (nvds_redis_context_data_t *) h_ptr;
 
+    rctx->publisher_mutex.lock();
+    rctx->disconnect=true;
+    rctx->publisher_mutex.unlock();
+
     // If in file dump mode (no actual Redis connection), just free the context
     if (rctx->c == NULL) {
         nvds_log(LOG_CAT, LOG_INFO, "nvds_msgapi_disconnect: File dump mode, no Redis connection to close");
+        redis_purge_pending_msgs(rctx, NVDS_MSGAPI_ERR);
         delete rctx;
         h_ptr = NULL;
         return NVDS_MSGAPI_OK;
     }
 
-    rctx->disconnect=true;
     if(rctx->subscription) {
         //join subscribe thread
         rctx->subscribe_thread.join();
@@ -725,6 +829,21 @@ NvDsMsgApiErrorType nvds_msgapi_disconnect(NvDsMsgApiHandle h_ptr) {
             }
             freeReplyObject(reply);
         }
+    }
+
+    rctx->publisher_mutex.lock();
+    size_t queued_before_flush = rctx->primary_queue.size() + rctx->secondary_queue.size();
+    rctx->publisher_mutex.unlock();
+
+    gint64 deadline_us = g_get_monotonic_time() + ((gint64) rctx->flush_timeout_ms * G_TIME_SPAN_MILLISECOND);
+    if(!redis_flush_pending_msgs(rctx, deadline_us)) {
+        rctx->publisher_mutex.lock();
+        size_t queued_after_flush = rctx->primary_queue.size() + rctx->secondary_queue.size();
+        rctx->publisher_mutex.unlock();
+        size_t purged = redis_purge_pending_msgs(rctx, NVDS_MSGAPI_ERR);
+        nvds_log(LOG_CAT, LOG_ERR,
+                 "nvds_msgapi_disconnect: Redis flush timed out after %d ms. Queued before flush=%zu, queued after flush=%zu, purged=%zu",
+                 rctx->flush_timeout_ms, queued_before_flush, queued_after_flush, purged);
     }
 
     //free redis producer context
@@ -777,8 +896,9 @@ NvDsMsgApiErrorType nvds_msgapi_connection_signature(char *broker_str, char *cfg
     string password;
     string port;
     string csize, cgrp, cname, key;
+    int flush_timeout_ms = REDIS_FLUSH_TIMEOUT_MS;
 
-    if(parse_config(broker_str, cfg, password, ip_addr, port, csize, key, cgrp, cname) == -1) {
+    if(parse_config(broker_str, cfg, ip_addr, password, port, csize, key, cgrp, cname, flush_timeout_ms) == -1) {
         nvds_log(LOG_CAT, LOG_ERR , "nvds_msgapi_connection_signature: Failure in fetching redis connection string");
         return NVDS_MSGAPI_ERR;
     }

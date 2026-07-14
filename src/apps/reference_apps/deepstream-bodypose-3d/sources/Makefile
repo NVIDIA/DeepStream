@@ -41,8 +41,8 @@ OBJS:= $(patsubst %.c,%.o, $(patsubst %.cpp,%.o, $(SRCS)))
 CFLAGS+= \
 	-I$(CUDA_HOME)/include \
 	-I$(DEEPSTREAM_HOME)/sources/includes \
-	-I$(DEEPSTREAM_HOME)/sources/apps/apps-common/includes \
-	-I$(DEEPSTREAM_HOME)/sources/apps/sample_apps/deepstream-app \
+	-I../../../common/includes \
+	-I../../../sample_apps/deepstream-app \
 	-I../eigen
 
 LIBS+= \

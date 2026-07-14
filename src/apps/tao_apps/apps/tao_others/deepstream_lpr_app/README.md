@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Sample For Car License Recognization
  - [Description](#description)
  - [Performance](#performance)
@@ -41,9 +58,6 @@ Below table shows the end-to-end performance of processing 1080p videos with thi
 
   Make sure deepstream-test1 sample can run successful to verify your DeepStream installation
 
-* [tao-converter](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/version)
-
-  Download x86 or Jetson tao-converter which is compatible to your platform from the links in https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/version.
 * [Triton Inference Server](https://developer.nvidia.com/nvidia-triton-inference-server)
  
   The LPR sample application can work as Triton client on x86 platforms.
@@ -54,9 +68,9 @@ Below table shows the end-to-end performance of processing 1080p videos with thi
 
 ```shell
     # SSH
-    git clone git@github.com:NVIDIA/deepstream.git
+    git clone git@github.com:NVIDIA/DeepStream.git
     # or HTTPS
-    git clone https://github.com/NVIDIA/deepstream.git
+    git clone https://github.com/NVIDIA/DeepStream.git
 ```
 
 2. Prepare Models
@@ -64,12 +78,12 @@ Below table shows the end-to-end performance of processing 1080p videos with thi
 All models can be downloaded with the following commands:
 
 ```shell
-    cd deepstream/src/apps/tao_apps/
+    cd DeepStream/src/apps/tao_apps/
     ./download_models.sh
 ```
 
 ## Prepare Triton Server
-From DeepStream 6.1, LPR sample application supports three inferencing modes:
+LPR sample application supports three inferencing modes:
 * gst-nvinfer inferencing based on TensorRT
 * gst-nvinferserver inferencing as Triton CAPI client(only for x86)
 * gst-nvinferserver inferencing as Triton gRPC client(only for x86)

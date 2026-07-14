@@ -395,7 +395,9 @@ bool MuxConfigParser::ParseConfigs(BatchPolicyConfig* batchPolicy, bool defaults
         return true;
 
     }
-    if (g_str_has_suffix(cfgFile, ".yml") || g_str_has_suffix(cfgFile, ".yaml")) {
+    bool is_yml  = g_str_has_suffix(cfgFile, ".yml");
+    bool is_yaml = g_str_has_suffix(cfgFile, ".yaml");
+    if (is_yml || is_yaml) {
       if(!ParseYmlConfig (batchPolicy)) {
         return false;
       }

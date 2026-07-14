@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,27 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
   $(error "CUDA_VER is not set")
 endif
 
+TARGET_DEVICE = $(shell g++ -dumpmachine | cut -f1 -d -)
 
 CXX:= g++
 SRCS:= gstdsnvmultiurisrcbin.cpp \
-        gstdsnvmultiurisrcbininit.cpp \
-        ../../utils/nvds_msgapi/common_src/nvds_utils.cpp
+        gstdsnvmultiurisrcbininit.cpp
+
+NVDS_UTILS_SRC:= ../../utils/nvds_msgapi/common_src/nvds_utils.cpp
 
 INCS:= $(wildcard *.h)
 
 LIB:=libnvdsgst_nvmultiurisrcbin.so
-include ../Rules.mk
-LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
+LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/
+GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
      -I../../../includes \
      -I../../apps/common/includes/ \
      -I../../utils/nvds_rest_server \
@@ -43,35 +42,37 @@ CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
 LIBS := -shared -Wl,-no-undefined \
  	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart
  
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib \
+LIBS+= -L$(LIB_INSTALL_DIR) -L/opt/nvidia/deepstream/deepstream/lib/ \
         -lnvdsgst_helper -lnvdsgst_customhelper -lnvds_rest_server -ldl\
-        -lnvds_stats -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_logger -lcrypto \
-        -lgstnvcustomhelper -ljsoncpp -lcurl
+        -lnvds_stats -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_logger -lcrypto
 
+ifeq ($(TARGET_DEVICE),aarch64)
+   LIBS+= -L/usr/lib/aarch64-linux-gnu/tegra/ -lgstnvcustomhelper -ljsoncpp -lcurl
+else
+   LIBS+= -L$(LIB_INSTALL_DIR) -lgstnvcustomhelper -ljsoncpp -lcurl
+endif
 
-VPATH := $(sort $(dir $(SRCS)))
-OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(notdir $(OBJS)))
+OBJS:= $(SRCS:.cpp=.o) nvds_utils.o
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 gstreamer-audio-1.0
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS+= $(shell pkg-config --libs $(PKGS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
-	$(CXX) -o $(OBJ_DIR)/$(LIB) $(OBJS) $(LIBS)
-	cp $(OBJ_DIR)/$(LIB) $@
+nvds_utils.o: $(NVDS_UTILS_SRC) Makefile
+	$(CXX) -c -o $@ $(CFLAGS) $<
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+$(LIB): $(OBJS) $(DEP) Makefile
+	$(CXX) -o $@ $(OBJS) $(LIBS)
+
+install: $(LIB)
+	cp -rv $(LIB) $(GST_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) nvds_utils.o $(LIB)
 

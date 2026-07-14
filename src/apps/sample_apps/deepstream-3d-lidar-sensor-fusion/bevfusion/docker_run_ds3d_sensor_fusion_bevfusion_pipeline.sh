@@ -23,7 +23,7 @@ set -e
 # debug
 # set -x
 
-NVDS_VERSION=${NVDS_VERSION:-9.0}
+NVDS_VERSION=${NVDS_VERSION:-9.1}
 DEFAULT_TARGET_IMAGE="deepstream-triton-bevfusion:${NVDS_VERSION}"
 DEFAULT_CONFIG_FILE="ds3d_lidar_plus_multi_cam_bev_fusion.yaml"
 TARGET_DEVICE=$(uname -m)
@@ -55,8 +55,8 @@ APP_CMD="-c ${CONFIG_FILE}"
 
 LIDAR_FILE="data/nuscene/LIDAR_TOP/000000-LIDAR_TOP.bin"
 echo "checking nuscenes dataset, checking the first file: ${LIDAR_FILE}"
-if [ ! -e ${LIDAR_FILE} ]; then
-    if [ -e data/nuscene.tar.gz ]; then
+if [[ ! -e ${LIDAR_FILE} ]]; then
+    if [[ -e data/nuscene.tar.gz ]]; then
         echo "extracting dataset from data/nuscene.tar.gz (git-lfs)"
         tar -pxvf data/nuscene.tar.gz -C data/ || (echo "uncompress nuscene data failed."; exit 1)
     else
@@ -65,7 +65,7 @@ if [ ! -e ${LIDAR_FILE} ]; then
     fi
 fi
 
-[ -z "$DISPLAY" ] && (echo "Please export correct DISPLAY before running the pipeline."; exit -1)
+[[ -z "$DISPLAY" ]] && (echo "Please export correct DISPLAY before running the pipeline."; exit -1)
 xhost +
 
 MOUNT_OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock \
@@ -80,9 +80,9 @@ MOUNT_OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock \
 MOUNT_OPTIONS+=" -v ./data:${TARGET_WORKSPACE}/data"
 
 DOCKER_GPU_ARG="--gpus all"
-if [ "${TARGET_DEVICE}" = "x86_64" ]; then
+if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
     DOCKER_GPU_ARG="--gpus all"
-elif [ "${TARGET_DEVICE}" = "aarch64" ]; then
+elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
     DOCKER_GPU_ARG="--runtime nvidia"
 else
     echo "Unsupported platform ${TARGET_DEVICE}"

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef __NVGSTDS_C2D_MSG_H__
 #define __NVGSTDS_C2D_MSG_H__
 

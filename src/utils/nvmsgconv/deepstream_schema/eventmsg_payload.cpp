@@ -708,7 +708,7 @@ generate_object_object (void *privData, NvDsEventMsgMeta *meta)
   // Single-view 3D Tracking metadata
   if(meta->has3DTracking) {
     jobject = json_object_new ();
-    json_object_set_double_member (jobject, "visibility", meta->singleView3DTracking.visibility);
+    json_object_set_double_member (jobject, "visibility", meta->visibility);
 
     JsonArray *footLoc2DArray = json_array_sized_new (2);
     json_array_add_double_element (footLoc2DArray, meta->singleView3DTracking.ptImgFeet[0]);
@@ -1077,7 +1077,7 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
 
     // Single-view 3D Tracking metadata
     if(meta->has3DTracking) {
-      ss << "#|SV3DT|" << to_string(meta->singleView3DTracking.visibility) << "|"
+      ss << "#|SV3DT|" << to_string(meta->visibility) << "|"
         << to_string(meta->singleView3DTracking.ptImgFeet[0]) << "," << to_string(meta->singleView3DTracking.ptImgFeet[1]) << "|"
         << to_string(meta->singleView3DTracking.ptWorldFeet[0]) << "," << to_string(meta->singleView3DTracking.ptWorldFeet[1]) << "|";
 
@@ -1285,13 +1285,12 @@ gchar* generate_event_message_protobuf (void *privData, NvDsEvent *events, guint
       }
     }
 
+    (*info)["visibility"] = std::to_string(meta->visibility);
     // Single-view 3D Tracking metadata
     if(meta->has3DTracking) {
-      auto *info = object->mutable_info();
-      (*info)["visibility"] = std::to_string(meta->singleView3DTracking.visibility);
       (*info)["footLocation2D"] = to_string(meta->singleView3DTracking.ptImgFeet[0]) + "," + to_string(meta->singleView3DTracking.ptImgFeet[1]);
       (*info)["footLocation3D"] = to_string(meta->singleView3DTracking.ptWorldFeet[0]) + "," + to_string(meta->singleView3DTracking.ptWorldFeet[1]);
-      
+
       stringstream ss;
       ss.str("");
       ss.clear();

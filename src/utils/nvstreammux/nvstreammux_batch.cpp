@@ -386,10 +386,12 @@ void BatchPolicy::update_with_source(Batch * batch, unsigned int source_id)
 
     allowed_repeats = allowed_repeats <= allowed_repeats_source ? allowed_repeats : allowed_repeats_source;
     auto it = inputs->find(source_id);
-    SinkPad * pad;
     debug_print("update_with_source sid=%d\n", source_id);
-    if((it != inputs->end()) && ((pad = it->second) != NULL))
+    if(it != inputs->end())
     {
+        SinkPad * pad = it->second;
+        if(pad != NULL)
+        {
         std::unique_lock<std::mutex> lck(pad->mutex);
         unsigned int num_avail = get_allowed(source_id, src_max_fps[source_id], pad->get_available());
         debug_print("num_avail=%u sid=%d\n", num_avail, source_id);
@@ -417,6 +419,7 @@ void BatchPolicy::update_with_source(Batch * batch, unsigned int source_id)
         batch->num_sources[source_id] = num_to_insert;
         batch->acc_batch += num_to_insert; // batch->num_sources[source_id];
         debug_print("update_with_source insert %d acc_batch %d source_id %d available %d max repeats %d\n", num_to_insert, batch->acc_batch, source_id,  pad->get_available(), allowed_repeats);
+        }
     }
 }
 

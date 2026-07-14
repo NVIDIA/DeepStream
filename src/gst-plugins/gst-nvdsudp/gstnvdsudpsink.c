@@ -48,7 +48,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_nvdsudpsink_debug_category);
 #define SLEEP_THRESHOLD_MS         (5)
 #define DEFAULT_FRAMES_PER_BLOCK   (10)
 #define DEFAULT_PACKETS_PER_LINE   (4)
-#define RTP_HEADER_SIZE            (12)
 #define MAX_CPU_CORE               (1023)
 #define RTP_2110_20_MIN_HEADER_SIZE (20)
 #define DEFAULT_PAYLOAD_TYPE       (96)
@@ -112,7 +111,12 @@ static GstFlowReturn gst_nvdsudpsink_render_list (GstBaseSink * bsink,
 static gboolean gst_nvdsudpsink_set_caps (GstBaseSink * sink, GstCaps * caps);
 static GstFlowReturn
 gst_nvdsudpsink_render_raw_frame (GstBaseSink *bsink, GstBuffer *buffer);
+static GstBufferList *
+build_rtp_anc_payload (const guint8 *st2038_data, guint st2038_size,
+    GstNvDsUdpSink *sink);
 
+static gdouble time_to_rtp_timestamp (gdouble time_ns, guint sample_rate);
+static void init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer);
 static gpointer render_thread (gpointer data);
 
 static void
@@ -647,6 +651,28 @@ static gboolean gst_nvdsudpsink_set_caps (GstBaseSink * bsink, GstCaps * caps)
       }
     }
     sink->isRtpStream = FALSE;
+  } else if (!g_strcmp0 (mimeType, "meta/x-st-2038")) {
+    /* Only frame-aligned ST 2038 buffers are supported: build_rtp_anc_payload
+     * expects all ANC packets for one video frame in a single GstBuffer so it
+     * can pack them into RFC 8331 RTP packets and set the marker bit on the
+     * last one. Reject packet-aligned (or unspecified) input. */
+    const gchar *alignment = gst_structure_get_string (structure, "alignment");
+    if (g_strcmp0 (alignment, "frame") != 0) {
+      GST_ERROR_OBJECT (sink,
+          "for meta/x-st-2038 only alignment=frame is supported, got '%s'",
+          alignment ? alignment : "(unset)");
+      return FALSE;
+    }
+    sink->streamParams.streamType = ANCILLARY_2110_40_STREAM;
+    sink->streamParams.sampleRate = ST2110_40_CLOCK_RATE;
+    sink->streamParams.extSeqNumber = 0;
+    sink->isRtpStream = FALSE;
+    if (sink->gpu_id != GPU_ID_INVALID) {
+      GST_WARNING_OBJECT (sink,
+          "gpu-id is not supported for ancillary stream. Disabling GPUDirect.");
+      sink->gpu_id = GPU_ID_INVALID;
+      sink->isGpuDirect = FALSE;
+    }
   }
   return TRUE;
 }
@@ -868,7 +894,11 @@ static guint parse_sdp_source_filter_ips(const char *sdp_content, char **source_
     const char *pos = sdp_content;
     guint count = 0;
 
-    while (count < max_ips && (pos = strstr(pos, source_filter_tag)) != NULL) {
+    while (count < max_ips) {
+        pos = strstr (pos, source_filter_tag);
+        if (pos == NULL) {
+            break;
+        }
         // Move position to start of the source-filter line
         pos += strlen(source_filter_tag);
 
@@ -884,11 +914,12 @@ static guint parse_sdp_source_filter_ips(const char *sdp_content, char **source_
         memcpy(line, pos, line_len);
         line[line_len] = '\0';
         // Tokenize to extract IP address (last token)
+        char *saveptr = NULL;
         char *last_token = NULL;
-        char *token = strtok(line, " ");
+        char *token = strtok_r (line, " ", &saveptr);
         while (token != NULL) {
             last_token = token;
-            token = strtok(NULL, " ");
+            token = strtok_r (NULL, " ", &saveptr);
         }
 
         // Store the IP if found
@@ -979,7 +1010,46 @@ parse_sdp_file (GstNvDsUdpSink *sink)
   sParams->sampleRate = rate;
   sParams->payloadType = pt;
 
-  if (!g_strcmp0 (media->media, "video")) {
+  const gchar *encoding_name = gst_structure_get_string (structure,
+      "encoding-name");
+
+  if (!g_strcmp0 (media->media, "video") &&
+      encoding_name && !g_ascii_strcasecmp (encoding_name, "smpte291")) {
+    sParams->streamType = ANCILLARY_2110_40_STREAM;
+    sParams->sampleRate = ST2110_40_CLOCK_RATE;
+    sParams->extSeqNumber = 0;
+
+    const gchar *fmtp_str = gst_sdp_media_get_attribute_val (media, "fmtp");
+    if (fmtp_str) {
+      const gchar *efr = g_strstr_len (fmtp_str, -1, "exactframerate=");
+      if (efr) {
+        const gchar *fps_str = efr + strlen ("exactframerate=");
+        if (g_strrstr (fps_str, "/")) {
+          gint num, den;
+          if (sscanf (fps_str, "%d/%d", &num, &den) >= 2) {
+            if (den == 0) {
+              GST_ERROR_OBJECT (sink, "exactframerate denominator is zero");
+              goto error;
+            }
+            sParams->fps = (double) num / den;
+          } else {
+            GST_ERROR_OBJECT (sink, "can't parse exactframerate from fmtp");
+            goto error;
+          }
+        } else {
+          sParams->fps = g_ascii_strtod (fps_str, NULL);
+        }
+      }
+    }
+
+    if (sParams->fps == 0) {
+      GST_ERROR_OBJECT (sink, "No valid exactframerate in ANC SDP attribute");
+      goto error;
+    }
+
+    GST_INFO_OBJECT (sink, "ANC SDP: encoding=%s, rate=%d, fps=%.2f, pt=%d",
+        encoding_name, sParams->sampleRate, sParams->fps, sParams->payloadType);
+  } else if (!g_strcmp0 (media->media, "video")) {
     sParams->streamType = VIDEO_2110_20_STREAM;
     sParams->videoType = PROGRESSIVE;
     if (!get_video_params_from_sdp_caps (caps, sink))
@@ -1100,6 +1170,13 @@ initialize_rivermax_out_stream (GstNvDsUdpSink *sink)
     return ret;
   }
 
+  if (sParams->streamType == ANCILLARY_2110_40_STREAM && sink->isGpuDirect) {
+    GST_WARNING_OBJECT (sink,
+        "gpu-id is not supported for ancillary stream. Disabling GPUDirect.");
+    sink->gpu_id = GPU_ID_INVALID;
+    sink->isGpuDirect = FALSE;
+  }
+
   switch (sParams->streamType) {
     case VIDEO_2110_20_STREAM: {
       int lines_in_chunk = 4;
@@ -1126,6 +1203,13 @@ initialize_rivermax_out_stream (GstNvDsUdpSink *sink)
       sParams->frameTimeInterval = sParams->ptime * sParams->packetsPerFrame;
       sink->payloadSize = ((sParams->depth * sParams->audioChannels *
                                                samples_in_packet) / 8) + RTP_HEADER_SIZE;
+      break;
+    case ANCILLARY_2110_40_STREAM:
+      sParams->packetsPerFrame = 1;
+      sParams->chunkSize = 1;
+      sParams->frameTimeInterval = 1000000000.0 / sParams->fps;
+      sParams->sampleRate = ST2110_40_CLOCK_RATE;
+      sParams->extSeqNumber = 0;
       break;
     default:
       GST_ERROR ("stream type not supported");
@@ -1170,7 +1254,9 @@ initialize_rivermax_out_stream (GstNvDsUdpSink *sink)
   if (sink->isGpuDirect) {
     rmx_output_media_set_packet_layout(block, sink->header_mem_block_id , header_sizes);
   }
-  rmx_output_media_set_packet_layout(block, sink->payload_mem_block_id , payload_sizes);
+  if (sParams->streamType != ANCILLARY_2110_40_STREAM) {
+    rmx_output_media_set_packet_layout(block, sink->payload_mem_block_id , payload_sizes);
+  }
 
   if (sink->isGpuDirect) {
     cudaError_t ret = cudaSuccess;
@@ -1828,6 +1914,32 @@ gst_nvdsudpsink_render (GstBaseSink * bsink, GstBuffer * buffer)
     gst_buffer_list_add (bList, buffer);
     ret = gst_nvdsudpsink_render_list (bsink, bList);
     gst_buffer_list_unref (bList);
+  } else if (sink->streamParams.streamType == ANCILLARY_2110_40_STREAM) {
+    if (sink->pass_rtp_timestamp && !sink->streamParams.firstPacketTime) {
+      init_first_packet_time (sink, buffer);
+    }
+
+    GstMapInfo info = GST_MAP_INFO_INIT;
+    if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+      GST_ERROR_OBJECT (sink, "Failed to map ANC buffer");
+      return GST_FLOW_ERROR;
+    }
+
+    if (info.size == 0) {
+      gst_buffer_unmap (buffer, &info);
+      return GST_FLOW_OK;
+    }
+
+    GstBufferList *bList = build_rtp_anc_payload (info.data, info.size, sink);
+    gst_buffer_unmap (buffer, &info);
+
+    if (!bList) {
+      GST_WARNING_OBJECT (sink, "No ANC RTP packets produced");
+      return GST_FLOW_OK;
+    }
+
+    ret = gst_nvdsudpsink_render_list (bsink, bList);
+    gst_buffer_list_unref (bList);
   } else {
     if (sink->rThread) {
       gst_buffer_ref (buffer);
@@ -1872,6 +1984,285 @@ time_to_rtp_timestamp (gdouble time_ns, guint sample_rate)
 }
 
 /**
+ * @brief Initializes firstPacketTime, timestampTick and pass_rtp_ts_offset.
+ *
+ * Handles both pass-rtp-timestamp and the legacy PTP/system clock paths:
+ *  - pass_rtp_timestamp: uses buffer PTS and GstRTPTimestampMeta (if present)
+ *    and applies rtp_timestamp_offset.
+ *  - otherwise: uses calculate_first_packet_time based on PTP/system clock.
+ *
+ * @param sink    Sink instance holding the stream parameters.
+ * @param buffer  Upstream buffer (used only when pass_rtp_timestamp is enabled).
+ *                May be NULL when called from paths without a single-buffer
+ *                context; in that case the legacy path is used.
+ */
+static void
+init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
+{
+  StreamParams *sParams = &sink->streamParams;
+
+  if (sink->pass_rtp_timestamp && buffer) {
+    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (sink));
+    sParams->firstPacketTime = base_time + GST_BUFFER_PTS (buffer);
+    GST_DEBUG_OBJECT (sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
+        GST_TIME_ARGS ((GstClockTime) sParams->firstPacketTime));
+
+    GstRTPTimestampMeta *meta = gst_buffer_get_rtp_timestamp_meta (buffer);
+    if (meta) {
+      GST_DEBUG_OBJECT (sink, "Using RTP timestamp from metadata: %u",
+          meta->rtp_timestamp);
+      sParams->timestampTick = meta->rtp_timestamp;
+      if (meta->leap_seconds_adjusted) {
+        sParams->firstPacketTime += (LEAP_SECONDS * GST_SECOND);
+        sParams->pass_rtp_ts_offset = 0;
+        GST_DEBUG_OBJECT (sink, "Adjusted firstPacketTime: %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (sParams->firstPacketTime));
+      } else {
+        sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
+      }
+    } else {
+      GST_DEBUG_OBJECT (sink, "No RTP timestamp metadata found");
+      /* Fall back to legacy method; may differ slightly from actual rtp_ticks. */
+      sParams->timestampTick = time_to_rtp_timestamp (sParams->firstPacketTime,
+          sParams->sampleRate);
+      sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
+    }
+
+    if (sink->rtp_timestamp_offset > 0) {
+      gdouble offset_ticks = (sink->rtp_timestamp_offset *
+          sParams->sampleRate) / (gdouble) GST_SECOND;
+      sParams->timestampTick += (guint32) offset_ticks;
+      GST_DEBUG_OBJECT (sink, "Applied RTP timestamp offset: %"
+          G_GUINT64_FORMAT " ns -> %.0f ticks, new timestampTick: %f",
+          sink->rtp_timestamp_offset, offset_ticks, sParams->timestampTick);
+    }
+  } else {
+    calculate_first_packet_time (sink);
+    GST_DEBUG_OBJECT (sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
+        GST_TIME_ARGS ((GstClockTime) sParams->firstPacketTime));
+    sParams->timestampTick = time_to_rtp_timestamp (sParams->firstPacketTime,
+        sParams->sampleRate);
+    GST_DEBUG_OBJECT (sink, "RTP TS start: sParams->timestampTick: %f",
+        sParams->timestampTick);
+    sParams->pass_rtp_ts_offset = 0;
+  }
+}
+
+/**
+ * @brief Parses one ST2038 ANC packet from a buffer and advances the read position.
+ *
+ * @param br BitReader positioned at the start of an ST2038 packet
+ * @param info Output AncPacketInfo filled on success
+ * @return TRUE if a packet was parsed, FALSE on error or insufficient data
+ */
+static gboolean
+parse_st2038_packet (BitReader *br, AncPacketInfo *info)
+{
+  /* ST2038 fixed header: 6(zero) + 1(C) + 11(line) + 12(horiz) + 10(DID) + 10(SDID) + 10(DC) = 60 bits
+   * See Section 4.2 - https://pub.smpte.org/pub/st2038/st2038-2021.pdf */
+  if (!bit_reader_has_bits (br, 6 + 1 + 11 + 12 + 10 + 10 + 10))
+    return FALSE;
+
+  guint32 zeroes = bit_reader_read (br, 6);
+  if (zeroes != 0) {
+    GST_WARNING ("ST2038: expected 6 zero bits, got %u", zeroes);
+    return FALSE;
+  }
+
+  info->c_not_y_channel_flag = bit_reader_read (br, 1);
+  info->line_number = bit_reader_read (br, 11);
+  info->horizontal_offset = bit_reader_read (br, 12);
+  info->did = bit_reader_read (br, 10);
+  info->sdid = bit_reader_read (br, 10);
+  info->data_count = (guint8)(bit_reader_read (br, 10) & 0xFF);
+
+  guint needed = (guint)info->data_count * 10 + 10;
+  if (!bit_reader_has_bits (br, needed))
+    return FALSE;
+
+  for (guint i = 0; i < info->data_count; i++)
+    info->user_data[i] = bit_reader_read (br, 10);
+
+  info->checksum = bit_reader_read (br, 10);
+
+  while (!bit_reader_is_byte_aligned (br)) {
+    guint32 pad = bit_reader_read (br, 1);
+    if (pad != 1) {
+      GST_WARNING ("ST2038: alignment bits should be 1");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Calculates the RFC 8331 payload size for one ANC packet (32-bit aligned).
+ */
+static guint
+rfc8331_anc_packet_size (guint8 data_count)
+{
+  /* RFC 8331 per-packet layout (Section 2.1 - https://www.rfc-editor.org/rfc/rfc8331):
+   * 1(C) + 11(line) + 12(horiz) + 1(S) + 7(StreamNum)
+   * + 10(DID) + 10(SDID) + 10(DC) + data_count*10(UDW) + 10(checksum) */
+  guint bits = 1 + 11 + 12 + 1 + 7 + 10 + 10 + 10
+               + (guint)data_count * 10 + 10;
+  guint bytes = (bits + 31) / 32 * 4;  /* round up to 32-bit alignment */
+  return bytes;
+}
+
+/**
+ * @brief Writes one ANC packet into the RFC 8331 payload.
+ *
+ * @param bw BitWriter positioned within the RTP payload after the 8-byte header
+ * @param info Parsed ANC packet information
+ */
+static void
+write_rfc8331_anc_packet (BitWriter *bw, const AncPacketInfo *info)
+{
+  bit_writer_write (bw, 1, info->c_not_y_channel_flag ? 1 : 0);
+  bit_writer_write (bw, 11, info->line_number);
+  bit_writer_write (bw, 12, info->horizontal_offset);
+  bit_writer_write (bw, 1, 0);  /* S */
+  bit_writer_write (bw, 7, 0);  /* StreamNum */
+  bit_writer_write (bw, 10, info->did);
+  bit_writer_write (bw, 10, info->sdid);
+  bit_writer_write (bw, 10, info->data_count);
+
+  for (guint i = 0; i < info->data_count; i++)
+    bit_writer_write (bw, 10, info->user_data[i]);
+
+  bit_writer_write (bw, 10, info->checksum);
+  bit_writer_pad_to_u32 (bw);
+}
+
+/**
+ * @brief Emits one ANC RTP packet into the buffer list.
+ *
+ * Fills the RTP header and RFC 8331 payload header into rtp_buf,
+ * allocates a GstBuffer, and appends it to bList. Advances seq/extSeqNumber.
+ *
+ * @param rtp_buf        Scratch buffer containing the ANC payload data
+ * @param payload_pos    Total bytes used in rtp_buf (header + payload)
+ * @param anc_count      Number of ANC packets in this RTP packet
+ * @param marker         TRUE to set the RTP marker bit (last packet in frame)
+ * @param sParams        Stream parameters (seq, extSeqNumber, ssrc, etc.)
+ * @param bList          Buffer list to append the packet to
+ */
+static void
+flush_anc_rtp_packet (guint8 *rtp_buf, guint payload_pos, guint anc_count,
+    gboolean marker, StreamParams *sParams, GstBufferList *bList)
+{
+  guint anc_payload_start = RTP_HEADER_SIZE + RFC8331_PAYLOAD_HDR_SIZE;
+
+  memset (rtp_buf, 0, RTP_HEADER_SIZE);
+  rtp_buf[0] = 0x80;
+  rtp_buf[1] = marker ? (sParams->payloadType | 0x80) : sParams->payloadType;
+  GST_WRITE_UINT16_BE (rtp_buf + 2, sParams->seq);
+  GST_WRITE_UINT32_BE (rtp_buf + 4, (guint32) sParams->timestampTick);
+  GST_WRITE_UINT32_BE (rtp_buf + 8, sParams->ssrc);
+
+  GST_WRITE_UINT16_BE (rtp_buf + RTP_HEADER_SIZE, sParams->extSeqNumber);
+  GST_WRITE_UINT16_BE (rtp_buf + RTP_HEADER_SIZE + 2, (guint16)(payload_pos - anc_payload_start));
+  rtp_buf[RTP_HEADER_SIZE + 4] = (guint8) anc_count;
+  rtp_buf[RTP_HEADER_SIZE + 5] = 0;
+  rtp_buf[RTP_HEADER_SIZE + 6] = 0;
+  rtp_buf[RTP_HEADER_SIZE + 7] = 0;
+
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, payload_pos, NULL);
+  gst_buffer_fill (buf, 0, rtp_buf, payload_pos);
+  gst_buffer_list_add (bList, buf);
+
+  if (sParams->seq == G_MAXUINT16)
+    sParams->extSeqNumber++;
+  sParams->seq++;
+}
+
+/**
+ * @brief Builds RFC 8331 RTP packets from a buffer of ST2038 ANC data.
+ *
+ * Packs multiple ANC packets into each RTP payload up to max_payload_size.
+ * Returns a GstBufferList of fully-formed RTP packets. The last packet in
+ * the list has the RTP marker bit set.
+ *
+ * @param st2038_data  Pointer to raw ST2038 data
+ * @param st2038_size  Size of ST2038 data in bytes
+ * @param sink         Sink element (for seq/ssrc/timestamp state)
+ * @return GstBufferList of RTP packets, or NULL on error
+ */
+static GstBufferList *
+build_rtp_anc_payload (const guint8 *st2038_data, guint st2038_size,
+    GstNvDsUdpSink *sink)
+{
+  StreamParams *sParams = &sink->streamParams;
+  guint max_payload_size = sink->payloadSize;
+
+  if (max_payload_size < RTP_ST2110_40_HEADER_SIZE + 32) {
+    GST_ERROR_OBJECT (sink, "Payload size %u too small for ANC", max_payload_size);
+    return NULL;
+  }
+
+  GstBufferList *bList = gst_buffer_list_new ();
+  BitReader br;
+  bit_reader_init (&br, st2038_data, st2038_size);
+
+  guint8 rtp_buf[2048];
+  memset (rtp_buf, 0, sizeof (rtp_buf));
+  guint anc_payload_start = RTP_HEADER_SIZE + RFC8331_PAYLOAD_HDR_SIZE;
+  guint anc_count = 0;
+  guint payload_pos = anc_payload_start;
+
+  /* ST2038 fixed header: 6(zero) + 1(C) + 11(line) + 12(horiz) + 10(DID) + 10(SDID) + 10(DC) = 60 bits
+  * See Section 4.2 - https://pub.smpte.org/pub/st2038/st2038-2021.pdf */
+  while (bit_reader_has_bits (&br, 6 + 1 + 11 + 12 + 10 + 10 + 10)) {
+    BitReader saved = br;
+    AncPacketInfo info;
+
+    if (!parse_st2038_packet (&br, &info)) {
+      GST_WARNING_OBJECT (sink, "Failed to parse ST2038 packet, stopping");
+      break;
+    }
+
+    guint pkt_size = rfc8331_anc_packet_size (info.data_count);
+
+    if (anc_count > 0 &&
+        (payload_pos + pkt_size > max_payload_size || anc_count >= 255)) {
+      flush_anc_rtp_packet (rtp_buf, payload_pos, anc_count, FALSE, sParams, bList);
+
+      anc_count = 0;
+      payload_pos = anc_payload_start;
+      memset (rtp_buf + anc_payload_start, 0, sizeof(rtp_buf) - anc_payload_start);
+
+      br = saved;
+      if (!parse_st2038_packet (&br, &info)) {
+        break;
+      }
+    }
+
+    {
+      BitWriter bw;
+      bit_writer_init_at (&bw, rtp_buf + payload_pos,
+                          sizeof(rtp_buf) - payload_pos,
+                          0);
+      write_rfc8331_anc_packet (&bw, &info);
+      payload_pos += bit_writer_byte_pos (&bw);
+      anc_count++;
+    }
+  }
+
+  if (anc_count > 0) {
+    flush_anc_rtp_packet (rtp_buf, payload_pos, anc_count, TRUE, sParams, bList);
+  }
+
+  if (gst_buffer_list_length (bList) == 0) {
+    gst_buffer_list_unref (bList);
+    return NULL;
+  }
+
+  return bList;
+}
+
+/**
  * @brief Builds an RTP packet header
  *
  * This function constructs an RTP header according to RFC 3550 and SMPTE 2110-20/30/31 specifications.
@@ -1909,9 +2300,9 @@ build_rtp_header (guint8 *buf, guint line, guint offset,
 
   buf[0] = 0x80; // 10000000 - version2, no padding, no extension
   buf[1] = sParams->payloadType;
-  *(guint16 *)(buf + 2) = g_htons (sParams->seq);
-  *(guint32 *)(buf + 4) = g_htonl ((guint32) sParams->timestampTick);
-  *(guint32 *)(buf + 8) = g_htonl ((guint32) sParams->ssrc);
+  GST_WRITE_UINT16_BE (buf + 2, sParams->seq);
+  GST_WRITE_UINT32_BE (buf + 4, (guint32) sParams->timestampTick);
+  GST_WRITE_UINT32_BE (buf + 8, (guint32) sParams->ssrc);
 
   // Payload Header - 8 bytes
   /*
@@ -1924,12 +2315,12 @@ build_rtp_header (guint8 *buf, guint line, guint offset,
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ */
 
   if (sParams->streamType == VIDEO_2110_20_STREAM) {
-    *(guint16 *)(buf + 12) = g_htons (sParams->extSeqNumber);
-    *(guint16 *)(buf + 14) = g_htons (sink->payloadSize - RTP_2110_20_MIN_HEADER_SIZE);
-    *(guint16 *)(buf + 16) = g_htons (line);
+    GST_WRITE_UINT16_BE (buf + 12, sParams->extSeqNumber);
+    GST_WRITE_UINT16_BE (buf + 14, sink->payloadSize - RTP_2110_20_MIN_HEADER_SIZE);
+    GST_WRITE_UINT16_BE (buf + 16, line);
     buf[16] |= ((fieldIdx << 7) & 0x80);
     // C = 0 Always because of no continuation.
-    *(guint16 *)(buf + 18) = g_htons (offset);
+    GST_WRITE_UINT16_BE (buf + 18, offset);
   }
 
   if (++packetNum == sParams->packetsPerFrame) {
@@ -1960,42 +2351,7 @@ gst_nvdsudpsink_render_raw_frame (GstBaseSink *bsink, GstBuffer *buffer)
   StreamParams *sParams = &sink->streamParams;
 
   if (!sParams->firstPacketTime) {
-    if (sink->pass_rtp_timestamp) {
-      GstClockTime base_time = gst_element_get_base_time(GST_ELEMENT(sink));
-      sParams->firstPacketTime = base_time + GST_BUFFER_PTS (buffer);
-      GST_DEBUG_OBJECT(sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
-                      GST_TIME_ARGS((GstClockTime)(sParams->firstPacketTime)));
-
-      GstRTPTimestampMeta *meta = gst_buffer_get_rtp_timestamp_meta(buffer);
-      if (meta) {
-          GST_DEBUG_OBJECT(sink, "Using RTP timestamp from metadata: %u", meta->rtp_timestamp);
-          sParams->timestampTick = meta->rtp_timestamp;
-          if (meta->leap_seconds_adjusted) {
-            sParams->firstPacketTime += (LEAP_SECONDS*GST_SECOND);
-            sParams->pass_rtp_ts_offset = 0;
-            GST_DEBUG_OBJECT(sink, "Adjusted firstPacketTime: %" GST_TIME_FORMAT, GST_TIME_ARGS(sParams->firstPacketTime));
-          } else {
-            sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
-          }
-      } else {
-          GST_DEBUG_OBJECT(sink, "No RTP timestamp metadata found");
-          //Update timestampTick using legacy method. This can be slightly different from the actual rtp_ticks.
-          sParams->timestampTick = time_to_rtp_timestamp(sParams->firstPacketTime, sParams->sampleRate);
-          sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
-      }
-       if (sink->rtp_timestamp_offset > 0) {
-         gdouble offset_ticks = (sink->rtp_timestamp_offset * sParams->sampleRate) / (gdouble)GST_SECOND;
-         sParams->timestampTick += (guint32)offset_ticks;
-         GST_DEBUG_OBJECT(sink, "Applied RTP timestamp offset: %" G_GUINT64_FORMAT " ns -> %.0f ticks, new timestampTick: %f", sink->rtp_timestamp_offset, offset_ticks, sParams->timestampTick);
-       }
-    } else {
-      calculate_first_packet_time(sink);
-      GST_DEBUG_OBJECT(sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
-                      GST_TIME_ARGS((GstClockTime)(sParams->firstPacketTime)));
-      sParams->timestampTick = time_to_rtp_timestamp(sParams->firstPacketTime, sParams->sampleRate);
-      GST_DEBUG_OBJECT(sink, "RTP TS start: sParams->timestampTick: %f", sParams->timestampTick);
-      sParams->pass_rtp_ts_offset = 0;
-    }
+    init_first_packet_time (sink, buffer);
   }
 
   /* When pass-rtp-timestamp is enabled, firstPacketTime will be in UTC time, unless meta->leap_seconds_adjusted = true
@@ -2264,7 +2620,7 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
   void *payload;
 
   remainder = gst_buffer_list_length (bList);
-  if (remainder % sParams->chunkSize) {
+  if (sParams->streamType != ANCILLARY_2110_40_STREAM && (remainder % sParams->chunkSize)) {
     g_print ("packets in list should be multiple of chunk size: %d - len :%d \n",
      sParams->chunkSize, remainder);
     return GST_FLOW_ERROR;
@@ -2275,7 +2631,8 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
     sParams->timestampTick = time_to_rtp_timestamp (sParams->firstPacketTime, sParams->sampleRate);
   }
 
-  send_time_ns = sParams->firstPacketTime + sParams->frameTimeInterval * sParams->frameCount;
+  send_time_ns = sParams->firstPacketTime +
+      (sParams->frameTimeInterval * sParams->frameCount) + sParams->pass_rtp_ts_offset;
 
   uint64_t time_now_ns = get_tai_time_ns (sink);
   if (send_time_ns > time_now_ns) {
@@ -2287,11 +2644,22 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
   }
 
   do {
+    guint chunk_packet_count = sParams->chunkSize;
+    if (sParams->streamType == ANCILLARY_2110_40_STREAM) {
+      chunk_packet_count = (remainder < sParams->chunkSize) ? remainder : sParams->chunkSize;
+      rmx_output_media_set_chunk_packet_count(&sink->media_chunk_handle, chunk_packet_count);
+    }
+
+    uint16_t *payload_sizes_ptr = NULL;
     do {
       /* Media API */
       status = rmx_output_media_get_next_chunk(&sink->media_chunk_handle);
       if (status == RMX_OK) {
         payload = rmx_output_media_get_chunk_strides(&sink->media_chunk_handle, sink->payload_mem_block_id);
+        if (sParams->streamType == ANCILLARY_2110_40_STREAM) {
+          payload_sizes_ptr = (uint16_t *) rmx_output_media_get_chunk_packet_sizes(
+              &sink->media_chunk_handle, sink->payload_mem_block_id);
+        }
         break;
       }
       if (status == RMX_SIGNAL) {
@@ -2300,15 +2668,15 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
       }
     } while (status != RMX_OK);
 
-    for (i = 0; i < sParams->chunkSize; i++) {
+    for (i = 0; i < chunk_packet_count; i++) {
       buf = gst_buffer_list_get (bList, bufIdx++);
       gst_buffer_map (buf, &info, GST_MAP_READ);
 
-      *(uint32_t *)(info.data + 4) = GUINT32_TO_BE ((uint32_t) sParams->timestampTick);
+      GST_WRITE_UINT32_BE (info.data + 4, (guint32) sParams->timestampTick);
 
       if (sParams->streamType == VIDEO_2110_20_STREAM) {
-        *(guint16 *)(info.data + 12) = g_htons(sParams->extSeqNumber);
-        guint16 seqNum = g_ntohs (*(guint16 *)(info.data + 2));
+        GST_WRITE_UINT16_BE (info.data + 12, sParams->extSeqNumber);
+        guint16 seqNum = GST_READ_UINT16_BE (info.data + 2);
         if (seqNum == G_MAXUINT16) {
           sParams->extSeqNumber++;
         }
@@ -2320,12 +2688,18 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
 
       uint8_t *ptr = (uint8_t *) payload + (i * sParams->payloadStride);
       memcpy ((void *) ptr, info.data, info.size);
+
+      if (payload_sizes_ptr) {
+        payload_sizes_ptr[i] = (uint16_t) info.size;
+      }
+
       gst_buffer_unmap (buf, &info);
     }
 
     do {
       uint64_t timeout = 0;
-      if (!(sParams->chunkNum % sParams->chunksPerFrame)) {
+      if (sParams->streamType == ANCILLARY_2110_40_STREAM ||
+          !(sParams->chunkNum % sParams->chunksPerFrame)) {
         timeout = (uint64_t) send_time_ns;
         // verify window is at least 600 nano away.
         if (timeout - 600 < get_tai_time_ns (sink)) {
@@ -2362,7 +2736,7 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
     } while (status != RMX_OK);
 
     sParams->chunkNum++;
-    remainder -= sParams->chunkSize;
+    remainder -= chunk_packet_count;
     if ((sParams->chunkNum % sParams->chunksPerFrame) == 0) {
       send_time_ns += sParams->frameTimeInterval;
       sParams->frameCount++;
@@ -2372,6 +2746,8 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
         if (sParams->videoType != PROGRESSIVE)
           tick /= 2;
         sParams->timestampTick += tick;
+      } else if (sParams->streamType == ANCILLARY_2110_40_STREAM) {
+        sParams->timestampTick += sParams->sampleRate / sParams->fps;
       }
     }
   } while (remainder > 0);

@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # 3d-bodypose-deepstream
 
 ## Introduction
@@ -6,7 +23,7 @@ The project contains 3D Body Pose application built using  Deepstream SDK.
 This application is built for [KAMA: 3D Keypoint Aware Body Mesh Articulation](https://arxiv.org/abs/2104.13502).
 ![sample pose output](./sources/.screenshot.png)
 ## Prerequisites:
-DeepStream SDK 9.0 installed which is available at  http://developer.nvidia.com/deepstream-sdk
+DeepStream SDK 9.1 installed which is available at  http://developer.nvidia.com/deepstream-sdk
 Please follow instructions in the `src/apps/sample_apps/deepstream-app/README` on how
 to install the prequisites for building Deepstream SDK apps.
 
@@ -25,7 +42,7 @@ Follow https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstar
 ```
 
 ## Build the applications
-The app can be built by [mono-repo build](../../../../build/BUILD.md).
+The app can be built by [build script](../../../../build/BUILD.md).
 The separated compilation of the app and related library can refer to the following commands:
 ```bash
 # Build custom nvinfer parser of BodyPose3DNet

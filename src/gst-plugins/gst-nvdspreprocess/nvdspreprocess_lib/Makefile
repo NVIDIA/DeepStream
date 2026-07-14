@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,13 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
   $(error "CUDA_VER is not set")
 endif
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
 CXX:= g++
 NVCC:=/usr/local/cuda-$(CUDA_VER)/bin/nvcc
@@ -29,11 +28,10 @@ SRCS:= nvdspreprocess_lib.cpp nvdspreprocess_impl.cpp \
 
 INCS:= $(wildcard *.h)
 LIB:=libcustom2d_preprocess.so
-include ../../Rules.mk
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.0\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../include \
 	 -I ../../../../includes
@@ -48,32 +46,28 @@ LIBS := -shared -Wl,-no-undefined \
 
 OBJS:= $(SRCS:.cpp=.o)
 OBJS:= $(OBJS:.cu=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
 LIBS+=$(shell pkg-config --libs $(PKGS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cu $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cu $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(NVCC) -c -o $@ --compiler-options '-fPIC' $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
-	$(CXX) -o $(OBJ_DIR)/$(LIB) $(OBJS) $(LIBS)
-	cp $(OBJ_DIR)/$(LIB) $@
+$(LIB): $(OBJS) $(DEP) Makefile
+	@echo $(CFLAGS)
+	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(GST_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

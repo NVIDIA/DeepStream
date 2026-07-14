@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,9 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
-# compile with opencv to dump ROIs
 WITH_OPENCV:=0
 
 CUDA_VER?=
@@ -23,6 +20,7 @@ ifeq ($(CUDA_VER),)
   $(error "CUDA_VER is not set")
 endif
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 WSL:=$(shell uname -a | grep -io "microsoft" | tr '[:upper:]' '[:lower:]')
 
 CXX:= g++
@@ -32,11 +30,10 @@ SRCS:= gstnvdspreprocess.cpp gstnvdspreprocess_allocator.cpp \
 
 INCS:= $(wildcard *.h)
 LIB:=libnvdsgst_preprocess.so
-include ../Rules.mk
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.0\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I include \
 	 -I ../../../includes
@@ -46,7 +43,7 @@ LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 LIBS := -shared -Wl,-no-undefined \
 	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -ldl \
-	-L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_helper -lnvdsgst_customhelper -lnvdsgst_meta -lnvds_meta -lnvbufsurface -lnvbufsurftransform\
+	-L$(LIB_INSTALL_DIR) -lnvdsgst_helper -lnvdsgst_customhelper -lnvdsgst_meta -lnvds_meta -lnvbufsurface -lnvbufsurftransform\
 	-lcuda -lyaml-cpp -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 ifeq ("microsoft", "$(WSL)")
@@ -54,7 +51,6 @@ ifeq ("microsoft", "$(WSL)")
 endif
 
 OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 
@@ -68,21 +64,18 @@ endif
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
 LIBS+=$(shell pkg-config --libs $(PKGS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
+$(LIB): $(OBJS) $(DEP) Makefile
 	@echo $(CFLAGS)
-	$(CXX) -o $(OBJ_DIR)/$(LIB) $(OBJS) $(LIBS)
-	cp $(OBJ_DIR)/$(LIB) $@
+	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(GST_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

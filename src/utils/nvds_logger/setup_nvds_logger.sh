@@ -1,6 +1,4 @@
 #! /bin/bash
-
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,13 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-
-# usage: sudo ./setup_nvds_logger.sh [log name]
-# eg:    sudo ./setup_nvds_logger.sh ds.log
-# log name is optional, if not provided, it will default to ds.log
-# Log file will be found in /var/log/nvds/[log_name]
-# Note: user can set logging severity level to enable log filtering as mentioned below
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root"
@@ -31,17 +22,17 @@ fi
 nvdslogpath="/var/log/nvds/"
 nvdslogfilepath="/var/log/nvds/ds.log"
 
-if [ "$1" != "" ]; then
+if [[ "$1" != "" ]]; then
     nvdslogfilepath="$nvdslogpath$1"
 fi
 
 echo "Using logging location: $nvdslogfilepath"
 rm -rf /run/rsyslogd.pid
 
-if [ ! -d $nvdslogpath ]; then
+if [[ ! -d $nvdslogpath ]]; then
     echo "Creating logging location: $nvdslogpath"
     mkdir $nvdslogpath
-    if  [ ! -d $nvdslogpath ]; then
+    if  [[ ! -d $nvdslogpath ]]; then
       echo "Unable to create directory at the given path; please check permissions"
       exit 1
     fi

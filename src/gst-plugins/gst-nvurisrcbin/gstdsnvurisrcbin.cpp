@@ -71,7 +71,8 @@
 #define DEFAULT_IPC_BUFFER_TIMESTAMP_COPY FALSE
 #define DEFAULT_IPC_CONNECTION_ATTEMPTS -1
 #define DEFAULT_IPC_CONNECTION_INTERVAL 1000000
-#define DEFAULT_SIMULATE_FPS_INTERVAL_MS 0
+
+static constexpr guint kDefaultSimulateFpsIntervalMs = 0;
 
 #define GST_TYPE_NVDSURI_SOURCE_TYPE (gst_nvdsurisrc_get_type ())
 #define GST_TYPE_NVDSURI_SKIP_FRAMES (gst_nvdsurisrc_dec_skip_frames ())
@@ -407,8 +408,11 @@ gst_ds_nvurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
   /* Note: GST_IS_OBJECT() check is essential as the ubin->elems might be
    * removed (floating refs) by the time we receive this callback
    */
-    gboolean is_ipc = ubin->config->uri
-      && g_str_has_prefix (ubin->config->uri, "ipc://");
+  const gchar *uri = ubin->config->uri;
+  gboolean is_ipc = FALSE;
+  if (uri != NULL) {
+    is_ipc = g_str_has_prefix (uri, "ipc://");
+  }
   if (GST_IS_OBJECT (ubin->src_elem)
       && (GST_MESSAGE_SRC (message) == GST_OBJECT (ubin->src_elem))
       && (is_ipc || ubin->source_watch_id)
@@ -426,16 +430,25 @@ gst_ds_nvurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
   }
 
   /* Allow decoded pads to be unlinked. */
-  if ((GST_IS_OBJECT (ubin->cap_filter) && GST_IS_OBJECT (ubin->aqueue))
-      && (GST_MESSAGE_SRC (message) == GST_OBJECT (ubin->cap_filter)
-          || GST_MESSAGE_SRC (message) == GST_OBJECT (ubin->aqueue))
-      && GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
-    gchar *debug = NULL;
-    GError *error = NULL;
-    gst_message_parse_error (message, &error, &debug);
-    if (g_strrstr (debug, "reason not-linked")) {
-      gst_message_unref (message);
-      return;
+  {
+    gboolean cap_ok = GST_IS_OBJECT (ubin->cap_filter);
+    gboolean queue_ok = GST_IS_OBJECT (ubin->aqueue);
+    gboolean cap_and_queue_ok = cap_ok && queue_ok;
+    GstObject *msg_src = GST_MESSAGE_SRC (message);
+    gboolean from_cap_or_aqueue =
+        (msg_src == GST_OBJECT (ubin->cap_filter))
+        || (msg_src == GST_OBJECT (ubin->aqueue));
+    GstMessageType msg_type = GST_MESSAGE_TYPE (message);
+    gboolean is_error = (msg_type == GST_MESSAGE_ERROR);
+
+    if (cap_and_queue_ok && from_cap_or_aqueue && is_error) {
+      gchar *debug = NULL;
+      GError *error = NULL;
+      gst_message_parse_error (message, &error, &debug);
+      if (g_strrstr (debug, "reason not-linked")) {
+        gst_message_unref (message);
+        return;
+      }
     }
   }
 
@@ -767,7 +780,7 @@ gst_ds_nvurisrc_bin_class_init (GstDsNvUriSrcBinClass * klass)
   g_object_class_install_property (gobject_class, PROP_SIMULATE_FPS_INTERVAL_MS,
       g_param_spec_uint ("simulate-fps-interval-ms", "Simulate FPS Interval",
           "Frame interval in milliseconds for FPS simulation (e.g., 33 for 30 FPS, 0 to disable)",
-          0, 1000, DEFAULT_SIMULATE_FPS_INTERVAL_MS,
+          0, 1000, kDefaultSimulateFpsIntervalMs,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
 
@@ -1110,7 +1123,7 @@ gst_ds_nvurisrc_bin_init (GstDsNvUriSrcBin * nvurisrcbin)
   nvurisrcbin->config->ipc_socket_path = NULL;
   nvurisrcbin->config->ipc_connection_attempts = DEFAULT_IPC_CONNECTION_ATTEMPTS;
   nvurisrcbin->config->ipc_connection_interval = DEFAULT_IPC_CONNECTION_INTERVAL;
-  nvurisrcbin->config->simulate_fps_interval_ms = DEFAULT_SIMULATE_FPS_INTERVAL_MS;
+  nvurisrcbin->config->simulate_fps_interval_ms = kDefaultSimulateFpsIntervalMs;
   g_mutex_init (&nvurisrcbin->bin_lock);
 
   GST_OBJECT_FLAG_SET (nvurisrcbin, GST_ELEMENT_FLAG_SOURCE);
@@ -1288,11 +1301,11 @@ aparsebin_child_added (GstChildProxy * child_proxy, GObject * object,
  * mechanism via nvstreammux.
  */
 static GstPadProbeReturn
-decoder_input_fps_throttle_probe (GstPad * pad, GstPadProbeInfo * info, gpointer u_data)
+decoder_input_fps_throttle_probe (GstPad * /* pad */, GstPadProbeInfo * info, gpointer u_data)
 {
-  GstBuffer *buf = (GstBuffer *) info->data;
-  GstDsNvUriSrcBin *bin = (GstDsNvUriSrcBin *) u_data;
-
+  auto buf = (GstBuffer *) info->data;
+  const GstDsNvUriSrcBin *bin =
+      static_cast<const GstDsNvUriSrcBin *> (u_data);
   if (buf && bin && bin->config->simulate_fps_interval_ms > 0) {
     /* Throttle frame rate to simulate camera delivery rate (e.g., 33ms for 30fps) */
     guint sleep_time_us = bin->config->simulate_fps_interval_ms * 1000;
@@ -1300,6 +1313,62 @@ decoder_input_fps_throttle_probe (GstPad * pad, GstPadProbeInfo * info, gpointer
   }
 
   return GST_PAD_PROBE_OK;
+}
+
+/* Decoder property setup and probes (extracted to keep decodebin_child_added cognitive complexity low). */
+static void
+decodebin_configure_nvv4l2decoder (GObject * object, GstDsNvUriSrcBin * bin,
+    GstDsNvUriSrcConfig * config)
+{
+  if (config->skip_frames_type)
+    g_object_set (object, "skip-frames", config->skip_frames_type, NULL);
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object),
+          "enable-max-performance")) {
+    g_object_set (object, "enable-max-performance", TRUE, NULL);
+  }
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "gpu-id")) {
+    g_object_set (object, "gpu-id", config->gpu_id, NULL);
+  }
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object),
+          "cudadec-memtype")) {
+    g_object_set (G_OBJECT (object), "cudadec-memtype",
+        config->cuda_memory_type, NULL);
+  }
+  g_object_set (object, "drop-frame-interval", config->drop_frame_interval,
+      NULL);
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "low-latency-mode")) {
+    g_object_set (object, "low-latency-mode", config->low_latency_mode,
+        NULL);
+  }
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "extract-sei-type5-data")) {
+    g_object_set (object, "extract-sei-type5-data", config->extract_sei_type5_data,
+        NULL);
+  }
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "sei-uuid")) {
+    g_object_set (object, "sei-uuid", config->sei_uuid, NULL);
+  }
+  g_object_set (object, "num-extra-surfaces", config->num_extra_surfaces,
+      NULL);
+  /* Seek only if file is the source. */
+  if (config->loop && g_strstr_len (config->uri, -1, "file:/") == config->uri) {
+    NVGSTDS_ELEM_ADD_PROBE (bin, GST_ELEMENT (object),
+        "sink", restart_stream_buf_prob,
+        (GstPadProbeType) (GST_PAD_PROBE_TYPE_EVENT_BOTH |
+            GST_PAD_PROBE_TYPE_EVENT_FLUSH | GST_PAD_PROBE_TYPE_BUFFER), bin);
+  }
+
+  /* Add FPS throttle probe at decoder INPUT (sink pad) to simulate RTSP behavior.
+   * This makes file sources deliver frames at a fixed rate (e.g., 30fps).
+   * Latency measurement uses standard NVDS_ENABLE_LATENCY_MEASUREMENT mechanism. */
+  if (config->simulate_fps_interval_ms > 0) {
+    GstPad *decoder_sink_pad = gst_element_get_static_pad (GST_ELEMENT (object), "sink");
+    if (decoder_sink_pad) {
+      gst_pad_add_probe (decoder_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+          decoder_input_fps_throttle_probe, bin, nullptr);
+      GST_DEBUG_OBJECT (bin, "FPS throttle probe added at decoder INPUT");
+      gst_object_unref (decoder_sink_pad);
+    }
+  }
 }
 
 static void
@@ -1320,55 +1389,7 @@ decodebin_child_added (GstChildProxy * child_proxy, GObject * object,
     g_object_set (object, "enable-last-sample", FALSE, NULL);
   }
   if (g_strstr_len (name, -1, "nvv4l2decoder") == name) {
-    if (config->skip_frames_type)
-      g_object_set (object, "skip-frames", config->skip_frames_type, NULL);
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (object),
-            "enable-max-performance")) {
-      g_object_set (object, "enable-max-performance", TRUE, NULL);
-    }
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "gpu-id")) {
-      g_object_set (object, "gpu-id", config->gpu_id, NULL);
-    }
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (object),
-            "cudadec-memtype")) {
-      g_object_set (G_OBJECT (object), "cudadec-memtype",
-          config->cuda_memory_type, NULL);
-    }
-    g_object_set (object, "drop-frame-interval", config->drop_frame_interval,
-        NULL);
-    if (g_object_class_find_property(G_OBJECT_GET_CLASS (object), "low-latency-mode")) {
-      g_object_set (object, "low-latency-mode", config->low_latency_mode,
-          NULL);
-    }
-    if (g_object_class_find_property(G_OBJECT_GET_CLASS (object), "extract-sei-type5-data")) {
-      g_object_set (object, "extract-sei-type5-data", config->extract_sei_type5_data,
-          NULL);
-    }
-    if (g_object_class_find_property(G_OBJECT_GET_CLASS (object), "sei-uuid")) {
-      g_object_set (object, "sei-uuid", config->sei_uuid, NULL);
-    }
-    g_object_set (object, "num-extra-surfaces", config->num_extra_surfaces,
-        NULL);
-    /* Seek only if file is the source. */
-    if (config->loop && g_strstr_len (config->uri, -1, "file:/") == config->uri) {
-      NVGSTDS_ELEM_ADD_PROBE (bin, GST_ELEMENT (object),
-          "sink", restart_stream_buf_prob,
-          (GstPadProbeType) (GST_PAD_PROBE_TYPE_EVENT_BOTH |
-              GST_PAD_PROBE_TYPE_EVENT_FLUSH | GST_PAD_PROBE_TYPE_BUFFER), bin);
-    }
-
-    /* Add FPS throttle probe at decoder INPUT (sink pad) to simulate RTSP behavior.
-     * This makes file sources deliver frames at a fixed rate (e.g., 30fps).
-     * Latency measurement uses standard NVDS_ENABLE_LATENCY_MEASUREMENT mechanism. */
-    if (config->simulate_fps_interval_ms > 0) {
-      GstPad *decoder_sink_pad = gst_element_get_static_pad (GST_ELEMENT (object), "sink");
-      if (decoder_sink_pad) {
-        gst_pad_add_probe (decoder_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-            decoder_input_fps_throttle_probe, bin, NULL);
-        GST_DEBUG_OBJECT (bin, "FPS throttle probe added at decoder INPUT");
-        gst_object_unref (decoder_sink_pad);
-      }
-    }
+    decodebin_configure_nvv4l2decoder (object, bin, config);
   }
 }
 
@@ -1603,8 +1624,11 @@ populate_uri_bin (GstDsNvUriSrcBin * nvurisrcbin)
     return FALSE;
   }
 
-  if (config->uri && g_str_has_prefix (config->uri, "rtsp://")) {
-    configure_source_for_ntp_sync (nvurisrcbin->src_elem);
+  const gchar *uri = config->uri;
+  if (uri != nullptr) {
+    if (g_str_has_prefix (uri, "rtsp://")) {
+      configure_source_for_ntp_sync (nvurisrcbin->src_elem);
+    }
   }
 
   g_object_set (G_OBJECT (nvurisrcbin->src_elem), "uri", config->uri, NULL);
@@ -1661,9 +1685,16 @@ watch_source_status (gpointer data)
         current_time.tv_sec - src_bin->last_reconnect_time.tv_sec;
     if (time_since_last_reconnect_sec > (guint) src_bin->config->rtsp_reconnect_interval_sec) {
       if (time_diff_msec_since_last_reset > 3000) {
-        if (src_bin->config->rtsp_reconnect_attempts == -1 ||
-           ++src_bin->config->num_rtsp_reconnects <=
-           src_bin->config->rtsp_reconnect_attempts){
+        gboolean allow_reconnect = FALSE;
+        if (src_bin->config->rtsp_reconnect_attempts == -1) {
+          allow_reconnect = TRUE;
+        } else {
+          src_bin->config->num_rtsp_reconnects++;
+          allow_reconnect =
+              (src_bin->config->num_rtsp_reconnects <=
+                  src_bin->config->rtsp_reconnect_attempts);
+        }
+        if (allow_reconnect) {
           last_reset_time_global = current_time;
           // source is still not up, reconfigure it again.
           reset_source_pipeline (src_bin);
@@ -1707,9 +1738,16 @@ watch_source_status (gpointer data)
         time_since_last_buf_sec >=
         src_bin->config->rtsp_reconnect_interval_sec) {
       if (time_diff_msec_since_last_reset > 3000) {
-        if (src_bin->config->rtsp_reconnect_attempts == -1 ||
-           ++src_bin->config->num_rtsp_reconnects <=
-           src_bin->config->rtsp_reconnect_attempts){
+        gboolean allow_reconnect = FALSE;
+        if (src_bin->config->rtsp_reconnect_attempts == -1) {
+          allow_reconnect = TRUE;
+        } else {
+          src_bin->config->num_rtsp_reconnects++;
+          allow_reconnect =
+              (src_bin->config->num_rtsp_reconnects <=
+                  src_bin->config->rtsp_reconnect_attempts);
+        }
+        if (allow_reconnect) {
           last_reset_time_global = current_time;
 
           GST_ELEMENT_WARNING (src_bin, STREAM, FAILED,
@@ -2516,10 +2554,13 @@ gst_ds_nvurisrc_bin_change_state (GstElement * element,
   GstStateChangeReturn ret;
 
   if (transition == GST_STATE_CHANGE_NULL_TO_READY) {
-    gboolean is_ipc = nvurisrcbin->config->uri
-        && g_str_has_prefix (nvurisrcbin->config->uri, "ipc://");
-    gboolean is_rtsp = nvurisrcbin->config->uri
-        && g_str_has_prefix (nvurisrcbin->config->uri, "rtsp://");
+    const gchar *uri = nvurisrcbin->config->uri;
+    gboolean is_ipc = FALSE;
+    gboolean is_rtsp = FALSE;
+    if (uri != nullptr) {
+      is_ipc = g_str_has_prefix (uri, "ipc://");
+      is_rtsp = g_str_has_prefix (uri, "rtsp://");
+    }
     gboolean select_rtsp_mode = is_rtsp && (config->src_type == SOURCE_TYPE_RTSP
         || config->src_type == SOURCE_TYPE_AUTO);
 
@@ -2612,6 +2653,6 @@ nvurisrcbin_plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_nvurisrcbin,
-    DESCRIPTION, nvurisrcbin_plugin_init, "9.0", LICENSE,
+    DESCRIPTION, nvurisrcbin_plugin_init, "9.1", LICENSE,
     BINARY_PACKAGE, URL)
 

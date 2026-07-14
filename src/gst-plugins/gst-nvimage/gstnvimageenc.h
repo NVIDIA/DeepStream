@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef __GST_NVIMAGE_ENC_H__
 #define __GST_NVIMAGE_ENC_H__
 

@@ -154,6 +154,12 @@ handleTextEmbeddingReq (const Json::Value & req_info, const Json::Value & in,
     std::function < void (NvDsServerTextEmbeddingInfo * text_embedding_ctx, void *ctx) > text_embedding_cb,
     std::string uri);
 
+NvDsServerStatusCode
+handleImageEmbeddingReq (const Json::Value & req_info, const Json::Value & in,
+    Json::Value & response, struct mg_connection *conn,
+    std::function < void (NvDsServerImageEmbeddingInfo * image_embedding_ctx, void *ctx) > image_embedding_cb,
+    std::string uri);
+
 std::pair < int,
     std::string >
 NvDsServerStatusCodeToHttpStatusCode (NvDsServerStatusCode code)
@@ -412,7 +418,7 @@ NvDsServerStatusCode
 VersionInfo (Json::Value & response, struct mg_connection *conn)
 {
   NvDsServerStatusCode ret = NvDsServerStatusCode::StatusOk;
-  response["version"] = "DeepStream-SDK " "9.0" " - REST API Version v1";
+  response["version"] = "DeepStream-SDK " "9.1" " - REST API Version v1";
   return ret;
 }
 
@@ -555,6 +561,69 @@ handleTextEmbeddingReq (const Json::Value & req_info, const Json::Value & in,
       // Missing required fields
       response["code"] = "BadRequest";
       response["message"] = "Missing required fields: text_input and model";
+      ret = NvDsServerStatusCode::StatusBadRequest;
+    }
+  }
+
+  return ret;
+}
+
+NvDsServerStatusCode
+handleImageEmbeddingReq (const Json::Value & req_info, const Json::Value & in,
+    Json::Value & response, struct mg_connection *conn,
+    std::function < void (NvDsServerImageEmbeddingInfo * image_embedding_ctx, void *ctx) > image_embedding_cb,
+    std::string uri)
+{
+  NvDsServerStatusCode ret = NvDsServerStatusCode::StatusOk;
+  const std::string request_api =
+      req_info.get ("url", EMPTY_STRING).asString ();
+  const std::string request_method =
+      req_info.get ("method", UNKNOWN_STRING).asString ();
+
+  if (request_api.empty () || request_method == UNKNOWN_STRING) {
+    std::cout << "Malformed HTTP request" << std::endl;
+    return NvDsServerStatusCode::StatusBadRequest;
+  }
+
+  if (iequals (request_method, "post")) {
+    NvDsServerImageEmbeddingInfo image_embedding_info = { };
+    image_embedding_info.uri = uri;
+    image_embedding_info.image_embedding_flag = IMAGE_EMBEDDING_GENERATE;
+
+    void *custom_ctx = NULL;
+
+    if (in.isMember("image_path") && in.isMember("model")) {
+      image_embedding_info.image_path = in["image_path"].asString();
+      image_embedding_info.model = in["model"].asString();
+
+      if (in.isMember("bbox") && in["bbox"].isObject()) {
+        const Json::Value & bbox = in["bbox"];
+        image_embedding_info.has_bbox = TRUE;
+        image_embedding_info.bbox_left = bbox.get("left", 0.0).asDouble();
+        image_embedding_info.bbox_top = bbox.get("top", 0.0).asDouble();
+        image_embedding_info.bbox_width = bbox.get("width", 0.0).asDouble();
+        image_embedding_info.bbox_height = bbox.get("height", 0.0).asDouble();
+      } else {
+        image_embedding_info.has_bbox = FALSE;
+      }
+
+      if (image_embedding_cb) {
+        image_embedding_cb (&image_embedding_info, &custom_ctx);
+
+        if (image_embedding_info.status == IMAGE_EMBEDDING_GENERATE_SUCCESS) {
+          response["id"] = image_embedding_info.id;
+          response["created"] = Json::Value::Int64(image_embedding_info.created);
+          response["model"] = image_embedding_info.model;
+          response["data"] = image_embedding_info.data;
+        } else {
+          response["code"] = "ErrorCode";
+          response["message"] = image_embedding_info.image_embedding_log;
+          ret = image_embedding_info.err_info.code;
+        }
+      }
+    } else {
+      response["code"] = "BadRequest";
+      response["message"] = "Missing required fields: image_path and model";
       ret = NvDsServerStatusCode::StatusBadRequest;
     }
   }
@@ -1570,6 +1639,7 @@ nvds_rest_server_start (NvDsServerConfig * server_config,
   auto get_request_cb = server_cb->get_request_cb;
   auto analytics_cb = server_cb->analytics_cb;
   auto text_embedding_cb = server_cb->text_embedding_cb;
+  auto image_embedding_cb = server_cb->image_embedding_cb;
 
   const char *options[] = {
     "listening_ports", server_config->port.c_str (), 0
@@ -1672,6 +1742,9 @@ nvds_rest_server_start (NvDsServerConfig * server_config,
   );
   m_versions.insert ( {
       "/api/v1/generate_text_embeddings", "v1"}
+  );
+  m_versions.insert ( {
+      "/api/v1/generate_image_embeddings", "v1"}
   );
   m_versions.insert ( {
       "/api/v1/metrics", "v1"}
@@ -1934,6 +2007,14 @@ nvds_rest_server_start (NvDsServerConfig * server_config,
         [text_embedding_cb, uri] (const Json::Value & req_info, const Json::Value & in,
         Json::Value & out, struct mg_connection * conn) {
         return handleTextEmbeddingReq (req_info, in, out, conn, text_embedding_cb, uri);
+      };
+    }
+    else if (uri.find ("/generate_image_embeddings") != std::string::npos) {
+    /* Image Embedding Specific */
+    m_func[uri] =
+        [image_embedding_cb, uri] (const Json::Value & req_info, const Json::Value & in,
+        Json::Value & out, struct mg_connection * conn) {
+        return handleImageEmbeddingReq (req_info, in, out, conn, image_embedding_cb, uri);
       };
     }
   }

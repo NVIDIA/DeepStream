@@ -102,13 +102,13 @@ class Buffer {
   Buffer(const Buffer&);
 
   /** @brief Move constructor */
-  Buffer(Buffer&&);
+  Buffer(Buffer&&) noexcept;
 
   /** @brief Copy assignment */
   Buffer& operator=(const Buffer&);
 
   /** @brief Move assignment */
-  Buffer& operator=(Buffer&&);
+  Buffer& operator=(Buffer&&) noexcept;
 
   /** @brief Destructor */
   virtual ~Buffer();
@@ -152,6 +152,9 @@ class Buffer {
    *
    */
   virtual size_t batchSize();
+
+  /** @brief Get DeepStream batch metadata attached to this buffer */
+  BatchMetadata getBatchMetadata();
 
   /**
    * @brief create a tensor object with the buffer data

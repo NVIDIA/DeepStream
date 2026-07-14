@@ -506,8 +506,12 @@ DetectPostprocessor::fillUnclusteredOutput(NvDsInferDetectionOutput& output)
         totalObjects += m_PerClassObjectList.at(c).size();
     }
 
-    output.objects = new NvDsInferObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0) {
+        output.objects = nullptr;
+        return;
+    }
+    output.objects = new NvDsInferObject[totalObjects];
     for(const auto& perClassList : m_PerClassObjectList)
     {
         for(const auto& obj: perClassList)
@@ -548,8 +552,12 @@ InstanceSegmentPostprocessor::fillUnclusteredOutput(NvDsInferDetectionOutput& ou
         totalObjects += m_PerClassInstanceMaskList.at(c).size();
     }
 
-    output.objects = new NvDsInferObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0) {
+        output.objects = nullptr;
+        return;
+    }
+    output.objects = new NvDsInferObject[totalObjects];
     for(const auto& perClassList : m_PerClassInstanceMaskList)
     {
         for(const auto& obj: perClassList)

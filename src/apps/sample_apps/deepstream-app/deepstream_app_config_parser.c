@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <string.h>
 #include "deepstream_app.h"
 #include "deepstream_config_file_parser.h"
@@ -590,6 +591,7 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
     }
 
     if (!g_strcmp0 (*group, CONFIG_GROUP_TEXT_EMBEDDER)) {
+
       parse_err =
           !parse_text_embedder (&config->text_embedder_config, cfg_file,
           cfg_file_path);

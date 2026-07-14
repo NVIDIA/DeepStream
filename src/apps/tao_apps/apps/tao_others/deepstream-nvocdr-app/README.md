@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 ## Description
 The nvOCDR deepstream sample application for optical character detection and recognition.
 
@@ -22,8 +39,7 @@ Refer to [NVIDIA-Optical-Character-Detection-and-Recognition-Solution](https://g
 # git clone https://github.com/NVIDIA-AI-IOT/NVIDIA-Optical-Character-Detection-and-Recognition-Solution.git nvocdr
 $ git submodule update --init --recursive
 $ export CUDA_VER=<cuda_version>
-    For x86, CUDA_VER=13.1
-    For Jetson, CUDA_VER=13.0
+    CUDA_VER=13.2
 $ make -C nvocdr
 $ make -C nvocdr/deepstream
 $ cp nvocdr/libnvocdr.so /opt/nvidia/deepstream/deepstream/lib/

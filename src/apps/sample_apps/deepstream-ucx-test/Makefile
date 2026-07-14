@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -21,21 +19,26 @@ ifeq ($(CUDA_VER),)
 endif
 
 APP:= deepstream-ucx-test-app
-include ../Rules.mk
 
-NVDS_VERSION?=9.0
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
+
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS:= -DPLATFORM_TEGRA
+endif
+
 SRCS:= deepstream_ucx_test_app.c
+HDRS:= deepstream_ucx_test_app.h
 
 INCS:= $(wildcard *.h)
 
 PKGS:= gstreamer-1.0
 
 OBJS:= $(SRCS:.c=.o)
-OBJS:= $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 CFLAGS+= -fPIC -I../../../../includes \
 	 -I /usr/local/cuda-$(CUDA_VER)/include
@@ -47,17 +50,19 @@ LIBS:= $(shell pkg-config --libs $(PKGS))
 LIBS+= -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart \
        -lcuda -Wl,-rpath,$(LIB_INSTALL_DIR)
 
-all: $(BIN_DIR)/$(APP)
+all: $(APP)
 
-$(OBJ_DIR)/%.o: %.c $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
-	$(CC) -c -o $@ $(CFLAGS) $<
+%.o: %.c $(INCS) Makefile
+	        $(CC) -c -o $@ $(CFLAGS) $<
 
-$(BIN_DIR)/$(APP): $(OBJS) Makefile
-	@mkdir -p $(BIN_DIR)
-	$(CXX) -o $(BIN_DIR)/$(APP) $(OBJS) $(LIBS)
+%.o: %.cpp $(INCS) Makefile
+	        $(CXX) -c -o $@ $(CFLAGS) $<
 
-install: $(BIN_DIR)/$(APP)
+$(APP): $(OBJS) Makefile
+	        $(CXX) -o $(APP) $(OBJS) $(LIBS)
+
+install: $(APP)
+	        cp -rv $(APP) $(APP_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)/$(APP)
+	        rm -rf $(OBJS) $(APP)

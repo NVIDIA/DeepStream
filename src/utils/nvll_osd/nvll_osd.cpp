@@ -67,16 +67,22 @@ NvOSDFdMap *set_cairo_context(NvOSD_Ctx *ctx, NvBufSurfaceParams *buf_ptr, NvBuf
         int err = 0;
         if (buf_ptr != NULL)
         {
-            NvBufSurface *nvbuf_surf = NULL;
-            err = NvBufSurfaceFromFd (buf_ptr->bufferDesc, (void**)(&nvbuf_surf));
+            NvBufSurface *resolved_surf = NULL;
+            err = NvBufSurfaceFromFd (buf_ptr->bufferDesc, (void**)(&resolved_surf));
             if(err != 0)
             {
                 return NULL;
             }
+            nvbuf_surf = resolved_surf;
         }
-        auto map_entry = ctx->map_list->find (nvbuf_surf->surfaceList[0].bufferDesc);
+        if (!nvbuf_surf)
+        {
+            return NULL;
+        }
+        int current_fd = nvbuf_surf->surfaceList[0].bufferDesc;
+        auto map_entry = ctx->map_list->find (current_fd);
 
-        if (map_entry == ctx->map_list->end() || !nvbuf_surf->surfaceList[0].mappedAddr.addr[0])
+        if (map_entry == ctx->map_list->end())
         {
             err = NvBufSurfaceMap (nvbuf_surf, -1, -1, NVBUF_MAP_READ_WRITE);
             if (err != 0)
@@ -85,32 +91,25 @@ NvOSDFdMap *set_cairo_context(NvOSD_Ctx *ctx, NvBufSurfaceParams *buf_ptr, NvBuf
                 return NULL;
             }
 
-            if (map_entry != ctx->map_list->end())
-            {
-                nvosd_map = (NvOSDFdMap *) map_entry->second;
-                cairo_destroy (nvosd_map->cairo_context);
-                cairo_surface_destroy (nvosd_map->surface);
-                free(nvosd_map);
-                ctx->map_list->erase (map_entry);
-            }
-
             nvosd_map = (NvOSDFdMap *)calloc(1, sizeof(NvOSDFdMap));
 
             nvosd_map->surface = cairo_image_surface_create_for_data
                 ((unsigned char *)nvbuf_surf->surfaceList[0].mappedAddr.addr[0], CAIRO_FORMAT_ARGB32, nvbuf_surf->surfaceList[0].width,
                 nvbuf_surf->surfaceList[0].height, nvbuf_surf->surfaceList[0].pitch);
 
-            nvosd_map->dmabuf_fd = nvbuf_surf->surfaceList[0].bufferDesc;
+            nvosd_map->dmabuf_fd = current_fd;
             nvosd_map->size = nvbuf_surf->surfaceList[0].dataSize;
             nvosd_map->mapping = (void *)nvbuf_surf->surfaceList[0].mappedAddr.addr[0];
             nvosd_map->cairo_context = cairo_create (nvosd_map->surface);
             nvosd_map->surf = nvbuf_surf;
 
-            ctx->map_list->insert (std::make_pair (nvbuf_surf->surfaceList[0].bufferDesc, nvosd_map));
+            ctx->map_list->insert (std::make_pair (current_fd, nvosd_map));
         }
         else
         {
             nvosd_map = (NvOSDFdMap *) map_entry->second;
+            nvbuf_surf->surfaceList[0].mappedAddr.addr[0] = nvosd_map->mapping;
+            nvosd_map->surf = nvbuf_surf;
         }
 
         err = NvBufSurfaceSyncForCpu (nvbuf_surf, -1, -1);
@@ -261,26 +260,17 @@ void nvll_osd_destroy_context(NvOSDCtxHandle ctx)
 
     if(pctx->is_integrated) {
         int err = 0;
-        NvBufSurface *nvbuf_surf = NULL;
-
         if (pctx->map_list->size())
         {
             for (auto map_entry = pctx->map_list->begin();
                     map_entry != pctx->map_list->end(); ++map_entry)
             {
                 nvosd_map = (NvOSDFdMap *) map_entry->second;
-                err = NvBufSurfaceFromFd (nvosd_map->dmabuf_fd, (void**)(&nvbuf_surf));
+                err = NvBufSurfaceUnMap (nvosd_map->surf, -1, -1);
                 if (err != 0)
                 {
-                    return;
+                    NVOSD_PRINT_E("Buffer unmapping failed \n");
                 }
-
-                err = NvBufSurfaceUnMap (nvbuf_surf, -1, -1);
-                if (err != 0)
-                {
-                    return;
-                }
-
                 cairo_destroy (nvosd_map->cairo_context);
                 cairo_surface_destroy (nvosd_map->surface);
                 free(nvosd_map);

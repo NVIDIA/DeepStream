@@ -109,6 +109,11 @@ typedef enum
 
 typedef enum
 {
+  IMAGE_EMBEDDING_GENERATE = 1 << 0,
+} NvDsServerImageEmbeddingPropFlag;
+
+typedef enum
+{
   ROI_UPDATE = 1 << 0,
 } NvDsServerRoiPropFlag;
 
@@ -230,6 +235,12 @@ typedef enum
   TEXT_EMBEDDING_GENERATE_SUCCESS = 0,
   TEXT_EMBEDDING_GENERATE_FAIL,
 } NvDsServerTextEmbeddingStatus;
+
+typedef enum
+{
+  IMAGE_EMBEDDING_GENERATE_SUCCESS = 0,
+  IMAGE_EMBEDDING_GENERATE_FAIL,
+} NvDsServerImageEmbeddingStatus;
 
 typedef enum
 {
@@ -409,6 +420,25 @@ typedef struct NvDsServerTextEmbeddingInfo
   NvDsServerErrorInfo err_info;
 } NvDsServerTextEmbeddingInfo;
 
+typedef struct NvDsServerImageEmbeddingInfo
+{
+  std::string image_path;
+  std::string model;
+  gboolean has_bbox;
+  gdouble bbox_left;
+  gdouble bbox_top;
+  gdouble bbox_width;
+  gdouble bbox_height;
+  std::string id;
+  long created;
+  Json::Value data;
+  NvDsServerImageEmbeddingStatus status;
+  NvDsServerImageEmbeddingPropFlag image_embedding_flag;
+  std::string image_embedding_log;
+  std::string uri;
+  NvDsServerErrorInfo err_info;
+} NvDsServerImageEmbeddingInfo;
+
 typedef struct NvDsServerAppInstanceInfo
 {
   std::string root_key;
@@ -480,6 +510,7 @@ typedef struct NvDsServerCallbacks
     void *ctx) > appinstance_cb;
   std::function < void (NvDsServerAnalyticsInfo * analytics_info, void *ctx) > analytics_cb;
   std::function < void (NvDsServerTextEmbeddingInfo * text_embedding_info, void *ctx) > text_embedding_cb;
+  std::function < void (NvDsServerImageEmbeddingInfo * image_embedding_info, void *ctx) > image_embedding_cb;
   std::function < void (NvDsServerGetRequestInfo * get_request_info,
     void *ctx) > get_request_cb;
   std::unordered_map <std::string, cb_func> custom_cb_endpt;

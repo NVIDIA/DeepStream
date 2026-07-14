@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef DS3D_DATAFILTER_LIDAR_PREPROCESS_CONFIG_H
 #define DS3D_DATAFILTER_LIDAR_PREPROCESS_CONFIG_H
 

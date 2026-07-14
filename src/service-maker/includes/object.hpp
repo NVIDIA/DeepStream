@@ -118,13 +118,13 @@ public:
   Object(const Object&);
 
   /** @brief Move constructor */
-  Object(Object&&);
+  Object(Object&&) noexcept;
 
   /** @brief Copy assignment */
   Object& operator=(const Object&);
 
   /** @brief Move assignment */
-  Object& operator=(Object&&);
+  Object& operator=(Object&&) noexcept;
 
   /** @brief Destructor */
   virtual ~Object();

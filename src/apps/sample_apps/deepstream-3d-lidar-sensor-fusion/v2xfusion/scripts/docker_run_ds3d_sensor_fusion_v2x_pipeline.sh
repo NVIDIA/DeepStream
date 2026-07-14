@@ -23,7 +23,7 @@ set -e
 # debug
 # set -x
 
-NVDS_VERSION=${NVDS_VERSION:-9.0}
+NVDS_VERSION=${NVDS_VERSION:-9.1}
 DEFAULT_CONFIG_FILE="ds3d_lidar_video_sensor_v2x_fusion.yaml"
 TARGET_IMAGE="nvcr.io/nvidia/deepstream:${NVDS_VERSION}-triton-multiarch"
 TARGET_DEVICE=$(uname -m)
@@ -63,7 +63,7 @@ fi
 APP="/opt/nvidia/deepstream/deepstream/bin/deepstream-3d-lidar-sensor-fusion"
 APP_CMD="-c ${CONFIG_FILE}"
 
-[ -z "$DISPLAY" ] && (echo "Please export correct DISPLAY before running the pipeline."; exit -1)
+[[ -z "$DISPLAY" ]] && (echo "Please export correct DISPLAY before running the pipeline."; exit -1)
 xhost +
 
 MOUNT_OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock \
@@ -76,9 +76,9 @@ MOUNT_OPTIONS+=" -v ./v2xfusion/models/v2xfusion:${TARGET_MODEL_ROOT}"
 MOUNT_OPTIONS+=" -v $(pwd):${TARGET_WORKSPACE}"
 
 DOCKER_GPU_ARG="--gpus all"
-if [ "${TARGET_DEVICE}" = "x86_64" ]; then
+if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
     DOCKER_GPU_ARG="--gpus all"
-elif [ "${TARGET_DEVICE}" = "aarch64" ]; then
+elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
     DOCKER_GPU_ARG="--runtime nvidia"
 else
     echo "Unsupported platform ${TARGET_DEVICE}"

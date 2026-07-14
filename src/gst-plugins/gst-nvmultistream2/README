@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 Refer to the DeepStream SDK documentation for a description of the "Gst-nvstreammux New"
 plugin.
@@ -31,13 +29,14 @@ Compiling and installing the plugin:
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
 
+NOTE: <DS_ROOT> is the path where the repo is cloned.
+
 Ensure below order for build
-   $ cd libs/nvstreammux/nvstreammux
+   $ cd <DS_ROOT>/src/utils/nvstreammux
    $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
    $ sudo make
-   $ cd gst-plugins/gst-nvmultistream2/gst-nvmultistream2
+   $ cd <DS_ROOT>/src/gst-plugins/gst-nvmultistream2
    $ sudo make && sudo make install
 --------------------------------------------------------------------------------
 

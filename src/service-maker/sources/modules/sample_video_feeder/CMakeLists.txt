@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -24,8 +22,4 @@ find_package(CUDA)
 add_library(sample_video_feeder SHARED sample_video_feeder.cpp)
 # Add include directories for cuda
 target_include_directories(sample_video_feeder PRIVATE ${CUDA_INCLUDE_DIRS})
-include_directories(
-    /usr/local/cuda/include
-)
-target_link_libraries(sample_video_feeder PRIVATE  nvds_service_maker nvds_service_maker_utils
-    /usr/local/cuda/lib64/libcudart.so)
+target_link_libraries(sample_video_feeder PRIVATE nvds_service_maker nvds_service_maker_utils ${CUDA_LIBRARIES})

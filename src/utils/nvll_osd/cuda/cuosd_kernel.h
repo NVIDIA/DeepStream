@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #ifndef CUOSD_KERNEL_H
 #define CUOSD_KERNEL_H
 

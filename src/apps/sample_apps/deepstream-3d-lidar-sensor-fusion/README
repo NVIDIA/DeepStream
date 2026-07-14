@@ -82,7 +82,7 @@ Deepstream version number {DS_VERSION_NUM} >= 9.0
 
 Run script to build target image on top of deepstream-triton base image:
 
-$ bevfusion/docker_build_bevfusion_image.sh nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
+$ NVDS_VERSION=xx bevfusion/docker_build_bevfusion_image.sh nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
 
 Note: {xx.xx.xx} >= 9.0
 The latest base image nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch can be
@@ -90,7 +90,7 @@ found from
 https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
 
 Usage:
-    bevfusion/docker_build_bevfusion_image.sh [BASE_IMAGE] [NVDS_VERSION] [TARGET_IMAGE] [COMMIT_ID] [SPCONV_CUDA_VERSION]
+    bevfusion/docker_build_bevfusion_image.sh [BASE_IMAGE] [TARGET_IMAGE] [COMMIT_ID] [SPCONV_CUDA_VERSION]
       BASE_IMAGE: base image for build bevfusion image
       TARGET_IMAGE: user defined the target image name, default: deepstream-triton-bevfusion
       COMMIT_ID: commit id of CUDA-BEVFusion repository
@@ -113,7 +113,7 @@ $ sudo cp {PATH TO YOUR model.zip DOWNLOAD} ./bevfusion/model_root/model.zip
 
 Then run script based on the target docker image to build the models:
 
-$ bevfusion/docker_run_generate_trt_engine_models.sh bevfusion/model_root
+$ NVDS_VERSION=xx bevfusion/docker_run_generate_trt_engine_models.sh bevfusion/model_root
 
 After that, all built models can be found in host diretory bevfusion/model_root
 
@@ -128,7 +128,7 @@ root directory from previous steps. The script would start triton_lmm python mod
 to serve the BEVFusion model with NVIDIA Triton inference server.
 Run script to start the server.
 
-$ bevfusion/docker_run_triton_server_bevfusion.sh bevfusion/model_root
+$ NVDS_VERSION=xx bevfusion/docker_run_triton_server_bevfusion.sh bevfusion/model_root
 
 3.2 Download test data and Start DS3D BEVFusion pipeline
 ===============================================================================
@@ -154,7 +154,7 @@ For x86:
 Run the script based on the target docker image to start the pipeline.
 The script will also check and download the dataset if it does not exist.
 
-$ bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh \
+$ NVDS_VERSION=xx bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh \
   ds3d_lidar_plus_multi_cam_bev_fusion.yaml
 
 ds3d_lidar_plus_multi_cam_bev_fusion.yaml, is the bevfusion pipeline config file.
@@ -162,7 +162,7 @@ ds3d_lidar_plus_multi_cam_bev_fusion.yaml, is the bevfusion pipeline config file
 Render 3D bbox and labels into images without lidar data projection, Users can replace
 this config file and run
 
-$ bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh \
+$ NVDS_VERSION=xx bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh \
   ds3d_lidar_plus_multi_cam_bev_fusion_with_label.yaml
 
 Note: If tritonserver is running on a different machine than the pipeline, be sure to update the grpc config

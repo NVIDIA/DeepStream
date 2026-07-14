@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,12 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-
-# Delegates to the nvdsinferserver custom-process library so the mono-repo
-# build.sh sample_apps loop picks this sample up. The Triton C++ custom
-# backend under nvds_triton_cpp_custom_backend/ is built separately via cmake
-# (see README) and is not wired into build.sh.
 
 SUBDIRS := nvdsinferserver_custom_impl_ensemble
 

@@ -272,7 +272,9 @@ nvds_c2d_parse_sensor (NvDsC2DContext * ctx, const gchar * file)
           NVGSTDS_ERR_MSG_V ("Duplicate entries for key %s", sensorStr);
           goto done;
         }
-        g_hash_table_insert (hashMap, sensorStr, &sensorId);
+        gint *pSensorId = g_new (gint, 1);
+        *pSensorId = sensorId;
+        g_hash_table_insert (hashMap, sensorStr, pSensorId);
       }
     }
   }

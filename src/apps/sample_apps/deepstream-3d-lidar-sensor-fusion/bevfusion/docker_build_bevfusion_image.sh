@@ -35,8 +35,8 @@ set -e
 
 # update BASE_IMAGE to deepstream triton release version, minumum version: 7.0.0
 # BASE_IMAGE=nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
-BASE_IMAGE="nvcr.io/nvidia/deepstream:9.0-triton-multiarch"
-NVDS_VERSION=${NVDS_VERSION:-9.0}
+BASE_IMAGE="nvcr.io/nvidia/deepstream:9.1-triton-multiarch"
+NVDS_VERSION=${NVDS_VERSION:-9.1}
 TARGET_IMAGE="deepstream-triton-bevfusion:${NVDS_VERSION}"
 WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
 COMMIT_ID=840392ade92dc75ae513ef829173d5e27ce33b70

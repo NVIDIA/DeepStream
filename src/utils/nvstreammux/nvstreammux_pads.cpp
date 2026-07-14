@@ -137,7 +137,7 @@ void SinkPad::wait_if_queue_full()
     {
         debug_print("source_id=%u buffer_count=%lu max_buffer_count=%lu\n",
                         source_id, buffer_count, max_buffer_count);
-        cv_input_full.wait(lck);
+        cv_input_full.wait(lck, [&]{ return !max_buffer_count || buffer_count <= max_buffer_count; });
     }
 }
 

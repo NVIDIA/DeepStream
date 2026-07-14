@@ -477,7 +477,7 @@ gst_nvds_osd_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
       /** Use of buf_ptr is deprecated, use 'nvdsosd->frame_text_params->surf' instead */
       nvdsosd->frame_text_params->buf_ptr = NULL;
       nvdsosd->frame_text_params->mode = nvdsosd->nvdsosd_mode;
-      nvdsosd->frame_rect_params->surf = surface;
+      nvdsosd->frame_text_params->surf = surface;
       if (nvll_osd_put_text (nvdsosd->nvdsosd_context,
               nvdsosd->frame_text_params) == -1) {
         GST_ELEMENT_ERROR (nvdsosd, RESOURCE, FAILED,
@@ -1136,4 +1136,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_osd,
     PACKAGE_DESCRIPTION,
-    nvdsosd_init, "9.0", PACKAGE_LICENSE, PACKAGE_NAME, PACKAGE_URL)
+    nvdsosd_init, "9.1", PACKAGE_LICENSE, PACKAGE_NAME, PACKAGE_URL)

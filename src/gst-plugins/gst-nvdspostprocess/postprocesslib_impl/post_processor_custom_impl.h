@@ -50,8 +50,8 @@ typedef bool (* NvDsPostProcessParseCustomFunc) (
  * after defining the function.
  */
 #define CHECK_CUSTOM_PARSE_FUNC_PROTOTYPE(customParseFunc) \
-    static void checkFunc_ ## customParseFunc (NvDsPostProcessParseCustomFunc func = customParseFunc) \
-        { checkFunc_ ## customParseFunc (); }; \
+    static void __attribute__((unused)) checkFunc_ ## customParseFunc (NvDsPostProcessParseCustomFunc func = customParseFunc) \
+        { (void)func; }; \
     extern "C" bool customParseFunc (std::vector<NvDsInferLayerInfo> const &outputLayersInfo, \
            NvDsInferNetworkInfo  const &networkInfo, \
            NvDsPostProcessParseDetectionParams const &detectionParams, \
@@ -79,8 +79,8 @@ typedef bool (* NvDsPostProcessInstanceMaskParseCustomFunc) (
  * after defining the function.
  */
 #define CHECK_CUSTOM_INSTANCE_MASK_PARSE_FUNC_PROTOTYPE(customParseFunc) \
-    static void checkFunc_ ## customParseFunc (NvDsPostProcessInstanceMaskParseCustomFunc func = customParseFunc) \
-        { checkFunc_ ## customParseFunc (); }; \
+    static void __attribute__((unused)) checkFunc_ ## customParseFunc (NvDsPostProcessInstanceMaskParseCustomFunc func = customParseFunc) \
+        { (void)func; }; \
     extern "C" bool customParseFunc (std::vector<NvDsInferLayerInfo> const &outputLayersInfo, \
            NvDsInferNetworkInfo  const &networkInfo, \
            NvDsPostProcessParseDetectionParams const &detectionParams, \
@@ -111,8 +111,8 @@ typedef bool (* NvDsPostProcessClassiferParseCustomFunc) (
  * after defining the function.
  */
 #define CHECK_CUSTOM_CLASSIFIER_PARSE_FUNC_PROTOTYPE(customParseFunc) \
-    static void checkFunc_ ## customParseFunc (NvDsPostProcessClassiferParseCustomFunc func = customParseFunc) \
-        { checkFunc_ ## customParseFunc (); }; \
+    static void __attribute__((unused)) checkFunc_ ## customParseFunc (NvDsPostProcessClassiferParseCustomFunc func = customParseFunc) \
+        { (void)func; }; \
     extern "C" bool customParseFunc (std::vector<NvDsInferLayerInfo> const &outputLayersInfo, \
            NvDsInferNetworkInfo  const &networkInfo, \
            float classifierThreshold, \

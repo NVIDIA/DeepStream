@@ -1140,5 +1140,5 @@ nvdsmetamux_plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_metamux,
-    DESCRIPTION, nvdsmetamux_plugin_init, "9.0", LICENSE, BINARY_PACKAGE,
+    DESCRIPTION, nvdsmetamux_plugin_init, "9.1", LICENSE, BINARY_PACKAGE,
     URL)

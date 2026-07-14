@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -21,12 +19,12 @@ ifeq ($(CUDA_VER),)
 endif
 
 APP:= deepstream-server-app
-include ../Rules.mk
 
 CC:= g++
 
+TARGET_DEVICE = $(shell g++ -dumpmachine | cut -f1 -d -)
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
@@ -38,7 +36,6 @@ INCS:= $(wildcard *.h) \
 PKGS:= gstreamer-1.0
 
 OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 CFLAGS+= -I../../../../includes \
 	 -I../../common/includes \
@@ -50,24 +47,27 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS:= $(shell pkg-config --libs $(PKGS))
 
 LIBS+= -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -lnvdsgst_helper -lnvdsgst_customhelper -lnvds_rest_server -lm \
--L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_meta -lnvds_meta -lnvds_yml_parser \
-		-lcuda -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_rest_server \
-		-lgstnvcustomhelper -ljsoncpp
+		-L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvds_yml_parser \
+		-lcuda -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_rest_server
 
+ifeq ($(TARGET_DEVICE),aarch64)
+   LIBS+= -L/usr/lib/aarch64-linux-gnu/tegra/ -lgstnvcustomhelper -ljsoncpp
+else
+   LIBS+= -L$(LIB_INSTALL_DIR) -lgstnvcustomhelper -ljsoncpp
+endif
 
-all: $(BIN_DIR)/$(APP)
+all: $(APP)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
-$(BIN_DIR)/$(APP): $(OBJS) Makefile
-	@mkdir -p $(BIN_DIR)
-	$(CC) -o $(BIN_DIR)/$(APP) $(OBJS) $(LIBS)
+$(APP): $(OBJS) Makefile
+	$(CC) -o $(APP) $(OBJS) $(LIBS)
 
-install: $(BIN_DIR)/$(APP)
+install: $(APP)
+	cp -rv $(APP) $(APP_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)/$(APP)
+	rm -rf $(OBJS) $(APP)
 
 

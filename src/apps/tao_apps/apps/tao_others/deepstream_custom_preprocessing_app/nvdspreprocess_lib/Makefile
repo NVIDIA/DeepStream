@@ -42,7 +42,7 @@ LIB:=libcustom2d_preprocess.so
 CFLAGS += -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror \
          -I/usr/local/cuda-$(CUDA_VER)/include \
          -I/opt/nvidia/deepstream/deepstream/sources/includes \
-         -I/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspreprocess/include
+         -I../../../../../../gst-plugins/gst-nvdspreprocess/include
 
 GST_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/

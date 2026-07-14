@@ -19,7 +19,7 @@
 for img in $1/*.jpg
 do
 kitti_name=$2/$(basename $img .jpg).txt
-if [  ! -f  $kitti_name ]; then
+if [[ ! -f "$kitti_name" ]]; then
 echo "$kitti_name not exist, will remove the pair."
 rm $img
 fi
@@ -28,7 +28,7 @@ done
 for kit in $2/*.txt
 do
 img_name=$1/$(basename $kit .txt).jpg
-if [ ! -f $img_name ]; then
+if [[ ! -f "$img_name" ]]; then
 echo "$img_name not exist, will remove the pair."
 rm $kit
 fi

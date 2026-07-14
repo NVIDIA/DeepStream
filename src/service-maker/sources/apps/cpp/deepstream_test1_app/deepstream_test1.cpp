@@ -82,11 +82,15 @@ int main(int argc, char *argv[]) {
         pipeline["infer"].set("filter-out-class-ids", "0;1;2;3");
         pipeline.attach("infer", "resnet_tensor_parser", "tensor parser", "", "stream-width", (int)stream_width, "stream-height", (int)stream_height);
       } else {
-        pipeline.attach("infer", new BufferProbe("counter", new ObjectCounter));
+        auto *counter = new ObjectCounter;
+        auto *probe = new BufferProbe("counter", counter);
+        pipeline.attach("infer", probe);
       }
       pipeline.start().wait();
     } else {
       Pipeline pipeline("deepstream-test1");
+      auto *counter = new ObjectCounter;
+      auto *probe = new BufferProbe("counter", counter);
       pipeline.add("filesrc", "src", "location", file)
           .add("h264parse", "parser")
           .add("nvv4l2decoder", "decoder")
@@ -98,7 +102,7 @@ int main(int argc, char *argv[]) {
           .link("src", "parser", "decoder")
           .link({"decoder", "mux"}, {"", "sink_%u"})
           .link("mux", "infer", "converter", "osd", "sink")
-          .attach("infer", new BufferProbe("counter", new ObjectCounter))
+          .attach("infer", probe)
           .attach("infer", "sample_video_probe", "my probe", "src", "font-size", 20)
           .start()
           .wait();

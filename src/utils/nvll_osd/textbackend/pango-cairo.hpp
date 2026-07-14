@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #ifndef BACKEND_PANGO_CAIRO_HPP
 #define BACKEND_PANGO_CAIRO_HPP
 

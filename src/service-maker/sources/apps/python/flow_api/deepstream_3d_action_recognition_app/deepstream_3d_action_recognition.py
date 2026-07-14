@@ -1,5 +1,3 @@
-#
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,8 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-#
 
 from pyservicemaker import Pipeline, Flow, BatchMetadataOperator, Probe, osd
 from multiprocessing import Process
@@ -80,6 +76,40 @@ class AddLabel(BatchMetadataOperator):
     super().__init__()
     self._frame_count = 0
 
+  def _add_label_text(self, batch_meta, roi_meta, label):
+    display_text = "Label: " + label
+
+    text = osd.Text()
+    text.display_text = display_text.encode('ascii')
+    text.x_offset = int(roi_meta.roi.left)
+    text.y_offset = max(int(roi_meta.roi.top - 10), 0)
+    text.font.name = osd.FontFamily.Serif
+    text.font.size = 12
+    text.font.color = osd.Color(1.0, 1.0, 1.0, 1.0)
+    text.set_bg_color = True
+    text.bg_color = osd.Color(0.0, 0.0, 0.0, 1.0)
+
+    display_meta = batch_meta.acquire_display_meta()
+    display_meta.add_text(text)
+    roi_meta.frame_meta.append(display_meta)
+
+  def _add_fps_text(self, batch_meta, frame_meta, fps):
+    fps_text = "FPS: {:.2f}".format(fps)
+
+    text = osd.Text()
+    text.display_text = fps_text.encode('ascii')
+    text.x_offset = 0
+    text.y_offset = 40
+    text.font.name = osd.FontFamily.Serif
+    text.font.size = 10
+    text.font.color = osd.Color(1.0, 1.0, 1.0, 1.0)
+    text.set_bg_color = True
+    text.bg_color = osd.Color(0.0, 0.0, 0.0, 1.0)
+
+    display_meta = batch_meta.acquire_display_meta()
+    display_meta.add_text(text)
+    frame_meta.append(display_meta)
+
   def handle_metadata(self, batch_meta):
     for user_meta in batch_meta.preprocess_batch_items:
       preprocess_batch_meta = user_meta.as_preprocess_batch()
@@ -90,43 +120,13 @@ class AddLabel(BatchMetadataOperator):
           num_labels = classifier_meta.n_labels
           for i in range(num_labels):
             label = classifier_meta.get_n_label(i)
-            display_text = "Label: " + label
+            self._add_label_text(batch_meta, roi_meta, label)
 
-            text = osd.Text()
-            text.display_text = display_text.encode('ascii')
-            text.x_offset = int(roi_meta.roi.left)
-            text.y_offset = max(int(roi_meta.roi.top - 10), 0)
-            text.font.name = osd.FontFamily.Serif
-            text.font.size = 12
-            text.font.color = osd.Color(1.0, 1.0, 1.0, 1.0)
-            text.set_bg_color = True
-            text.bg_color = osd.Color(0.0, 0.0, 0.0, 1.0)
-
-            display_meta = batch_meta.acquire_display_meta()
-            display_meta.add_text(text)
-            roi_meta.frame_meta.append(display_meta)
-
-    # FPS calculation and OSD display per frame
     for frame_meta in batch_meta.frame_items:
       fps = g_fps_cal.update_fps(frame_meta.source_id)
       if fps >= 0:
-        fps_text = "FPS: {:.2f}".format(fps)
+        self._add_fps_text(batch_meta, frame_meta, fps)
 
-        text = osd.Text()
-        text.display_text = fps_text.encode('ascii')
-        text.x_offset = 0
-        text.y_offset = 40
-        text.font.name = osd.FontFamily.Serif
-        text.font.size = 10
-        text.font.color = osd.Color(1.0, 1.0, 1.0, 1.0)
-        text.set_bg_color = True
-        text.bg_color = osd.Color(0.0, 0.0, 0.0, 1.0)
-
-        display_meta = batch_meta.acquire_display_meta()
-        display_meta.add_text(text)
-        frame_meta.append(display_meta)
-
-    # Periodically print FPS stats to console
     self._frame_count += 1
     if self._frame_count >= FPS_INTERVAL:
       self._frame_count = 0

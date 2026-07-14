@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 CUDA_HOME:=/usr/local/cuda
@@ -25,8 +23,8 @@ endif
 $(info CUDA_HOME=$(CUDA_HOME))
 
 NVDS_VERSION?=
-DS_PATH=../../../
-#DS_PATH=../../../-adfasdf
+DS_PATH=/opt/nvidia/deepstream/deepstream
+#DS_PATH=/opt/nvidia/deepstream/deepstream-adfasdf
 ifeq ($(NVDS_VERSION),)
   $(info NVDS_VERSION is not set, trying to figure out)
   FULL_PATH:=$(realpath $(DS_PATH))
@@ -45,9 +43,13 @@ $(info DS_HOME=$(DS_HOME))
 TARGET_LIB:=libnvds_lidarfileread.so
 
 CC = g++
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
 CFLAGS:= -fvisibility=hidden -Wall -Werror
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS+= -DPLATFORM_TEGRA
+endif
 
 PKGS:= yaml-cpp
 
@@ -82,7 +84,7 @@ $(TARGET_LIB): $(TARGET_LIB_OBJS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
 install: $(TARGET_LIB)
-	ldconfig
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(TARGET_LIB_OBJS) $(TARGET_LIB)

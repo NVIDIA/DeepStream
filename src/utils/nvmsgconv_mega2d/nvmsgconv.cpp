@@ -50,10 +50,14 @@ nvds_msg2p_ctx_create(const gchar* file, NvDsPayloadType type)
 
         if (g_str_has_suffix(file, ".csv")) {
             retVal = nvds_msg2p_parse_csv(ctx->privData, file);
-        } else if (g_str_has_suffix(file, ".yml") || g_str_has_suffix(file, ".yaml")) {
-            retVal = nvds_msg2p_parse_yaml(ctx->privData, file);
         } else {
-            retVal = nvds_msg2p_parse_key_value(ctx->privData, file);
+            bool hasYmlSuffix  = g_str_has_suffix(file, ".yml");
+            bool hasYamlSuffix = g_str_has_suffix(file, ".yaml");
+            if (hasYmlSuffix || hasYamlSuffix) {
+                retVal = nvds_msg2p_parse_yaml(ctx->privData, file);
+            } else {
+                retVal = nvds_msg2p_parse_key_value(ctx->privData, file);
+            }
         }
     } else {
         ctx = new NvDsMsg2pCtx;
@@ -62,7 +66,9 @@ nvds_msg2p_ctx_create(const gchar* file, NvDsPayloadType type)
          */
         if (file) {
             ctx->privData = create_deepstream_schema_ctx();
-            if (g_str_has_suffix(file, ".yml") || g_str_has_suffix(file, ".yaml")) {
+            bool hasYmlSuffix  = g_str_has_suffix(file, ".yml");
+            bool hasYamlSuffix = g_str_has_suffix(file, ".yaml");
+            if (hasYmlSuffix || hasYamlSuffix) {
                 retVal = nvds_msg2p_parse_yaml(ctx->privData, file);
             } else {
                 retVal = nvds_msg2p_parse_key_value(ctx->privData, file);

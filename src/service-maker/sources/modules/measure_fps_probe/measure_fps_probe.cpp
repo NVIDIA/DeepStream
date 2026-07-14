@@ -22,6 +22,16 @@
 
 using namespace deepstream;
 
+DS_CUSTOM_FACTORY_DEFINE_PARAMS_BEGIN(probe_param_spec)
+DS_CUSTOM_FACTORY_DEFINE_PARAM(
+  interval,
+  integer,
+  "interval",
+  "FPS measurement printing interval in seconds (unsigned integer, must be > 0; default 5)",
+  5
+)
+DS_CUSTOM_FACTORY_DEFINE_PARAMS_END
+
 #define FACTORY_NAME "measure_fps_probe"
 
 DS_CUSTOM_PLUGIN_DEFINE(
@@ -30,12 +40,14 @@ DS_CUSTOM_PLUGIN_DEFINE(
     "0.1",
     "Proprietary")
 
-DS_CUSTOM_FACTORY_DEFINE(
+DS_CUSTOM_FACTORY_DEFINE_WITH_PARAMS(
   FACTORY_NAME,
   "fps measurement calculating custom probe factory",
   "probe",
   "this is a fps measurement custom probe factory",
   "NVIDIA",
+  "",
+  probe_param_spec,
   BufferProbe,
   FPSCounter
 )

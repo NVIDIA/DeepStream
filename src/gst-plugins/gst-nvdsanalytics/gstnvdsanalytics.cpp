@@ -254,8 +254,11 @@ gst_nvdsanalytics_set_property (GObject * object, guint prop_id,
       /* Parse the initialization parameters from the config file. This function
         * gives preference to values set through the set_property function over
         * the values set in the config file. */
-      if (g_str_has_suffix(nvdsanalytics->config_file_path, ".yml") ||
-          g_str_has_suffix(nvdsanalytics->config_file_path, ".yaml"))
+      gboolean is_yml_ext =
+          g_str_has_suffix (nvdsanalytics->config_file_path, ".yml");
+      gboolean is_yaml_ext =
+          g_str_has_suffix (nvdsanalytics->config_file_path, ".yaml");
+      if (is_yml_ext || is_yaml_ext)
       {
           nvdsanalytics->config_file_parse_successful =
                 nvdsanalytics_parse_yaml_config_file (nvdsanalytics,
@@ -416,9 +419,11 @@ gst_nvdsanalytics_transform_ip (GstBaseTransform * btrans, GstBuffer * inbuf)
   if(nvdsanalytics->reload_config){
     printf("Ready to reload configuration file: %s\n", nvdsanalytics->config_file_path);
     g_mutex_lock (&nvdsanalytics->analytic_mutex);
-    if (g_str_has_suffix(nvdsanalytics->config_file_path, ".yml") ||
-        g_str_has_suffix(nvdsanalytics->config_file_path, ".yaml"))
-    {
+    gboolean is_yml_ext =
+        g_str_has_suffix (nvdsanalytics->config_file_path, ".yml");
+    gboolean is_yaml_ext =
+        g_str_has_suffix (nvdsanalytics->config_file_path, ".yaml");
+    if (is_yml_ext || is_yaml_ext) {
         nvdsanalytics->config_file_parse_successful =
             nvdsanalytics_parse_yaml_config_file (nvdsanalytics,
             nvdsanalytics->config_file_path);
@@ -1073,5 +1078,5 @@ nvdsanalytics_plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_dsanalytics,
-    DESCRIPTION, nvdsanalytics_plugin_init, "9.0", LICENSE, BINARY_PACKAGE,
+    DESCRIPTION, nvdsanalytics_plugin_init, "9.1", LICENSE, BINARY_PACKAGE,
     URL)

@@ -33,6 +33,11 @@ float clamp(const float val, const float minVal, const float maxVal)
     return std::min(maxVal, std::max(minVal, val));
 }
 
+static inline float clampVal(float val, float minVal, float maxVal)
+{
+    return std::max(minVal, std::min(maxVal, val));
+}
+
 extern "C" bool NvDsInferParseCustomYoloV4(
     std::vector<NvDsInferLayerInfo> const& outputLayersInfo,
     NvDsInferNetworkInfo const& networkInfo,
@@ -344,7 +349,117 @@ extern "C" bool NvDsInferParseCustomYoloV8(
     return NvDsInferParseYoloV8 (
         outputLayersInfo, networkInfo, detectionParams, objectList);
 }
+
+static bool
+decodeYoloV11Tensor(
+    const float* data, int numFeatures, int numAnchors, int numClasses,
+    const NvDsInferNetworkInfo& networkInfo,
+    const NvDsInferParseDetectionParams& detectionParams,
+    std::vector<NvDsInferObjectDetectionInfo>& objectList)
+{
+    const uint netW = networkInfo.width;
+    const uint netH = networkInfo.height;
+
+    for (int anchor = 0; anchor < numAnchors; ++anchor) {
+        const float cx = data[0 * numAnchors + anchor];
+        const float cy = data[1 * numAnchors + anchor];
+        const float w = data[2 * numAnchors + anchor];
+        const float h = data[3 * numAnchors + anchor];
+
+        float maxProb = 0.0f;
+        int maxIndex = 0;
+        for (int c = 0; c < numClasses; ++c) {
+            const float prob = data[(4 + c) * numAnchors + anchor];
+            if (prob > maxProb) {
+                maxProb = prob;
+                maxIndex = c;
+            }
+        }
+
+        if (maxProb < detectionParams.perClassPreclusterThreshold[maxIndex]) {
+            continue;
+        }
+
+        float x1 = cx - w * 0.5f;
+        float y1 = cy - h * 0.5f;
+        float x2 = cx + w * 0.5f;
+        float y2 = cy + h * 0.5f;
+
+        x1 = clampVal(x1, 0.0f, static_cast<float>(netW));
+        y1 = clampVal(y1, 0.0f, static_cast<float>(netH));
+        x2 = clampVal(x2, 0.0f, static_cast<float>(netW));
+        y2 = clampVal(y2, 0.0f, static_cast<float>(netH));
+
+        const float width = x2 - x1;
+        const float height = y2 - y1;
+        if (width < 1.0f || height < 1.0f) {
+            continue;
+        }
+
+        NvDsInferObjectDetectionInfo obj{};
+        obj.classId = maxIndex;
+        obj.detectionConfidence = maxProb;
+        obj.left = x1;
+        obj.top = y1;
+        obj.width = width;
+        obj.height = height;
+        obj.rotation_angle = 0.0f;
+
+        objectList.push_back(obj);
+    }
+
+    return true;
+}
+
+static bool
+NvDsInferParseCustomYoloV11(
+    std::vector<NvDsInferLayerInfo> const& outputLayersInfo,
+    NvDsInferNetworkInfo const& networkInfo,
+    NvDsInferParseDetectionParams const& detectionParams,
+    std::vector<NvDsInferObjectDetectionInfo>& objectList)
+{
+    if (outputLayersInfo.empty()) {
+        std::cerr << "ERROR: No output layers found for YOLOv11 parsing" << std::endl;
+        return false;
+    }
+
+    const NvDsInferLayerInfo& output = outputLayersInfo[0];
+    const float* data = static_cast<const float*>(output.buffer);
+
+    if (output.inferDims.numDims < 2) {
+        std::cerr << "ERROR: Unexpected YOLOv11 output dimensions" << std::endl;
+        return false;
+    }
+
+    const int numFeatures = output.inferDims.d[0];
+    const int numAnchors = output.inferDims.d[1];
+    const int numClasses = numFeatures - 4;
+
+    if (numClasses <= 0) {
+        std::cerr << "ERROR: Invalid YOLOv11 feature count: " << numFeatures << std::endl;
+        return false;
+    }
+
+    objectList.clear();
+    objectList.reserve(numAnchors);
+
+    return decodeYoloV11Tensor(
+        data, numFeatures, numAnchors, numClasses, networkInfo, detectionParams, objectList);
+}
+
+extern "C" bool
+NvDsInferParseYoloV11(
+    std::vector<NvDsInferLayerInfo> const& outputLayersInfo,
+    NvDsInferNetworkInfo const& networkInfo,
+    NvDsInferParseDetectionParams const& detectionParams,
+    std::vector<NvDsInferObjectDetectionInfo>& objectList)
+{
+    return NvDsInferParseCustomYoloV11(
+        outputLayersInfo, networkInfo, detectionParams, objectList);
+}
+
 /* Check that the custom function has been defined correctly */
 CHECK_CUSTOM_PARSE_FUNC_PROTOTYPE(NvDsInferParseCustomYoloV4);
 CHECK_CUSTOM_PARSE_FUNC_PROTOTYPE(NvDsInferParseCustomYoloV7);
 CHECK_CUSTOM_PARSE_FUNC_PROTOTYPE(NvDsInferParseCustomYoloV8);
+CHECK_CUSTOM_PARSE_FUNC_PROTOTYPE(NvDsInferParseYoloV11);

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 /*
  * SAMPLE PIPELINES
  * 1. gst-launch-1.0 filesrc location = ~/sample_720p_mjpeg.mkv ! matroskademux ! jpegparse ! nvimagedec ! nveglglessink sync=0

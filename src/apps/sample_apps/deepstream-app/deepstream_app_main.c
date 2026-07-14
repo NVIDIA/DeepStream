@@ -678,8 +678,9 @@ main (int argc, char *argv[])
       g_free (input_uris[i]);
     }
 
-    if(g_str_has_suffix(cfg_files[i], ".yml") ||
-            g_str_has_suffix(cfg_files[i], ".yaml")) {
+    gboolean is_yml = g_str_has_suffix(cfg_files[i], ".yml");
+    gboolean is_yaml = g_str_has_suffix(cfg_files[i], ".yaml");
+    if (is_yml || is_yaml) {
       if (!parse_config_file_yaml (&appCtx[i]->config, cfg_files[i])) {
         NVGSTDS_ERR_MSG_V ("Failed to parse config file '%s'", cfg_files[i]);
         appCtx[i]->return_value = -1;
@@ -697,7 +698,7 @@ main (int argc, char *argv[])
   for (i = 0; i < num_instances; i++) {
     if (!create_pipeline (appCtx[i], NULL,
             all_bbox_generated, perf_cb, overlay_graphics)) {
-      NVGSTDS_ERR_MSG_V ("Failed to create pipeline!");
+      NVGSTDS_ERR_MSG_V ("Failed to create pipeline");
       return_value = -1;
       goto done;
     }

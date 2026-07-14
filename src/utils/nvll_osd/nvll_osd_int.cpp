@@ -914,7 +914,8 @@ int nvll_osd_put_text_cpu(void *nvosd_ctx, NvOSD_FrameTextParams *frame_text_par
     int hr = 0,  min = 0, sec = 0;
     int year = 0, month = 0, day = 0;
     time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
+    struct tm tm;
+    localtime_r(&t, &tm);
 
     year = tm.tm_year;
     month = tm.tm_mon;

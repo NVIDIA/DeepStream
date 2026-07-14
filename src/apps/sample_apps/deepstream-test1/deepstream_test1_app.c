@@ -1,5 +1,3 @@
-
-
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
@@ -179,8 +177,9 @@ main (int argc, char *argv[])
   loop = g_main_loop_new (NULL, FALSE);
 
   /* Parse inference plugin type */
-  yaml_config = (g_str_has_suffix (argv[1], ".yml") ||
-          g_str_has_suffix (argv[1], ".yaml"));
+  gboolean is_yml = g_str_has_suffix (argv[1], ".yml");
+  gboolean is_yaml = g_str_has_suffix (argv[1], ".yaml");
+  yaml_config = is_yml || is_yaml;
 
   if (yaml_config) {
     RETURN_ON_PARSER_ERROR(nvds_parse_gie_type(&pgie_type, argv[1],

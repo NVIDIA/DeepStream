@@ -134,6 +134,7 @@ class Pipeline : public Object {
   class DynamicSourceMessage : public Message {
     public:
       DynamicSourceMessage(void*);
+      DynamicSourceMessage(uint32_t source_id, bool source_added);
 
       inline bool isSourceAdded() const { return source_added_; }
       inline uint32_t getSourceId() const { return source_id_; }

@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-can-orientation-app
@@ -40,9 +38,9 @@ To install these packages, execute the following command:
    libgstrtspserver-1.0-dev libx11-dev libyaml-cpp-dev
 
 Prepare all test sample images and reference images. Run the following command
-to uncompress can test and reference images into folder `data`, generate
-raw sample image data files, and update yaml configs with correct local paths.
-  $ chmod +x prepare_sample_data.sh && ./prepare_sample_data.sh
+to uncompress can test and reference images into folder `data`, and generate
+raw sample image data files.
+  $ ./prepare_sample_data.sh
   Note: If there is file permission issues, try with sudo.
 
 
@@ -106,8 +104,7 @@ To compile application deepstream-3d-action-recognition and custom lib
 custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so:
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
 
   $ make
   $ sudo make install (sudo not required in case of docker containers)

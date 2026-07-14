@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,9 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
-# set from docker_build_bevfusion_image.sh
 ARG BASE_IMAGE=nvcr.io/nvidia/deepstream:9.0-triton-multiarch
 
 FROM ${BASE_IMAGE} as base_debug

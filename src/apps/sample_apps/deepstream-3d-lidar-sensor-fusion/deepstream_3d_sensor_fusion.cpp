@@ -423,7 +423,7 @@ SensorFusionApp::createGstParseBin(const config::ComponentConfig& c)
 
     auto parseBin = std::make_unique<ComponentParseBin>();
     parseBin->config = c;
-    parseBin->gstElement = bin;
+    parseBin->gstElement = static_cast<const gst::ElePtr&>(bin);
     parseBin->parseBin = bin;
     return parseBin;
 }
@@ -475,7 +475,7 @@ SensorFusionApp::createFilterBridge(const config::ComponentConfig& c)
             isGood(bin.addGhostSinkPad()), nullptr, "Adding sink ghost pad into filter bin failed");
         DS3D_FAILED_RETURN(
             isGood(bin.addGhostSrcPad()), nullptr, "Adding src ghost pad into filter bin failed");
-        filter->gstElement = bin;
+        filter->gstElement = static_cast<const gst::ElePtr&>(bin);
         filter->bin = bin;
     }
 
@@ -518,7 +518,7 @@ SensorFusionApp::createMixer(const config::ComponentConfig& c)
         }
         DS3D_FAILED_RETURN(q, nullptr, "Adding src/sink queue into mixer failed.");
         DS3D_FAILED_RETURN(isGood(bin.addGhostSrcPad()), nullptr, "Adding src ghost pad into mixer bin failed");
-        mixer->gstElement = bin;
+        mixer->gstElement = static_cast<const gst::ElePtr&>(bin);
         mixer->bin = bin;
     }
 
@@ -556,7 +556,7 @@ SensorFusionApp::createLoader(const config::ComponentConfig& c)
         isGood(bin.addGhostSrcPad()), nullptr, "Failed to add ghost src pad into loader bin");
 
     loader->config = c;
-    loader->gstElement = bin;
+    loader->gstElement = static_cast<const gst::ElePtr&>(bin);
     loader->bin = bin;
     return loader;
 }
@@ -601,7 +601,7 @@ SensorFusionApp::createRender(const config::ComponentConfig& c)
         isGood(bin.addGhostSinkPad()), nullptr, "Failed to add ghost sink pad into render bin");
 
     render->config = c;
-    render->gstElement = bin;
+    render->gstElement = static_cast<const gst::ElePtr&>(bin);
     render->bin = bin;
     return render;
 }

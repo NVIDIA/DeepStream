@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-sr-test-app
@@ -71,8 +69,7 @@ This sample demonstrates how to:
 1. Smart Record feature only works with live RTSP streams
 2. MSGCONV_CONFIG_FILE is required only when running with "--recording kafka"
 3. A sample MSGCONV_CONFIG_FILE is available at:
-   "src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
-   Above path is relative to the repository root.
+   "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
 4. The smart record feature allows for:
    - Event-based recording
    - Configurable recording duration
@@ -161,6 +158,5 @@ Follow these steps to use the smart record feature with Kafka:
 **Notes:**
 - Update the UTC time according to your current time and date
 - Sensor ID mapping is configured using the file:
-  `src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
-  Above path is relative to the repository root.
+  `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt`
 - Update the sensor ID accordingly based on your configuration

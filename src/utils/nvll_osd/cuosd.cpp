@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #include <iostream>
 #include <iomanip>
 #include <ctime>
@@ -255,7 +255,8 @@ void cuosd_draw_clock(
     std::time_t time_now_t = std::chrono::system_clock::to_time_t(time_now);
     if (time != 0) time_now_t = time;
 
-    std::tm now_tm = *std::localtime(&time_now_t);
+    std::tm now_tm;
+    localtime_r(&time_now_t, &now_tm);
     std::ostringstream oss;
     if (clock_format == cuOSDClockFormat::HHMMSS) {
         oss << std::put_time(&now_tm, "%H:%M:%S");

@@ -668,9 +668,14 @@ DetectModelPostProcessor::clusterAndFillDetectionOutputNMS(NvDsPostProcessDetect
         }
     }
 
-    output.objects = new NvDsPostProcessObject[clusteredBboxes.size()];
     output.numObjects = 0;
+    if (clusteredBboxes.empty())
+    {
+        output.objects = nullptr;
+        return;
+    }
 
+    output.objects = new NvDsPostProcessObject[clusteredBboxes.size()];
     for(uint i=0; i < clusteredBboxes.size(); ++i)
     {
         NvDsPostProcessObject &object = output.objects[output.numObjects];
@@ -721,9 +726,14 @@ DetectModelPostProcessor::clusterAndFillDetectionOutputCV(NvDsPostProcessDetecti
         totalObjects += m_PerClassCvRectList[c].size();
     }
 
-    output.objects = new NvDsPostProcessObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0)
+    {
+        output.objects = nullptr;
+        return;
+    }
 
+    output.objects = new NvDsPostProcessObject[totalObjects];
     for (unsigned int c = 0; c < m_NumDetectedClasses; c++)
     {
         /* Add coordinates and class ID and the label of all objects
@@ -788,9 +798,14 @@ DetectModelPostProcessor::clusterAndFillDetectionOutputDBSCAN(NvDsPostProcessDet
         totalObjects += m_PerClassObjectList[c].size();
     }
 
-    output.objects = new NvDsPostProcessObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0)
+    {
+        output.objects = nullptr;
+        return;
+    }
 
+    output.objects = new NvDsPostProcessObject[totalObjects];
     for (unsigned int c = 0; c < m_NumDetectedClasses; c++)
     {
         /* Add coordinates and class ID and the label of all objects
@@ -867,8 +882,14 @@ DetectModelPostProcessor::fillUnclusteredOutput(NvDsPostProcessDetectionOutput& 
         totalObjects += m_PerClassObjectList.at(c).size();
     }
 
-    output.objects = new NvDsPostProcessObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0)
+    {
+        output.objects = nullptr;
+        return;
+    }
+
+    output.objects = new NvDsPostProcessObject[totalObjects];
     for(const auto& perClassList : m_PerClassObjectList)
     {
         for(const auto& obj: perClassList)

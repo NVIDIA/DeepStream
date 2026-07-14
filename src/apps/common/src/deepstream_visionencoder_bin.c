@@ -15,12 +15,6 @@
  * limitations under the License.
  */
 
-/*
- * Vision encoder bin: SGIE-style separate bin with internal drop of empty/invalid
- * batches so nvvidconv_visionencoder_in is never called for removed-source buffers.
- * No app-level probe callbacks; cleanup is handled inside the bin (like SGIE).
- */
-
 #include <string.h>
 #include <ctype.h>
 #include <dlfcn.h>
@@ -104,6 +98,7 @@ gboolean
 create_visionencoder_bin (NvDsVisionEncoderConfig *config, NvDsVisionEncoderBin *bin)
 {
   gboolean ret = FALSE;
+  GstElement *nvof_elem = NULL;
   GstElement *ve_drop_identity = NULL;
   GstElement *nvvidconv_in = NULL;
   GstElement *nvvidconv_out = NULL;
@@ -120,6 +115,16 @@ create_visionencoder_bin (NvDsVisionEncoderConfig *config, NvDsVisionEncoderBin 
   if (!bin->bin) {
     NVGSTDS_ERR_MSG_V ("Failed to create 'visionencoder_bin'");
     goto done;
+  }
+
+  if (config->ofa_predict) {
+    nvof_elem = gst_element_factory_make ("nvof", "nvof_visionencoder");
+    if (!nvof_elem) {
+      NVGSTDS_ERR_MSG_V ("Failed to create 'nvof' element for OFA — "
+                          "optical flow will be unavailable");
+    } else {
+      g_object_set (G_OBJECT (nvof_elem), "gpu-id", config->gpu_id, NULL);
+    }
   }
 
   bin->queue = gst_element_factory_make (NVDS_ELEM_QUEUE, "queue_visionencoder");
@@ -177,6 +182,13 @@ create_visionencoder_bin (NvDsVisionEncoderConfig *config, NvDsVisionEncoderBin 
       "triton-model", config->triton_model,
       "skip-interval", config->skip_interval,
       "embedding-classes", config->embedding_classes,
+      "query-only", config->query_only,
+      "smart-infer", config->smart_infer,
+      "cache-refresh-interval", config->cache_refresh_interval,
+      "cache-max-size", config->cache_max_size,
+      "ofa-predict", config->ofa_predict,
+      "ofa-motion-threshold", config->ofa_motion_threshold,
+      "ofa-high-motion-threshold", config->ofa_high_motion_threshold,
       NULL);
   if (config->onnx_model)
     g_object_set (G_OBJECT (bin->visionencoder), "onnx-model", config->onnx_model, NULL);
@@ -197,8 +209,14 @@ create_visionencoder_bin (NvDsVisionEncoderConfig *config, NvDsVisionEncoderBin 
     g_object_set (G_OBJECT (nvvidconv_out), "nvbuf-memory-type", 3, NULL);  /* CUDA unified */
   }
 
-  gst_bin_add_many (GST_BIN (bin->bin), bin->queue, ve_drop_identity,
-      nvvidconv_in, bin->visionencoder, nvvidconv_out, NULL);
+  if (nvof_elem) {
+    gst_bin_add_many (GST_BIN (bin->bin), nvof_elem, bin->queue,
+        ve_drop_identity, nvvidconv_in, bin->visionencoder, nvvidconv_out, NULL);
+    NVGSTDS_LINK_ELEMENT (nvof_elem, bin->queue);
+  } else {
+    gst_bin_add_many (GST_BIN (bin->bin), bin->queue, ve_drop_identity,
+        nvvidconv_in, bin->visionencoder, nvvidconv_out, NULL);
+  }
 
   NVGSTDS_LINK_ELEMENT (bin->queue, ve_drop_identity);
   NVGSTDS_LINK_ELEMENT (ve_drop_identity, nvvidconv_in);
@@ -218,7 +236,7 @@ create_visionencoder_bin (NvDsVisionEncoderConfig *config, NvDsVisionEncoderBin 
 
   NVGSTDS_LINK_ELEMENT (bin->visionencoder, nvvidconv_out);
 
-  NVGSTDS_BIN_ADD_GHOST_PAD (bin->bin, bin->queue, "sink");
+  NVGSTDS_BIN_ADD_GHOST_PAD (bin->bin, nvof_elem ? nvof_elem : bin->queue, "sink");
   NVGSTDS_BIN_ADD_GHOST_PAD (bin->bin, nvvidconv_out, "src");
 
   ret = TRUE;

@@ -58,14 +58,12 @@ net-scale-factor=0.0039215697906911373
 #0=RGB, 1=BGR
 model-color-format=0
 onnx-file=yolov8s_640_dynamic.onnx
-int8-calib-file=yolov8s_gpu_precision_config_calib.cache
-layer-device-precision=Split_36:fp16:gpu;Reshape_37:fp16:gpu;Transpose_38:fp16:gpu;Softmax_39:fp16:gpu;Conv_41:fp16:gpu;Sub_64:fp16:gpu;Concat_65:fp16:gpu;Mul_67:fp16:gpu;Sigmoid_68:fp16:gpu;Concat_69:fp16:gpu
 infer-dims=3;640;640
 batch-size=16
-model-engine-file=yolov8s_ptq_640_gpu_b16.engine
+model-engine-file=yolov8s_640_dynamic.onnx_b16.engine
 labelfile-path=labels.txt
 ## 0=FP32, 1=INT8, 2=FP16, 3=BEST mode
-network-mode=3
+network-mode=2
 num-detected-classes=80
 gie-unique-id=1
 network-type=0

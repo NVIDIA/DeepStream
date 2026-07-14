@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef NVDS3D_GST_GST_PLUGINS_H
 #define NVDS3D_GST_GST_PLUGINS_H
 

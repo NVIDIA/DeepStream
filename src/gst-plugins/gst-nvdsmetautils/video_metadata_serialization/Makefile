@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,19 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CC:= g++
 
 PKGS:= glib-2.0 gobject-2.0 json-glib-1.0 uuid gstreamer-1.0
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 CFLAGS:= -Wall -std=c++11 -shared -fPIC
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../../includes
 
@@ -53,7 +51,7 @@ $(TARGET_LIB) : $(SRCFILES)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 install: $(TARGET_LIB)
-	ldconfig
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*

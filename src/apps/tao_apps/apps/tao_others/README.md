@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 ## Description
 This sample is to show the following TAO models runing with DeepStream
 
@@ -50,7 +67,7 @@ Please enable Triton or Triton gRPC inferencing with the app YAML configurations
     sudo apt update
     sudo apt install git-lfs
     git lfs install --skip-repo
-    git clone https://github.com/NVIDIA/deepstream.git
+    git clone https://github.com/NVIDIA/DeepStream.git
 ```
 2. Prepare Models and TensorRT engine
 
@@ -58,7 +75,7 @@ There are pre-trained TAO models available in [NGC](https://ngc.nvidia.com/catal
 Please run the following script to download pre-trained models.
 
 ```
-    cd deepstream/src/apps/tao_apps
+    cd DeepStream/src/apps/tao_apps
     chmod 755 download_models.sh
     ./download_models.sh
 ```
@@ -73,19 +90,19 @@ Build the application
 Start to run the nvocdr application
 Please prepare the nvocdr libs first, you can refer to [NVOCDR_README](./deepstream-nvocdr-app/README.md)
 ```
-    cd deepstream-nvocdr-app
+    cd DeepStream-nvocdr-app
     ./deepstream-nvocdr-app <app YAML config file>
 ```
 
 Start to run the pose classification application
 ```
-    cd deepstream-pose-classification
+    cd DeepStream-pose-classification
     ./deepstream-pose-classification-app <app YAML config file>
 ```
 
 Start to run the mdx perception application
 ```
-    cd deepstream-mdx-perception-app
+    cd DeepStream-mdx-perception-app
     ./deepstream-mdx-perception-app -c <txt config file>
 OR
     ./deepstream-mdx-perception-app <app YAML config file>

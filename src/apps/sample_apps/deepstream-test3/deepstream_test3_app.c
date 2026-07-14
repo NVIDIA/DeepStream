@@ -235,7 +235,9 @@ decodebin_child_added (GstChildProxy * child_proxy, GObject * object,
         G_CALLBACK (decodebin_child_added), user_data);
   }
   if (g_strrstr (name, "source") == name) {
-        g_object_set(G_OBJECT(object),"drop-on-latency",true,NULL);
+    if (g_object_class_find_property (G_OBJECT_GET_CLASS (object), "drop-on-latency")) {
+      g_object_set (G_OBJECT (object), "drop-on-latency", true, NULL);
+    }
   }
 
 }
@@ -331,8 +333,9 @@ main (int argc, char *argv[])
   loop = g_main_loop_new (NULL, FALSE);
 
   /* Parse inference plugin type */
-  yaml_config = (g_str_has_suffix (argv[1], ".yml") ||
-          g_str_has_suffix (argv[1], ".yaml"));
+  yaml_config = g_str_has_suffix (argv[1], ".yml");
+  if (!yaml_config)
+    yaml_config = g_str_has_suffix (argv[1], ".yaml");
 
   if (yaml_config) {
     RETURN_ON_PARSER_ERROR(nvds_parse_gie_type(&pgie_type, argv[1],
@@ -373,7 +376,7 @@ main (int argc, char *argv[])
     gchar pad_name[16] = { };
 
     GstElement *source_bin= NULL;
-    if (g_str_has_suffix (argv[1], ".yml") || g_str_has_suffix (argv[1], ".yaml")) {
+    if (yaml_config) {
       g_print("Now playing : %s\n",(char*)(src_list)->data);
       source_bin = create_source_bin (i, (char*)(src_list)->data);
     } else {

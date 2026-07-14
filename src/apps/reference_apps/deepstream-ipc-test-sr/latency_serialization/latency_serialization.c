@@ -38,6 +38,7 @@ void serialize_meta(GstBuffer *buf, guint8 **data, guint *len) {
     // Allocate memory for the serialized data, free it after use
     *data = g_malloc0(*len);
     memcpy(*data, caps_str, out_len);
+    g_free (caps_str);
   } else {
     *data = NULL;
     *len = 0;

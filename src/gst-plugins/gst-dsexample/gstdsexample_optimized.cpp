@@ -1337,5 +1337,5 @@ dsexample_plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_dsexample,
-    DESCRIPTION, dsexample_plugin_init, "9.0", LICENSE, BINARY_PACKAGE,
+    DESCRIPTION, dsexample_plugin_init, "9.1", LICENSE, BINARY_PACKAGE,
     URL)

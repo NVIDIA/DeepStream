@@ -80,7 +80,9 @@ int main (int argc, char *argv[])
     std::string suffix = "yaml";
     if (std::equal(suffix.rbegin(), suffix.rend(), file.rbegin())) {
       Pipeline pipeline("deepstream-test3", file);
-      pipeline.attach("infer", new BufferProbe("counter", new ObjectCounter)).start().wait();
+      auto* counter = new ObjectCounter;
+      auto* probe = new BufferProbe("counter", counter);
+      pipeline.attach("infer", probe).start().wait();
     } else {
       Pipeline pipeline("deepstream-test3");
 
@@ -90,13 +92,16 @@ int main (int argc, char *argv[])
           pipeline.add("uridecodebin", name, "uri", argv[i + 1]);
       }
 
+      auto* counter = new ObjectCounter;
+      auto* probe = new BufferProbe("counter", counter);
+
       pipeline.add("nvstreammux", "mux", "batch-size", num_sources, "batched-push-timeout", BATCHED_PUSH_TIMEOUT,"width", MUXER_WIDTH, "height", MUXER_HEIGHT)
           .add("nvinfer", "infer", "config-file-path", CONFIG_FILE_PATH, "batch-size", num_sources)
           .add("nvmultistreamtiler", "tiler", "width", TILER_WIDTH, "height", TILER_HEIGHT)
           .add("nvvideoconvert", "converter")
           .add("nvdsosd", "osd")
           .add(sink, "sink")
-          .attach("infer", new BufferProbe("counter", new ObjectCounter))
+          .attach("infer", probe)
           .link("mux", "infer", "tiler", "converter", "osd", "sink");
 
       for (i=0;i<num_sources;i++) {

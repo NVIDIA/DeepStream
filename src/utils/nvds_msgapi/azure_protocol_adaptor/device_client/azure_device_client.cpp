@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 /* This sample uses the convenience APIs of iothub_client */
 
 #include <stdio.h>
@@ -215,6 +216,14 @@ int fetch_connect_str(char *str, char *config, char *res, unsigned int size) {
 
         char grpname[15] = "message-broker";
         keys = g_key_file_get_keys(gcfg_file, grpname, NULL, &error);
+
+        // Check if the [message-broker] section exists in the config file
+        if (keys == NULL) {
+            nvds_log(LOG_CAT, LOG_ERR, "Azure adaptor: [message-broker] section missing in config file %s", config);
+            free_gobjs(gcfg_file, error, keys, val);
+            return -1;
+        }
+
         for (key = keys; *key; key++) {
             if (!g_strcmp0(*key, "connection_str")) {
                 val = g_key_file_get_string (gcfg_file, grpname, "connection_str",&error);

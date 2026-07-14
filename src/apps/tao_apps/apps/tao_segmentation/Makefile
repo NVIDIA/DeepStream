@@ -26,9 +26,9 @@ else
 AT=@
 endif
 
-DS_VER = $(shell deepstream-app -v | awk '$$1~/DeepStreamSDK/ {print substr($$2,1,3)}' )
+# DS_VER = $(shell deepstream-app -v | awk '$$1~/DeepStreamSDK/ {print substr($$2,1,3)}' )
 
-DS_SRC_PATH := /opt/nvidia/deepstream/deepstream-$(DS_VER)
+DS_SRC_PATH := /opt/nvidia/deepstream/deepstream
 
 # Change to your deepstream SDK includes
 CFLAGS+= -I$(DS_SRC_PATH)/sources/includes -I /usr/local/cuda/include

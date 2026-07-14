@@ -30,7 +30,7 @@ function cleanup() {
 
 trap cleanup EXIT
 
-NVDS_VERSION=${NVDS_VERSION:-9.0}
+NVDS_VERSION=${NVDS_VERSION:-9.1}
 DEFAULT_IMAGE="nvcr.io/nvidia/deepstream:${NVDS_VERSION}-triton-multiarch"
 CONTAINER_NAME="v2x-trt-model-builder"
 TARGET_WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/sample_apps/deepstream-3d-lidar-sensor-fusion
@@ -38,9 +38,9 @@ TARGET_MODEL_ROOT=/opt/nvidia/deepstream/deepstream/samples/triton_model_repo
 TARGET_DEVICE=$(uname -m)
 
 DOCKER_GPU_ARG="--gpus all"
-if [ "${TARGET_DEVICE}" = "x86_64" ]; then
+if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
     DOCKER_GPU_ARG="--gpus all"
-elif [ "${TARGET_DEVICE}" = "aarch64" ]; then
+elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
     DOCKER_GPU_ARG="--runtime nvidia"
 else
     echo "Unsupported platform ${TARGET_DEVICE}"

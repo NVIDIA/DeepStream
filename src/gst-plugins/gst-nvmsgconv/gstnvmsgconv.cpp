@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <dlfcn.h>
@@ -764,7 +763,8 @@ static void nanoseconds_to_rfc3339(int64_t nanoseconds, char *output, size_t out
     time_t seconds = nanoseconds / 1000000000;
     int32_t milliseconds = (nanoseconds % 1000000000) / 1000000;
 
-    struct tm *tm_info = gmtime(&seconds);
+    struct tm tm_info_buf;
+    struct tm *tm_info = gmtime_r(&seconds, &tm_info_buf);
 
     char time_str[MAX_TIME_STAMP_LEN];
     strftime(time_str, MAX_TIME_STAMP_LEN, "%Y-%m-%dT%H:%M:%S", tm_info);
@@ -796,9 +796,9 @@ gst_nvmsgconv_transform_ip_sparse4d (GstBaseTransform * trans, GstBuffer * buffe
 
         if (user_event_meta && user_event_meta->base_meta.meta_type == NVDS_CUSTOM_MSG_SPARSE4D) {
           NvDsBbox3dObjectList *bbox3d_list = (NvDsBbox3dObjectList *)user_event_meta->user_meta_data;
-          if (eventList == NULL) {
-              eventList = g_new0(NvDsEvent, bbox3d_list->num_objects);
-          }
+          /* Grow eventList to accommodate entries from this meta batch.
+           * g_renew handles the NULL case (acts like g_new0 on first call). */
+          eventList = g_renew(NvDsEvent, eventList, eventCount + bbox3d_list->num_objects);
 
           for (guint i = 0; i < bbox3d_list->num_objects; i++) {
             NvDsEventMsgMeta *eventMsg = g_new0(NvDsEventMsgMeta, 1);
@@ -834,7 +834,8 @@ gst_nvmsgconv_transform_ip_sparse4d (GstBaseTransform * trans, GstBuffer * buffe
             eventCount++;
           }
           if(bbox3d_list->num_objects==0) {
-            eventList = g_renew(NvDsEvent, eventList, 1);
+            /* Resize to eventCount + 1 to avoid out-of-bounds write (cpp:S3519). */
+            eventList = g_renew(NvDsEvent, eventList, eventCount + 1);
             NvDsEventMsgMeta *eventMsg = g_new0(NvDsEventMsgMeta, 1);
             eventMsg->type = NVDS_EVENT_ENTRY; // Assuming this is an object detection event
             eventMsg->frameId = bbox3d_list->frame_num;
@@ -884,10 +885,10 @@ gst_nvmsgconv_transform_ip_sparse4d (GstBaseTransform * trans, GstBuffer * buffe
                 g_free(eventMsg);
             }
 
-        if (errcode)
-          return GST_FLOW_ERROR;
       if (eventList != NULL)
-       g_free(eventList);
+        g_free(eventList);
+      if (errcode)
+        return GST_FLOW_ERROR;
     }
   }
   return GST_FLOW_OK;
@@ -1198,4 +1199,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_msgconv,
     "Metadata conversion",
-    plugin_init, "9.0", "Proprietary", "NvMsgConv", "http://nvidia.com")
+    plugin_init, "9.1", "Proprietary", "NvMsgConv", "http://nvidia.com")

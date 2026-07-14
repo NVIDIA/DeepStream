@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 ===============================================================================
 1. Prerequisites:
@@ -59,63 +57,44 @@ PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in 
 
 $ python3 deepstream_test5.py -s source-lists -c config-files [-l label-file] [--perf-measurement-interval-sec] [--hide-stream-name]
 
-Run from this app directory. Config paths below are relative to that directory.
-Use *_x86.yaml pipeline configs on x86_64 and *_tegra.yaml on aarch64.
+NOTE: <DS_ROOT> is the path where the repo is cloned. Replace <platform> with
+"x86" on x86 dGPU targets or "tegra" on Jetson/Tegra (aarch64) targets, e.g.
+test5_b2_x86.yaml or test5_b2_tegra.yaml.
 
 Use nvurisrcbin for static input:
 
-x86:
-$ python3 deepstream_test5.py -c test5_b2_x86.yaml -s source_list_static.yaml
-
-aarch64:
-$ python3 deepstream_test5.py -c test5_b2_tegra.yaml -s source_list_static.yaml
+$ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b2_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_static.yaml
 
 Use nvmultiurisrcbin for dynamic input:
 
-x86:
-$ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml
-
-aarch64:
-$ python3 deepstream_test5.py -c test5_b16_dynamic_source_tegra.yaml -s source_list_dynamic.yaml
+$ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml
 
 Use camerabin for V4L2/CSI camera source:
 
-x86:
-$ python3 deepstream_test5.py -c test5_b2_x86.yaml -s camera_list.yaml
-
-aarch64:
-$ python3 deepstream_test5.py -c test5_b2_tegra.yaml -s camera_list.yaml
+$ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b2_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/camera_list.yaml
 
 Multiple pipelines are supported with multiple pipeline config files and source lists separated by ' ':
 
-x86:
-$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source_x86.yaml test5_b2_x86.yaml
+$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source_<platform>.yaml test5_b2_<platform>.yaml
 
-aarch64:
-$ python3 deepstream_test5.py -s source_list_dynamic.yaml source_list_static.yaml -c test5_b16_dynamic_source_tegra.yaml test5_b2_tegra.yaml
+Enable/Disable the element within the pipeline
 
-Enable/Disable the element within the pipeline:
-
-x86:
-$ python3 deepstream_test5.py -c test5_b16_dynamic_source_with_enable_property_x86.yaml -s source_list_dynamic.yaml
-
-aarch64:
-$ python3 deepstream_test5.py -c test5_b16_dynamic_source_with_enable_property_tegra.yaml -s source_list_dynamic.yaml
+$ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_with_enable_property_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml
 
 ===============================================================================
-4. Option [-l]
+5. Option [-l] 
 ===============================================================================
-  4.1 This is an optional argument used to set label file for primary inference engine.
-  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml -l labels.txt
+  5.1 This is an optional argument used to set label file for primary inference engine.
+  $ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml -l labels.txt
 
 ===============================================================================
-5. Option [--perf-measurement-interval-sec][Default: 1]
+6. Option [--perf-measurement-interval-sec][Default: 1]
 ===============================================================================
-  5.1 This is an optional argument used to set the interval between perf logs.
-  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml --perf-measurement-interval-sec 5
+  6.1 This is an optional argument used to set the interval between perf logs.
+  $ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml --perf-measurement-interval-sec 5
 
 ===============================================================================
-6. Option [--hide-stream-name][Default: false]
+7. Option [--hide-stream-name][Default: false]
 ===============================================================================
-  6.1 This argument is used to hide stream name in the perf logs
-  $ python3 deepstream_test5.py -c test5_b16_dynamic_source_x86.yaml -s source_list_dynamic.yaml --hide-stream-name
+  8.0 This argument is used to hide stream name in the perf logs
+  $ python3 deepstream_test5.py -c <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/test5_b16_dynamic_source_<platform>.yaml -s <DS_ROOT>/src/service-maker/sources/apps/python/pipeline_api/deepstream_test5_app/source_list_dynamic.yaml --hide-stream-name

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 This project implements the protocol adaptor for MQTT.
 The adaptor implements and exposed the DSMI API for client applications to interface with it.
@@ -147,13 +145,11 @@ Setup and enable logging:
 -------------------------
 Before running the sample applications, enable logs by running the logger setup script:
 For x86,
- chmod u+x src/utils/nvds_logger/setup_nvds_logger.sh
- sudo src/utils/nvds_logger/setup_nvds_logger.sh
+ chmod u+x <DS_ROOT>/src/utils/nvds_logger/setup_nvds_logger.sh
+ sudo <DS_ROOT>/src/utils/nvds_logger/setup_nvds_logger.sh
 On Jetson,
- chmod u+x src/utils/nvds_logger/setup_nvds_logger.sh
- sudo src/utils/nvds_logger/setup_nvds_logger.sh
-
-Above paths are relative to the repository root.
+ chmod u+x <DS_ROOT>/src/utils/nvds_logger/setup_nvds_logger.sh
+ sudo <DS_ROOT>/src/utils/nvds_logger/setup_nvds_logger.sh
 
 Building the adaptor
 ---------------------
@@ -175,14 +171,13 @@ In another terminal, you can also publish messages using the mosquitto pub clien
 Special case in gst-nvmsgbroker plugin and nvmsgbroker lib
 ----------------------------------------------------------
 The library name "libnvds_mqtt_proto.so" as set in the Makefile for mqtt protocol adaptor is hard-coded for a logic check in the gst-nvmsgbroker plugin
-See src/gst-plugins/gst-nvmsgbroker/gstnvmsgbroker.cpp. If the library name is changed, be sure to update accordingly in the
+See /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvmsgbroker/gstnvmsgbroker.cpp. If the library name is changed, be sure to update accordingly in the
 plugin and re-compile and install.
 
 The protocol name "MQTT" as defined for NVDS_MSGAPI_PROTOCOL in nvds_mqtt_proto.cpp is hard-coded for a logic check in the nvmsgbroker lib.
-See src/utils/nvmsgbroker/nvmsgbroker.cpp. If the protocol name is changed, be sure to update accordingly in the lib and
+See /opt/nvidia/deepstream/deepstream/sources/libs/nvmsgbroker/nvmsgbroker.cpp. If the protocol name is changed, be sure to update accordingly in the lib and
 re-compile and install.
 
-Above paths are relative to the repository root.
 Limitations:
 ------------
 Synchronous send through `nvds_msgapi_send()` is not currently supported.

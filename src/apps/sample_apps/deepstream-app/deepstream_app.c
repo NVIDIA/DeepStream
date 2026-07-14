@@ -1724,6 +1724,37 @@ create_common_elements (NvDsConfig * config, NvDsPipeline * pipeline,
   gboolean ret = FALSE;
   *sink_elem = *src_elem = NULL;
 
+  /*
+   * Visionencoder is placed FIRST in the prepend chain so it becomes the
+   * most-downstream common element.  Data flow after full construction:
+   *   … → PGIE → tracker → text_embedder → … → segvisual → visionencoder
+   * This guarantees the tracker has assigned object_id before visionencoder
+   * processes each frame for embedding inference / caching.
+   */
+  if (config->visionencoder_config.enable) {
+    if (!create_visionencoder_bin (&config->visionencoder_config,
+            &pipeline->common_elements.visionencoder_bin)) {
+      goto done;
+    }
+    gst_bin_add (GST_BIN (pipeline->pipeline),
+        pipeline->common_elements.visionencoder_bin.bin);
+    if (!*src_elem) {
+      *src_elem = pipeline->common_elements.visionencoder_bin.bin;
+    }
+    if (*sink_elem) {
+      NVGSTDS_LINK_ELEMENT (pipeline->common_elements.visionencoder_bin.bin,
+          *sink_elem);
+    }
+    *sink_elem = pipeline->common_elements.visionencoder_bin.bin;
+
+    GST_CAT_INFO (NVDS_APP,
+        "Vision encoder placed as most-downstream common element "
+        "(after tracker in data flow): model=%s, batch-size=%u, device=%s",
+        config->visionencoder_config.model_variant,
+        config->visionencoder_config.batch_size,
+        config->visionencoder_config.device);
+  }
+
   if (config->segvisual_config.enable) {
     if (!create_segvisual_bin (&config->segvisual_config,
                               &pipeline->common_elements.segvisual_bin)) {
@@ -1870,30 +1901,6 @@ create_common_elements (NvDsConfig * config, NvDsPipeline * pipeline,
           *sink_elem);
     }
     *sink_elem = pipeline->common_elements.tracker_bin.bin;
-  }
-
-  /* Vision Encoder - placed after tracker (SGIE-style separate bin with internal
-   * drop of empty batches so nvvidconv_visionencoder_in is never called for removed-source buffers) */
-  if (config->visionencoder_config.enable) {
-    if (!create_visionencoder_bin (&config->visionencoder_config,
-            &pipeline->common_elements.visionencoder_bin)) {
-      goto done;
-    }
-    gst_bin_add (GST_BIN (pipeline->pipeline),
-        pipeline->common_elements.visionencoder_bin.bin);
-    if (!*src_elem) {
-      *src_elem = pipeline->common_elements.visionencoder_bin.bin;
-    }
-    if (*sink_elem) {
-      NVGSTDS_LINK_ELEMENT (pipeline->common_elements.visionencoder_bin.bin,
-          *sink_elem);
-    }
-    *sink_elem = pipeline->common_elements.visionencoder_bin.bin;
-
-    GST_CAT_INFO (NVDS_APP, "✓ Vision encoder enabled: model=%s, batch-size=%u, device=%s (NV12→RGB→NV12, all NVMM)",
-                  config->visionencoder_config.model_variant,
-                  config->visionencoder_config.batch_size,
-                  config->visionencoder_config.device);
   }
 
   if (config->replay_config.enable) {

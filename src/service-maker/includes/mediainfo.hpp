@@ -33,11 +33,22 @@ namespace deepstream {
 struct StreamInfo {
   std::string codec;
 
+  StreamInfo() = default;
+  StreamInfo(const StreamInfo&) = default;
+  StreamInfo(StreamInfo&&) noexcept = default;
+  StreamInfo& operator=(const StreamInfo&) = default;
+  StreamInfo& operator=(StreamInfo&&) noexcept = default;
   virtual ~StreamInfo() {}
 };
 
 struct AudioStreamInfo : public StreamInfo {
   unsigned int channels;
+  unsigned int sampling_rate;
+  AudioStreamInfo() = default;
+  AudioStreamInfo(const AudioStreamInfo&) = default;
+  AudioStreamInfo(AudioStreamInfo&&) noexcept = default;
+  AudioStreamInfo& operator=(const AudioStreamInfo&) = default;
+  AudioStreamInfo& operator=(AudioStreamInfo&&) noexcept = default;
 };
 
 struct VideoStreamInfo : public StreamInfo {
@@ -47,6 +58,11 @@ struct VideoStreamInfo : public StreamInfo {
     unsigned int num;
     unsigned int denom;
   } framerate;
+  VideoStreamInfo() = default;
+  VideoStreamInfo(const VideoStreamInfo&) = default;
+  VideoStreamInfo(VideoStreamInfo&&) noexcept = default;
+  VideoStreamInfo& operator=(const VideoStreamInfo&) = default;
+  VideoStreamInfo& operator=(VideoStreamInfo&&) noexcept = default;
 };
 
 struct MediaInfo {

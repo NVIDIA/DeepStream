@@ -16,7 +16,7 @@
 # limitations under the License.
 ################################################################################
 
-IS_JETSON_PLATFORM=`uname -i | grep aarch64`
+IS_JETSON_PLATFORM=$(uname -i | grep aarch64)
 
 export PATH=$PATH:/usr/src/tensorrt/bin
 

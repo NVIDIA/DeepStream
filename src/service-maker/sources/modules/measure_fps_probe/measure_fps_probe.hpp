@@ -55,24 +55,28 @@ public:
   std::condition_variable cv_;
   int last_header_print_interval;
   std::size_t last_pad_idx_count;
+  uint interval_seconds_;
+  bool interval_loaded_;
 
 
   FPSCounter() {
-    scheduler_ = std::thread([&](){
-      do {
-        std::unique_lock<std::mutex> lock(this->count_mutex);
-        this->measure_and_print_unlocked();
-        this->cv_.wait_for(lock, std::chrono::seconds(5));
-      } while (!this->pause_measurment);
-    });
+    interval_seconds_ = 5U;
+    interval_loaded_ = false;
     last_pad_idx_count = 0;
     last_header_print_interval = 0;
     num_surfaces_per_frame = 1;
     pause_measurment = false;
+    scheduler_ = std::thread([&](){
+      do {
+        std::unique_lock<std::mutex> lock(this->count_mutex);
+        this->measure_and_print_unlocked();
+        this->cv_.wait_for(lock, std::chrono::seconds(this->interval_seconds_));
+      } while (!this->pause_measurment);
+    });
   }
 
   virtual ~FPSCounter() {
-    { 
+    {
       std::unique_lock<std::mutex> lock(this->count_mutex);
       pause_measurment = true;
       cv_.notify_one();
@@ -150,6 +154,15 @@ public:
     time_point current = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(count_mutex);
     if (pause_measurment) return probeReturn::Probe_Ok;
+    if (!interval_loaded_) {
+      int val = 0;
+      probe.getProperty("interval", val);
+      if (val > 0) {
+        interval_seconds_ = static_cast<uint>(val);
+        cv_.notify_one();
+      }
+      interval_loaded_ = true;
+    }
     auto cnt = 0;
     pad_idxs.clear();
     data.iterate([&](const FrameMetadata& frame_meta) {

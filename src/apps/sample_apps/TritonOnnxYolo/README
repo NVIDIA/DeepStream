@@ -57,7 +57,8 @@ Pre-requisites:
    Note: Set correct GPU id in `device=$id`.
 
 - For Jetson platform, please install Triton dependencies.
-   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ cd <DS_ROOT>/scripts
+   NOTE: <DS_ROOT> is the path where the repo is cloned.
    $ sudo ./triton_backend_setup.sh
    $ rm -rf ~/.cache/gstreamer-1.0/
 
@@ -73,9 +74,7 @@ NOTE: Run with "sudo -E" or root if there is file permission issues.
 ===============================================================================
 Compile the custom library:
 
-  $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+  $ Set CUDA_VER in the MakeFile: CUDA_VER=13.2
 
   $ make -C nvdsinferserver_custom_impl_yolo
 

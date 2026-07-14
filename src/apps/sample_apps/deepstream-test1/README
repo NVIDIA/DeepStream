@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-test1-app
@@ -59,8 +57,7 @@ elements in the pipeline and extract meaningful insights from a video stream.
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 ===============================================================================
@@ -72,13 +69,13 @@ elements in the pipeline and extract meaningful insights from a video stream.
   1.Run with the h264 elementary stream. In this method, user needs to modify the source
     code of deepstream-test1-app to configure pipeline properties.
 
-    $ deepstream-test1-app <h264_elementary_stream>
+    $ ./deepstream-test1-app <h264_elementary_stream>
 
   2.Run with the yml file. In this method, user needs to update the yml file to configure
     pipeline properties.
 
-    $ deepstream-test1-app <yml file>
-    e.g. deepstream-test1-app dstest1_config.yml
+    $ ./deepstream-test1-app <yml file>
+    e.g. ./deepstream-test1-app dstest1_config.yml
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
 

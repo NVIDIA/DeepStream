@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 //This is a test program to perform connect, disconnect , send messages to MQTT broker
 //Use a single thread to connect and perform asynchronous send
 

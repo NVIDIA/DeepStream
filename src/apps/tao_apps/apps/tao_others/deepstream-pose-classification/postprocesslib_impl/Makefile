@@ -29,8 +29,8 @@ LIB:=libpostprocess_impl.so
 
 CFLAGS+= -fPIC \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
-	 -I ../../../includes -I../includes  -I../../eigen/ -I /opt/nvidia/deepstream/deepstream/sources/includes -I./ \
-	 -I /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspostprocess/includes
+	 -I /opt/nvidia/deepstream/deepstream/sources/includes -I../includes  -I../../eigen/ -I./ \
+	 -I ../../../../../../gst-plugins/gst-nvdspostprocess/includes
 
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/

@@ -300,8 +300,14 @@ InstanceSegmentModelPostProcessor::fillUnclusteredOutput(NvDsPostProcessDetectio
         totalObjects += m_PerClassInstanceMaskList.at(c).size();
     }
 
-    output.objects = new NvDsPostProcessObject[totalObjects];
     output.numObjects = 0;
+    if (totalObjects == 0)
+    {
+        output.objects = nullptr;
+        return;
+    }
+
+    output.objects = new NvDsPostProcessObject[totalObjects];
     for(const auto& perClassList : m_PerClassInstanceMaskList)
     {
         for(const auto& obj: perClassList)

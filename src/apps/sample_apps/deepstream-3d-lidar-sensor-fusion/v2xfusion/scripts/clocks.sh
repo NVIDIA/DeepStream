@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,11 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 set -e
 
-if [ $(whoami) != root ]; then
+if [[ $(whoami) != root ]]; then
     echo Error: Run this script as a root user
     exit 1
 fi
@@ -27,27 +25,27 @@ clkfile=/tmp/defclocks.conf
 pwrfile=/tmp/defpower.conf
 
 # Xavier
-if [ -e /sys/devices/platform/13e10000.host1x/15340000.vic ]; then
+if [[ -e /sys/devices/platform/13e10000.host1x/15340000.vic ]]; then
     vicctrl=/sys/devices/platform/13e10000.host1x/15340000.vic
     vicfreqctrl=$vicctrl/devfreq/15340000.vic
 # Orin?
-elif [ -e /sys/devices/platform/bus@0/13e00000.host1x/15340000.vic ]; then
+elif [[ -e /sys/devices/platform/bus@0/13e00000.host1x/15340000.vic ]]; then
     vicctrl=/sys/devices/platform/bus@0/13e00000.host1x/15340000.vic
     vicfreqctrl=$vicctrl/devfreq/15340000.vic
 fi
 
 maxclocks()
 {
-    if [ ! -e $clkfile ]; then
+    if [[ ! -e $clkfile ]]; then
         jetson_clocks --store $clkfile
-        if [ -n "$vicctrl" ]; then
+        if [[ -n "$vicctrl" ]]; then
             echo "$vicfreqctrl/governor:$(cat $vicfreqctrl/governor)" >> $clkfile
             echo "$vicfreqctrl/max_freq:$(cat $vicfreqctrl/max_freq)" >> $clkfile
             echo "$vicctrl/power/control:$(cat $vicctrl/power/control)" >> $clkfile
         fi
     fi
 
-    if [ ! -e $pwrfile ]; then
+    if [[ ! -e $pwrfile ]]; then
         echo $(nvpmodel -q | tail -n1) > $pwrfile
     fi
 
@@ -56,7 +54,7 @@ maxclocks()
     jetson_clocks --fan
     jetson_clocks
 
-    if [ -n "$vicctrl" ]; then
+    if [[ -n "$vicctrl" ]]; then
         echo on > $vicctrl/power/control
         echo userspace > $vicfreqctrl/governor
         sleep 1
@@ -68,11 +66,11 @@ maxclocks()
 
 restore()
 {
-    if [ -e $clkfile ]; then
+    if [[ -e $clkfile ]]; then
         jetson_clocks --restore $clkfile > /dev/null 2>&1
     fi
 
-    if [ -e $pwrfile ]; then
+    if [[ -e $pwrfile ]]; then
         nvpmodel -m $(cat $pwrfile)
     fi
 }

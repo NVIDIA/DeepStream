@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 find_path(nvds_service_maker_INCLUDE_DIR includes HINTS "${CMAKE_CURRENT_LIST_DIR}/..")
 find_library(nvds_service_maker_LIBRARY NAMES nvds_service_maker HINTS /opt/nvidia/deepstream/deepstream/lib)
@@ -26,7 +24,7 @@ if (nvds_service_maker_INCLUDE_DIR AND nvds_service_maker_LIBRARY AND nvds_plugi
     set(nvds_service_maker_FOUND TRUE)
     set(DEEPSTREAM_SDK_INC_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../includes")
     add_library(nvds_service_maker SHARED IMPORTED)
-    target_include_directories(nvds_service_maker INTERFACE "${nvds_service_maker_INCLUDE_DIR}/includes" ${DEEPSTREAM_SDK_INC_DIR})
+    target_include_directories(nvds_service_maker INTERFACE "${nvds_service_maker_INCLUDE_DIR}/includes" ${DEEPSTREAM_SDK_INC_DIR} ${GLIB_INCLUDE_DIRS})
     set_target_properties(nvds_service_maker PROPERTIES IMPORTED_LOCATION "${nvds_service_maker_LIBRARY}")
     target_compile_features(nvds_service_maker INTERFACE cxx_std_17)
     add_library(nvds_service_maker_utils STATIC IMPORTED)

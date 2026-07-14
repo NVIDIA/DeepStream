@@ -18,7 +18,7 @@
 name: "mask2former"
 platform: "tensorrt_plan"
 max_batch_size: 4
-default_model_filename: "mask2former.onnx_b1_gpu0_fp16.engine"
+default_model_filename: "mask2former.onnx_b4_gpu0_fp16.engine"
 input [
   {
     name: "inputs"

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -21,14 +19,17 @@ ifeq ($(CUDA_VER),)
 endif
 
 APP:= deepstream-test4-app
-include ../Rules.mk
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS:= -DPLATFORM_TEGRA
+endif
 
 C_SRCS:= $(wildcard *.c)
 CPP_SRCS:= $(wildcard *.cpp)
@@ -38,7 +39,6 @@ INCS:= $(wildcard *.h)
 PKGS:= gstreamer-1.0
 
 OBJS:= $(CPP_SRCS:.cpp=.o) $(C_SRCS:.c=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 CFLAGS+= -I../../../../includes \
 		 -I /usr/local/cuda-$(CUDA_VER)/include
@@ -47,28 +47,26 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 
 LIBS:= $(shell pkg-config --libs $(PKGS))
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_meta -lnvds_meta -lrt \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lrt \
 	   -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -lnvds_yml_parser \
 	   -lnvbufsurface -lnvbufsurftransform -lnvdsgst_helper -lnvds_batch_jpegenc \
        -lcuda -lyaml-cpp -Wl,-rpath,$(LIB_INSTALL_DIR)
 
-all: $(BIN_DIR)/$(APP)
+all: $(APP)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.c $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.c $(INCS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
-$(BIN_DIR)/$(APP): $(OBJS) Makefile
-	@mkdir -p $(BIN_DIR)
-	$(CXX) -o $(BIN_DIR)/$(APP) $(OBJS) $(LIBS)
+$(APP): $(OBJS) Makefile
+	$(CXX) -o $(APP) $(OBJS) $(LIBS)
 
-install: $(BIN_DIR)/$(APP)
+install: $(APP)
+	cp -rv $(APP) $(APP_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)/$(APP)
+	rm -rf $(OBJS) $(APP)
 
 

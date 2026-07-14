@@ -1090,9 +1090,13 @@ NvDsInferStatus GstNvInferServerImpl::processObjects(
 
                 if (objHistory && isClassify() &&
                     (!shouldReinfer || isAsyncMode())) {
-                    attachClassificationMetadata(
-                        objectMeta, frameMeta, nullptr, objHistory->cached_info, uniqueId(),
-                        classifierType(), frameWidth, frameHeight);
+                    if (!objHistory->cached_info.label.empty()) {
+                        attachClassificationMetadata(
+                            objectMeta, frameMeta, nullptr, objHistory->cached_info, uniqueId(),
+                            classifierType(), frameWidth, frameHeight);
+                    } else if (!shouldReinfer && !objHistory->under_inference) {
+                        shouldReinfer = true;
+                    }
                     objHistory->last_accessed_frame_num = frameMeta->frame_num;
                 }
 
@@ -1229,8 +1233,10 @@ bool GstNvInferServerImpl::shouldInferObject(NvDsObjectMeta* objMeta,
     /* History is irrelevant for detectors. */
     if (history && isClassify()) {
         /* Do not infer if the object is already being inferred on maybe from a
-         * previous frame. */
-        if (history->under_inference)
+         * previous frame. This check should be skipped when:
+         * - async_mode is false (synchronous processing expected)
+         * - secondary_reinfer_interval is 0 */
+        if (isAsyncMode() && secondary_reinfer_interval > 0 && history->under_inference)
             return false;
 
         bool shouldReinfer = false;
@@ -1433,12 +1439,18 @@ GstNvInferServerImpl::attachBatchClassification(
             /* Object history is available merge the old and new classification
              * results. */
             mergeClassificationOutput(obj_history->cached_info, newInfo);
+            /* If cache is still empty after merge (inference returned null and
+             * no previous valid result exists), reset last_inferred_frame_num
+             * to force re-inference on the next frame. */
+            if (obj_history->cached_info.label.empty()) {
+                obj_history->last_inferred_frame_num = 0;
+            }
             /* Use the merged classification results if available otherwise use
              * the new results. */
             newInfo = obj_history->cached_info;
         }
 
-        if (!isAsyncMode()) {
+        if (!isAsyncMode() && !newInfo.label.empty()) {
             attachClassificationMetadata(
                 frame.objMeta, frame.frameMeta, frame.roiMeta, newInfo, uniqueId(),
                 classifierType(), frame.frameWidth, frame.frameHeight);

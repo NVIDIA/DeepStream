@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 /**
  * @file nvdspreprocess_conversion.h
  * <b>NVIDIA DeepStream Preprocess lib implementation </b>
@@ -367,6 +366,20 @@ NvDsPreProcessConvert_C4ToL3RFloat(
 void
 NvDsPreProcessConvert_C1ToP1Float(
         float *outBuffer,
+        unsigned char *inBuffer,
+        unsigned int width,
+        unsigned int height,
+        unsigned int pitch,
+        float scaleFactor,
+        float *meanDataBuffer,
+        cudaStream_t stream);
+
+/**
+ * Same as NvDsPreProcessConvert_C1ToP1Float but writes planar half (FP16) output.
+ */
+void
+NvDsPreProcessConvert_C1ToP1Half(
+        half *outBuffer,
         unsigned char *inBuffer,
         unsigned int width,
         unsigned int height,

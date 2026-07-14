@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-image-meta-test
@@ -25,7 +23,7 @@
 ===============================================================================
 
 Please follow instructions in the apps/sample_apps/deepstream-app/README on how
-to install the prequisites for Deepstream SDK, the DeepStream SDK itself and the
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and the
 apps.
 
 You must have the following development packages installed
@@ -48,7 +46,7 @@ Triton container. Please refer samples/configs/deepstream-app-triton/README for
 the steps to download the container image and setup model repository.
 
 For RHEL Systems:
-   The application has a dependency on libjpeg.so.8 which has to be installed
+   The application has a dependency on libjpeg.so.9 which has to be installed
    separately by the user.
    Please install cmake and nasm by following the steps in the given link -
    https://github.com/libjpeg-turbo/libjpeg-turbo/blob/master/BUILDING.md
@@ -75,8 +73,7 @@ It demonstrates, how to encode objects detected by nvinfer in jpeg format.
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
@@ -85,16 +82,16 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 4. Usage:
 ===============================================================================
 
-  $ deepstream-image-meta-test <gpu_id> <uri1> [uri2] ... [uriN]
+  $ ./deepstream-image-meta-test <gpu_id> <uri1> [uri2] ... [uriN]
 e.g.
-  $ deepstream-image-meta-test 0 file:///home/ubuntu/video1.mp4
-  $ deepstream-image-meta-test 0 rtsp://127.0.0.1/video1
+  $ ./deepstream-image-meta-test 0 file:///home/ubuntu/video1.mp4
+  $ ./deepstream-image-meta-test 0 rtsp://127.0.0.1/video1
 
 Use option "-t inferserver" to select nvinferserver as the inference plugin
-  $ deepstream-image-meta-test -t inferserver <gpu_id> <uri1> [uri2] ... [uriN]
+  $ ./deepstream-image-meta-test -t inferserver <gpu_id> <uri1> [uri2] ... [uriN]
 e.g.
-  $ deepstream-image-meta-test -t inferserver 0 file:///home/ubuntu/video1.mp4
-  $ deepstream-image-meta-test -t inferserver 0 rtsp://127.0.0.1/video1
+  $ ./deepstream-image-meta-test -t inferserver 0 file:///home/ubuntu/video1.mp4
+  $ ./deepstream-image-meta-test -t inferserver 0 rtsp://127.0.0.1/video1
 
 NOTE: Run app with `sudo` or change directory and file permissions
 as necessary.
@@ -106,7 +103,7 @@ user in the command.
 1. ds_image_meta_pgie_nvinferserver_config.txt - change "gpu_ids: [1]"
 2. /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Primary_Detector/config.pbtxt - change "gpus: 1"
 3. Then run app with nvinferserver
-   $ deepstream-image-meta-test -t inferserver 1 file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4
+   $ ./deepstream-image-meta-test -t inferserver 1 file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4
 
 The user can set "save_img" and "save_user_meta" according to their
 requirements.

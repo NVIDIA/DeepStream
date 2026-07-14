@@ -702,5 +702,5 @@ static gboolean nvinfer_server_plugin_init(GstPlugin* plugin) {
 }
 
 GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, nvdsgst_inferserver,
-    DESCRIPTION, nvinfer_server_plugin_init, "9.0", LICENSE,
+    DESCRIPTION, nvinfer_server_plugin_init, "9.1", LICENSE,
     BINARY_PACKAGE, URL)

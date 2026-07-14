@@ -233,6 +233,10 @@ main (int argc, char *argv[])
   gboolean yaml_config = FALSE;
   NvDsGieType pgie_type = NVDS_GIE_PLUGIN_INFER;
   GstPad * sink_pad = NULL;
+  /* When encoder is enabled, split OSD output for live display + encoded file. */
+  GstElement *tee_osd = NULL;
+  GstElement *queue_display = NULL;
+  GstElement *enc_filesink = NULL;
 
   // Note: Below environment variable will be removed once REST  endpoint enable/disable
   // is imeplemented and verified
@@ -308,8 +312,9 @@ main (int argc, char *argv[])
   loop = g_main_loop_new (NULL, FALSE);
 
   /* Parse inference plugin type */
-  yaml_config = (g_str_has_suffix (argv[1], ".yml") ||
-      g_str_has_suffix (argv[1], ".yaml"));
+  gboolean has_yml_suffix  = g_str_has_suffix (argv[1], ".yml");
+  gboolean has_yaml_suffix = g_str_has_suffix (argv[1], ".yaml");
+  yaml_config = has_yml_suffix || has_yaml_suffix;
 
   if (yaml_config) {
     RETURN_ON_PARSER_ERROR (nvds_parse_gie_type (&pgie_type, argv[1],
@@ -378,10 +383,19 @@ main (int argc, char *argv[])
     }
 
     appctx.queue_post_encoder = gst_element_factory_make("queue", "queue-post-encoder");
+    tee_osd = gst_element_factory_make ("tee", "osd-post-tee");
+    queue_display = gst_element_factory_make ("queue", "queue-display-branch");
+    enc_filesink = gst_element_factory_make ("filesink", "enc-file-sink");
 
-    if (!appctx.nvvidconv2 || !appctx.encoder  || !appctx.parser || !appctx.queue_post_encoder) {
+    if (!appctx.nvvidconv2 || !appctx.encoder  || !appctx.parser || !appctx.queue_post_encoder
+        || !tee_osd || !queue_display || !enc_filesink) {
       g_printerr ("One element could not be created in encoder path. Exiting.\n");
       return -1;
+    }
+    if (codec_status.codec_type == 1) {
+      g_object_set (G_OBJECT (enc_filesink), "location", "out.h264", "sync", TRUE, NULL);
+    } else if (codec_status.codec_type == 2) {
+      g_object_set (G_OBJECT (enc_filesink), "location", "out.h265", "sync", TRUE, NULL);
     }
   }
 
@@ -444,28 +458,15 @@ main (int argc, char *argv[])
     g_print ("PERF_MODE Enabled\n");
     appctx.sink = gst_element_factory_make ("fakesink", "nvvideo-renderer");
   } else {
-    /* Finally render the osd output */
+    /* Video display sink (encoder bitstream goes to enc_filesink via tee). */
     if(prop.integrated) {
       appctx.sink = gst_element_factory_make ("nv3dsink", "nv3d-sink");
     } else {
-      if (!enc_enable) {
 #ifdef __aarch64__
-        appctx.sink = gst_element_factory_make ("nv3dsink", "nvvideo-renderer");
+      appctx.sink = gst_element_factory_make ("nv3dsink", "nvvideo-renderer");
 #else
-        appctx.sink = gst_element_factory_make ("nveglglessink", "nvvideo-renderer");
+      appctx.sink = gst_element_factory_make ("nveglglessink", "nvvideo-renderer");
 #endif
-      } else {
-        appctx.sink = gst_element_factory_make("filesink", "file-sink");
-        if (codec_status.codec_type == 1) {
-          g_object_set (G_OBJECT (appctx.sink),
-            "location", "out.h264", NULL);
-          g_object_set (G_OBJECT (appctx.sink),
-            "sync", 1, NULL);
-        } else if (codec_status.codec_type == 2) {
-          g_object_set (G_OBJECT (appctx.sink),
-            "sync", 1, NULL);
-        }
-      }
     }
   }
 
@@ -496,20 +497,17 @@ main (int argc, char *argv[])
   g_object_set (G_OBJECT (appctx.tiler), "rows", tiler_rows, "columns", tiler_columns, NULL);
 
   nvds_parse_tiler(appctx.tiler, argv[1], "tiler");
-  if (!enc_enable) {
+  if (PERF_MODE) {
+    nvds_parse_fake_sink (appctx.sink, argv[1], "sink");
+  } else {
     if(prop.integrated) {
       nvds_parse_3d_sink(appctx.sink, argv[1], "sink");
-    }
-    else {
-       if (PERF_MODE) {
-        nvds_parse_fake_sink (appctx.sink, argv[1], "sink");
-      } else {
+    } else {
 #ifdef __aarch64__
-        nvds_parse_3d_sink(appctx.sink, argv[1], "sink");
+      nvds_parse_3d_sink(appctx.sink, argv[1], "sink");
 #else
-        nvds_parse_egl_sink(appctx.sink, argv[1], "sink");
+      nvds_parse_egl_sink(appctx.sink, argv[1], "sink");
 #endif
-      }
     }
   }
 
@@ -529,8 +527,9 @@ main (int argc, char *argv[])
                      appctx.nvdslogger, appctx.tiler, appctx.queue3, appctx.nvvidconv,
                      appctx.queue4, appctx.nvosd, appctx.queue5, appctx.sink, NULL);
     if (enc_enable){
-      gst_bin_add_many (GST_BIN (appctx.pipeline), appctx.nvvidconv2, appctx.encoder,
-                        appctx.parser, appctx.queue_post_encoder, NULL);
+      gst_bin_add_many (GST_BIN (appctx.pipeline), tee_osd, queue_display,
+                        appctx.nvvidconv2, appctx.encoder,
+                        appctx.parser, appctx.queue_post_encoder, enc_filesink, NULL);
     }
   }
   /* we link the elements together
@@ -582,7 +581,41 @@ main (int argc, char *argv[])
     }
   }
   else {
-    gst_element_link_many (appctx.queue5, appctx.nvvidconv2, appctx.encoder, appctx.queue_post_encoder, appctx.parser, appctx.sink, NULL);
+    GstPad *tee_src_disp = gst_element_request_pad_simple (tee_osd, "src_%u");
+    GstPad *tee_src_enc = gst_element_request_pad_simple (tee_osd, "src_%u");
+    GstPad *qdisp_sink = gst_element_get_static_pad (queue_display, "sink");
+    GstPad *nvv2_sink = gst_element_get_static_pad (appctx.nvvidconv2, "sink");
+
+    if (!tee_src_disp || !tee_src_enc || !qdisp_sink || !nvv2_sink) {
+      g_printerr ("Failed to get pads for tee branches. Exiting.\n");
+      return -1;
+    }
+    if (!gst_element_link (appctx.queue5, tee_osd)) {
+      g_printerr ("queue5->tee could not be linked. Exiting.\n");
+      return -1;
+    }
+    if (gst_pad_link (tee_src_disp, qdisp_sink) != GST_PAD_LINK_OK) {
+      g_printerr ("tee->display queue could not be linked. Exiting.\n");
+      return -1;
+    }
+    if (gst_pad_link (tee_src_enc, nvv2_sink) != GST_PAD_LINK_OK) {
+      g_printerr ("tee->encoder branch could not be linked. Exiting.\n");
+      return -1;
+    }
+    gst_object_unref (tee_src_disp);
+    gst_object_unref (tee_src_enc);
+    gst_object_unref (qdisp_sink);
+    gst_object_unref (nvv2_sink);
+
+    if (!gst_element_link_many (queue_display, appctx.sink, NULL)) {
+      g_printerr ("display queue->sink could not be linked. Exiting.\n");
+      return -1;
+    }
+    if (!gst_element_link_many (appctx.nvvidconv2, appctx.encoder, appctx.queue_post_encoder,
+            appctx.parser, enc_filesink, NULL)) {
+      g_printerr ("encoder branch elements could not be linked. Exiting.\n");
+      return -1;
+    }
   }
 
   /* Lets add probe to get informed of the meta data generated, we add probe to

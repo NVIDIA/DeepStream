@@ -1,4 +1,21 @@
-# RUNTIME SOURCE ADDITION DELETION REFERENCE APP USING DEEPSTREAMSDK 9.0
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+# RUNTIME SOURCE ADDITION DELETION REFERENCE APP USING DEEPSTREAMSDK 9.1
 
 ## Introduction
 The project contains Runtime source addition/deletion application to show the
@@ -14,12 +31,11 @@ to install the prequisites for Deepstream SDK apps.
 - Edit all the inference models config files according to the location of the models to be used
 
 ## Compilation Steps and Execution:
-The app can be built by the [mono-repo build](../../../../build/BUILD.md)
+The app can be built by the [build script](../../../../build/BUILD.md)
 The app can also be built separatedly by the following commands:
 ```
   $ Set CUDA_VER in the MakeFile as per platform.
-      For x86, CUDA_VER=13.1
-      For Jetson, CUDA_VER=13.0
+      CUDA_VER=13.2
   $ sudo make
 ```
 The app run command may be different on different devices:

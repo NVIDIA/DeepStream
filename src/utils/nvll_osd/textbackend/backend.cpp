@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #include "backend.hpp"
 
 #ifdef ENABLE_TEXT_BACKEND_PANGO

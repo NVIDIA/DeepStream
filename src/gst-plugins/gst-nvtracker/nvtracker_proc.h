@@ -132,8 +132,15 @@ protected:
   std::condition_variable m_ProcQueueCond;
   std::condition_variable m_BufQueueCond;
 
-  /** Stores batches not finishing tracker proceeding. */
-  std::map< BatchId, std::vector<SubBatchId> > m_PendingBatch;
+  /** Per-batch tracking: pending sub-batches and in-order completion state.
+   *  Since BatchId is monotonically increasing, map order = submission order.
+   *  Completed batches are drained from the front to guarantee in-order release. */
+  struct PendingBatchInfo {
+    std::vector<SubBatchId> subBatches;
+    bool completed = false;
+    InputParams completedInput;
+  };
+  std::map<BatchId, PendingBatchInfo> m_PendingBatch;
   BatchId m_BatchId = 0;
   std::mutex m_PendingBatchLock;
 

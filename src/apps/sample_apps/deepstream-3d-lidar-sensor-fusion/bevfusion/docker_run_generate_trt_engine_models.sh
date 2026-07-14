@@ -23,7 +23,7 @@ set -e
 # debug
 # set -x
 
-NVDS_VERSION=${NVDS_VERSION:-9.0}
+NVDS_VERSION=${NVDS_VERSION:-9.1}
 DEFAULT_TARGET_IMAGE="deepstream-triton-bevfusion:${NVDS_VERSION}"
 
 function usage() {

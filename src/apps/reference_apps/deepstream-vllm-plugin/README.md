@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # VLLM DeepStream Plugin
 
 A GStreamer plugin for NVIDIA DeepStream that integrates Vision-Language Models (VLM) using VLLM for real-time video understanding and analysis.
@@ -25,16 +42,17 @@ The `nvvllmvlm` plugin enables integration of vision-language models (Cosmos-Rea
 - **Configurable Models**: Supports video-native and image-only VLM models
 - **GPU-Optimized**: Zero-copy GPU operations, shared model across streams
 - **Flexible Input Formats**: PyTorch tensors, PIL Images, or numpy arrays
+- **Platform-Aware RGB Conversion**: Automatically selects the RGB conversion path for dGPU/SBSA or Jetson/Thor platforms
 
 ## Requirements
 
 - NVIDIA GPU with CUDA support
-- NVIDIA DeepStream SDK 9.0.0+
+- NVIDIA DeepStream SDK 9.1.0+
 - Docker with NVIDIA Container Runtime
 - Python 3.12+
 - VLLM 0.21.0 with PyTorch 2.11.0 (installed by `./install.sh`)
 - 40GB+ GPU memory required
-- Currently supported on x86 based GPU platforms
+- A DeepStream platform supported by the selected VLLM/PyTorch model stack. The sample app configures RGB conversion for x86 dGPU, ARM SBSA, and Jetson/Thor platforms at runtime.
 
 ## Quick Start
 
@@ -44,7 +62,7 @@ The `nvvllmvlm` plugin enables integration of vision-language models (Cosmos-Rea
 # Launch DeepStream container
 sudo docker run -it --rm --runtime=nvidia --gpus all --network=host \
   -v $(pwd):/home/vllm_ds_plugin \
-  nvcr.io/nvidia/deepstream:9.0-triton-multiarch
+  nvcr.io/nvidia/deepstream:9.1-triton-multiarch
 
 # Inside DeepStream container install dependencies
 cd /home/vllm_ds_plugin/deepstream-vllm-plugin
@@ -75,10 +93,25 @@ export HF_TOKEN=<Your HF Token>
 python3 vllm_ds_app_kafka_publish.py <video1.mp4 or RTSP stream url> --dry-run
 
 For example,
-python3 vllm_ds_app_kafka_publish.py /opt/nvidia/deepstream/deepstream-9.0/samples/streams/sample_1080p_h264.mp4 --dry-run
+python3 vllm_ds_app_kafka_publish.py /opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 --dry-run
 
 # Multi-stream with shared model (dry-run)
 python3 vllm_ds_app_kafka_publish.py <video1.mp4 or RTSP url> <video2.mp4 or RTSP url> --dry-run
+```
+
+### RGB Converter Mode
+
+The app converts batched DeepStream frames to `video/x-raw(memory:NVMM), format=RGB` before sending them to the `nvvllmvlm` plugin. By default, `--converter-mode auto` detects the platform and configures `nvvideoconvert` appropriately:
+
+- `auto` - keeps DeepStream defaults on x86 dGPU and ARM SBSA platforms; uses CUDA/GPU conversion on Jetson/Thor platforms
+- `default` - uses the default DeepStream `nvvideoconvert` memory type
+- `gpu` - forces CUDA/GPU conversion by setting `compute-hw`, `copy-hw`, and CUDA device memory when those properties are available
+
+Jetson/Thor platforms should use `auto` or `gpu` because VIC does not support RGB/BGR transforms. Use `default` only when explicitly validating the default converter path.
+
+```bash
+# Force CUDA/GPU RGB conversion
+python3 vllm_ds_app_kafka_publish.py <video1.mp4 or RTSP url> --dry-run --converter-mode gpu
 ```
 
 ### Kafka Integration

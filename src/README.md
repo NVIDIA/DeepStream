@@ -1,8 +1,25 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # DeepStream Source Tree
 
-This directory contains the source for all DeepStream 9.0 components shipped from this repository, along with platform-specific notes, external-prerequisite caveats, and deprecation status.
+This directory contains the source for all DeepStream 9.1 components shipped from this repository, along with platform-specific notes, external-prerequisite caveats, and deprecation status.
 
-For build and install instructions, see [BUILD.md](../build/BUILD.md).
+For build and install instructions, see [build/BUILD.md](../build/BUILD.md).
 
 ---
 
@@ -80,9 +97,101 @@ The following components build successfully only when the listed external SDK is
 
 ---
 
+## Triton Inference Server Setup
+
+Components that use `nvinferserver` (Gst-nvinferserver / Triton) require the Triton Inference Server and its backends to be available before use. Setup differs by platform.
+
+### x86 (dGPU)
+
+On x86 dGPU platforms, run these components inside DeepStream's Triton Inference Server container, which ships with Triton and the supported backend libraries pre-installed.
+
+1. Pull the container (`[version]` is the DeepStream version, e.g. `9.1`):
+
+```bash
+docker pull nvcr.io/nvidia/deepstream:[version]-triton
+```
+
+2. Allow applications to connect to the host X display and start the container with the correct GPU id:
+
+```bash
+xhost +
+docker run --gpus '"device=0"' -it --rm -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -e DISPLAY=$DISPLAY --net=host nvcr.io/nvidia/deepstream:[version]-triton
+```
+
+### Jetson (bare-metal)
+
+The DeepStream Triton container already includes Triton Server and backends. To run Triton bare-metal (directly on a Jetson device), the Triton Server must be set up first.
+
+1. Run the backend setup script (must be run as root) and export the Triton paths:
+
+```bash
+cd <DS_ROOT>/scripts/
+sudo ./triton_backend_setup.sh
+export PATH="${PATH:+${PATH}:}/opt/tritonserver/bin"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/opt/tritonserver/lib"
+```
+
+> **Notes:**
+>
+> 1. By default the script downloads Triton Server version 2.60.0. For setting up any other version, change the package path accordingly. Without running this script and exporting the paths above, components using `nvinferserver` fail at runtime on Jetson.
+> 2. The script extracts the Triton server executable to the `/opt/tritonserver/bin` folder. To run both the Triton server and DeepStream applications on the same Jetson device, use the following steps to start the Triton server:
+>
+> ```bash
+> cd /opt/tritonserver/bin
+> ./tritonserver --model-repository=/opt/nvidia/deepstream/deepstream/samples/triton_model_repo
+> # Or for TAO Toolkit models:
+> ./tritonserver --model-repository=/opt/nvidia/deepstream/deepstream/samples/triton_tao_model_repo
+> ```
+>
+> **Note:** `<DS_ROOT>` is the path where the repo is cloned.
+
+### Preparing classification video samples
+
+Some Triton classification samples require a classification test video. Prepare it as follows:
+
+1. Install `ffmpeg` (a prerequisite for the next step):
+
+```bash
+sudo apt-get update && sudo apt-get install ffmpeg
+```
+
+2. Generate the classification video stream into `samples/streams/classification_test_video.mp4`:
+
+```bash
+cd <DS_ROOT>/scripts/
+./prepare_classification_test_video.sh
+```
+
+> **Note:** You can also copy your own classification video files to the same location instead of running this step.
+
+### Preparing model repositories
+
+The following steps download/generate the sample models used by the Triton configs (run on both x86 inside the container and Jetson):
+
+1. Prepare the TensorRT and ONNX sample models into `samples/triton_model_repo`:
+
+```bash
+cd <DS_ROOT>/scripts/
+./prepare_ds_triton_model_repo.sh
+```
+
+2. Prepare NVIDIA TAO Toolkit models (e.g. PeopleNet Transformer) into `samples/triton_tao_model_repo`:
+
+```bash
+cd <DS_ROOT>/scripts/
+./prepare_ds_triton_tao_model_repo.sh
+```
+
+> **Note:** Run the scripts with `sudo -E` or as root if there are file-permission issues.
+
+For gRPC-based Triton usage, the same setup applies; Triton Server runs in a separate DeepStream Triton container (x86) or on the L4T host (Jetson), and the client communicates over gRPC.
+
+---
+
 ## Deprecated Components
 
-The following components are **legacy and no longer maintained**. They are still shipped with the DeepStream 9.0 public release but have been excluded from this repository. Deprecation was announced as part of the DS 9.0 public release.
+The following components are **legacy and no longer maintained**. They are still shipped with the DeepStream 9.1 public release but have been excluded from this repository. Deprecation was announced as part of the DS 9.1 public release.
 
 ### Sample Applications
 
@@ -100,4 +209,4 @@ The following components are **legacy and no longer maintained**. They are still
 - `gst-nvdsspeech`
 - `gst-nvdstexttospeech`
 
-For component details, source, and configuration, refer to the [DeepStream 9.0 public release documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide).
+For component details, source, and configuration, refer to the [DeepStream 9.1 public release documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/).

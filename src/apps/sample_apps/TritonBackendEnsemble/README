@@ -1,21 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-################################################################################
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 This sample demonstrates
 - Use of a Triton ensemble model for inference in a DeepStream pipeline.
@@ -63,13 +59,13 @@ Sample contents for DeepStream Triton:
 - triton_model_repo/triton_custom_backend_ensemble/config.pbtxt:
   Configuration file for the example Triton Ensemble model. This ensemble works
   as a secondary GIE. The component models of this ensemble are
-  Secondary_VehicleMake, Secondary_VehicleType and deepstream_triton_custom_cpp_backend.
+  Secondary_VehicleMake, Secondary_VehicleTypes and deepstream_triton_custom_cpp_backend.
 - triton_model_repo/deepstream_triton_custom_cpp_backend/config.pbtxt:
   Triton model configuration file for the Triton custom C++ backend that processes
   DeepStream metadata, stream IDs in this example.
 - triton_model_repo/Primary_Detector, Secondary_VehicleMake, Secondary_VehicleTypes:
   Softlinks to the corresponding Triton models. These softlinks are NOT shipped
-  in the mono-repo source tree; they are created when you run
+  in this repository's source tree; they are created when you run
   prepare_ds_triton_model_repo.sh (see Prerequisites section). The script
   populates triton_model_repo/ with links pointing at the deb-installed models
   under /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/.
@@ -90,13 +86,18 @@ Pre-requisites:
    Note: Set correct GPU id in `device=$id`.
 
 - For Jetson platform, please install Triton dependencies.
-   $ cd /opt/nvidia/deepstream/deepstream/samples
+   $ cd <DS_ROOT>/scripts
+   NOTE: <DS_ROOT> is the path where the repo is cloned.
    $ sudo ./triton_backend_setup.sh
    $ rm -rf ~/.cache/gstreamer-1.0/
 
 - Build the Triton model repository
    $ cd /opt/nvidia/deepstream/deepstream/samples
    $ ./prepare_ds_triton_model_repo.sh
+   $ cd <path-to-this-sample>
+   $ ln -sfn /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Primary_Detector triton_model_repo/Primary_Detector
+   $ ln -sfn /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleMake triton_model_repo/Secondary_VehicleMake
+   $ ln -sfn /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleTypes triton_model_repo/Secondary_VehicleTypes
 
 - Install Rapid JSON library:
    $ apt install rapidjson-dev
@@ -134,9 +135,7 @@ NOTE: Run with "sudo -E" or root if there is file permission issues.
 3. To Compile:
 ===============================================================================
  - Compile the custom library:
-   Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+   Set CUDA_VER in the MakeFile: CUDA_VER=13.2
 
    $ make -C nvdsinferserver_custom_impl_ensemble
 
@@ -144,15 +143,8 @@ NOTE: Run with "sudo -E" or root if there is file permission issues.
    $ cd nvds_triton_cpp_custom_backend
    $ cd build
    $ make install
-   $ cp install/backends/recommended/libtriton_recommended.so ../triton_model_repo/deepstream_triton_custom_cpp_backend/1/
    $ cp install/backends/recommended/libtriton_recommended.so /opt/tritonserver/backends/recommended/
-
-   $ cd /opt/nvidia/deepstream/deepstream/samples
-   $ ./prepare_ds_triton_model_repo.sh
-   $ cd -   # back to: .../src/apps/sample_apps/TritonBackendEnsemble
-   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Primary_Detector triton_model_repo/Primary_Detector
-   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleMake triton_model_repo/Secondary_VehicleMake
-   $ ln -s /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/Secondary_VehicleTypes triton_model_repo/Secondary_VehicleTypes
+   $ cp install/backends/recommended/libtriton_recommended.so ../../triton_model_repo/deepstream_triton_custom_cpp_backend/1/
 
 NOTE: To compile the sources, run make with "sudo -E" or root permission.
 

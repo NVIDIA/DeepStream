@@ -134,7 +134,8 @@ std::string create_protobuf_wrapper(const uint8_t *payload, size_t nbuf) {
     // Always use current system timestamp
     time_t now = time(0);
     char current_time[64];
-    strftime(current_time, sizeof(current_time), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+    struct tm tm_buf;
+    strftime(current_time, sizeof(current_time), "%Y-%m-%dT%H:%M:%SZ", gmtime_r(&now, &tm_buf));
     std::string timestamp_str = std::string(current_time);
 
     nvds_log(NVDS_MQTT_LOG_CAT, LOG_INFO, "Creating protobuf wrapper with sensor_id: %s, current_timestamp: %s", 

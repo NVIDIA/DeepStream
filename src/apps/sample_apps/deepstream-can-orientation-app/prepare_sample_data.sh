@@ -1,5 +1,4 @@
 #!/bin/bash
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,22 +13,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 set -e
 
-NVDS_VERSION=${NVDS_VERSION:-9.0}
-sample_tar=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/samples/streams/sample_cans_jpg.tbz2
+NVDS_VERSION=${NVDS_VERSION:-9.1}
+sample_tar=/opt/nvidia/deepstream/deepstream/samples/streams/sample_cans_jpg.tbz2
 
 echo "uncompress  ${sample_tar}"
 tar -pxvf ${sample_tar} -C .
 
 from_dir=data/sample0
-[ "$(ls -A ${from_dir})" ] || \
+[[ "$(ls -A ${from_dir})" ]] || \
     { echo "${from_dir} is empty, please download test images into the folder.";  exit -1; }
 
 ref_image=data/reference_sample.jpg
-[ -f "${ref_image}" ] || \
+[[ -f "${ref_image}" ]] || \
     { echo "${ref_image} is not exist, please download reference image.";  exit -1; }
 
 to_dir=data/sample1
@@ -75,11 +73,11 @@ gst-launch-1.0 -e filesrc location="${ref_image}" ! \
 
 echo "Data is ready"
 
-# Patch yaml configs: fix data URIs to point to local data/ dir and lib path to versioned DS install
+# Patch yaml configs and PFS: fix data URIs to point to local data/ dir and lib path to versioned DS install
 DATA_DIR=$(pwd)/data
 LIB_PATH=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
 for yaml in ds_can_orientation_jpg.yaml ds_can_orientation_raw.yaml ds_can_orientation_basler_cam.yaml; do
-    [ -f "$yaml" ] || continue
+    [[ -f "$yaml" ]] || continue
     sed -i \
         -e "s|multifile:///opt/.*/data/|multifile://${DATA_DIR}/|g" \
         -e "s|file:///opt/.*/data/|file://${DATA_DIR}/|g" \
@@ -87,3 +85,10 @@ for yaml in ds_can_orientation_jpg.yaml ds_can_orientation_raw.yaml ds_can_orien
         "$yaml"
 done
 echo "Updated yaml configs with local data paths"
+
+# Patch Basler PFS emulation config: fix ImageFilename to point to local data/sample2
+PFS_FILE=basler_cam_emulation_0815-0000.pfs
+if [[ -f "$PFS_FILE" ]]; then
+    sed -i -e "s|ImageFilename\t.*|ImageFilename\t${DATA_DIR}/sample2|g" "$PFS_FILE"
+    echo "Updated $PFS_FILE with local data path"
+fi

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -23,10 +21,10 @@ endif
 WITH_OPENCV:=0
 
 APP:= deepstream-infer-tensor-meta-app
-include ../Rules.mk
 CC = g++
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
@@ -48,30 +46,33 @@ ifeq ($(WITH_OPENCV),1)
  CFLAGS+= -DWITH_OPENCV
 endif
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_meta -lnvds_meta -lnvds_inferutils -lnvds_utils -lm \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvds_inferutils -lnvds_utils -lm \
        -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart     \
-       -lcuda -Wl,-rpath,$(LIB_INSTALL_DIR) \
-       -lnvds_infercustomparser
+       -lcuda -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 ifeq ($(WITH_OPENCV),1)
 LIBS += -lopencv_objdetect -lopencv_imgproc -lopencv_core
 endif
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS+= -DPLATFORM_TEGRA
+  SRCS+=../../../utils/nvdsinfer_customparser/nvdsinfer_custombboxparser.cpp
+else
+  LIBS+= -L$(LIB_INSTALL_DIR) -lnvds_infercustomparser
+endif
 
 OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
-all: $(BIN_DIR)/$(APP)
+all: $(APP)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
-$(BIN_DIR)/$(APP): $(OBJS) Makefile
-	@mkdir -p $(BIN_DIR)
-	$(CC) -o $(BIN_DIR)/$(APP) $(OBJS) $(LIBS)
+$(APP): $(OBJS) Makefile
+	$(CC) -o $(APP) $(OBJS) $(LIBS)
 
-install: $(BIN_DIR)/$(APP)
+install: $(APP)
+	cp -rv $(APP) $(APP_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)/$(APP)
+	rm -rf $(OBJS) $(APP)

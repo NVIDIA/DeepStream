@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,10 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
-
-LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+DS_SRC_PATH := /opt/nvidia/deepstream/deepstream
+LIB_INSTALL_DIR ?= /opt/nvidia/deepstream/deepstream/lib/
 CC:= g++
 
 # Change to your deepstream SDK includes
@@ -48,7 +46,7 @@ $(TARGET_LIB): $(TARGET_LIB_OBJS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
 install: $(TARGET_LIB)
-	ldconfig
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(TARGET_LIB_OBJS) $(TARGET_LIB)

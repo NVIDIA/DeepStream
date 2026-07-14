@@ -84,11 +84,8 @@ extern "C"
 #define CONFIG_GROUP_PRIMARY_GIE "primary-gie"
 #define CONFIG_GROUP_SECONDARY_GIE "secondary-gie"
 #define CONFIG_GROUP_TRACKER "tracker"
-
 #define CONFIG_GROUP_TEXT_EMBEDDER "text-embedder"
-
 #define CONFIG_GROUP_VISIONENCODER "visionencoder"
-
 #define CONFIG_GROUP_REPLAY "replay"
 #define CONFIG_GROUP_SINK "sink"
 #define CONFIG_GROUP_TILED_DISPLAY "tiled-display"

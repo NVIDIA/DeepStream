@@ -442,7 +442,11 @@ NvDsPreProcessStatus NvDsPreProcessTensorImpl::prepare_tensor(
               printf("Input frame format is not GRAY.");
               return NVDSPREPROCESS_INVALID_PARAMS;
           }
-          convertFcn = NvDsPreProcessConvert_C1ToP1Float;
+          if (tensorParam.params.data_type == NvDsDataType_FP16) {
+              convertFcnHalf = NvDsPreProcessConvert_C1ToP1Half;
+          } else {
+              convertFcn = NvDsPreProcessConvert_C1ToP1Float;
+          }
           break;
       default:
           printf("Unsupported network input format");

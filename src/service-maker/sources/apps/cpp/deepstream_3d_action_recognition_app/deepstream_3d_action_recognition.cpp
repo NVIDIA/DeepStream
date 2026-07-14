@@ -196,7 +196,9 @@ int main (int argc, char *argv[])
     std::string suffix = "yaml";
     if (std::equal(suffix.rbegin(), suffix.rend(), file.rbegin())) {
       Pipeline pipeline("deepstream-3d-action-recognition", file);
-      pipeline.attach("pgie", new BufferProbe("add_label_to_display", new AddLabel)).start().wait();
+      AddLabel* label = new AddLabel;
+      BufferProbe* probe = new BufferProbe("add_label_to_display", label);
+      pipeline.attach("pgie", probe).start().wait();
     }
     else {
       std::cout << "Invalid File Type: " << argv[1] << " Please provide a .yaml config file" << std::endl;

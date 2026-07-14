@@ -48,7 +48,7 @@ infer_config {
     }
   }
   postprocess {
-    labelfile_path: "/opt/nvidia/deepstream/deepstream-9.0/samples/models/Primary_Detector/labels.txt"
+    labelfile_path: "/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt"
     detection {
       num_detected_classes: 4
       per_class_params {

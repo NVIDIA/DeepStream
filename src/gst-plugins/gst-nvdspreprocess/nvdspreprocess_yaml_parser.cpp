@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <string>
 #include "nvdspreprocess_yaml_parser.h"
 #include "nvdspreprocess_property_parser.h"
@@ -356,7 +357,7 @@ gst_preprocess_parse_user_configs_yaml (GstNvDsPreProcess *nvdspreprocess, const
 }
 
 static gboolean
-gst_preprocess_parse_common_group_yaml (GstNvDsPreProcess *nvdspreprocess, YAML::Node group, guint64 group_index)
+gst_preprocess_parse_common_group_yaml (GstNvDsPreProcess *nvdspreprocess, const YAML::Node &group, guint64 group_index)
 {
   gboolean ret = FALSE;
   // Default values

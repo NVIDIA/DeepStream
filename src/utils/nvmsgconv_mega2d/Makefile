@@ -1,6 +1,3 @@
-#######################################################################################################
-#
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,15 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-#
-#######################################################################################################
 
 CC:= g++
 
 PKGS:= glib-2.0 gobject-2.0 json-glib-1.0 uuid
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
@@ -50,14 +44,12 @@ SRCFILES:= nvmsgconv.cpp  \
 TARGET_LIB:= libnvds_msgconv_mega2d.so
 
 all: $(TARGET_LIB)
-	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
-
-install: $(TARGET_LIB)
-	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
-	ldconfig
 
 $(TARGET_LIB) : $(SRCFILES)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+install: $(TARGET_LIB)
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(TARGET_LIB) $(PROTOBUF_BUILD_DIR)/*.pb.*

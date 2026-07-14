@@ -1033,7 +1033,7 @@ GST_PLUGIN_DEFINE (
     nvdsgst_tracker,
     PACKAGE_DESCRIPTION,
     nvtracker_init,
-    "9.0",
+    "9.1",
     PACKAGE_LICENSE,
     PACKAGE_NAME,
     PACKAGE_URL

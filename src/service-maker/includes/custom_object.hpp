@@ -47,6 +47,9 @@ class CustomObject : public Object {
    */
   CustomObject(unsigned long type_id, const char* factory, const std::string& name);
 
+  CustomObject(CustomObject&&) noexcept = default;
+  CustomObject& operator=(CustomObject&&) noexcept = default;
+
  protected:
   virtual void set_(const std::string& name, const Value& value);
   virtual void set_(const std::string& name, const YAML::Node& value);

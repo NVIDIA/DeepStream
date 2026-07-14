@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,13 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 CC:= g++
 NVCC:=/usr/local/cuda/bin/nvcc
 
-
-LIB_INSTALL_DIR?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+DS_SRC_PATH:= /opt/nvidia/deepstream/deepstream
+LIB_INSTALL_DIR?= /opt/nvidia/deepstream/deepstream/lib/
 
 # Change to your deepstream SDK includes
 CFLAGS+= -I../../../../../includes \
@@ -28,7 +27,7 @@ CFLAGS+= -I../../../../../includes \
 
 CFLAGS+= -Wall -std=c++14 -shared -fPIC
 
-CUFLAGS:= -I../../includes -I/usr/local/cuda/include
+CUFLAGS:= -I../../../../../includes -I/usr/local/cuda/include
 
 LIBS+= -L/usr/local/cuda/lib64 -lcudart -lcublas -lyaml-cpp -lnvinfer -lnvinfer_plugin
 
@@ -57,7 +56,7 @@ $(TARGET_LIB): $(TARGET_LIB_OBJS) Makefile
 	$(NVCC) -c -o $@ --compiler-options '-fPIC -I../../../../../includes/ds3d/common/helper' $(CUFLAGS) $<
 
 install: $(TARGET_LIB)
-	ldconfig
+	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(TARGET_LIB_OBJS) $(TARGET_LIB)

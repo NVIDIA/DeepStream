@@ -304,8 +304,11 @@ create_source_bin (guint index, gchar * uri)
 
   /* Convert file path to URI if it's not already a URI */
   gchar *uri_str = NULL;
-  if (g_str_has_prefix (uri, "file://") || g_str_has_prefix (uri, "http://") ||
-      g_str_has_prefix (uri, "https://") || g_str_has_prefix (uri, "rtsp://")) {
+  gboolean has_file_prefix  = g_str_has_prefix (uri, "file://");
+  gboolean has_http_prefix  = g_str_has_prefix (uri, "http://");
+  gboolean has_https_prefix = g_str_has_prefix (uri, "https://");
+  gboolean has_rtsp_prefix  = g_str_has_prefix (uri, "rtsp://");
+  if (has_file_prefix || has_http_prefix || has_https_prefix || has_rtsp_prefix) {
     uri_str = g_strdup (uri);
   } else {
     /* Convert local file path to file:// URI */

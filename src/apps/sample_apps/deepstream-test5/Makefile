@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -21,14 +19,17 @@ ifeq ($(CUDA_VER),)
 endif
 
 APP:= deepstream-test5-app
-include ../Rules.mk
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS:= -DPLATFORM_TEGRA
+endif
 
 SRCS:= deepstream_test5_app_main.c deepstream_utc.c
 SRCS+= ../deepstream-app/deepstream_app.c ../deepstream-app/deepstream_app_config_parser.c \
@@ -41,42 +42,38 @@ INCS:= $(wildcard *.h)
 
 PKGS:= gstreamer-1.0 gstreamer-video-1.0 x11 json-glib-1.0
 
-VPATH := $(sort $(dir $(SRCS)))
 OBJS:= $(SRCS:.c=.o)
 OBJS:= $(OBJS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(notdir $(OBJS)))
 
 CFLAGS+= -I../../common/includes \
 		 -I../../../../includes \
 		 -I../deepstream-app/ -DDS_VERSION_MINOR=0 -DDS_VERSION_MAJOR=5 \
-		 -I../../../../src/utils/nvds_msgapi/inc \
+		 -I../../../src/utils/nvds_msgapi/inc \
 		 -I /usr/local/cuda-$(CUDA_VER)/include
 
 LIBS:= -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_meta -lnvds_meta -lnvdsgst_helper -lnvdsgst_customhelper -lnvdsgst_smartrecord -lnvds_utils -lnvds_msgbroker -lm \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvdsgst_helper -lnvdsgst_customhelper -lnvdsgst_smartrecord -lnvds_utils -lnvds_msgbroker -lm \
        -lyaml-cpp -lcuda -lgstrtspserver-1.0 -lnvbufsurface -lnvbufsurftransform -ldl -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_logger -lcrypto
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 
 LIBS+= $(shell pkg-config --libs $(PKGS))
 
-all: $(BIN_DIR)/$(APP)
+all: $(APP)
 
-$(OBJ_DIR)/%.o: %.c $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.c $(INCS) Makefile
 	$(CC) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(BIN_DIR)/$(APP): $(OBJS) Makefile
-	@mkdir -p $(BIN_DIR)
-	$(CXX) -o $(BIN_DIR)/$(APP) $(OBJS) $(LIBS)
+$(APP): $(OBJS) Makefile
+	$(CXX) -o $(APP) $(OBJS) $(LIBS)
 
-install: $(BIN_DIR)/$(APP)
+install: $(APP)
+	cp -rv $(APP) $(APP_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)/$(APP)
+	rm -rf $(OBJS) $(APP)
 

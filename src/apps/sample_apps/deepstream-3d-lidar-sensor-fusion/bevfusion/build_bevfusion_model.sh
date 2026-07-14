@@ -1,5 +1,4 @@
 #!/bin/bash
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,9 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-
-# usage bevfusion/build_bevfusion_model.sh {MODEL_ROOT} {MODEL_ID}
 
 set -e
 
@@ -38,7 +34,7 @@ BEVFUSION_MODEL=${MODEL_ROOT}/model/resnet50int8
 BEVFUSION_PRECISION=int8
 
 TensorRT_Bin=/usr/src/tensorrt/bin/trtexec
-if [ ! -f "${TensorRT_Bin}" ]; then
+if [[ ! -f "${TensorRT_Bin}" ]]; then
     echo "Can not find ${TensorRT_Bin}, there may be a mistake in the directory you configured."
     exit 1
 fi
@@ -71,7 +67,7 @@ function compile_trt_model(){
     result_save_directory=$model_dir/build
     onnx=$model_dir/$name.onnx
 
-    if [ -f "${result_save_directory}/$name.plan" ]; then
+    if [[ -f "${result_save_directory}/$name.plan" ]]; then
         echo Model ${result_save_directory}/$name.plan is already there, skipping the build.
         return 0
     fi
@@ -102,7 +98,7 @@ function compile_trt_model(){
     mkdir -p $result_save_directory
     echo Building the model: ${result_save_directory}/$name.plan, this will take several minutes. Wait a moment~.
     ${TensorRT_Bin} $cmd > ${result_save_directory}/$name.log 2>&1
-    if [ $? != 0 ]; then
+    if [[ $? != 0 ]]; then
         echo Failed to build model ${result_save_directory}/$name.plan.
         echo You can check the error message by ${result_save_directory}/$name.log
         exit 1
@@ -111,7 +107,7 @@ function compile_trt_model(){
 }
 
 trtexec_dynamic_flags="--fp16 --int8"
-if [ "$precision" == "int8" ]; then
+if [[ "$precision" == "int8" ]]; then
     trtexec_dynamic_flags="--fp16 --int8"
 fi
 

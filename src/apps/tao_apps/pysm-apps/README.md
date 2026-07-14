@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 - [1.Description](#1description)
 - [2.Prerequisites](#2prerequisites)
 - [3.Download Models](#3download-models)
@@ -30,7 +47,7 @@ The following pyservicemaker applications with TAO models are provided:
 
 ### 2.Prerequisites
 
-* [DeepStream SDK 9.0 GA](https://developer.nvidia.com/deepstream-sdk)
+* [DeepStream SDK 9.1 GA](https://developer.nvidia.com/deepstream-sdk)
 
     Make sure deepstream-test1 sample can run successful to verify your installation. According to the
     [document](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html),
@@ -55,7 +72,9 @@ The following pyservicemaker applications with TAO models are provided:
 Run below script to download models
 
 ```bash
-$ git clone https://github.com/NVIDIA/deepstream.git
+$ git clone https://github.com/NVIDIA/DeepStream.git
+
+$ cd DeepStream/src/apps/tao_apps
 
 # rebuild if the code is modified.
 #$ make
@@ -136,7 +155,7 @@ Note: please refer to ../../../apps/tao_others/deepstream_lpr_app/README.md for 
 Run nvOCDR Application
 
 ```shell
-cd pysm-apps/deepstream-nvocdr-app
+cd pysm-apps/tao_others/deepstream-nvocdr-app
 python3 deepstream_nvocdr_app.py  ../../../configs/app/nvocdr_app_config.yml
 ```
 
@@ -147,9 +166,9 @@ Note: please refer to ../../../apps/tao_others/deepstream-nvocdr-app/README.md f
 Run MDX Perception Application
 
 ```shell
-cd pysm-apps/deepstream-mdx-perception-app
-python3 deepstream_mdx_perception_app.py ../../../configs/app/peoplenet_reidentification.yml
-python3 deepstream_mdx_perception_app.py ../../../configs/app/retail_object_detection_recognition.yml
+cd pysm-apps/tao_others/deepstream-mdx-perception-app
+python3 deepstream_mdx_perception_app.py ../../../configs/app/peoplenet_reidentification.yml fc_pred
+python3 deepstream_mdx_perception_app.py ../../../configs/app/retail_object_detection_recognition.yml embeddings
 ```
 
 Note: please refer to ../../../apps/tao_others/deepstream-mdx-perception-app/README.md for more details.

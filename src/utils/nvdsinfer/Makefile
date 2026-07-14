@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -32,11 +30,8 @@ SRCS:= nvdsinfer_context_impl.cpp  nvdsinfer_context_impl_capi.cpp \
 
 INCS:= $(wildcard *.h)
 LIB:=libnvds_infer.so
-LIB_DIR = /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
-OBJ_DIR := .build
-include ../../Rules.mk
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
@@ -57,33 +52,29 @@ ifeq ($(WITH_OPENCV),1)
 LIBS += -lopencv_objdetect -lopencv_imgproc -lopencv_core
 endif
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_helper -lnvdsgst_meta -lnvds_meta \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_helper -lnvdsgst_meta -lnvds_meta \
        -lnvds_inferlogger -lnvds_inferutils -ldl \
        -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 
 OBJS:= $(SRCS:.cpp=.o)
 OBJS:= $(OBJS:.cu=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cu $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cu $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(NVCC) -c -o $@ --compiler-options '-fPIC' $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
+$(LIB): $(OBJS) $(DEP) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

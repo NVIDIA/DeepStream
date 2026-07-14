@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,15 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
-# External dependencies, update as required.
 TRITON_GRPC_CLIENT ?= /opt/tritonclient
 PROTOBUF_BIN_DIR ?= /opt/proto/bin
 
 LIB := libnvdsgst_inferserver.so
-include ../Rules.mk
-NVDS_VERSION := 9.0
+NVDS_VERSION := 9.1
 
 CUDA_VER ?=
 ifeq ($(CUDA_VER),)
@@ -36,6 +32,13 @@ SRCS := \
     gstnvinferserver_impl.cpp \
     $(NULL)
 
+ifeq ($(shell uname -m), aarch64)
+SRCS +=   \
+     ../../utils/nvdsinferserver/infer_utils.cpp \
+     nvdsinferserver_config.pb.cc \
+     nvdsinferserver_plugin.pb.cc \
+     nvdsinferserver_common.pb.cc
+endif
 
 
 INCS += $(wildcard *.h)
@@ -45,7 +48,7 @@ CFLAGS+= \
     -DNDEBUG \
     -fPIC \
     -std=c++17 \
-    -DDS_VERSION=\"9.0.0\" \
+    -DDS_VERSION=\"9.1.0\" \
     -DFOR_PRIVATE \
     $(NULL)
 
@@ -72,7 +75,7 @@ LDFLAGS := \
 LIBS := \
     -L$(TRITON_GRPC_CLIENT)/lib \
     -l:libprotobuf.a \
-    -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib \
+    -L$(LIB_INSTALL_DIR) \
     -lnvdsgst_helper \
     -lnvdsgst_meta \
     -lnvds_meta \
@@ -87,10 +90,14 @@ LIBS := \
     -lnvdsgst_customhelper \
     $(NULL)
 
+ifeq ($(shell uname -m), aarch64)
+# ARM64/Jetson specific libraries
+CFLAGS += -DIS_TEGRA
+LIBS += -L/usr/lib/aarch64-linux-gnu/nvidia -lcuda
+endif
 
 OBJS := $(SRCS:.cpp=.o)
 OBJS := $(OBJS:.cc=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 PKGS := gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 CFLAGS += $(shell pkg-config --cflags $(PKGS))
@@ -113,26 +120,22 @@ INCS += \
     $(NULL)
 
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cc $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cc $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(INCS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
-	$(CXX) -o $(OBJ_DIR)/$(LIB) $(LDFLAGS) $(OBJS) $(LIBS)
-	cp $(OBJ_DIR)/$(LIB) $@
+$(LIB): $(OBJS) $(INCS) $(DEP) Makefile
+	$(CXX) -o $@ $(LDFLAGS) $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(GST_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB) $(ALL_PROTOS_PBH)  $(ALL_PROTOS_PBCC)
+	rm -rf $(OBJS) $(LIB) $(ALL_PROTOS_PBH)  $(ALL_PROTOS_PBCC)
 
 
 %.pb.h %.pb.cc: ../../../includes/%.proto $(INFERSERVER_PROTOS) Makefile

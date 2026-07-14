@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #include "deepstream_schema.h"
 #include <json-glib/json-glib.h>
 #include <uuid.h>

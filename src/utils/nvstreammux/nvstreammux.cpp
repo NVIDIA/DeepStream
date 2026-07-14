@@ -226,8 +226,9 @@ void NvStreamMux::set_pts_offset(gulong offset)
 bool NvStreamMux::push_batch(NvDsBatchBufferWrapper * out_buf, SourcePad * src_pad)
 {
     //out_buf->push(src_pad, current_play_start_time, accum_play_dur);
+    bool ret = out_buf->push(src_pad, cur_frame_pts);
     cur_frame_pts += frame_duration_nsec;
-    return out_buf->push(src_pad, cur_frame_pts);
+    return ret;
 }
 
 void NvStreamMux::set_batch_size(unsigned int size)
@@ -432,7 +433,10 @@ void NvStreamMux::remove_pad(unsigned int id)
 {
     std::unique_lock<std::mutex> lck_m(mutex);
     auto it = inputs.find(id);
-    guint count=0;
+    bool removed_eos_pad = false;
+    bool queue_drained = false;
+    const guint max_drain_wait_ms = 5000;
+    guint drain_wait_ms = 0;
 
     debug_print("%s %d id=%d\n", __func__, __LINE__, id);
 
@@ -441,30 +445,80 @@ void NvStreamMux::remove_pad(unsigned int id)
         return;
     }
 
-    if(inputs[id]->queue.size() == 0)
+    /* Mirror the legacy mux teardown order: wait until all queued buffers/events
+     * have drained before erasing the pad from the helper. Otherwise a queued
+     * STREAM_EOS can be stranded and never sent downstream.
+     */
+    while(!stop_task && drain_wait_ms < max_drain_wait_ms)
+    {
+        std::unique_lock<std::mutex> lck_pad(it->second->mutex);
+        if(it->second->queue.empty())
+        {
+            removed_eos_pad = it->second->get_eos();
+            queue_drained = true;
+            break;
+        }
+
+        debug_print("Waiting for pad queue to drain before removing pad id=%u queue.size=%lu eos=%d\n",
+                id, it->second->queue.size(), it->second->get_eos());
+        lck_pad.unlock();
+
+        cv.notify_all();
+        cv.wait_for(lck_m, std::chrono::milliseconds(1));
+        drain_wait_ms++;
+
+        it = inputs.find(id);
+        if(it == inputs.end())
+        {
+            return;
+        }
+    }
+
+    if(!queue_drained)
+    {
+        std::unique_lock<std::mutex> lck_pad(it->second->mutex);
+        if(it->second->queue.empty())
+        {
+            removed_eos_pad = it->second->get_eos();
+            queue_drained = true;
+        }
+        else
+        {
+            unsigned int dropped_available = it->second->get_available();
+            debug_print("Timed out or stopped while waiting for pad queue to drain before removing pad id=%u "
+                    "wait_ms=%u queue.size=%lu available=%u eos=%d stop_task=%d. "
+                    "Dropping queued buffers/events.\n",
+                    id, drain_wait_ms, it->second->queue.size(), dropped_available,
+                    it->second->get_eos(), stop_task);
+            if(batch_policy.total_buf_available >= dropped_available)
+            {
+                batch_policy.total_buf_available -= dropped_available;
+            }
+            else
+            {
+                batch_policy.total_buf_available = 0;
+            }
+        }
+    }
+
+    if(removed_eos_pad)
     {
         /** decrement stream EOS counters
         * as inputs.size also reduce by 1
         * and inputs.size is used in batch_policy logic and
         * batching logic along with EOS counters */
-        num_queues_empty--;
-	pads_got_eos_and_empty_in_q--;
-	batch_policy.update_eos_sources(batch_policy.get_eos_sources() - 1);
-    }
-
-    while(inputs[id]->get_eos() !=true && count<100)
-    {
-        lck_m.unlock();
-        debug_print("App sequence error release pad called before push events\n");
-        g_usleep(1000);
-        lck_m.lock();
-        count++;
-    }
-    
-    if(inputs[id]->get_eos() != true && count==100)
-    {
-        pads_got_eos_and_empty_in_q++; //To maintain proper count in case of error, compensate for decrement
-        debug_print("100ms timeout exhausted. App sequence error release pad called before push events\n");
+        if(num_queues_empty > 0)
+        {
+            num_queues_empty--;
+        }
+        if(pads_got_eos_and_empty_in_q > 0)
+        {
+            pads_got_eos_and_empty_in_q--;
+        }
+        if(batch_policy.get_eos_sources() > 0)
+        {
+            batch_policy.update_eos_sources(batch_policy.get_eos_sources() - 1);
+        }
     }
 
     if(state == SOURCE_STATE_IDLE)
@@ -477,10 +531,9 @@ void NvStreamMux::remove_pad(unsigned int id)
     inputs.erase(it);
 
     debug_print("DEBUGME %s %d size=%ld\n", __func__, __LINE__, inputs.size());
-    if(inputs.size() == 0)
-    {
-        all_pads_eos = true;
-    }
+    all_pads_eos = inputs.size() == 0 ? true :
+        (pads_got_eos_and_empty_in_q == inputs.size());
+    cv.notify_all();
 }
 
 void NvStreamMux::add_pad(unsigned int pad_id, SinkPad * pad)

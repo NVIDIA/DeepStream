@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 #  Single-View 3D Tracking in DeepStream
 
 ## Introduction
@@ -7,16 +24,16 @@ The currnet SV3DT configuration in this sample uses an 2D pose estimator, which 
 
 ## Prerequisites
 This sample application can be run on both x86 and Jetson platforms inside DeepStream container. Check [here](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html#prerequisites) for DeepStream container setup.
-1. Download the latest DeepStream container image from NGC (e.g., DS 9.0 in the example below)
+1. Download the latest DeepStream container image from NGC (e.g., DS 9.1 in the example below)
     ```bash
-    export DS_IMG_NAME="nvcr.io/nvidia/deepstream:9.0-triton-multiarch"
+    export DS_IMG_NAME="nvcr.io/nvidia/deepstream:9.1-triton-multiarch"
     docker pull $DS_IMG_NAME
     ```
 
 2. Git clone the current `deepstream` repository to the host machine, and enter single-view 3D tracking directory inside the repository.
     ```bash
-    git clone https://github.com/NVIDIA/deepstream.git
-    cd deepstream/src/apps/reference_apps/deepstream-tracker-3d
+    git clone https://github.com/NVIDIA/DeepStream.git
+    cd DeepStream/src/apps/reference_apps/deepstream-tracker-3d
     ```
 
 3. Download NVIDIA pretrained [`PeopleNet`](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet/files?version=deployable_quantized_onnx_v2.6.3) for 2D detection.

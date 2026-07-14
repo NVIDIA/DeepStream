@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-image-decode-app
@@ -53,34 +51,36 @@ the steps to download the container image and setup model repository.
 This document describes the sample deepstream-image-decode application.
 
 This sample builds on top of the deepstream-test1 sample to use multiple sources
-in the pipeline and use a custom decode bin so that mjpeg codec can be used as
-input.
+in the pipeline and use a custom decode bin so that mjpeg codec and JPEG still
+images can be used as input.
 
 ===============================================================================
 3. To compile:
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
-      This app supports mjpeg & mjpg format with mp4 container only.
+      This app supports mjpeg & mjpg format with mp4 container, as well as JPEG/JPG still images. 
 
 ===============================================================================
 4. Usage:
 ===============================================================================
 
-  $ deepstream-image-decode-app <file1> [file2] ... [fileN]
+  $ ./deepstream-image-decode-app <media_file1|URI1> [media_file2|URI2] ... [fileN]
 e.g.
-  $ deepstream-image-decode-app file1_mjpeg.mp4 file2_mjpeg.mp4
+  $ ./deepstream-image-decode-app file1_mjpeg.mp4 file2_mjpeg.mp4
+  $ ./deepstream-image-decode-app image1.jpg image2.jpeg
+  $ ./deepstream-image-decode-app file:///path/to/file.mp4 http://host/image.jpg
 
 Use option "-t inferserver" to select nvinferserver as the inference plugin
-  $ deepstream-image-decode-app -t inferserver <file1> [file2] ... [fileN]
+  $ ./deepstream-image-decode-app -t inferserver <file1> [file2] ... [fileN]
 e.g.
-  $ deepstream-image-decode-app -t inferserver file1_mjpeg.mp4 file2_mjpeg.mp4
+  $ ./deepstream-image-decode-app -t inferserver file1_mjpeg.mp4 file2_mjpeg.mp4
+  $ ./deepstream-image-decode-app -t inferserver image1.jpg image2.jpeg
 
 This sample builds on top of the deepstream-test1 sample to demonstrate how to:
 
@@ -94,9 +94,10 @@ This sample builds on top of the deepstream-test1 sample to demonstrate how to:
 Refer to the deepstream-test1 sample documentation for an example of simple
 single-stream inference, bounding-box overlay, and rendering.
 
-This sample accepts one or more MJPEG streams as input. It creates
-a source bin for each input and connects the bins to an instance of the
-"nvstreammux" element, which forms the batch of frames.
+This sample accepts one or more MJPEG streams or JPEG/JPG still images as
+input (local files or URIs such as file://, http://, https://).
+It creates a source bin for each input and connects the bins to an instance
+of the "nvstreammux" element, which forms the batch of frames.
 This sample creates instance of either "nvinfer" or "nvinferserver" element
 for inference. The "nvinfer" element uses TensorRT API to infer
 on frames/objects. The "nvinferserver" element uses the Triton Inference

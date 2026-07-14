@@ -80,7 +80,8 @@ int main (int argc, char *argv[])
     std::string suffix = "yaml";
     if (std::equal(suffix.rbegin(), suffix.rend(), file.rbegin())) {
       Pipeline pipeline("deepstream-test4", file);
-      pipeline.attach("infer", new BufferProbe("counter", new ObjectCounter));
+      auto* counter = new ObjectCounter;
+      pipeline.attach("infer", new BufferProbe("counter", counter));
       pipeline.start().wait();
     } else {
       Pipeline pipeline("deepstream-test4");
@@ -101,8 +102,9 @@ int main (int argc, char *argv[])
           .link({"decoder", "mux"}, {"", "sink_%u"})
           .link("mux", "infer", "converter", "osd", "tee")
           .link("tee", "queue1", "sink")
-          .link("tee", "queue2", "msgconv", "msgbroker")
-          .attach("infer", new BufferProbe("counter", new ObjectCounter))
+          .link("tee", "queue2", "msgconv", "msgbroker");
+      auto* counter = new ObjectCounter;
+      pipeline.attach("infer", new BufferProbe("counter", counter))
           .attach("osd", "add_message_meta_probe", "metadata generator")
           .start()
           .wait();

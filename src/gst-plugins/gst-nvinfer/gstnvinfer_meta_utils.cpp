@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <random>
 #include "gstnvinfer_meta_utils.h"
 
 #ifndef M_PI
@@ -60,7 +61,8 @@ attach_metadata_detector (GstNvInfer * nvinfer, GstMiniObject * tensor_out_objec
   frame_meta->bInferDone = TRUE;
   /* Iterate through the inference output for one frame and attach the detected
    * bnounding boxes. */
-  srand( (unsigned int)0);
+  std::mt19937 rng(0);
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
   for (guint i = 0; i < detection_output.numObjects; i++) {
     NvDsInferObject & obj = detection_output.objects[i];
 
@@ -211,7 +213,7 @@ attach_metadata_detector (GstNvInfer * nvinfer, GstMiniObject * tensor_out_objec
       obj_meta->mask_params.threshold = segmentationThreshold;
       obj_meta->mask_params.width = obj.mask_width;
       obj_meta->mask_params.height = obj.mask_height;
-      rect_params.border_color = (NvOSD_ColorParams) {(float) rand()/RAND_MAX, (float) rand()/RAND_MAX, (float) rand()/RAND_MAX, 1};
+      rect_params.border_color = (NvOSD_ColorParams) {dist(rng), dist(rng), dist(rng), 1};
     }
 
     nvds_add_obj_meta_to_frame (frame_meta, obj_meta, parent_obj_meta);

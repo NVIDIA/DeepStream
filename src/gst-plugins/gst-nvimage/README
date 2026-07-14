@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 Refer to the DeepStream SDK documentation for a description of the plugin.
 --------------------------------------------------------------------------------
@@ -37,7 +35,7 @@ How to test :
 Single Stream and Rendering
    $ cd gst-nvimage
    $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
+     For x86, Jetson & SBSA, CUDA_VER=13.2
    $ sudo make && sudo make install
 Sample gst-launch-1.0 pipelines mentioned in gstnvimageenc.cpp and
 gstnvimagedec.cpp source files.

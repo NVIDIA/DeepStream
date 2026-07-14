@@ -57,13 +57,13 @@ gpu-id=0
 net-scale-factor=0.0039215697906911373
 #0=RGB, 1=BGR
 model-color-format=0
-onnx-file=yolov11s_qat_int8_672_dynamic.onnx
-infer-dims=3;672;672
+onnx-file=yolov11s_640_dynamic.onnx
+infer-dims=3;640;640
 batch-size=16
-model-engine-file=yolov11s_qat_int8_672_dynamic.onnx_b16_gpu0_best.engine
+model-engine-file=yolov11s_640_dynamic.onnx_b16_gpu0_fp16.engine
 labelfile-path=labels.txt
 ## 0=FP32, 1=INT8, 2=FP16, 3=BEST mode
-network-mode=3
+network-mode=2
 num-detected-classes=80
 gie-unique-id=1
 network-type=0
@@ -75,10 +75,10 @@ symmetric-padding=1
 ## Bilinear Interpolation
 scaling-filter=1
 # parse-bbox-func-name=NvDsInferParseCustomYoloV8
-parse-bbox-func-name=NvDsInferParseCustomYoloV11_cuda
+parse-bbox-func-name=NvDsInferParseYoloV11
 
-# disable-output-host-copy=0
-disable-output-host-copy=1
+disable-output-host-copy=0
+#disable-output-host-copy=1
 custom-lib-path=nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so
 #scaling-compute-hw=0
 ## start from DS6.2

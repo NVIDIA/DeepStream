@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,16 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
-#
-# Local run config — derived from test5_config_file_src_infer.txt
-# Changes vs original:
-#   - sink0 type=1 (FakeSink, no display)
-#   - sink1 uses libnvds_mqtt_proto.so with local mosquitto broker
-#   - source1 disabled, source0 num-sources=1
-#   - streammux + primary-gie batch-size=1 (matches available b1 engine)
-#   - model-engine-file updated to b1 engine
-#   - lib paths corrected to deepstream-9.0
 
 [application]
 enable-perf-measurement=1

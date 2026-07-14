@@ -49,7 +49,8 @@ Use deepstream:x.x-triton-multiarch from NGC(https://catalog.ngc.nvidia.com/orgs
 For Jetson:
 Go to samples directory and run the following command to set up the Triton Server and backends.
 
-$ cd  /opt/nvidia/deepstream/deepstream/samples
+$ cd <DS_ROOT>/scripts
+   NOTE: <DS_ROOT> is the path where the repo is cloned.
 $ sudo ./triton_backend_setup.sh
 
 1.1 Downloading dataset and model files
@@ -58,7 +59,7 @@ $ sudo ./triton_backend_setup.sh
 Please install the following python package first
   $ sudo pip install numpy python-lzf --break-system-packages
 
-  $ cd ./v2xfusion/script/
+  $ cd ./v2xfusion/scripts/
 
 1.1.1 Preprocess the dataset
 ================================================================================
@@ -128,7 +129,7 @@ the 2D image and projects all lidar 3D data into 2D image on screen.
 3. Usage:
 ===============================================================================
 For Docker User:
-  $ sudo v2xfusion/scripts/docker_run_generate_v2x_trt_engine_model.sh ds3d_lidar_video_sensor_v2x_fusion.yml
+  $ sudo v2xfusion/scripts/docker_run_ds3d_sensor_fusion_v2x_pipeline.sh ds3d_lidar_video_sensor_v2x_fusion.yml
 
 In Host:
   Run v2xfusion tests:

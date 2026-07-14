@@ -371,7 +371,8 @@ int main(int argc, char *argv[])
         }
         pipeline.link("mux", pgie);
       }
-      pipeline.attach(checkpoint, new BufferProbe("message_generator", new MsgMetaGenerator(sensor_map, labels)));
+      auto* msg_meta_generator = new MsgMetaGenerator(sensor_map, labels);
+      pipeline.attach(checkpoint, new BufferProbe("message_generator", msg_meta_generator));
 
       // create model update watcher
       otf_triggers.push_back(std::make_unique<NvDsModelEngineWatchOTFTrigger>(&pipeline[pgie], model_engine_file));

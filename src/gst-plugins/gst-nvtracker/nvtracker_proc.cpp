@@ -566,10 +566,7 @@ bool NvTrackerProc::removeSource(uint32_t sourceId, bool removeObjectIdMapping)
         m_ProcQueueCond.notify_one();
         // Wait for the request to be processed
         sourceRemoveLock.lock();
-        if(!m_SourceRemoved)
-        {
-          m_SourceRemoveCond.wait(sourceRemoveLock);
-        }
+        m_SourceRemoveCond.wait(sourceRemoveLock, [this]{ return m_SourceRemoved; });
         sourceRemoveLock.unlock();
       }
       m_PadIndexSsidMap.erase(sourceId);
@@ -629,10 +626,7 @@ bool NvTrackerProc::removeSource(uint32_t sourceId, bool removeObjectIdMapping)
 
           // Wait for the request to be processed
           sourceRemoveLock.lock();
-          if(!m_SourceRemoved)
-          {
-            m_SourceRemoveCond.wait(sourceRemoveLock);
-          }
+          m_SourceRemoveCond.wait(sourceRemoveLock, [this]{ return m_SourceRemoved; });
           sourceRemoveLock.unlock();
 
           /** Now that the source is removed from low level lib , erase the entry from mapping too */
@@ -835,7 +829,6 @@ bool NvTrackerProc::submitInput(const InputParams& inputParams)
   {
     /** Track this batch as pending processing for event synchronization.
      * There is no need to record the streams here so the ssId vector is unused. */
-    std::vector<SubBatchId> nextBatch;
     unique_lock<mutex> pendingBatchLock(m_PendingBatchLock);
     if (m_PendingBatch.find(m_BatchId) != m_PendingBatch.end())
     {
@@ -843,7 +836,7 @@ bool NvTrackerProc::submitInput(const InputParams& inputParams)
       pendingBatchLock.unlock();
       return false;
     }
-    m_PendingBatch[m_BatchId] = nextBatch;
+    m_PendingBatch[m_BatchId] = PendingBatchInfo();
     procParams.batchId = m_BatchId;
     m_BatchId++;
     pendingBatchLock.unlock();
@@ -1457,10 +1450,20 @@ void NvTrackerProc::fillMOTFrame(SurfaceStreamId ssId,
   motFrame.frameNum = frameMeta.frame_num;
   motFrame.srcFrameWidth = pInputBuf->width;
   motFrame.srcFrameHeight = pInputBuf->height;
-  /**motFrame.timeStamp = frameMeta.ntp_timestamp; */
-  motFrame.timeStampValid = false;
+  motFrame.timeMeta.frameNum = frameMeta.frame_num;
+  motFrame.timeMeta.frameTimeStamp = 0;
+  motFrame.timeMeta.frameTimeValid = false;
+  motFrame.timeMeta.localTimestamp = NvDsCurrentTimestampNs();
+  if (frameMeta.ntp_timestamp != 0) {
+    motFrame.timeMeta.frameTimeStamp = static_cast<NvMOTTimeStamp>(frameMeta.ntp_timestamp);
+    motFrame.timeMeta.frameTimeValid = true;
+  } else if (GST_CLOCK_TIME_IS_VALID(static_cast<GstClockTime>(frameMeta.buf_pts))) {
+    motFrame.timeMeta.frameTimeStamp = static_cast<NvMOTTimeStamp>(frameMeta.buf_pts);
+    motFrame.timeMeta.frameTimeValid = true;
+  }
   motFrame.doTracking = true;
   motFrame.reset = false;
+  motFrame.sensorName = frameMeta.sensorInfo_meta.sensor_name;
   if (procParams.pConvBuf != nullptr) {
     motFrame.numBuffers = 1;
     *(motFrame.bufferList) = procParams.pConvBuf->surfaceList + frameMeta.batch_id;
@@ -1726,6 +1729,10 @@ void NvTrackerProc::updateBatchMeta(const NvMOTTrackedObjBatch& procResult,
       continue;
     }
     NvDsFrameMeta *pFrameMeta = frameMap[ssId];
+    /* Sync frame_num in DS frame meta with the tracker's frame ID. When BaseConfig::useBatchNumForFrameId=true,
+     * trackedObjList.frameNum holds the batch counter rather than the per-stream frame number,
+     * so downstream apps see batch-relative frame numbers for MV3DT dynamic-stream use. */
+    pFrameMeta->frame_num = trackedObjList.frameNum;
     updateFrameMeta(pFrameMeta, trackedObjList, procParams);
   } /* Loop over trackedObjBatch. */
 
@@ -2700,8 +2707,6 @@ bool NvTrackerProc::dispatchSubBatches(ProcParams procParams)
   queueFrames(*pBatchMeta, batchList);
   map<SurfaceStreamId, NvDsFrameMeta *>::iterator it;
 
-  std::vector<SubBatchId> nextBatch;
-
   unique_lock<mutex> pendingBatchLock(m_PendingBatchLock);
   if (m_PendingBatch.find(m_BatchId) != m_PendingBatch.end())
   {
@@ -2709,11 +2714,11 @@ bool NvTrackerProc::dispatchSubBatches(ProcParams procParams)
     pendingBatchLock.unlock();
     return false;
   }
-  m_PendingBatch[m_BatchId] = nextBatch;
+  m_PendingBatch[m_BatchId] = PendingBatchInfo();
   unique_lock<mutex> convBufLock(m_ConvBufLock);
   m_ConvBufComplete[m_BatchId] = false;
   convBufLock.unlock();
-  std::vector<SubBatchId> &nextBatchRef = m_PendingBatch[m_BatchId];
+  std::vector<SubBatchId> &nextBatchRef = m_PendingBatch[m_BatchId].subBatches;
   procParams.batchId = m_BatchId;
   // Should not be unlocked here since "nextBatchRef" will be used to add the "SubBatchId" values
   // pendingBatchLock.unlock();
@@ -3000,11 +3005,11 @@ req_complete:
     auto it = m_PendingBatch.find(req.batchId);
     if (it != m_PendingBatch.end())
     {
-      auto itSB = find(it->second.begin(), it->second.end(), sbId);
-      if (itSB != it->second.end())
+      auto itSB = find(it->second.subBatches.begin(), it->second.subBatches.end(), sbId);
+      if (itSB != it->second.subBatches.end())
       {
-        it->second.erase(itSB);
-        if (it->second.empty())
+        it->second.subBatches.erase(itSB);
+        if (it->second.subBatches.empty())
         {
           /** Return the convert buffer set. OK if it's null. */
           unique_lock<mutex> lkProc(m_ProcQueueLock);
@@ -3021,14 +3026,21 @@ req_complete:
           lkProc.unlock();
           m_BufQueueCond.notify_one();
 
-          m_PendingBatch.erase(it);
           unique_lock<mutex> convBufLock(m_ConvBufLock);
           m_ConvBufComplete.erase(req.batchId);
           convBufLock.unlock();
-          unique_lock<mutex> lkComp(m_CompletionQueueLock);
-          m_CompletionQueue.push(procParams.input);
-          lkComp.unlock();
-          m_CompletionQueueCond.notify_one();
+
+          it->second.completed = true;
+          it->second.completedInput = procParams.input;
+
+          /** Drain completed batches from the front in submission order. */
+          while (!m_PendingBatch.empty() && m_PendingBatch.begin()->second.completed) {
+            unique_lock<mutex> lkComp(m_CompletionQueueLock);
+            m_CompletionQueue.push(m_PendingBatch.begin()->second.completedInput);
+            lkComp.unlock();
+            m_CompletionQueueCond.notify_one();
+            m_PendingBatch.erase(m_PendingBatch.begin());
+          }
         }
       }
       else

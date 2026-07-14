@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,23 +12,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
   $(error "CUDA_VER is not set")
 endif
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 CUSTOM_LIB:=libnvds_custom_sequence_preprocess.so
 
 CC = g++
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
 CFLAGS:= -fvisibility=hidden -Wall -Werror
 
+ifeq ($(TARGET_DEVICE),aarch64)
+  CFLAGS+= -DPLATFORM_TEGRA
+endif
 
 PKGS:= gstreamer-1.0
 
@@ -43,7 +45,7 @@ CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS:= $(shell pkg-config --libs $(PKGS))
 
 LIBS+= -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -lnvdsgst_helper -lm \
--L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_meta -lnvds_meta \
+		-L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta \
 		-lcuda -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 
@@ -69,7 +71,7 @@ $(CUSTOM_LIB): $(CUSTOM_LIB_OBJS) Makefile
 	$(NVCC) -c -o $@ --compiler-options '-fPIC' $<
 
 install: $(CUSTOM_LIB)
-	ldconfig
+	cp -rv $(CUSTOM_LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(CUSTOM_LIB_OBJS) $(CUSTOM_LIB)

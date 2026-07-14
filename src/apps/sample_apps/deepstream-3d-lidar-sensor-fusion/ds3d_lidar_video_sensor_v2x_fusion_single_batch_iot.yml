@@ -1,5 +1,3 @@
-%YAML 1.2
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,7 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
+
+%YAML 1.2
 
 # decode and mux to batch
 ---
@@ -185,8 +184,8 @@ config_body:
   custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_3d_v2x_infer_custom_preprocess.so
   custom_preprocess_func_name: CreateInferServerCustomPreprocess
   preprocess:
-    intervalsFrom: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/example-data/intervals.tensor
-    geometrysFrom: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/example-data/geometrys.tensor
+    intervalsFrom: ./v2xfusion/example-data/intervals.tensor
+    geometrysFrom: ./v2xfusion/example-data/geometrys.tensor
     imagesFrom: DS3D::VideoPreprocessTensor+0
     featsFrom: DS3D::LidarFeatureTensor+1
     coordsFrom: DS3D::LidarCoordTensor+1
@@ -215,7 +214,7 @@ config_body:
         color: [0, 0, 230]
     - traffic_cone:
         color: [47, 79, 79]
-  config_file: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/config/triton_mode_CAPI.txt
+  config_file: ./v2xfusion/config/triton_mode_CAPI.txt
   # filter_input_datamap_key: DS3D::LidarAlignedXYZIKey
 
 ---

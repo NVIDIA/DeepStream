@@ -349,6 +349,45 @@ NvDsPreProcessConvert_C1ToP1FloatKernelWithMeanSubtraction(
 }
 
 __global__ void
+NvDsPreProcessConvert_C1ToP1HalfKernel(
+        half *outBuffer,
+        unsigned char *inBuffer,
+        unsigned int width,
+        unsigned int height,
+        unsigned int pitch,
+        float scaleFactor)
+{
+    unsigned int row = blockIdx.y * blockDim.y + threadIdx.y;
+    unsigned int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (col < width && row < height)
+    {
+        outBuffer[row * width + col] = scaleFactor * inBuffer[row * pitch + col];
+    }
+}
+
+__global__ void
+NvDsPreProcessConvert_C1ToP1HalfKernelWithMeanSubtraction(
+        half *outBuffer,
+        unsigned char *inBuffer,
+        unsigned int width,
+        unsigned int height,
+        unsigned int pitch,
+        float scaleFactor,
+        float *meanDataBuffer)
+{
+    unsigned int row = blockIdx.y * blockDim.y + threadIdx.y;
+    unsigned int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (col < width && row < height)
+    {
+        outBuffer[row * width + col] =
+            scaleFactor * ((float) inBuffer[row * pitch + col] -
+            meanDataBuffer[(row * width) + col]);
+    }
+}
+
+__global__ void
 NvDsPreProcessConvert_FtFTensorKernel(
         float *outBuffer,
         float *inBuffer,
@@ -669,6 +708,33 @@ NvDsPreProcessConvert_C1ToP1Float(
     else
     {
         NvDsPreProcessConvert_C1ToP1FloatKernelWithMeanSubtraction <<<blocks, threadsPerBlock, 0, stream>>>
+            (outBuffer, inBuffer, width, height, pitch, scaleFactor, meanDataBuffer);
+    }
+
+}
+
+void
+NvDsPreProcessConvert_C1ToP1Half(
+        half *outBuffer,
+        unsigned char *inBuffer,
+        unsigned int width,
+        unsigned int height,
+        unsigned int pitch,
+        float scaleFactor,
+        float *meanDataBuffer,
+        cudaStream_t stream)
+{
+    dim3 threadsPerBlock(THREADS_PER_BLOCK, THREADS_PER_BLOCK);
+    dim3 blocks((width+THREADS_PER_BLOCK_1)/threadsPerBlock.x, (height+THREADS_PER_BLOCK_1)/threadsPerBlock.y);
+
+    if (meanDataBuffer == NULL)
+    {
+        NvDsPreProcessConvert_C1ToP1HalfKernel <<<blocks, threadsPerBlock, 0, stream>>>
+            (outBuffer, inBuffer, width, height, pitch, scaleFactor);
+    }
+    else
+    {
+        NvDsPreProcessConvert_C1ToP1HalfKernelWithMeanSubtraction <<<blocks, threadsPerBlock, 0, stream>>>
             (outBuffer, inBuffer, width, height, pitch, scaleFactor, meanDataBuffer);
     }
 

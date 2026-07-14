@@ -35,13 +35,13 @@ function echoGreen() {
 
 function prepareEngine() {
     echo "PWD $(pwd)"
-    if [ ! -f ../models/v2xfusion/${MODEL_NAME}.onnx ];then
+    if [[ ! -f ../models/v2xfusion/${MODEL_NAME}.onnx ]];then
         echoGreen "Download ${MODEL_NAME}.onnx"
 		mkdir -p ../models/v2xfusion
         wget ${MODEL_DOWNLOAD_URL} -O ../models/v2xfusion/${MODEL_NAME}.onnx
     fi
 
-    if [ ! -d ../models/v2xfusion/1/ ];then
+    if [[ ! -d ../models/v2xfusion/1/ ]];then
         mkdir -p ../models/v2xfusion/1/
     fi
 
@@ -63,7 +63,7 @@ function prepareEngine() {
 }
 
 function prepareDataSet() {
-    if [ ! -f V2X-Seq-SPD-Example.zip ];then
+    if [[ ! -f V2X-Seq-SPD-Example.zip ]];then
         # https://github.com/AIR-THU/DAIR-V2X?tab=readme-ov-file#dataset
         echoRed "Please download V2X-Seq-SPD-Example.zip from https://github.com/AIR-THU/DAIR-V2X?tab=readme-ov-file#dataset"
         # gdown 1gjOmGEBMcipvDzu2zOrO9ex_OscUZMYY
@@ -73,7 +73,7 @@ function prepareDataSet() {
     echoGreen "Unzip V2X-Seq-SPD-Example.zip"
     unzip -oq V2X-Seq-SPD-Example.zip
 
-    if [ ! -d ../example-data/${DATASET} ];then
+    if [[ ! -d ../example-data/${DATASET} ]];then
         mkdir -p ../example-data/${DATASET}
     fi
 

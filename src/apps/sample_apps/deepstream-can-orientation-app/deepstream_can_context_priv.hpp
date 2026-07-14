@@ -112,8 +112,10 @@ public:
 
         // basler camera has change state issue, try multi-times
         uint32_t times = 1;
-        while (ret == GST_STATE_CHANGE_FAILURE && times++ < 3) {
+        while (times < 3) {
+            if (ret != GST_STATE_CHANGE_FAILURE) break;
             ret = gst_element_get_state(GST_ELEMENT(pipeline()), &state, &pending, 0);
+            times++;
         }
         if (ret == GST_STATE_CHANGE_FAILURE) {
             return false;

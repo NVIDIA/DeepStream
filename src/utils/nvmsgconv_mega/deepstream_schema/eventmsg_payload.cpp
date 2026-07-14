@@ -709,7 +709,7 @@ generate_object_object (void *privData, NvDsEventMsgMeta *meta)
   // Single-view 3D Tracking metadata
   jobject = json_object_new ();
   if(meta->has3DTracking) {
-    json_object_set_double_member (jobject, "visibility", meta->singleView3DTracking.visibility);
+    json_object_set_double_member (jobject, "visibility", meta->visibility);
 
     JsonArray *footLoc2DArray = json_array_sized_new (2);
     json_array_add_double_element (footLoc2DArray, meta->singleView3DTracking.ptImgFeet[0]);
@@ -825,13 +825,13 @@ generate_type_metrics_object(void *privData, NvDsTypeMetricsObject *obj)
     JsonObject *infoObj;
 
     metricsObj = json_object_new();
-    
+
     if (obj->id)
         json_object_set_string_member(metricsObj, "id", obj->id);
-    
+
     if (obj->type)
         json_object_set_string_member(metricsObj, "type", obj->type);
-    
+
     json_object_set_int_member(metricsObj, "count", obj->count);
 
     coordinatesArray = json_array_new();
@@ -875,7 +875,7 @@ generate_interaction_object(void *privData, NvDsInteractionObject *obj)
     JsonObject *infoObj;
 
     interactionObj = json_object_new();
-    
+
     if (obj->id)
         json_object_set_string_member(interactionObj, "id", obj->id);
 
@@ -922,7 +922,7 @@ generate_congestion_object(void *privData, NvDsCongestionObject *obj)
     JsonObject *infoObj;
 
     congestionObj = json_object_new();
-    
+
     if (obj->id)
         json_object_set_string_member(congestionObj, "id", obj->id);
 
@@ -956,7 +956,7 @@ generate_conversation_object(void *privData, NvDsConversationObject *obj)
   JsonObject *conversationObj;
 
   conversationObj = json_object_new();
-  
+
   if (obj->id) {
     json_object_set_string_member(conversationObj, "id", obj->id);
   }
@@ -1469,7 +1469,7 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
 
     // Single-view 3D Tracking metadata
     if(meta->has3DTracking) {
-      ss << "#|SV3DT|" << to_string(meta->singleView3DTracking.visibility) << "|"
+      ss << "#|SV3DT|" << to_string(meta->visibility) << "|"
         << to_string(meta->singleView3DTracking.ptImgFeet[0]) << "," << to_string(meta->singleView3DTracking.ptImgFeet[1]) << "|"
         << to_string(meta->singleView3DTracking.ptWorldFeet[0]) << "," << to_string(meta->singleView3DTracking.ptWorldFeet[1]) << "|";
 
@@ -1541,7 +1541,8 @@ static void nanoseconds_to_rfc3339(int64_t nanoseconds, char *output, size_t out
     time_t seconds = nanoseconds / 1000000000;
     int32_t milliseconds = (nanoseconds % 1000000000) / 1000000;
 
-    struct tm *tm_info = gmtime(&seconds);
+    struct tm tm_buf;
+    struct tm *tm_info = gmtime_r(&seconds, &tm_buf);
 
     char time_str[MAX_TIME_STAMP_LEN];
     strftime(time_str, MAX_TIME_STAMP_LEN, "%Y-%m-%dT%H:%M:%S", tm_info);
@@ -1560,7 +1561,8 @@ bool compare_labels(const char* labels_3d, const char* embedding_filter) {
         return false;
     }
 
-    char* token = strtok(filter_copy, ",");
+    char* saveptr = NULL;
+    char* token = strtok_r(filter_copy, ",", &saveptr);
     while (token != NULL) {
         // Remove leading and trailing whitespace
         while (*token == ' ') token++;
@@ -1572,7 +1574,7 @@ bool compare_labels(const char* labels_3d, const char* embedding_filter) {
             free(filter_copy);
             return true;
         }
-        token = strtok(NULL, ",");
+        token = strtok_r(NULL, ",", &saveptr);
     }
 
     free(filter_copy);
@@ -1821,7 +1823,13 @@ gchar* generate_event_message_protobuf (void *privData, NvDsEvent *events, guint
       bbox->mutable_info();
       // Set type
       object->set_type(object_enum_to_str(meta->objType, meta->objectId));
-      object->mutable_embedding();
+      auto *embeddings = object->mutable_embedding();
+      if (meta->embedding.embedding_length > 0 && meta->embedding.embedding_vector != nullptr) {
+        auto *vector = embeddings->mutable_vector();
+        for (guint i = 0; i < meta->embedding.embedding_length; i++) {
+          vector->Add(meta->embedding.embedding_vector[i]);
+        }
+      }
 
       // Set bbox3d
       auto *bbox3d = object->mutable_bbox3d();
@@ -1836,6 +1844,28 @@ gchar* generate_event_message_protobuf (void *privData, NvDsEvent *events, guint
       object->mutable_info();
       object->set_speed(0.0);
       object->mutable_dir()->Clear(); // Clear existing direction data
+
+      {
+        auto *info = object->mutable_info();
+        (*info)["visibility"] = std::to_string(meta->visibility);
+        (*info)["footLocation2D"] = to_string(meta->singleView3DTracking.ptImgFeet[0]) + "," + to_string(meta->singleView3DTracking.ptImgFeet[1]);
+        (*info)["footLocation3D"] = to_string(meta->singleView3DTracking.ptWorldFeet[0]) + "," + to_string(meta->singleView3DTracking.ptWorldFeet[1]);
+
+        stringstream ss;
+        ss.str("");
+        ss.clear();
+
+        for (unsigned int idx = 0; idx<meta->singleView3DTracking.convexHull.numFilled * 2; idx++){
+          if(idx==meta->singleView3DTracking.convexHull.numFilled * 2 - 1){
+            ss << to_string(meta->singleView3DTracking.convexHull.points[idx]);
+          }
+          else{
+            ss << to_string(meta->singleView3DTracking.convexHull.points[idx]) << ",";
+          }
+        }
+
+        (*info)["convexHull"] = ss.str();
+      }
     }
   }
 

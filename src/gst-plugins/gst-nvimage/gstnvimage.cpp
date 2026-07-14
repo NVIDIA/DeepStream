@@ -61,7 +61,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     nvdsgst_image,
     PACKAGE_DESCRIPTION,
     plugin_init,
-    DS_VERSION_STR("9.0"),
+    DS_VERSION_STR("9.1"),
     PACKAGE_LICENSE,
     PACKAGE_NAME,
     PACKAGE_URL)

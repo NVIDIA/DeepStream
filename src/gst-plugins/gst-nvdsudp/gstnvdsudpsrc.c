@@ -51,6 +51,7 @@
 #define UDP_DEFAULT_SOURCE_ADDRESS      NULL
 #define DEFAULT_GPU_DIRECT              FALSE
 #define DEFAULT_PAYLOAD_MULTIPLE        1000
+#define GPU_ID_INVALID             (-1)
 
 static void gst_nvdsudpsrc_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
@@ -1954,7 +1955,8 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
 
     if (!g_strcmp0 (mimeType, "video/x-raw") ||
         !g_strcmp0 (mimeType, "audio/x-raw") ||
-        !g_strcmp0 (mimeType, "application/x-custom")) {
+        !g_strcmp0 (mimeType, "application/x-custom") ||
+        !g_strcmp0 (mimeType, "meta/x-st-2038")) {
 
       if (!g_strcmp0 (mimeType, "video/x-raw")) {
         GstCapsFeatures *inFeature = gst_caps_features_new ("memory:NVMM", NULL);
@@ -1969,6 +1971,34 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
       } else if (!g_strcmp0 (mimeType, "audio/x-raw")) {
         src->streamType = AUDIO_2110_30_31_STREAM;
         ret = nvdsudpsrc_parse_audio_params (src, structure);
+      } else if (!g_strcmp0 (mimeType, "meta/x-st-2038")) {
+        /* Only frame-aligned ST 2038 output is advertised: depayload aggregates
+         * all ANC packets for a frame into a single downstream GstBuffer.
+         * Reject any explicit alignment that isn't "frame", and pin the field
+         * on src->caps so downstream always sees alignment=frame. */
+        const gchar *alignment = gst_structure_get_string (structure,
+            "alignment");
+        if (alignment && g_strcmp0 (alignment, "frame") != 0) {
+          GST_ERROR_OBJECT (src,
+              "meta/x-st-2038 caps must specify alignment=frame, got '%s'",
+              alignment);
+          return FALSE;
+        }
+        if (!alignment) {
+          gst_structure_set (structure, "alignment", G_TYPE_STRING, "frame",
+              NULL);
+        }
+        src->streamType = ANCILLARY_2110_40_STREAM;
+        src->clock_rate = ST2110_40_CLOCK_RATE;
+        src->outputMemType = MEM_TYPE_HOST;
+        src->frameSize = src->payloadSize;
+        if (src->isGpuDirect) {
+          GST_WARNING_OBJECT (src,
+              "gpu-id is not supported for ancillary stream. Disabling GPUDirect.");
+          src->gpuId = GPU_ID_INVALID;
+          src->isGpuDirect = FALSE;
+        }
+        ret = TRUE;
       } else {
         src->streamType = APPLICATION_CUSTOM_STREAM;
         src->frameSize = src->payloadSize * src->payMultiple;
@@ -1993,7 +2023,7 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
   if (src->st2022_7_streams) {
     /* Parse streams string into DstStreamInfo structures */
     src->num_streams = parse_st2022_7_streams(src->st2022_7_streams, src->dstStream);
-    if (src->num_streams == 0) {
+    if (src->num_streams == 0 || src->num_streams > MAX_ST2022_7_STREAMS) {
       GST_ERROR_OBJECT (src, "Invalid number of streams: %u. Min: 1, Max: %u",
                         src->num_streams, MAX_ST2022_7_STREAMS);
       return FALSE;
@@ -2160,7 +2190,8 @@ gst_nvdsudpsrc_start (GstBaseSrc *psrc)
       priv->frameSize = size;
       // need to allocate the memory for output frames.
       ((GstNvDsCudaMemoryAllocator *) priv->allocator)->allocate_memory = TRUE;
-      if (src->streamType == APPLICATION_CUSTOM_STREAM &&
+      if ((src->streamType == APPLICATION_CUSTOM_STREAM ||
+           src->streamType == ANCILLARY_2110_40_STREAM) &&
           src->outputMemType != MEM_TYPE_DEVICE) {
         // In case of custom stream, if user has asked for Host pinned memory
         // as output, we prefer that even if gpu-id property is set.
@@ -2353,7 +2384,7 @@ check_rtp_header (uint8_t *rtp_hdr, uint8_t *rtp_data, guint16 data_size, GstNvD
   if (src->streamType == VIDEO_2110_20_STREAM) {
     mBit = !!(rtp_hdr[1] & 0x80);
     fBit = !!(rtp_hdr[16] & 0x80);
-    size = g_ntohs (*(guint16 *)(rtp_hdr + 14));
+    size = GST_READ_UINT16_BE (rtp_hdr + 14);
   } else {
     size = data_size;
   }
@@ -2914,6 +2945,218 @@ nvdsudpsrc_push_frame (const rmx_input_completion *comp, GstNvDsUdpSrc *src)
   return TRUE;
 }
 
+/**
+ * @brief Depayloads a single RFC 8331 RTP ANC payload into ST2038 buffers.
+ *
+ * Parses the 8-byte payload header and each ANC sub-packet, reconstructing
+ * ST2038 wire format. Pushes one GstBuffer per ANC packet to the output queue.
+ *
+ * @param rtp_hdr      Pointer to the RTP header block
+ * @param rtp_hdr_size Size of the RTP header block (12 if only RTP header,
+ *                     20 if RTP header + RFC 8331 payload header)
+ * @param rtp_data     Pointer to the data block (payload after the header block)
+ * @param data_size    Size of the data block
+ * @param src          Source element instance
+ * @return TRUE on success, FALSE on fatal error
+ */
+static gboolean
+depayload_rtp_anc_packet (uint8_t *rtp_hdr, guint16 rtp_hdr_size,
+    uint8_t *rtp_data, guint16 data_size, GstNvDsUdpSrc *src)
+{
+  uint8_t *payload_hdr;
+  uint8_t *anc_data;
+  guint16 anc_data_size;
+
+  if (rtp_hdr_size >= RTP_ST2110_40_HEADER_SIZE) {
+    payload_hdr = rtp_hdr + RTP_HEADER_SIZE;
+    anc_data = rtp_data;
+    anc_data_size = data_size;
+  } else {
+    /* When rtp_hdr_size < RTP_HEADER_SIZE (e.g. non-HDS where rtp_data
+     * points to the full RTP packet), skip past the RTP header bytes
+     * that are still embedded in the data block. */
+    guint16 skip = (rtp_hdr_size < RTP_HEADER_SIZE) ?
+        (RTP_HEADER_SIZE - rtp_hdr_size) : 0;
+    if (data_size < skip + RFC8331_PAYLOAD_HDR_SIZE) {
+      GST_WARNING_OBJECT (src, "ANC RTP payload too small: %u", data_size);
+      return TRUE;
+    }
+    payload_hdr = rtp_data + skip;
+    anc_data = rtp_data + skip + RFC8331_PAYLOAD_HDR_SIZE;
+    anc_data_size = data_size - skip - RFC8331_PAYLOAD_HDR_SIZE;
+  }
+
+  gboolean marker_bit = !!(rtp_hdr[1] & 0x80);
+
+  guint16 extended_seqnum = GST_READ_UINT16_BE (payload_hdr);
+  guint16 length = GST_READ_UINT16_BE (payload_hdr + 2);
+  guint8 anc_count = payload_hdr[4];
+  guint8 field = (payload_hdr[5] >> 6) & 0x03;
+
+  GST_LOG_OBJECT (src,
+      "ANC RTP: hdr_size=%u, data_size=%u, ext_seq=%u, length=%u, "
+      "anc_count=%u, field=%u",
+      rtp_hdr_size, data_size, extended_seqnum, length, anc_count, field);
+
+  BitReader br;
+  bit_reader_init (&br, anc_data, anc_data_size);
+
+  for (guint i = 0; i < anc_count; i++) {
+    if (!bit_reader_has_bits (&br, 1 + 11 + 12 + 1 + 7 + 10 + 10 + 10)) {
+      GST_WARNING_OBJECT (src, "ANC packet %u truncated", i);
+      break;
+    }
+
+    guint32 c_flag = bit_reader_read (&br, 1);
+    guint16 line_number = bit_reader_read (&br, 11);
+    guint16 horiz_offset = bit_reader_read (&br, 12);
+    bit_reader_read (&br, 1);   /* S */
+    bit_reader_read (&br, 7);   /* StreamNum */
+
+    guint16 did = bit_reader_read (&br, 10);
+    guint16 sdid = bit_reader_read (&br, 10);
+    guint16 data_count_raw = bit_reader_read (&br, 10);
+    guint8 data_count = (guint8)(data_count_raw & 0xFF);
+
+    if (!bit_reader_has_bits (&br, (guint)data_count * 10 + 10)) {
+      GST_WARNING_OBJECT (src, "ANC packet %u user data truncated: "
+          "anc_data_size=%u, bit_pos=%zu, need %u bits (%u avail), "
+          "DID=0x%03x, SDID=0x%03x, data_count=%u (raw=0x%03x), "
+          "C=%u, line=%u, hoff=%u",
+          i, anc_data_size, br.bit_pos, (guint)data_count * 10 + 10,
+          (guint)(br.byte_len * 8 - br.bit_pos),
+          did, sdid, data_count, data_count_raw,
+          c_flag, line_number, horiz_offset);
+      break;
+    }
+
+    guint16 user_data[ANC_MAX_DATA_COUNT];
+    for (guint j = 0; j < data_count; j++)
+      user_data[j] = bit_reader_read (&br, 10);
+
+    guint16 checksum = bit_reader_read (&br, 10);
+
+    {
+      GString *uw_str = g_string_new (NULL);
+      for (guint j = 0; j < data_count; j++) {
+        if (j > 0)
+          g_string_append_c (uw_str, ' ');
+        g_string_append_printf (uw_str, "0x%03x", user_data[j]);
+      }
+      GST_DEBUG_OBJECT (src,
+          "ANC[%u/%u]: DID=0x%03x, SDID=0x%03x, data_count=%u, "
+          "anc_count=%u, user_words=[%s]",
+          i, anc_count, did, sdid, data_count, anc_count, uw_str->str);
+      g_string_free (uw_str, TRUE);
+    }
+
+    /* Skip to 32-bit alignment */
+    while (br.bit_pos % 32 != 0 && bit_reader_has_bits (&br, 1))
+      bit_reader_read (&br, 1);
+
+    guint8 pkt_buf[ANC_MAX_PACKET_SIZE];
+    BitWriter bw;
+    bit_writer_init (&bw, pkt_buf, sizeof (pkt_buf));
+    bit_writer_write (&bw, 6, 0);
+    bit_writer_write (&bw, 1, c_flag);
+    bit_writer_write (&bw, 11, line_number);
+    bit_writer_write (&bw, 12, horiz_offset);
+    bit_writer_write (&bw, 10, did);
+    bit_writer_write (&bw, 10, sdid);
+    bit_writer_write (&bw, 10, data_count_raw);
+
+    for (guint j = 0; j < data_count; j++)
+      bit_writer_write (&bw, 10, user_data[j]);
+
+    bit_writer_write (&bw, 10, checksum);
+    bit_writer_pad_to_byte (&bw, 1);
+
+    guint st2038_bytes = bit_writer_byte_pos (&bw);
+
+    GstBuffer *buf = gst_buffer_new_allocate (NULL, st2038_bytes, NULL);
+    gst_buffer_fill (buf, 0, pkt_buf, st2038_bytes);
+
+    if (marker_bit && (i == anc_count - 1))
+      GST_BUFFER_FLAG_SET (buf, GST_BUFFER_FLAG_MARKER);
+
+    if (src->use_rtp_timestamp) {
+      guint32 rtp_time_ticks = GST_READ_UINT32_BE (rtp_hdr + 4);
+      GstClockTime running_time = rtp_ticks_to_running_time (src,
+          rtp_time_ticks, src->clock_rate);
+      GST_BUFFER_PTS (buf) = running_time;
+      GST_BUFFER_DTS (buf) = running_time;
+
+      GstRTPTimestampMeta *meta = gst_buffer_add_rtp_timestamp_meta (buf,
+          rtp_time_ticks);
+      if (meta)
+        meta->leap_seconds_adjusted = src->adjust_leap_seconds;
+    }
+
+    g_mutex_lock (&src->qLock);
+    g_queue_push_tail (src->bufferQ, buf);
+    g_cond_signal (&src->qCond);
+    g_mutex_unlock (&src->qLock);
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Processes incoming Rivermax RTP packets for ANC (ST 2110-40) streams.
+ *
+ * Extracts each RTP packet from the Rivermax completion, skips the L2/L3 headers
+ * to find the RTP header and payload, then depayloads via depayload_rtp_anc_packet.
+ *
+ * @param comp  Rivermax input completion handle
+ * @param src   Source element instance
+ * @return TRUE on success, FALSE on fatal error
+ */
+static gboolean
+nvdsudpsrc_push_anc_packets (const rmx_input_completion *comp, GstNvDsUdpSrc *src)
+{
+  guint chunk_size = rmx_input_get_completion_chunk_size (comp);
+  uint8_t *base_data_ptr = (uint8_t *) rmx_input_get_completion_ptr (comp,
+      src->payload_mem_block_id);
+  uint8_t *base_hdr_ptr = src->headerSize > 0 ?
+      (uint8_t *) rmx_input_get_completion_ptr (comp, src->header_mem_block_id) : NULL;
+
+  if (!chunk_size)
+    return TRUE;
+
+  for (guint i = 0; i < chunk_size; i++) {
+    uint8_t *data_stride = base_data_ptr + i * src->data_stride_size;
+    uint8_t *app_hdr;
+    uint8_t *app_data;
+
+    const rmx_input_packet_info *packet_info =
+        rmx_input_get_packet_info (&src->chunk_handle[0], i);
+
+    if (base_hdr_ptr) {
+      uint8_t *hdr_stride = base_hdr_ptr + i * src->hdr_stride_size;
+      app_hdr = hdr_stride;
+      app_data = data_stride;
+    } else {
+      app_hdr = data_stride;
+      app_data = get_rtp_hdr_ptr (data_stride, RMX_INPUT_APP_PROTOCOL_PACKET);
+    }
+
+    guint16 data_size = rmx_input_get_packet_size (packet_info,
+        src->payload_mem_block_id);
+
+    guint16 rtp_hdr_size = base_hdr_ptr ?
+        rmx_input_get_packet_size (packet_info, src->header_mem_block_id) :
+        (guint16)(app_data - app_hdr);
+
+    guint16 payload_size = data_size - (base_hdr_ptr ? 0 : rtp_hdr_size);
+
+    if (!depayload_rtp_anc_packet (app_hdr, rtp_hdr_size, app_data,
+            payload_size, src))
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
 static gboolean
 nvdsudpsrc_push_rtp_packets (const rmx_input_completion *comp, GstNvDsUdpSrc *src)
 {
@@ -3052,7 +3295,13 @@ nvdsudpsr_data_fetch_loop (gpointer data)
     /* since all streams point to the same memory (st2022-7 hw), passing any one of the
        rmax_in_completion object is enough */
     if (!src->isRtpOut) {
-      ret = nvdsudpsrc_push_frame ((rmx_input_get_completion_chunk_size(comp[0]) > 0) ? comp[0] : comp[1], src);
+      if (src->streamType == ANCILLARY_2110_40_STREAM) {
+        ret = nvdsudpsrc_push_anc_packets (
+            (rmx_input_get_completion_chunk_size(comp[0]) > 0) ? comp[0] : comp[1], src);
+      } else {
+        ret = nvdsudpsrc_push_frame (
+            (rmx_input_get_completion_chunk_size(comp[0]) > 0) ? comp[0] : comp[1], src);
+      }
     } else {
       ret = nvdsudpsrc_push_rtp_packets (comp[0], src);
     }

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,50 +12,45 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CXX:= g++
 SRCS:= gstnvmsgconv.cpp
 INCS:= gstnvmsgconv.h
 LIB:=libnvdsgst_msgconv.so
-include ../Rules.mk
 
+TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
 
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
 	 -I../../../includes \
 	 -I../../utils \
 	 -I../../utils/nvmsgconv/
 
 LIBS := -shared -Wl,-no-undefined
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_helper -lnvds_meta -lnvdsgst_meta -lnvdsgst_3d_gst -lnvds_3d_common -lnvds_msgconv -ldl \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_helper -lnvds_meta -lnvdsgst_meta -lnvdsgst_3d_gst -lnvds_3d_common -lnvds_msgconv -ldl \
        -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS+= $(shell pkg-config --libs $(PKGS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
-	$(CXX) -o $(OBJ_DIR)/$(LIB) $(OBJS) $(LIBS)
-	cp $(OBJ_DIR)/$(LIB) $@
+$(LIB): $(OBJS) $(DEP) Makefile
+	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(GST_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

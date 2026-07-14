@@ -186,6 +186,13 @@ GST_DEBUG_CATEGORY (APP_CFG_PARSER_CAT);
 #define CONFIG_GROUP_VISIONENCODER_EMBEDDING_CLASSES "embedding-classes"
 #define CONFIG_GROUP_VISIONENCODER_ONNX_MODEL "onnx-model"
 #define CONFIG_GROUP_VISIONENCODER_TENSORRT_ENGINE "tensorrt-engine"
+#define CONFIG_GROUP_VISIONENCODER_SMART_INFER "smart-infer"
+#define CONFIG_GROUP_VISIONENCODER_CACHE_REFRESH_INTERVAL "cache-refresh-interval"
+#define CONFIG_GROUP_VISIONENCODER_CACHE_MAX_SIZE "cache-max-size"
+#define CONFIG_GROUP_VISIONENCODER_OFA_PREDICT "ofa-predict"
+#define CONFIG_GROUP_VISIONENCODER_OFA_MOTION_THRESHOLD "ofa-motion-threshold"
+#define CONFIG_GROUP_VISIONENCODER_OFA_HIGH_MOTION_THRESHOLD "ofa-high-motion-threshold"
+#define CONFIG_GROUP_VISIONENCODER_QUERY_ONLY "query-only"
 
 #define CONFIG_GROUP_TEXT_EMBEDDER_MODEL_NAME "model-name"
 #define CONFIG_GROUP_TEXT_EMBEDDER_ONNX_MODEL_PATH "onnx-model-path"
@@ -1896,6 +1903,13 @@ parse_visionencoder (NvDsVisionEncoderConfig * config, GKeyFile * key_file,
   config->embedding_classes = g_strdup("");  // Default: all classes
   config->onnx_model = NULL;  // Optional: ONNX model for engine building
   config->tensorrt_engine = NULL;  // Optional: explicit TensorRT engine path
+  config->query_only = FALSE;
+  config->smart_infer = FALSE;
+  config->cache_refresh_interval = 0;
+  config->cache_max_size = 1000;
+  config->ofa_predict = FALSE;
+  config->ofa_motion_threshold = 8.0f;
+  config->ofa_high_motion_threshold = 25.0f;
   keys = g_key_file_get_keys (key_file, group, NULL, &error);
   CHECK_ERROR (error);
   for (key = keys; *key; key++) {
@@ -1942,6 +1956,27 @@ parse_visionencoder (NvDsVisionEncoderConfig * config, GKeyFile * key_file,
     } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_TENSORRT_ENGINE)) {
       config->tensorrt_engine = get_absolute_file_path (cfg_file_path,
           g_key_file_get_string (key_file, group, *key, &error));
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_SMART_INFER)) {
+      config->smart_infer = g_key_file_get_boolean (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_CACHE_REFRESH_INTERVAL)) {
+      config->cache_refresh_interval = g_key_file_get_integer (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_CACHE_MAX_SIZE)) {
+      config->cache_max_size = g_key_file_get_integer (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_OFA_PREDICT)) {
+      config->ofa_predict = g_key_file_get_boolean (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_OFA_MOTION_THRESHOLD)) {
+      config->ofa_motion_threshold = (gfloat) g_key_file_get_double (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_OFA_HIGH_MOTION_THRESHOLD)) {
+      config->ofa_high_motion_threshold = (gfloat) g_key_file_get_double (key_file, group, *key, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_VISIONENCODER_QUERY_ONLY)) {
+      config->query_only = g_key_file_get_integer (key_file, group, *key, &error);
       CHECK_ERROR (error);
     } else {
       NVGSTDS_WARN_MSG_V ("Unknown key '%s' for group [%s]", *key, group);
@@ -2001,6 +2036,7 @@ parse_text_embedder (NvDsTextEmbedderConfig * config, GKeyFile * key_file,
           CONFIG_GROUP_TEXT_EMBEDDER);
     }
   }
+
   ret = TRUE;
 done:
   if (error) {

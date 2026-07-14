@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-preprocess-test
@@ -68,33 +66,35 @@ how to:
 3. To compile:
 ===============================================================================
 
-This app requires the following libraries which are built as part of the
-DeepStream build (build.sh):
-  - libnvdsgst_preprocess.so  (from gst-plugins/gst-nvdspreprocess)
-  - libcustom2d_preprocess.so (from gst-plugins/gst-nvdspreprocess/nvdspreprocess_lib)
+  NOTE: <DS_ROOT> is the path where the repo is cloned.
 
-Both are installed automatically to
-  /opt/nvidia/deepstream/deepstream-<version>/lib/gst-plugins/
-when running build.sh. No separate build step is required.
+  $ Set CUDA_VER in the MakeFile as per platform.
+    export CUDA_VER=13.2
+  $ cd <DS_ROOT>/src/gst-plugins/gst-nvdspreprocess
+  $ sudo make && sudo make install (sudo not required in case of docker containers)
 
-To compile only this app individually:
-  $ cd deepstream/src/apps/sample_apps/deepstream-preprocess-test
-  $ make CUDA_VER=<version> && make install
+  $ cd <DS_ROOT>/src/gst-plugins/gst-nvdspreprocess/nvdspreprocess_lib
+  $ sudo make && sudo make install (sudo not required in case of docker containers)
+
+  $ cd <DS_ROOT>/src/apps/sample_apps/deepstream-preprocess-test
+  $ sudo make && sudo make install (sudo not required in case of docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
 
 ===============================================================================
 4. Usage:
 ===============================================================================
 
-  $ deepstream-preprocess-test <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
+  $ ./deepstream-preprocess-test <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
 e.g.
-  $ deepstream-preprocess-test config_preprocess.txt config_infer.txt file:///video1.mp4 file:///video2.mp4
-  $ deepstream-preprocess-test config_preprocess.txt config_infer.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
+  $ ./deepstream-preprocess-test config_preprocess.txt config_infer.txt file:///video1.mp4 file:///video2.mp4
+  $ ./deepstream-preprocess-test config_preprocess.txt config_infer.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
 
 Use option "-t inferserver" to select nvinferserver as the inference plugin
-  $ deepstream-preprocess-test -t inferserver <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
+  $ ./deepstream-preprocess-test -t inferserver <nvdspreprocess-config-file> <pgie-config-file> [uri1] [uri2] ... [uriN]
 e.g.
-  $ deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt file:///video1.mp4 file:///video2.mp4
-  $ deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
+  $ ./deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt file:///video1.mp4 file:///video2.mp4
+  $ ./deepstream-preprocess-test -t inferserver config_preprocess.txt config_inferserver.txt rtsp://127.0.0.1/video1 rtsp://127.0.0.1/video2
 
 NOTE:
 1. For optimal performance, set nvdspreprocess batch-size (network-input-shape[0]) in config file same as

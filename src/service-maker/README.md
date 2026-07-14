@@ -1,3 +1,19 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 
 # DeepStream Service Maker
 
@@ -24,7 +40,7 @@ service-maker/
 
 ## Prerequisites
 
-- DeepStream 9.0 installed (via `build/build.sh` or the Debian package + `install.sh`)
+- DeepStream 9.1 installed (via `build/build.sh` or the Debian package + `install.sh`)
 - CMake 3.16+
 - GCC 9+
 
@@ -39,13 +55,13 @@ For full system dependency setup, see [build/BUILD.md](../../build/BUILD.md).
 Service Maker apps are built automatically as part of the top-level `build/build.sh`. Binaries are installed to:
 
 ```
-/opt/nvidia/deepstream/deepstream-9.0/bin/service-maker-<app>
+/opt/nvidia/deepstream/deepstream-9.1/bin/service-maker-<app>
 ```
 
 Modules are installed to:
 
 ```
-/opt/nvidia/deepstream/deepstream-9.0/service-maker/modules/
+/opt/nvidia/deepstream/deepstream-9.1/service-maker/modules/
 ```
 
 ### Local CMake Build (single app)
@@ -79,7 +95,7 @@ int main(int argc, char** argv) {
             .add("nvurisrcbin",   "src",   "uri", argv[1])
             .add("nvstreammux",   "mux",   "batch-size", 1, "width", 1280, "height", 720)
             .add("nvinferbin",    "infer", "config-file-path", "/path/to/config.txt")
-            .add("nvosdbin",    "osd")
+            .add("nvdsosdbin",    "osd")
             .add("nveglglessink", "sink");
         pipeline
             .link({"src", "mux"}, {"", "sink_%u"})

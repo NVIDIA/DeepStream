@@ -1727,7 +1727,7 @@ gst_ds_nvmultiurisrc_bin_change_state (GstElement * element,
     }
 
     gboolean is_rtsp = nvmultiurisrcbin->config->uri
-        && g_str_has_prefix (nvmultiurisrcbin->config->uri, "rtsp://");
+        ? g_str_has_prefix (nvmultiurisrcbin->config->uri, "rtsp://") : FALSE;
 
     (void) is_rtsp;
     guint binNameForCreatorLen =
@@ -1966,8 +1966,7 @@ gst_ds_nvmultiurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
         nvurisrcbin->config->rtsp_reconnect_interval_sec = nvurisrcbin->config->init_rtsp_reconnect_interval_sec;
       }
       // Remove the stream
-      if (nvurisrcbin != NULL && GST_IS_OBJECT (nvurisrcbin)
-          && nvurisrcbin->config) {
+      if (nvurisrcbin != NULL && nvurisrcbin->config) {
         g_mutex_lock (&ubin->bin_lock);
         GST_DEBUG_OBJECT (ubin, "removing source %d\n",
             nvurisrcbin->config->source_id);
@@ -2063,6 +2062,41 @@ parse_iso8601_to_ntp_ns (const gchar *iso8601_str)
   return ntp_ns;
 }
 
+/**
+ * Check if an HTTP/HTTPS URL points to a downloadable media file
+ * (as opposed to a live/streaming source like HLS, DASH, etc.).
+ * Only downloadable file URLs should be fetched via curl; everything
+ * else is passed directly to GStreamer which handles it natively.
+ */
+static gboolean
+is_downloadable_http_url (const gchar *url)
+{
+  static const gchar *downloadable_extensions[] = {
+    ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv",
+    ".webm", ".mpg", ".mpeg", ".3gp", ".ts", ".mts",
+    ".m4v", ".vob", ".ogv", NULL
+  };
+
+  if (!url)
+    return FALSE;
+
+  /* Extract path portion (before '?' query params) */
+  const gchar *query = strchr (url, '?');
+  gsize path_len = query ? (gsize) (query - url) : strlen (url);
+
+  /* Check if the URL path ends with a known media file extension */
+  for (gint i = 0; downloadable_extensions[i] != NULL; i++) {
+    gsize ext_len = strlen (downloadable_extensions[i]);
+    if (path_len > ext_len) {
+      const gchar *path_end = url + path_len - ext_len;
+      if (g_ascii_strncasecmp (path_end, downloadable_extensions[i], ext_len) == 0)
+        return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
 static gboolean
 download_http_file (GstDsNvMultiUriBin *nvmultiurisrcbin, const gchar *url,
     const gchar *camera_id, gchar **local_file_uri)
@@ -2074,20 +2108,53 @@ download_http_file (GstDsNvMultiUriBin *nvmultiurisrcbin, const gchar *url,
   gchar *local_path = NULL;
   const gchar *url_filename = NULL;
 
-  (void) camera_id;
-
   *local_file_uri = NULL;
 
   url_filename = g_strrstr (url, "/");
   if (url_filename && strlen (url_filename) > 1) {
     url_filename++;
-    filename = g_strdup (url_filename);
-  } else {
+    /* Strip query params (?...) and fragment (#...) from filename */
+    const gchar *query = strchr (url_filename, '?');
+    const gchar *fragment = strchr (url_filename, '#');
+    gsize name_len = strlen (url_filename);
+    if (query)
+      name_len = MIN (name_len, (gsize) (query - url_filename));
+    if (fragment)
+      name_len = MIN (name_len, (gsize) (fragment - url_filename));
+
+    if (name_len > 0)
+      filename = g_strndup (url_filename, name_len);
+  }
+
+  /* Fallback: generate a unique name using camera_id + timestamp */
+  if (!filename || strlen (filename) == 0) {
+    g_free (filename);
     GDateTime *now = g_date_time_new_now_local ();
     gchar *timestamp = g_date_time_format (now, "%Y%m%d_%H%M%S");
     g_date_time_unref (now);
-    filename = g_strdup_printf ("downloaded_%s.mp4", timestamp);
+    filename = g_strdup_printf ("stream_%s_%s.mp4",
+        (camera_id && strlen (camera_id) > 0) ? camera_id : "unknown",
+        timestamp);
     g_free (timestamp);
+  }
+
+  /* Truncate filename if it exceeds NAME_MAX (255) */
+  if (strlen (filename) > 255) {
+    const gchar *ext = g_strrstr (filename, ".");
+    if (ext && (gsize) (ext - filename) < 255 && strlen (ext) < 20) {
+      gsize stem_max = 255 - strlen (ext);
+      gchar *truncated_stem = g_strndup (filename, stem_max);
+      gchar *new_filename = g_strdup_printf ("%s%s", truncated_stem, ext);
+      g_free (truncated_stem);
+      g_free (filename);
+      filename = new_filename;
+    } else {
+      gchar *truncated = g_strndup (filename, 255);
+      g_free (filename);
+      filename = truncated;
+    }
+    GST_WARNING_OBJECT (nvmultiurisrcbin,
+        "Filename from URL was too long, truncated to: %s\n", filename);
   }
 
   local_path = g_strdup_printf ("%s%s", HTTP_DOWNLOAD_DIR, filename);
@@ -2212,16 +2279,17 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
 
       /** Add the source */
       gchar *actual_uri = NULL;
-      gboolean is_http_url = g_str_has_prefix (stream_info->value_camera_url.c_str (), "http://") ||
-                             g_str_has_prefix (stream_info->value_camera_url.c_str (), "https://");
-
-      if (is_http_url) {
+      gboolean is_http = g_str_has_prefix (stream_info->value_camera_url.c_str (), "http://");
+      gboolean is_https = g_str_has_prefix (stream_info->value_camera_url.c_str (), "https://");
+      gboolean is_http_url = is_http || is_https;
+      gboolean is_downloadable = is_downloadable_http_url (stream_info->value_camera_url.c_str ());
+      if (is_http_url && is_downloadable) {
         gchar *local_file_uri = NULL;
         if (download_http_file (nvmultiurisrcbin, stream_info->value_camera_url.c_str (),
                 stream_info->value_camera_id.c_str (), &local_file_uri)) {
           actual_uri = local_file_uri;
           GST_DEBUG_OBJECT (nvmultiurisrcbin,
-              "HTTP/HTTPS URL downloaded, using local file: %s\n", actual_uri);
+              "HTTP/HTTPS file downloaded, using local file: %s\n", actual_uri);
         } else {
           GST_WARNING_OBJECT (nvmultiurisrcbin,
               "Failed to download HTTP/HTTPS URL: %s\n", stream_info->value_camera_url.c_str ());
@@ -2237,6 +2305,11 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
         }
       } else {
         actual_uri = g_strdup (stream_info->value_camera_url.c_str ());
+        if (is_http_url) {
+          GST_DEBUG_OBJECT (nvmultiurisrcbin,
+              "Non-file HTTP/HTTPS URL, passing directly to GStreamer: %s\n",
+              actual_uri);
+        }
       }
 
       nvmultiurisrcbin->config->uri = actual_uri;
@@ -3211,12 +3284,16 @@ s_text_embedding_api_impl(NvDsServerTextEmbeddingInfo* text_embedding_info, void
         text_embedding_info->err_info.code = StatusOk;
 
         // Convert GValue data array to Json::Value if data is available
-        if (data != NULL && G_VALUE_HOLDS_STRING(data)) {
-          embeddings_json = g_value_get_string(data);
-          // Parse JSON string to Json::Value
-          Json::Reader reader;
-          if (!reader.parse(embeddings_json, text_embedding_info->data)) {
-            g_print("Failed to parse embeddings JSON: %s\n", reader.getFormattedErrorMessages().c_str());
+        if (data != NULL) {
+          if (G_VALUE_HOLDS_STRING(data)) {
+            embeddings_json = g_value_get_string(data);
+            // Parse JSON string to Json::Value
+            Json::Reader reader;
+            if (!reader.parse(embeddings_json, text_embedding_info->data)) {
+              g_print("Failed to parse embeddings JSON: %s\n", reader.getFormattedErrorMessages().c_str());
+              text_embedding_info->data = Json::Value(Json::arrayValue);
+            }
+          } else {
             text_embedding_info->data = Json::Value(Json::arrayValue);
           }
         } else {
@@ -3245,6 +3322,71 @@ s_text_embedding_api_impl(NvDsServerTextEmbeddingInfo* text_embedding_info, void
     text_embedding_info->status = TEXT_EMBEDDING_GENERATE_FAIL;
     text_embedding_info->text_embedding_log = "Unsupported REST API version";
     text_embedding_info->err_info.code = StatusBadRequest;
+  }
+}
+
+static void
+s_image_embedding_api_impl(NvDsServerImageEmbeddingInfo* image_embedding_info, void* ctx) {
+  GstDsNvMultiUriBin* nvmultiurisrcbin = (GstDsNvMultiUriBin*)ctx;
+  if (image_embedding_info->uri.find("/api/v1/") != std::string::npos) {
+
+    GstQuery *query = gst_nvquery_image_embedding_new (
+        image_embedding_info->image_path.c_str(),
+        image_embedding_info->model.c_str(),
+        image_embedding_info->has_bbox,
+        image_embedding_info->bbox_left,
+        image_embedding_info->bbox_top,
+        image_embedding_info->bbox_width,
+        image_embedding_info->bbox_height);
+
+    gboolean query_ret = gst_pad_peer_query ((GstPad *)(nvmultiurisrcbin->bin_src_pad), query);
+
+    if (query_ret) {
+      const gchar *id = NULL;
+      const gchar *response_model = NULL;
+      guint64 created = 0;
+      const GValue *data = NULL;
+
+      if (gst_nvquery_image_embedding_parse (query, &id, &created, &response_model, &data)) {
+        const gchar *embeddings_json = NULL;
+        image_embedding_info->id = id ? id : "";
+        image_embedding_info->created = created;
+        image_embedding_info->status = IMAGE_EMBEDDING_GENERATE_SUCCESS;
+        image_embedding_info->image_embedding_log = "Image embedding generated successfully";
+        image_embedding_info->err_info.code = StatusOk;
+
+        if (data != NULL && G_VALUE_HOLDS_STRING(data)) {
+          embeddings_json = g_value_get_string(data);
+          Json::Reader reader;
+          if (!reader.parse(embeddings_json, image_embedding_info->data)) {
+            g_print("Failed to parse image embeddings JSON: %s\n", reader.getFormattedErrorMessages().c_str());
+            image_embedding_info->data = Json::Value(Json::arrayValue);
+          }
+        } else {
+          image_embedding_info->data = Json::Value(Json::arrayValue);
+        }
+      } else {
+        g_print("[WARN] Failed to parse image embedding query response\n");
+        image_embedding_info->status = IMAGE_EMBEDDING_GENERATE_FAIL;
+        image_embedding_info->image_embedding_log = "Failed to parse response from vision encoder plugin";
+        image_embedding_info->err_info.code = StatusInternalServerError;
+        image_embedding_info->data = Json::Value(Json::arrayValue);
+      }
+    } else {
+      g_print("[WARN] Image embedding query not handled by downstream elements\n");
+      image_embedding_info->status = IMAGE_EMBEDDING_GENERATE_FAIL;
+      image_embedding_info->image_embedding_log = "Image embedding query not handled by downstream elements";
+      image_embedding_info->err_info.code = StatusInternalServerError;
+      image_embedding_info->data = Json::Value(Json::arrayValue);
+    }
+
+    gst_query_unref (query);
+
+  } else {
+    g_print("Unsupported REST API version\n");
+    image_embedding_info->status = IMAGE_EMBEDDING_GENERATE_FAIL;
+    image_embedding_info->image_embedding_log = "Unsupported REST API version";
+    image_embedding_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3622,6 +3764,9 @@ rest_api_server_start (GstDsNvMultiUriBin * nvmultiurisrcbin)
   server_cb.text_embedding_cb = [nvmultiurisrcbin] (NvDsServerTextEmbeddingInfo * text_embedding_info, void *ctx) {
     s_text_embedding_api_impl (text_embedding_info, (void *) nvmultiurisrcbin);
   };
+  server_cb.image_embedding_cb = [nvmultiurisrcbin] (NvDsServerImageEmbeddingInfo * image_embedding_info, void *ctx) {
+    s_image_embedding_api_impl (image_embedding_info, (void *) nvmultiurisrcbin);
+  };
 
   server_cb.appinstance_cb =
       [nvmultiurisrcbin] (NvDsServerAppInstanceInfo * appinstance_info, void *ctx) {
@@ -3672,7 +3817,7 @@ gGstNvMultiUriSrcBinStaticInit ()
 {
   return gst_plugin_register_static (GST_VERSION_MAJOR, GST_VERSION_MINOR,
       "nvdsgst_deepstream_bins2",
-      DESCRIPTION, plugin_init_2, "9.0", LICENSE, BINARY_PACKAGE, PACKAGE,
+      DESCRIPTION, plugin_init_2, "9.1", LICENSE, BINARY_PACKAGE, PACKAGE,
       URL);
 }
 #endif

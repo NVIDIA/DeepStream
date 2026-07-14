@@ -22,6 +22,7 @@
 #include <gio/gio.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <string.h>
 
 #define CHECK_CUDA(err, err_str)                                        \
     do {                                                                \
@@ -87,5 +88,143 @@ GstRTPTimestampMeta *gst_buffer_get_rtp_timestamp_meta(GstBuffer *buffer);
 void* gpu_allocate_memory (int gpuId, size_t size, size_t align);
 size_t gpu_aligned_size (int gpuId, size_t allocSize);
 gboolean cudaFreeMmap (uint64_t *ptr, size_t size);
+
+/*
+ * RFC 8331 / ST 2110-40 ancillary data constants
+ */
+#define RTP_HEADER_SIZE            (12)
+#define ST2110_40_CLOCK_RATE       (90000)
+#define RFC8331_PAYLOAD_HDR_SIZE   (8)
+#define RTP_ST2110_40_HEADER_SIZE  (RTP_HEADER_SIZE + RFC8331_PAYLOAD_HDR_SIZE)
+#define ANC_MAX_DATA_COUNT         (255)
+#define ANC_MAX_PACKET_SIZE        (328)
+
+typedef struct AncPacketInfo {
+  gboolean c_not_y_channel_flag;
+  guint16 line_number;
+  guint16 horizontal_offset;
+  guint16 did;
+  guint16 sdid;
+  guint8  data_count;
+  guint16 user_data[ANC_MAX_DATA_COUNT];
+  guint16 checksum;
+} AncPacketInfo;
+
+/*
+ * Bit-level I/O helpers for RFC 8331 bit-packed ANC data
+ */
+typedef struct {
+  const guint8 *data;
+  gsize byte_len;
+  gsize bit_pos;
+} BitReader;
+
+typedef struct {
+  guint8 *data;
+  gsize byte_len;
+  gsize bit_pos;
+} BitWriter;
+
+static inline void
+bit_reader_init (BitReader *br, const guint8 *data, gsize byte_len)
+{
+  br->data = data;
+  br->byte_len = byte_len;
+  br->bit_pos = 0;
+}
+
+static inline gboolean
+bit_reader_has_bits (const BitReader *br, guint n)
+{
+  return (br->bit_pos + n) <= (br->byte_len * 8);
+}
+
+static inline guint32
+bit_reader_read (BitReader *br, guint n)
+{
+  guint32 val = 0;
+  for (guint i = 0; i < n; i++) {
+    gsize byte_idx = br->bit_pos / 8;
+    guint bit_idx = 7 - (br->bit_pos % 8);
+    val = (val << 1) | ((br->data[byte_idx] >> bit_idx) & 1);
+    br->bit_pos++;
+  }
+  return val;
+}
+
+static inline gboolean
+bit_reader_is_byte_aligned (const BitReader *br)
+{
+  return (br->bit_pos % 8) == 0;
+}
+
+static inline gsize
+bit_reader_byte_pos (const BitReader *br)
+{
+  return (br->bit_pos + 7) / 8;
+}
+
+static inline void
+bit_writer_init (BitWriter *bw, guint8 *data, gsize byte_len)
+{
+  bw->data = data;
+  bw->byte_len = byte_len;
+  bw->bit_pos = 0;
+  memset (data, 0, byte_len);
+}
+
+static inline void
+bit_writer_init_at (BitWriter *bw, guint8 *data, gsize byte_len, gsize start_bit)
+{
+  bw->data = data;
+  bw->byte_len = byte_len;
+  bw->bit_pos = start_bit;
+}
+
+static inline gboolean
+bit_writer_has_space (const BitWriter *bw, guint n)
+{
+  return (bw->bit_pos + n) <= (bw->byte_len * 8);
+}
+
+static inline void
+bit_writer_write (BitWriter *bw, guint n, guint32 val)
+{
+  for (guint i = 0; i < n; i++) {
+    gsize byte_idx = bw->bit_pos / 8;
+    guint bit_idx = 7 - (bw->bit_pos % 8);
+    if (val & (1u << (n - 1 - i)))
+      bw->data[byte_idx] |= (1u << bit_idx);
+    bw->bit_pos++;
+  }
+}
+
+static inline gboolean
+bit_writer_is_byte_aligned (const BitWriter *bw)
+{
+  return (bw->bit_pos % 8) == 0;
+}
+
+static inline gsize
+bit_writer_byte_pos (const BitWriter *bw)
+{
+  return (bw->bit_pos + 7) / 8;
+}
+
+static inline void
+bit_writer_pad_to_byte (BitWriter *bw, guint8 pad_val)
+{
+  while (!bit_writer_is_byte_aligned (bw)) {
+    bit_writer_write (bw, 1, pad_val);
+  }
+}
+
+static inline void
+bit_writer_pad_to_u32 (BitWriter *bw)
+{
+  while (bw->bit_pos % 32 != 0) {
+    bit_writer_write (bw, 1, 0);
+  }
+}
 
 #endif

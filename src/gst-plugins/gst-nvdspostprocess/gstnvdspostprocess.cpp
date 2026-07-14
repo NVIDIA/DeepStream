@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <string.h>
 #include <sys/time.h>
 
@@ -464,5 +465,5 @@ nvdspostprocess_plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_postprocess,
-    DESCRIPTION, nvdspostprocess_plugin_init, "9.0", LICENSE, BINARY_PACKAGE,
+    DESCRIPTION, nvdspostprocess_plugin_init, "9.1", LICENSE, BINARY_PACKAGE,
     URL)

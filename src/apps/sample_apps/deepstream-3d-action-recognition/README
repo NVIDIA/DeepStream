@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-3d-action-recognition
@@ -82,8 +80,7 @@ To compile application deepstream-3d-action-recognition and custom lib
 custom_sequence_preprocess/libnvds_custom_sequence_preprocess.so:
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
 
   $ cd custom_sequence_preprocess
   $ sudo make install (sudo not required in case of docker containers)
@@ -121,7 +118,7 @@ To run 3D action recognition with DS-TensorRT plugin inference:
     inference config file path 'infer-config=config_infer_primary_3d_action.txt'.
 
   Run test:
-    $ deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
+    $ ./deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
 
 To run 3D action recognition with DS-Triton plugin inference.
   After running with DS-TensorRT inference, new TensorRT engine
@@ -134,21 +131,21 @@ To run 3D action recognition with DS-Triton plugin inference.
     preprocess config file path 'preprocess-config=config_preprocess_3d_custom.txt'
     inference config file path 'triton-infer-config=config_triton_infer_primary_3d_action.txt'.
   Run test:
-    $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+    $ ./deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
 
 To run 2D action recognition tests, follow similiar ways for 3D tests.
   Update application config file'deepstream_action_recognition_config.txt' with
     preprocess config file path 'preprocess-config=config_preprocess_2d_custom.txt'
     inference config file path 'infer-config=config_infer_primary_2d_action.txt'
   Run 2D test with DS-TensorRT:
-    $ deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
+    $ ./deepstream-3d-action-recognition -c deepstream_action_recognition_config.txt
 
   Update application config file 'deepstream_triton_action_recognition_config.txt'
   with:
     preprocess config file path 'preprocess-config=config_preprocess_2d_custom.txt'
     inference config file path 'triton-infer-config=config_triton_infer_primary_2d_action.txt'.
   Run 2D test with DS-Triton:
-    $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+    $ ./deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
 
 
 Run Action recognition with Triton gRPC tests.
@@ -160,7 +157,7 @@ Run Action recognition with Triton gRPC tests.
   Update 2D and 3D triton inference config file 'config_triton_infer_primary_xx_action.txt'
   disable 'model_repo{}' block and enable 'grpc{}' with correct url.
   Run Triton tests again for gRPC remote inference.
-  $ deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
+  $ ./deepstream-3d-action-recognition -c deepstream_triton_action_recognition_config.txt
 
 NOTE : Set display-sync=0 in eglglessink if the following warning is seen.
   Warning: A lot of buffers are being dropped.

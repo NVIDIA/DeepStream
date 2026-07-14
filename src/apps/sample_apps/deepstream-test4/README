@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-test4-app
@@ -54,14 +52,14 @@ Dependencies
  Azure Iot:
  ----------
     Refer to the README files available under
-    src/utils/nvds_msgapi/azure_protocol_adaptor
+    /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor
     for detailed documentation on prerequisites and usages of Azure protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
  Kafka:
  ------
     Refer to the README file available under
-    src/utils/nvds_msgapi/kafka_protocol_adaptor
+    /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor
     for detailed documentation on prerequisites and usages of kafka protocol
     adaptor with the message broker plugin for sending messages to cloud.
 
@@ -70,17 +68,17 @@ Dependencies
     Install rabbitmq-c library
     --------------------------
     Refer to the README file available under
-    src/utils/nvds_msgapi/amqp_protocol_adaptor
+    /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor
     for detailed documentation on prerequisites and usages of rabbitmq based
     amqp protocol adaptor with the message broker plugin for sending messages to cloud.
 
  Redis:
  ------
     Refer to the README file available under
-    src/utils/nvds_msgapi/redis_protocol_adaptor
+    /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor
     for detailed documentation on prerequisites and usages of redis protocol
     adaptor with the message broker plugin for sending messages to cloud.
-  Note: Above paths are relative to the repository root.
+
 SETUP:
   1.Use --proto-lib or -p command line option to set the path of adaptor library.
     Adaptor library can be found at /opt/nvidia/deepstream/deepstream/lib
@@ -119,7 +117,7 @@ SETUP:
   8.Use --cfg-file or -c command line option to set adaptor configuration file.
     This is optional if connection string has all relevent information.
 
-    For kafka: use src/utils/nvds_msgapi/kafka_protocol_adaptor/cfg_kafka.txt as reference.
+    For kafka: use /opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt as reference.
     This file is used to define the parition key field to be used while sending messages to the
     kafka broker. Refer Kafka Protocol Adaptor section in the DeepStream Plugin Manual for
     more details about using this config option. The partition-key setting within the cfg_kafka.txt
@@ -127,7 +125,7 @@ SETUP:
     "sensor.id" in case of Full message schema, and to "sensorId" in case of Minimal message schema
 
 
-    For Azure, use src/utils/nvds_msgapi/azure_protocol_adaptor/device_client/cfg_azure.txt as reference.
+    For Azure, use /opt/nvidia/deepstream/deepstream/sources/libs/azure_protocol_adaptor/device_client/cfg_azure.txt as reference.
     It has the following section:
         [message-broker]
         #connection_str = HostName=<my-hub>.azure-devices.net;DeviceId=<device_id>;SharedAccessKey=<my-policy-key>
@@ -143,7 +141,7 @@ SETUP:
 
         you can pass in full connection string with --conn-str option
 
-    For AMQP, use src/utils/nvds_msgapi/amqp_protocol_adaptor/cfg_amqp.txt as reference.
+    For AMQP, use /opt/nvidia/deepstream/deepstream/sources/libs/amqp_protocol_adaptor/cfg_amqp.txt as reference.
     It has the following default options:
         [message-broker]
         password = guest
@@ -162,7 +160,7 @@ SETUP:
 
         you can pass in full connection string with --conn-str option in format: "hostname;port;username;password"
 
-    For Redis, use src/utils/nvds_msgapi/redis_protocol_adaptor/cfg_redis.txt as reference.
+    For Redis, use /opt/nvidia/deepstream/deepstream/sources/libs/redis_protocol_adaptor/cfg_redis.txt as reference.
     It has the following default options:
         [message-broker]
         hostname=localhost
@@ -181,7 +179,6 @@ SETUP:
         you can pass in full connection string with --conn-str option in format: "hostname;port"
 
   NOTE:
-    - Above paths are relative to the repository root.
     - DO NOT delete the line [message-broker] in cfg file. Its the section identifier used for parsing
     - Share connection
       ----------------
@@ -211,8 +208,7 @@ type of meta and attach to buffer. NVDS_EVENT_MSG_META is used for different typ
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
@@ -226,13 +222,13 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
   1.Run with command line arguments as shown below. In this method, user needs to modify the source
     code of deepstream-test4-app to configure pipeline properties.
 
-    $ deepstream-test4-app -i <H264 filename> -p <Proto adaptor library> --conn-str=<Connection string> --topic=<topicname> -s <0/1>
+    $ ./deepstream-test4-app -i <H264 filename> -p <Proto adaptor library> --conn-str=<Connection string> --topic=<topicname> -s <0/1>
 
   2.Run with the yml file. In this method, user needs to update the yml file to configure
     pipeline properties.
 
-    $ deepstream-test4-app <yml file>
-    e.g. $ deepstream-test4-app dstest4_config.yml
+    $ ./deepstream-test4-app <yml file>
+    e.g. $ ./deepstream-test4-app dstest4_config.yml
 
     The GIE configuration group in the YAML configuration file of the application
     can be used to set the inference plugin type (nvinfer or nvinferserver) and
@@ -241,8 +237,8 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
   3.Send the image by the broker based on Kafka
     1) Change the parameters of msgconv filed in the dstest4_config.yml
     2) Run with the yml file
-        $ deepstream-test4-app <yml file>
-        e.g. $ deepstream-test4-app dstest4_config.yml
+        $ ./deepstream-test4-app <yml file>
+        e.g. $ ./deepstream-test4-app dstest4_config.yml
     3) The format of the image message
         Image message fields are separated by ";".
         Specific Format:  "image;image_format;image_widthximage_height;time;encoded_data;"
@@ -321,7 +317,7 @@ Azure Iotedge runtime integration of deepstream-test4-app:
            "HostConfig": {
              "Runtime": "nvidia",
            },
-           "WorkingDir": "src/apps/sample_apps/deepstream-test4",
+           "WorkingDir": "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test4",
            "ENTRYPOINT":
            [
             "/opt/nvidia/deepstream/deepstream/bin/deepstream-test4-app",
@@ -335,7 +331,7 @@ Azure Iotedge runtime integration of deepstream-test4-app:
             "mytopic"
            ]
          }
-  Note: Above paths are relative to the repository root.
+
   - specify route options for the module:
 
     option 1) Default route where every message from every module is sent upstream

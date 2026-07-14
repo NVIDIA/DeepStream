@@ -173,7 +173,8 @@ int main (int argc, char *argv[])
       }
 
       if (recording_type == "local") {
-        pipeline.attach("infer", new BufferProbe("local_recorder", new LocalRecorder(pipeline)));
+        LocalRecorder* recorder = new LocalRecorder(pipeline);
+        pipeline.attach("infer", new BufferProbe("local_recorder", recorder));
       }
 
       pipeline.start().wait();

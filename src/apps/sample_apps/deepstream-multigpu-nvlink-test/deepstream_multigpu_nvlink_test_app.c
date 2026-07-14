@@ -402,7 +402,9 @@ main (int argc, char *argv[])
 
   GList *src_list = NULL ;
 
-  if (g_str_has_suffix (argv[1], ".yml") || g_str_has_suffix (argv[1], ".yaml")) {
+  gboolean is_yml  = g_str_has_suffix (argv[1], ".yml");
+  gboolean is_yaml = g_str_has_suffix (argv[1], ".yaml");
+  if (is_yml || is_yaml) {
 
     nvds_parse_source_list(&src_list, argv[1], "source-list");
 

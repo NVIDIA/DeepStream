@@ -132,7 +132,7 @@ start_cloud_to_device_messaging (NvDsMsgConsumerConfig * config,
 
   if (config->sensor_list_file) {
     ctx->hashMap =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
     if (!nvds_c2d_parse_sensor (ctx, config->sensor_list_file)) {
       NVGSTDS_ERR_MSG_V ("Failed to parse sensor list file");
       goto error;

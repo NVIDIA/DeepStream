@@ -1,19 +1,18 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # deepstream_lidar_inference_app
 
 ## Introduction
@@ -105,7 +104,7 @@ For x86 platforms, This app must run inside deepstream-triton containers.
 Follow tags in  https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream to get
 latest version.
 
-$ export DS_TRITON_IMG=nvcr.io/nvidia/deepstream:9.0-triton
+$ export DS_TRITON_IMG=nvcr.io/nvidia/deepstream:9.1-triton
 $ docker pull ${DS_TRITON_IMG}
 Note: for other latest version, switch to deepstream:x.x.x-triton. [x.x.x] stands for
 the version numbers.
@@ -144,7 +143,7 @@ Note: For x86 platforms, users must run the samples inside the container.
     results into files.
 ```
     $ sudo mkdir data
-    $ sudo deepstream-lidar-inference-app -c configs/config_lidar_triton_infer.yaml
+    $ sudo ./deepstream-lidar-inference-app -c configs/config_lidar_triton_infer.yaml
 ```
 
 3.2 config_lidar_source_triton_render.yaml is configured to render the 3D

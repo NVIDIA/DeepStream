@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,13 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
   $(error "CUDA_VER is not set")
 endif
 
+TARGET_DEVICE = $(shell g++ -dumpmachine | cut -f1 -d -)
 
 CXX:= g++
 SRCS:= nvds_dec_parse.cpp nvds_infer_parse.cpp \
@@ -30,48 +29,46 @@ SRCS:= nvds_dec_parse.cpp nvds_infer_parse.cpp \
 
 INCS:= $(wildcard *.h)
 LIB:=libnvds_rest_server.so
-LIB_DIR = /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
-OBJ_DIR := .build
-include ../../Rules.mk
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-NVDS_VERSION?=9.0
+NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
  	 -I../../../includes \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \
 	 -I/usr/include/jsoncpp
 
-LIBS := -shared \
+LIBS := -shared -Wl,-no-undefined \
  	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -Wl,-rpath-link,/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -lnvdsgst_customhelper -ldl\
-        -Wl,-rpath,$(LIB_INSTALL_DIR) -lcivetweb-cpp -lcivetweb \
+LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_customhelper -ldl\
+        -Wl,-rpath,$(LIB_INSTALL_DIR) -lcivetweb \
 		-lprometheus-cpp-core -lnvds_stats \
 		-lopentelemetry_metrics -lopentelemetry_exporter_otlp_http_metric -lopentelemetry_common \
     -lopentelemetry_exporter_otlp_http_client -lopentelemetry_resources -lopentelemetry_exporter_ostream_metrics
 
-LIBS+= -L/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib -ljsoncpp
+ifeq ($(TARGET_DEVICE),aarch64)
+   LIBS+= -L/usr/lib/aarch64-linux-gnu/tegra/ -ljsoncpp
+else
+   LIBS+= -L$(LIB_INSTALL_DIR) -ljsoncpp
+endif
 
 OBJS:= $(SRCS:.cpp=.o)
-OBJS := $(addprefix $(OBJ_DIR)/,$(OBJS))
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS+= $(shell pkg-config --libs $(PKGS))
 
-all: $(LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(LIB_DIR)
+$(LIB): $(OBJS) $(DEP) Makefile
 	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

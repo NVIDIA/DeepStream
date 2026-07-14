@@ -399,10 +399,18 @@ legacy_gst_nvmsgbroker_start (GstBaseSink * sink)
     return FALSE;
   }
 
-  temp = g_strrstr (self->connStr, ";");
-  if (temp)
-    if (!self->topic)
-      self->topic = g_strdup (temp + 1);
+  if (!self->connStr && !self->configFile) {
+    GST_ELEMENT_ERROR (self, RESOURCE, NOT_FOUND, (NULL),
+        ("No connection string or configuration file provided. Please provide either --conn-str parameter or a configuration file with [message-broker] section."));
+    return FALSE;
+  }
+
+  if (self->connStr) {
+    temp = g_strrstr (self->connStr, ";");
+    if (temp)
+      if (!self->topic)
+        self->topic = g_strdup (temp + 1);
+  }
 
   self->libHandle = dlopen (self->protoLib, RTLD_LAZY);
   if (!self->libHandle) {
@@ -685,6 +693,12 @@ new_gst_nvmsgbroker_start (GstBaseSink * sink)
     return FALSE;
   }
 
+  if (!self->connStr && !self->configFile) {
+    GST_ELEMENT_ERROR (self, RESOURCE, NOT_FOUND, (NULL),
+        ("No connection string or configuration file provided. Please provide either --conn-str parameter or a configuration file with [message-broker] section."));
+    return FALSE;
+  }
+
   self->newConnHandle = nv_msgbroker_connect (self->connStr, self->protoLib,
       nvmsgbroker_connect_callback, self->configFile);
   if (!self->newConnHandle) {
@@ -829,4 +843,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_msgbroker,
     "Message broker",
-    plugin_init, "9.0", "Proprietary", "NvMsgBroker", "http://nvidia.com")
+    plugin_init, "9.1", "Proprietary", "NvMsgBroker", "http://nvidia.com")

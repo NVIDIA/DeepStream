@@ -1,3 +1,19 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 
 # DeepStream Sample Applications
 
@@ -9,13 +25,13 @@ For build and installation instructions, see [build/BUILD.md](../../../build/BUI
 
 ## Running Apps
 
-After `build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.0/bin/`.
+After `build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.1/bin/`.
 
 Apps must be run from their **source directory** so relative config and model paths resolve correctly:
 
 ```bash
 cd src/apps/sample_apps/<app-name>
-/opt/nvidia/deepstream/deepstream-9.0/bin/<app-binary> [options]
+/opt/nvidia/deepstream/deepstream-9.1/bin/<app-binary> [options]
 ```
 
 Clear the GStreamer plugin cache after a fresh install:
@@ -34,6 +50,7 @@ Refer to the `README` in each app's directory for app-specific prerequisites, ru
 
 | App | Binary | Description |
 |---|---|---|
+| `deepstream-app` | `deepstream-app` | Config-driven reference application — fully configurable multi-stream decode → infer → track → tile → OSD → sink pipeline. The primary DeepStream sample. |
 | `deepstream-test1` | `deepstream-test1-app` | Single H.264 stream decode → infer → OSD → display. Simplest pipeline. |
 | `deepstream-test2` | `deepstream-test2-app` | Adds secondary GIE classifiers and tracker to test1. |
 | `deepstream-test3` | `deepstream-test3-app` | Multiple input streams using uridecodebin. |
@@ -89,6 +106,7 @@ Refer to the `README` in each app's directory for app-specific prerequisites, ru
 | `deepstream-server` | `deepstream-server` | REST server with live pipeline control (source add/remove, config reload). |
 | `deepstream-nmos` | `deepstream-nmos-app` | NMOS IS-04/IS-05 media networking and device discovery. |
 | `deepstream-ipc-test` | `deepstream-ipc-test` | Share video buffers between pipelines via IPC. **Jetson (aarch64) only** — relies on NVDEC engine sharing not available on x86 or SBSA. |
+| `deepstream-ucx-test` | `deepstream-ucx-test-app` | Share buffers between DeepStream processes/nodes over UCX (Unified Communication X) transport. **Not supported on Jetson** — the `nvdsgst_ucx` plugin is x86 only. |
 
 ### OpenCV Integration
 

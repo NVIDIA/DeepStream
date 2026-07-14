@@ -59,6 +59,15 @@ sink1:
   output-file: out.mp4
   source-id: 0
 
+sink2:
+  enable: 0
+  #Type - 1=FakeSink 2=EglSink 3=File
+  type: 2
+  sync: 1
+  source-id: 0
+  gpu-id: 0
+  nvbuf-memory-type: 0
+
 osd:
   enable: 1
   gpu-id: 0

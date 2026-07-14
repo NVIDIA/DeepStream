@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _DS3D_DATALOADER_LIDARSOURCE_CONFIG_H
 #define _DS3D_DATALOADER_LIDARSOURCE_CONFIG_H
 

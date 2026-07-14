@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -258,7 +259,9 @@ NvMsgBrokerClientHandle nv_msgbroker_connect(char *broker_conn_str, char *broker
                 return NULL;
             }
             if(!fetch_adapter_api(so_handle, adapter_lib)) {
-                handle_error(so_handle, &h_ptr_lock, adapter_lib, "Error: while fetching adapter API symbols for:", str.c_str());
+                // fetch_adapter_api already called handle_error internally, which closed so_handle
+                // and unlocked h_ptr_lock; only the adapter_lib allocation remains to be freed.
+                delete adapter_lib;
                 return NULL;
             }
             adapter_lib->protocol = str;

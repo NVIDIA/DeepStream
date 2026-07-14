@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 Refer to the DeepStream SDK documentation for a description of the "nvinfer"
 plugin and "NvDsInfer" API.
@@ -38,6 +36,7 @@ NOTE:
 1. To compile the sources, run make with "sudo" or root permission.
 2. OpenCV has been deprecated by default, so GroupRectangles will not work.
    To use GroupRectangles, enable `WITH_OPENCV=1` in the Makefile of nvdsinfer
-   (src/utils/nvdsinfer/Makefile, relative to the repository root) and
+   (<DS_ROOT>/src/utils/nvdsinfer/Makefile) and
    follow compilation and installation instructions present in the README
-   (src/utils/nvdsinfer/README, relative to the repository root).
+   (<DS_ROOT>/src/utils/nvdsinfer/README).
+   NOTE: <DS_ROOT> is the path where the repo is cloned.

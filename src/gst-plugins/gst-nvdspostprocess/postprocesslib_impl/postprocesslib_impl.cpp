@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "postprocesslib_impl.h"
 #include <filesystem>
 
@@ -669,7 +670,7 @@ void PostProcessAlgorithm::OutputThread(void)
       if (m_stop == TRUE) {
         break;
       }
-      m_processCV.wait(lk);
+      m_processCV.wait(lk, [this]{ return !m_processQ.empty() || m_stop == TRUE; });
       continue;
     }
 

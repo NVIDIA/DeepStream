@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                      deepstream-test5-app
@@ -96,8 +94,7 @@ PAYLOAD_DEEPSTREAM_PROTOBUF - Protobuf encoded message with multiple objects in 
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-     For x86, CUDA_VER=13.1
-     For jetson & SBSA, CUDA_VER=13.0
+     For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
@@ -107,11 +104,11 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 ===============================================================================
 The application supports txt/yml config files -
 
-$ deepstream-test5-app -c configs/test5_config_file_src_infer.txt -p 1
-$ deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
+$ ./deepstream-test5-app -c configs/test5_config_file_src_infer.txt -p 1
+$ ./deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
 
-$ deepstream-test5-app -c configs/test5_config_file_src_infer.yml -p 1
-$ deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.yml -p 0
+$ ./deepstream-test5-app -c configs/test5_config_file_src_infer.yml -p 1
+$ ./deepstream-test5-app -c configs/test5_dec_infer-resnet_tracker_sgie_tiled_display.yml -p 0
 
 ===============================================================================
 5. Config files provides with this package
@@ -145,7 +142,7 @@ Reference Application Configuration -> Configuration Groups.
   6.1 -p 0 (PLAYBACK=0)
   (Base UTC timestamp for meta-data from RTCP SR for RTSP Sources
               only; any sources other than type=4 will default to PLAYBACK=1)
-  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
+  $ ./deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 0
   ==============================================================================
   NOTE 1: For RTSP Streams, Config file shall use 'type=4'(NV_DS_SOURCE_RTSP)
   in [source] groups
@@ -159,7 +156,7 @@ Reference Application Configuration -> Configuration Groups.
   (Base UTC timestamp from filename of format - *__M_DD_YYYY_H_MIN_SEC_MSEC_AM/PM_UTC<Offset>.mp4)
   Means - the first video frame timestamp is embedded in the URI.
   Example: VideoFileSavedFromCamera__4_11_2018_4_59_59_433_AM_UTC-07_00.mp4
-  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 1
+  $ ./deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -p 1
   =============================================================================
   NOTE: If URI does not have original timestamp embedded, a WARNING will be
   thrown to user and current system time will be used as base time for all metadata
@@ -183,12 +180,12 @@ Reference Application Configuration -> Configuration Groups.
   to relay SGIE Classifier-Metadata to nvmsgconv
 
   8.0 -m 0 (Model(s) used are unknown)
-  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 0
+  $ ./deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 0
 
   7.2 -m 1 (Analytics Model(s) used are:
             resnet(4-class model) -> Tracker (Optional) -> SGIE0 (Vehicle-type)
             -> SGIE1 (Vehicle-Color) -> SGIE2 (Vehicle-Make))
-  $ deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 1
+  $ ./deepstream-test5-app -c test5_dec_infer-resnet_tracker_sgie_tiled_display.txt -m 1
 
 ===============================================================================
 8. Option -o

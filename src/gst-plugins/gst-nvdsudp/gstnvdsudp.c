@@ -38,5 +38,5 @@ plugin_init (GstPlugin * plugin)
 #define PACKAGE_ORIGIN "http://nvidia.com"
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR,
-    nvdsgst_udp, DESCRIPTION, plugin_init, "9.0",
+    nvdsgst_udp, DESCRIPTION, plugin_init, "9.1",
     "Proprietary", PACKAGE_NAME, PACKAGE_ORIGIN)

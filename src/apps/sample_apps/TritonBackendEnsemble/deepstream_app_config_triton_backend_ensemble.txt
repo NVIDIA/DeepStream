@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 [application]
 enable-perf-measurement=1
@@ -155,10 +153,10 @@ tracker-height=544
 ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
 # ll-config-file required to set different tracker types
 # ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_IOU.yml
-# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvSORT.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvSORT.yml
 ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
-# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvDCF_accuracy.yml
-# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs//deepstream-app/config_tracker_NvDeepSORT.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_accuracy.yml
+# ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDeepSORT.yml
 gpu-id=0
 display-tracking-id=1
 

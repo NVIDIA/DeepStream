@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 DS3D Lidar preprocess is an implementation of `ds3d::datafilter` How to use
 `ds3d::datamap` to process lidar data then output your own datamap.
@@ -60,9 +58,8 @@ Pre-requisites:
 --------------------------------------------------------------------------------
 Compiling and installing this `ds3d::datafilter` lib:
 - Export or set in Makefile the appropriate CUDA_VER, e.g.
-  $ export CUDA_VER=13.1 # set the right CUDA version
-      For x86, CUDA_VER=13.1
-      For Jetson & SBSA, CUDA_VER=13.0
+  $ export CUDA_VER=13.2 # set the right CUDA version
+      For x86, Jetson & SBSA, CUDA_VER=13.2
 - Run make and sudo make install
   $ make && make install
 - Verify `libnvds_3d_lidar_preprocess_datafilter.so` exist and installed well.

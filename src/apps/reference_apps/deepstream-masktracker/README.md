@@ -1,21 +1,38 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 #  MaskTracker in DeepStream
 
 ## Introduction
 This sample application demonstrates using MaskTracker with DeepStream SDK. MaskTracker simultaneously performs multi-object tracking and segmentation using advanced vision foundation models such as Segment Anything Model 2 (SAM2). It uses SAM2 to visually track and segment targets across frames, while automatically adding and removing targets as needed. It stores visual features in previous frames in a memory bank and use them to localize targets in a new frame.  For algorithm and setup details, please refer to [DeepStream MaskTracker Documentation](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvtracker.html#masktracker-developer-preview).
 
 ## Prerequisites
-Users need to install Ubuntu 24.04 and NVIDIA driver 570.133.20 on x86 with dGPUs supported by DeepStream. Jetson devices may not support running the entire SAM2 network due to resource limitation. Check [here](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html#prerequisites) for DeepStream container setup.
-1. Download the latest DeepStream container image from NGC (e.g., DS 9.0 in the example below)
+Users need to use an x86 system with dGPUs supported by DeepStream. Jetson devices may not support running the entire SAM2 network due to resource limitation. Check [here](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_docker_containers.html#prerequisites) for DeepStream container setup.
+1. Download the latest DeepStream container image from NGC (e.g., DS 9.1 in the example below)
     ```bash
-    export DS_IMG_NAME="nvcr.io/nvidia/deepstream:9.0-triton-multiarch"
+    export DS_IMG_NAME="nvcr.io/nvidia/deepstream:9.1-triton-multiarch"
     docker pull $DS_IMG_NAME
     ```
 
 2. Git clone current repository to the host machine, and enter MaskTracker directory inside the repository. The directory `sam2-onnx-tensorrt` in tools folder will be used to convert SAM2 models for TensorRT inference later.
     ```bash
     $ git clone https://github.com/NVIDIA/DeepStream.git
-    $ sudo cp -r tools/sam2-onnx-tensorrt /opt/nvidia/deepstream/deepstream/sources/tracker_ReID/
-    $ cd src/apps/reference_apps/deepstream-masktracker
+    $ sudo cp -r DeepStream/tools/sam2-onnx-tensorrt /opt/nvidia/deepstream/deepstream/sources/tracker_ReID/
+    $ cd DeepStream/src/apps/reference_apps/deepstream-masktracker
     ```
 
 3. Download NVIDIA pretrained `PeopleNet` for detection from [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet/files?version=deployable_quantized_onnx_v2.6.3)(e.g., PeopleNet v2.6.3 in the example below).

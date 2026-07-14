@@ -269,7 +269,9 @@ def flow_cls_hook(self, type_names: list, properties: list) -> "Flow":
     for index, name in enumerate(type_names):
         element_name = get_node_name(flow_cls_hook, name)
         self._pipeline.add(name, element_name, properties[index])
-        self._pipeline.link(self._streams[0], element_name)
+        stream = self._streams[0]
+        source = stream.originator if hasattr(stream, 'originator') else stream
+        self._pipeline.link(source, element_name)
         self._streams=[element_name]
         last_name=element_name
     return Flow(self._pipeline, streams=[last_name], parent=self)

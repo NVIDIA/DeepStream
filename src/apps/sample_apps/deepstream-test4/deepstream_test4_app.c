@@ -470,6 +470,28 @@ osd_sink_pad_buffer_metadata_probe (GstPad * pad, GstPadProbeInfo * info,
               (NvDsMetaReleaseFunc) meta_free_func;
           nvds_add_user_meta_to_frame (frame_meta, user_event_meta);
         } else {
+          g_free (msg_meta->ts);
+          g_free (msg_meta->sensorStr);
+          g_free (msg_meta->objectId);
+          if (msg_meta->extMsgSize > 0) {
+            if (msg_meta->objType == NVDS_OBJECT_TYPE_VEHICLE) {
+              NvDsVehicleObject *obj = (NvDsVehicleObject *) msg_meta->extMsg;
+              g_free (obj->type);
+              g_free (obj->color);
+              g_free (obj->make);
+              g_free (obj->model);
+              g_free (obj->license);
+              g_free (obj->region);
+            } else if (msg_meta->objType == NVDS_OBJECT_TYPE_PERSON) {
+              NvDsPersonObject *obj = (NvDsPersonObject *) msg_meta->extMsg;
+              g_free (obj->gender);
+              g_free (obj->cap);
+              g_free (obj->hair);
+              g_free (obj->apparel);
+            }
+            g_free (msg_meta->extMsg);
+          }
+          g_free (msg_meta);
           g_print ("Error in attaching event meta to buffer\n");
         }
         is_first_object = FALSE;
@@ -582,6 +604,7 @@ osd_sink_pad_buffer_image_probe (GstPad * pad, GstPadProbeInfo * info,
             g_free(height);
             usrMetaList = NULL;
           } else {
+            g_free (msg_custom_meta);
             usrMetaList = usrMetaList->next;
           }
         }
@@ -723,13 +746,15 @@ main (int argc, char *argv[])
   g_option_context_free (ctx);
 
   if (!proto_lib || !input_file) {
-    if (argc > 1 && !IS_YAML (argv[1])) {
-      g_printerr ("missing arguments\n");
-      g_printerr ("Usage: %s <yml file>\n", argv[0]);
-      g_printerr
-          ("Usage: %s -i <H264 filename> -p <Proto adaptor library> --conn-str=<Connection string>\n",
-          argv[0]);
-      return -1;
+    if (argc > 1) {
+      if (!IS_YAML (argv[1])) {
+        g_printerr ("missing arguments\n");
+        g_printerr ("Usage: %s <yml file>\n", argv[0]);
+        g_printerr
+            ("Usage: %s -i <H264 filename> -p <Proto adaptor library> --conn-str=<Connection string>\n",
+            argv[0]);
+        return -1;
+      }
     } else if (!argv[1]) {
       g_printerr ("missing arguments\n");
       g_printerr ("Usage: %s <yml file>\n", argv[0]);
@@ -743,9 +768,11 @@ main (int argc, char *argv[])
   loop = g_main_loop_new (NULL, FALSE);
 
   /* Parse inference plugin type */
-  if (argc > 1 && IS_YAML(argv[1])) {
-    RETURN_ON_PARSER_ERROR(nvds_parse_gie_type(&pgie_type, argv[1],
-                "primary-gie"));
+  if (argc > 1) {
+    if (IS_YAML(argv[1])) {
+      RETURN_ON_PARSER_ERROR(nvds_parse_gie_type(&pgie_type, argv[1],
+                  "primary-gie"));
+    }
   }
 
   /* Create gstreamer elements */
@@ -811,7 +838,8 @@ main (int argc, char *argv[])
     return -1;
   }
 
-  if (argc > 1 && IS_YAML (argv[1])) {
+  gboolean is_yaml_config = (argc > 1) ? IS_YAML (argv[1]) : FALSE;
+  if (is_yaml_config) {
     RETURN_ON_PARSER_ERROR(nvds_parse_file_source(source, argv[1], "source"));
     RETURN_ON_PARSER_ERROR(nvds_parse_streammux(nvstreammux, argv[1], "streammux"));
 
@@ -987,7 +1015,7 @@ main (int argc, char *argv[])
   gst_object_unref (osd_sink_pad);
 
   /* Set the pipeline to "playing" state */
-  if (argc > 1 && IS_YAML (argv[1])) {
+  if (is_yaml_config) {
     g_print ("Using file: %s\n", argv[1]);
   } else {
     g_print ("Now playing: %s\n", input_file);

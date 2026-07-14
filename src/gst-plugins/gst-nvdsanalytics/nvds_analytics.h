@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef _NVDS_ANALYTICS_H_
 #define _NVDS_ANALYTICS_H_
 #include <iostream>

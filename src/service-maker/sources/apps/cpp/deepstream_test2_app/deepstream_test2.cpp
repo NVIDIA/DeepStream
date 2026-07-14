@@ -83,7 +83,8 @@ int main(int argc, char *argv[]) {
     std::string suffix = "yaml";
     if (std::equal(suffix.rbegin(), suffix.rend(), file.rbegin())) {
       Pipeline pipeline("deepstream-test2", file);
-      pipeline.attach("converter", new BufferProbe("counter", new ObjectCounter)).start().wait();
+      auto* counter = new ObjectCounter;
+      pipeline.attach("converter", new BufferProbe("counter", counter)).start().wait();
     } else {
       Pipeline pipeline("deepstream-test2");
       pipeline.add("filesrc", "src", "location", file)
@@ -99,8 +100,9 @@ int main(int argc, char *argv[]) {
           .add(sink, "sink", "sync", SINK_SYNC_VALUE)
           .link("src", "parser", "decoder")
           .link({"decoder", "mux"}, {"", "sink_%u"})
-          .link("mux", "infer", "tracker", "vehicle_make_classifier", "vehicle_type_classifier", "converter", "osd", "sink")
-          .attach("converter", new BufferProbe("counter", new ObjectCounter))
+          .link("mux", "infer", "tracker", "vehicle_make_classifier", "vehicle_type_classifier", "converter", "osd", "sink");
+      auto* counter = new ObjectCounter;
+      pipeline.attach("converter", new BufferProbe("counter", counter))
           .attach("converter", "sample_video_probe", "my probe")
           .start()
           .wait();

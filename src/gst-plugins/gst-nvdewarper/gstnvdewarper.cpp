@@ -267,28 +267,21 @@ gst_nvdewarper_accept_caps (GstBaseTransform * btrans,
 
   if (!allowed) {
     GST_DEBUG_OBJECT (nvdewarper, "failed to get allowed caps");
-    goto no_transform_possible;
-  }
-
-  GST_DEBUG_OBJECT (nvdewarper, "allowed caps %" GST_PTR_FORMAT, allowed);
-
-  /* intersect with the requested format */
-  ret = gst_caps_is_subset (caps, allowed);
-  if (!ret) {
-    goto no_transform_possible;
-  }
-
-done:
-  return ret;
-
-/* ERRORS */
-no_transform_possible:
-  {
     GST_DEBUG_OBJECT (nvdewarper,
         "could not transform %" GST_PTR_FORMAT " in anything we support", caps);
     ret = FALSE;
-    goto done;
+  } else {
+    GST_DEBUG_OBJECT (nvdewarper, "allowed caps %" GST_PTR_FORMAT, allowed);
+
+    /* intersect with the requested format */
+    ret = gst_caps_is_subset (caps, allowed);
+    if (!ret) {
+      GST_DEBUG_OBJECT (nvdewarper,
+          "could not transform %" GST_PTR_FORMAT " in anything we support", caps);
+    }
   }
+
+  return ret;
 }
 
 static GstCaps *
@@ -1441,4 +1434,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nvdsgst_dewarper,
     PACKAGE_DESCRIPTION,
-    nvdewarper_init, "9.0", PACKAGE_LICENSE, PACKAGE_NAME, PACKAGE_URL)
+    nvdewarper_init, "9.1", PACKAGE_LICENSE, PACKAGE_NAME, PACKAGE_URL)

@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -26,34 +24,30 @@ SRCS:= gst-nvdssr.c
 INCS:= $(wildcard *.h) \
 
 LIB:=libnvdsgst_smartrecord.so
-NVDS_VERSION?=9.0
-UTILS_LIB_DIR ?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
 	  -I../../../includes \
       -shared
 
-OBJ_DIR := .build
-OBJS := $(addprefix $(OBJ_DIR)/,$(SRCS:.c=.o))
+OBJS:= $(SRCS:.c=.o)
 
 PKGS:= gstreamer-pbutils-1.0
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 LIBS+= $(shell pkg-config --libs $(PKGS))
-all: $(UTILS_LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.c $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.c $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(UTILS_LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(UTILS_LIB_DIR)
+$(LIB): $(OBJS) $(DEP) Makefile
 	$(CXX) -o $@ $(OBJS) $(LIBS) $(CFLAGS)
 
-install: $(UTILS_LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(UTILS_LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

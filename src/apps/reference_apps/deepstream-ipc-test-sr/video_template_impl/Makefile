@@ -24,7 +24,7 @@ LIB:=libnvds_vt_impl.so
 
 CFLAGS+= -I /usr/local/cuda/include \
 	 -I /opt/nvidia/deepstream/deepstream/sources/includes \
-	 -I /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdsvideotemplate/includes \
+	 -I ../../../../gst-plugins/gst-nvdsvideotemplate/includes \
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/
 

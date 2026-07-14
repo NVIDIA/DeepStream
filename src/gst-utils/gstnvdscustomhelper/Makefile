@@ -1,4 +1,3 @@
-################################################################################
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-################################################################################
 
 CUDA_VER?=
 ifeq ($(CUDA_VER),)
@@ -27,11 +25,10 @@ SRCS:= gst-nvdscustommessage.c gst-nvdscustomevent.c \
 INCS:= $(wildcard *.h) \
 
 LIB:=libnvdsgst_customhelper.so
-NVDS_VERSION?=9.0
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-UTILS_LIB_DIR ?= /opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib
+NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.0.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
  	 -I../../../includes \
 	 -I../../apps/common/includes/ \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \
@@ -41,38 +38,39 @@ LIBS := -shared -Wl,-no-undefined \
  	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart \
  	-pthread
 
-LIBS+= -L$(LIB_INSTALL_DIR) -Wl,-rpath-link,$(LIB_INSTALL_DIR) \
-       -lnvdsgst_helper -lnvds_rest_server -ldl \
-       -Wl,-rpath,$(LIB_INSTALL_DIR) \
-       -ljsoncpp
+LIBS+= -L$(LIB_INSTALL_DIR) -L/opt/nvidia/deepstream/deepstream/lib/ \
+       -lnvdsgst_helper -ldl\
+        -Wl,-rpath,$(LIB_INSTALL_DIR) \
 
-OBJ_DIR := .build
-_OBJS := $(SRCS:.c=.o)
-_OBJS := $(_OBJS:.cpp=.o)
-OBJS  := $(addprefix $(OBJ_DIR)/,$(_OBJS))
+ifeq ($(TARGET_DEVICE),aarch64)
+   LIBS+= -L/usr/lib/aarch64-linux-gnu/tegra/ -ljsoncpp
+else
+   LIBS+= -L$(LIB_INSTALL_DIR) -ljsoncpp
+endif
 
-PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
+OBJS:= $(SRCS:.c=.o)
+OBJS:= $(OBJS:.cpp=.o)
+
+PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
+CFLAGS+= -DPLATFORM_TEGRA
 LIBS+= $(shell pkg-config --libs $(PKGS))
 LIBS+= -lnvdsgst_meta -lnvds_meta
 
 
-all: $(UTILS_LIB_DIR)/$(LIB)
+all: $(LIB)
 
-$(OBJ_DIR)/%.o: %.c $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.c $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(OBJ_DIR)/%.o: %.cpp $(INCS) Makefile
-	@mkdir -p $(OBJ_DIR)
+%.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(UTILS_LIB_DIR)/$(LIB): $(OBJS) $(DEP) Makefile
-	@mkdir -p $(UTILS_LIB_DIR)
+$(LIB): $(OBJS) $(DEP) Makefile
 	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(UTILS_LIB_DIR)/$(LIB)
-	ldconfig
+install: $(LIB)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(UTILS_LIB_DIR)/$(LIB)
+	rm -rf $(OBJS) $(LIB)

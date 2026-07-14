@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 *****************************************************************************
                          deepstream-server-app
@@ -78,8 +76,7 @@ how to:
 ===============================================================================
 
   $ Set CUDA_VER in the MakeFile as per platform.
-      For x86, CUDA_VER=13.1
-      For Jetson & SBSA, CUDA_VER=13.0 
+      For x86, Jetson & SBSA, CUDA_VER=13.2
   $ sudo make (sudo not required in case of docker containers)
 
 NOTE: To compile the sources, run make with "sudo" or root permission.
@@ -90,8 +87,8 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 
   Run with the yml file.
 
-    $ deepstream-server-app <yml file>
-    e.g. $ deepstream-server-app dsserver_config.yml
+    $ ./deepstream-server-app <yml file>
+    e.g. $ ./deepstream-server-app dsserver_config.yml
 
   Note: By default old nvstreammux is used. Inorder to simulate REST API(s)
   using new nvstreammux with deepstream-server-app, user needs to either export or
@@ -717,14 +714,12 @@ Features supported with this application are:
   curl -XPOST 'http://localhost:9000/api/v1/analytics/reload-config' -d '{
   "stream":
     {
-      "config_file_path":"src/apps/sample_apps/deepstream-server/config_nvdsanalytics.txt"
+      "config_file_path":"/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-server/config_nvdsanalytics.txt"
     }
   }'
 
-Above path is relative to the repository root.
-
   Assumption: The sample deepstream-server-app uses "config_nvdsanalytics.txt"
-  config file available at "src/apps/sample_apps/deepstream-server/ (relative to the repository root)".
+  config file available at "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-server/".
   Hence, in the sample REST request same path and config file name is used.
   User should ensure to reload the same config file which has been used to run
   with the sample application.

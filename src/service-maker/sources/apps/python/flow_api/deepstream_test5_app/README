@@ -1,19 +1,17 @@
-*****************************************************************************
-* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*****************************************************************************
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 ===============================================================================
 1. Purpose:
@@ -71,17 +69,15 @@ SGIE2_UNIQUE_ID = 6    # Unique identifier for make/model classification
 Kafka Protocol Configuration:
 ```
 PROTO_LIB_PATH = "/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so"
-PROTO_CONFIG_FILE = "src/utils/nvds_msgapi/kafka_protocol_adaptor/cfg_kafka.txt"
+PROTO_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/libs/kafka_protocol_adaptor/cfg_kafka.txt"
 ```
-Above path is relative to the repository root.
 
 Message Broker Configuration:
 ```
-MSGCONV_CONFIG_FILE = "src/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
+MSGCONV_CONFIG_FILE = "/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt"
 MSGBROKER_CONN_STR = "localhost;9092"  # Kafka broker connection string
 MGSBROKER_TOPIC = "test5app"           # Kafka topic for message publishing
 ```
-Above path is relative to the repository root.
 
 Smart Recording Configuration:
 ```

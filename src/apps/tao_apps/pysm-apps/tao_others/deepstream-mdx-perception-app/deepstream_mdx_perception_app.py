@@ -39,13 +39,16 @@ class Sink_Type(Enum):
     msgbrokersink = 6
 
 class ObjectCounterMarker(BatchMetadataOperator):
+    def __init__(self, layer_name):
+        super().__init__()
+        self._layer_name = layer_name
+
     def handle_metadata(self, batch_meta):
         for frame_meta in batch_meta.frame_items:
             for object_meta in frame_meta.object_items:
                 for user_meta in object_meta.tensor_items:
                     output_layers=user_meta.as_tensor_output().get_layers()
-                    layer_name="embeddings"
-                    vector_data = output_layers.pop(layer_name, None)
+                    vector_data = output_layers.pop(self._layer_name, None)
                     embedding_vector = torch.utils.dlpack.from_dlpack(vector_data).to('cpu')
                     print(embedding_vector)
 
@@ -73,7 +76,7 @@ def sink_out(flow,  properties: list):
                 sync=False,  # Asynchronous publishing for better performance
             )
 
-def deepstream_mdx_perception_app(yaml_config_path):
+def deepstream_mdx_perception_app(yaml_config_path, embedding_layer_name):
     conf = dump_config(yaml_config_path)
     if conf is None:
         logger.error(f"Failed to load configuration from {yaml_config_path}")
@@ -90,7 +93,7 @@ def deepstream_mdx_perception_app(yaml_config_path):
     flow = flow.infer(conf.pgie_config_file, with_triton=conf.pgie_infer_type)
     flow = flow.track(ll_config_file=conf.tracker_ll_cfg_file, ll_lib_file=conf.tracker_ll_lib_file)
     flow = flow.infer(conf.sgie_0_config_file, with_triton=conf.sgie_0_infer_type)
-    flow = flow.attach(what=Probe("counter", ObjectCounterMarker()))
+    flow = flow.attach(what=Probe("counter", ObjectCounterMarker(embedding_layer_name)))
     # Message metadata generation probe - prepares data for Kafka publishing
     flow = flow.attach(
             what="add_message_meta_probe",
@@ -141,13 +144,13 @@ def deepstream_mdx_perception_app(yaml_config_path):
 
 if __name__ == "__main__":
     # Check input arguments
-    if len(sys.argv) != 2:
-        logger.error(f"usage: {sys.argv[0]} <yaml> ")
+    if len(sys.argv) != 3:
+        logger.error(f"usage: {sys.argv[0]} <yaml> <embedding_layer_name>")
         sys.exit(1)
 
     # Flow()() is a blocking call due to which the KeyboardInterrupt may not be processed immediately.
     # we use Process from multiprocessing which runs the main function in a different process and processes KeyboardInterrupt immediately.
-    process = Process(target=deepstream_mdx_perception_app, args=(sys.argv[1],))
+    process = Process(target=deepstream_mdx_perception_app, args=(sys.argv[1], sys.argv[2]))
     try:
         process.start()
         process.join()
