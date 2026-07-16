@@ -181,11 +181,11 @@ limitations under the License.
 
 8. (Optional) This step is only needed if you choose to use Option 2: Inference Builder.
 
-    Set up [Deepstream Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/de226c076db9e3fd4f2be87117491b457607149a). It is recommended to clone the `inference_builder` repo outside of the current repo.
+    Set up [Deepstream Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18). It is recommended to clone the `inference_builder` repo outside of the current repo.
     * Clone the inference builder repo
 
     ```bash
-    git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder && cd inference_builder && git checkout de226c076db9e3fd4f2be87117491b457607149a && cd ..
+    git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder && cd inference_builder && git checkout 3f0c09f2e3da076cbbb75e17bdebd565b03d1a18 && cd ..
     cd inference_builder
     git submodule update --init --recursive
     ```

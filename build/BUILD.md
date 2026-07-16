@@ -139,7 +139,7 @@ container**, which ships with DeepStream pre-installed.
 
 The SBSA Docker flow above does **not** cover every component. The following components are not validated inside the container and must instead be built and run from a separate clone of the repository on the baremetal SBSA / DGX Spark host:
 
-- `tools/inference_builder` — see [`tools/inference_builder/README.md`](https://github.com/NVIDIA-AI-IOT/inference_builder/blob/de226c076db9e3fd4f2be87117491b457607149a/README.md)
+- `tools/inference_builder` — see [`tools/inference_builder/README.md`](https://github.com/NVIDIA-AI-IOT/inference_builder/blob/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18/README.md)
 - `src/apps/reference_apps/deepstream-tracker-3d-multi-view` — see [`src/apps/reference_apps/deepstream-tracker-3d-multi-view/README.md`](../src/apps/reference_apps/deepstream-tracker-3d-multi-view/README.md)
 
 Clone the repository a second time on the host (outside any container) and follow each component's own README for its build and run steps.

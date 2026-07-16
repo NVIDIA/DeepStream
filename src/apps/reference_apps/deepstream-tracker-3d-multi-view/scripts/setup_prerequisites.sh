@@ -520,7 +520,7 @@ setup_inference_builder() {
     if [[ ! -d "$INFERENCE_BUILDER_DIR" ]]; then
         log_info "Cloning Inference Builder repository..."
         cd "$BASE_DIR"
-        if ! git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder || ! git -C inference_builder checkout de226c076db9e3fd4f2be87117491b457607149a; then
+        if ! git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder || ! git -C inference_builder checkout 3f0c09f2e3da076cbbb75e17bdebd565b03d1a18; then
             log_warning "Failed to clone Inference Builder repository"
             log_info "This is optional - Inference Builder is skipped by default. Set USE_INFERENCE_BUILDER=true to enable it."
             return 0

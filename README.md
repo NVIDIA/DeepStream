@@ -19,7 +19,7 @@ This repository contains the complete source code for DeepStream 9.1.
 - [`src/service-maker/`](src/README.md#service-maker) — Service Maker C++/Python SDK and apps
 
 **Tools** ([`tools/`](tools/)):
-- [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/de226c076db9e3fd4f2be87117491b457607149a) — visual inference pipeline builder
+- [`inference_builder`](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18) — visual inference pipeline builder
 - [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
@@ -130,7 +130,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [TAO Apps](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_TAO_integration.html) | DeepStream sample apps integrating TAO-trained models (detection, classification, segmentation, pose, LPR). |
 | [DeepStream Plugins](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_Intro.html) | Reference for every DeepStream GStreamer plugin — properties, pad caps, and usage. |
 | [Service Maker](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_service_maker_intro.html) | Build DeepStream pipelines declaratively with the C++ / Python Service Maker SDK. |
-| [Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/de226c076db9e3fd4f2be87117491b457607149a) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
+| [Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18) | Compose and configure DeepStream inference pipelines visually with the Inference Builder tool. |
 | [Auto Magic Calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) | Automatic camera calibration tool for multi-camera DeepStream deployments. |
 | [DeepStream Libraries](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html) | DeepStream utility and helper libraries bundled as the `deepstream_libraries` submodule. |
 | [DeepStream Coding Agent](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_AI_Agent.html) | Use the bundled `skills/` with Claude Code and other AI coding assistants to generate DeepStream pipelines. |
