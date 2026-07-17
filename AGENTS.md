@@ -9,18 +9,46 @@ repository. For product/user documentation, read `README.md`; this file is about
 NVIDIA DeepStream SDK 9.1 repository — a GStreamer-based framework for multi-stream,
 multi-model video-analytics pipelines on NVIDIA GPUs (x86 dGPU, Jetson, SBSA/DGX
 Spark). This repo holds the full DeepStream 9.1 source plus prebuilt proprietary
-runtime artifacts (downloaded from GitHub Release assets), build tooling, agent skills, and example prompts.
+runtime assets (downloaded from GitHub Releases), build tooling, agent skills, and example prompts.
 
 ## Repository layout
 
 - `src/` — all buildable source: `gst-plugins/`, `gst-utils/`, `utils/`,
   `apps/{sample_apps,reference_apps,tao_apps}/`, `service-maker/`. See `src/README.md`.
+  `src/service-maker/` is the source for the `pyservicemaker` Python flow API — it is
+  built and installed as part of `bash build/build.sh` and is also included in the
+  all-in-one SDK deb/tarball. Do **not** use `deepstream_libraries-*.whl` as a substitute.
 - `build/` — `build.sh` (top-level build driver) and `BUILD.md` (authoritative build guide).
-- `artifacts/` — prebuilt proprietary libs + sample data, downloaded automatically from GitHub Release assets by `build/build.sh` (not committed to the repo).
+  During the build, `build/build.sh` downloads GitHub Release assets into a temporary
+  `artifacts/` directory; this is created automatically and removed after a successful install.
+  See **GitHub Release Assets** section below for asset descriptions and manual install rules.
 - `includes/` — shared public headers.
-- `scripts/` — install/uninstall, dependency and artifact install, Triton setup, rtpmanager fix.
+- `scripts/` — install/uninstall, Triton setup, rtpmanager fix, and build-flow helpers.
+  `install_artifacts.sh` is invoked internally by `build/build.sh` to install component
+  packages (`deepstream-binaries-*`, `deepstream-sample-data-*`) as part of the source
+  build flow — do not run it directly for a manual bare-metal install.
 - `skills/`, `example_prompts/` — agent assets (see "Skills & prompts" below).
 - `tools/`, `deepstream_libraries/` (submodule), `deepstream_dockers/`.
+
+## GitHub Release Assets
+
+Packages are available at https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0.
+`build/build.sh` downloads them automatically; for manual installs, pick from below.
+
+- **Bare-metal DeepStream install** — use the all-in-one package for your platform:
+  `deepstream-9.1_9.1.0-1_amd64.deb` (x86, ~970 MB) or `deepstream-9.1_9.1.0-1_arm64.deb` (Jetson, ~615 MB).
+  Tarball equivalents: `deepstream_sdk_v9.1.0_x86_64.tbz2` / `deepstream_sdk_v9.1.0_jetson.tbz2`.
+  These are the only packages needed for a full bare-metal install.
+- **`deepstream-sample-data_*`** — contains sample models, configs, and video streams.
+  Already bundled inside the full SDK packages above; no need to install separately.
+- **`deepstream_libraries-*.whl`** — standalone Python package providing APIs for reference
+  applications built on CVCUDA, NvImageCodec, and PyNvVideoCodec modules. Not required for
+  a bare-metal DS mono-repo build or when the full SDK deb/tarball is installed. Install
+  only when your use case explicitly requires these Python bindings. For `pyservicemaker`,
+  install the full SDK deb/tarball or build from `src/service-maker/` — this whl is not a substitute.
+- **`deepstream-binaries-*`** — prebuilt proprietary runtime libraries subset. Already bundled
+  in the full SDK packages. Use only when updating a specific binary without replacing the
+  full install. **Never use for a fresh bare-metal install.**
 
 ## Build & run
 
@@ -41,6 +69,21 @@ bash build/build.sh
 - Full details, per-platform prerequisites, and CLI reference: **`build/BUILD.md`**.
 
 After the first install, clear the GStreamer plugin cache: `rm -rf ~/.cache/gstreamer-1.0/`.
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Full build | `bash build/build.sh` |
+| Build one stage (after deps/artifacts installed) | `bash build/build.sh --only=<stage> --skip-deps --skip-artifacts` |
+| Resume interrupted build | `bash build/build.sh --resume` |
+| Install system deps only | `bash build/build.sh --only=deps` |
+| Download + install artifacts only | `bash build/build.sh --only=artifacts` |
+| Clear GStreamer plugin cache | `rm -rf ~/.cache/gstreamer-1.0/` |
+| Run DeepStream reference app | `deepstream-app -c <config-file>` |
+| Print environment (for diagnostics) | `bash scripts/print_env.sh` |
+| Install full SDK (bare-metal, x86) | deb: `sudo apt-get install -y ./deepstream-9.1_9.1.0-1_amd64.deb` \| tar: `tar -xjvf deepstream_sdk_v9.1.0_x86_64.tbz2 -C / && sudo ldconfig` |
+| Install full SDK (bare-metal, Jetson) | deb: `sudo apt-get install -y ./deepstream-9.1_9.1.0-1_arm64.deb` \| tar: `tar -xjvf deepstream_sdk_v9.1.0_jetson.tbz2 -C / && sudo ldconfig` |
 
 ## Conventions — DOs and DON'Ts
 
@@ -63,6 +106,13 @@ After the first install, clear the GStreamer plugin cache: `rm -rf ~/.cache/gstr
   `gst-dsexample-cuda` must be built separately per their READMEs.
 - Don't attempt bare-metal install on SBSA / DGX Spark — build inside the NVIDIA
   SBSA Docker container; the `artifacts` stage is skipped there automatically.
+- Don't install `deepstream-binaries-*` or `deepstream-sample-data-*` for a bare-metal
+  DeepStream install — use `deepstream-9.1_*.deb` (the all-in-one package). Component
+  packages are subsets bundled in the full SDK; `build/build.sh` installs them
+  automatically. Install them separately only when updating a specific component.
+- Don't install `deepstream_libraries-*.whl` for a bare-metal DS install or when the full
+  SDK deb/tarball is already installed — it is a standalone Python package for CVCUDA,
+  NvImageCodec, and PyNvVideoCodec reference app bindings only.
 - This project is **not accepting external contributions**; do not add
   contribution/PR scaffolding.
 
