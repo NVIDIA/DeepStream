@@ -1,0 +1,12 @@
+# Machine-local build artifacts — NEVER part of the shipped skill.
+# The skill dir holds source only; all run outputs live at the working root
+# (models/, runs/, reports/, data/, build/), never inside the skill.
+
+# Python bytecode (also suppressed at runtime via PYTHONDONTWRITEBYTECODE in app/launch.sh)
+__pycache__/
+*.pyc
+
+# Compiled DeepStream eval app (rebuilt per machine/DeepStream version: `make -C scripts`)
+scripts/ds_image_eval
+scripts/*.o
+scripts/*.so

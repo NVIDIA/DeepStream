@@ -24,7 +24,7 @@ The following are required on the target execution environment:
 - **CUDA 13.2** and **TensorRT 10.16.0.72**
 - **Supported OS:** Ubuntu 24.04 (x86_64 or ARM64/Jetson)
 
-> The `deepstream-import-vision-model` skill needs a few extra runtime tools (`trtexec`, `wkhtmltopdf`, `mediainfo`, `deepstream-app`, an `optimum`-capable Python venv). They are listed and auto-checked by the pre-flight script in [`skills/deepstream-import-vision-model/SKILL.md`](deepstream-import-vision-model/SKILL.md#pre-flight-checks).
+> The `deepstream-import-vision-model` and `deepstream-eval-and-finetune` skills run their toolchains inside `nvcr.io/nvidia/deepstream:9.1-triton-multiarch`; the host needs Docker, NVIDIA Container Toolkit, and a compatible NVIDIA driver. Their setup and preflight scripts create and verify the mounted Python environments and runtime tools.
 
 > For detailed environment setup, refer to the [DeepStream SDK Developer Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/).
 
@@ -48,6 +48,7 @@ deepstream/                                 # mono-repo root
 │   ├── deepstream-generate-pipeline/       # Interactive gst-launch pipeline builder (BM25 retrieval over 270+ pipelines)
 │   ├── deepstream-profile-pipeline/        # Nsight Systems profiling & config derivation skill
 │   ├── deepstream-import-vision-model/     # Autonomous vision-model onboarding & benchmarking pipeline skill
+│   ├── deepstream-eval-and-finetune/       # DeepStream accuracy evaluation + AutoML fine-tuning skill
 │   ├── deepstream-run-mv3dt/               # MV3DT reference-app operations skill
 │   ├── deepstream-sop/                     # DeepStream SOP microservice skill (step-sequence compliance via GEBD + VLM)
 │   ├── amc-setup-calibration-stack/        # AutoMagicCalib MS + UI launch skill
@@ -77,7 +78,7 @@ An **agentic skill** is a structured knowledge package that an AI coding assista
 
 Each subdirectory under `skills/` contains a DeepStream agentic skill that follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and others.
 
-This project ships **thirteen complementary skills**:
+This project ships **fourteen complementary skills**:
 
 | Skill | Mode | Use when you want to… |
 |-------|------|----------------------|
@@ -85,6 +86,7 @@ This project ships **thirteen complementary skills**:
 | [`deepstream-generate-pipeline`](deepstream-generate-pipeline/) | Interactive questionnaire + retrieval | Generate a ready-to-run `gst-launch-1.0` pipeline by answering a few questions; the agent retrieves and adapts from 270+ verified pipelines and validates the result. |
 | [`deepstream-profile-pipeline`](deepstream-profile-pipeline/) | Measure-then-derive (Nsight Systems) | Build an efficient/performant pipeline or benchmark, tune, and measure FPS — the agent profiles with `nsys`, derives configs from the measured inference plateau batch and HW ceiling, and reports per-plugin NVTX timings. |
 | [`deepstream-import-vision-model`](deepstream-import-vision-model/) | Autonomous orchestration (the agent runs an end-to-end pipeline) | Take any HuggingFace or NGC object-detection model and produce a TensorRT engine, a DeepStream multi-stream benchmark, and a PDF report — fully unattended. |
+| [`deepstream-eval-and-finetune`](deepstream-eval-and-finetune/) | Accuracy evaluation + fine-tuning orchestration | Deploy an object-detection model to DeepStream (TensorRT FP16), measure mAP and performance on a KPI dataset through the real pipeline, fine-tune it with a single run or AutoML sweep, re-deploy, and produce a before/after report. |
 | [`deepstream-run-mv3dt`](deepstream-run-mv3dt/) | Reference-app operations (the agent sets up and runs MV3DT) | Run the DeepStream Multi-View 3D Tracking reference app on shipped samples or synchronized MP4 datasets, including calibration handoff, Kafka metadata, and OSD/BEV outputs. |
 | [`deepstream-sop`](deepstream-sop/) | Microservice scaffold + evaluate-and-fix loop | Build, deploy, evaluate, debug, or measure latency for a DeepStream SOP (Standard Operating Procedure) inference microservice — GPU-accelerated operator step-sequence compliance on industrial video via GEBD + VLM (Cosmos Reason 1/2), with file / RTSP / Basler camera inputs and SSE / Kafka output. |
 | [`amc-setup-calibration-stack`](amc-setup-calibration-stack/) | Deployment runbook | Launch the AutoMagicCalib microservice and web UI from NGC release images via Docker Compose. |
@@ -96,6 +98,10 @@ This project ships **thirteen complementary skills**:
 | [`rtvi-cv-scaffold-vss-service`](rtvi-cv-scaffold-vss-service/) | Microservice scaffold | Scaffold a custom RTVI CV microservice (YOLO26 reference) that publishes detection metadata to VSS via Kafka `mdx-raw`. |
 
 Skip ahead to [Skill: deepstream-import-vision-model](#skill-deepstream-import-vision-model) for the model-onboarding workflow, or [Skill: deepstream-run-mv3dt](#skill-deepstream-run-mv3dt) for the MV3DT reference-app workflow.
+
+```text
+My DeepStream app dynamically adds and removes RTSP sources and latency rises below the configured streammux batch size. Diagnose it without writing application code.
+```
 
 ### Skill: deepstream-dev
 
@@ -368,7 +374,7 @@ After copying:
 
    For an interactive variant that prompts for inputs with defaults, see [`example_prompts/import_vision_model_detection_pipeline.md`](../example_prompts/import_vision_model_detection_pipeline.md).
 
-3. The agent should activate `deepstream-import-vision-model`, run pre-flight checks (`nvidia-smi`, `trtexec`, `wkhtmltopdf`, `mediainfo`, `deepstream-app`), and proceed through Steps 1–8 without further prompting.
+3. The agent should activate `deepstream-import-vision-model`, run the containerized setup and preflight checks (Docker, GPU, DeepStream 9.1, Python environment, TensorRT, and report tooling), and proceed through Steps 1–8 without further prompting.
 
 #### Output structure
 

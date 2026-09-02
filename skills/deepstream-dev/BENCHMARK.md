@@ -9,8 +9,8 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `deepstream-dev`
-- Evaluation date: 2026-08-06
-- Evaluator version: `1.1.0`
+- Evaluation date: 2026-07-29
+- Evaluator version: `0.9.0`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 7 evaluation tasks (7 positive)
 - Dataset digest: `sha256:8387f8a0886abca32ab08efce9474b2aa24dd1ef5545eb15e5b7d724a689b7d3` (skill-evaluator-dataset-snapshot/1)
@@ -34,12 +34,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 58% → 83% (+24 points) | 62% → 78% (+16 points) |
-| Security | 71% → 86% (+14 points) | 71% → 64% (-7 points) |
-| Correctness | 80% → 89% (+9 points) | 86% → 89% (+3 points) |
-| Discoverability | 39% → 77% (+38 points) | 42% → 67% (+25 points) |
-| Effectiveness | 84% → 99% (+15 points) | 86% → 97% (+11 points) |
-| Efficiency | 16% → 62% (+46 points) | 23% → 72% (+49 points) |
+| Overall | 63% → 83% (+20 points) | 65% → 82% (+18 points) |
+| Security | 71% → 86% (+14 points) | 71% → 79% (+7 points) |
+| Correctness | 86% → 89% (+3 points) | 94% → 94% (±0 points) |
+| Discoverability | 41% → 78% (+37 points) | 40% → 69% (+29 points) |
+| Effectiveness | 91% → 97% (+6 points) | 93% → 98% (+5 points) |
+| Efficiency | 25% → 64% (+39 points) | 24% → 72% (+48 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 

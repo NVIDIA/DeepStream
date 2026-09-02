@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+interface:
+  display_name: "DeepStream Eval and Fine-tune"
+  short_description: "Measure and improve deployed model accuracy"
+  default_prompt: "Use $deepstream-eval-and-finetune to evaluate, fine-tune, redeploy, and compare this object-detection model."

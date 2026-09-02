@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# tao-finetune-huggingface-model config for RT-DETR + itsyoboieltr/pcb (PKU/HRIPCB 6-class defects).
+# Consumes the HF-arrow dataset produced by coco_to_hf.py (from convert_pcb.py COCO).
+model_id: PekingU/rtdetr_r50vd
+model_short_name: rtdetr-pcb
+task: object-detection
+auto_model_class: AutoModelForObjectDetection
+ignore_mismatched_sizes: true
+dataset_id: itsyoboieltr/pcb
+# order == COCO category_id == source object_class (0..5)
+label_names: [mouse_bite, spur, missing_hole, short, open_circuit, spurious_copper]
+n_train: 6370
+n_eval: 120
+output_dir: ./checkpoints
+# LR lowered 1e-4 -> 2.5e-5 + longer warmup: at 1e-4 the 6-class varifocal
+# classification head diverged (logits collapsed to the focal prior -> ~0.004
+# scores, eval_loss 9->16) while box regression still learned (IoU 0.79).
+num_train_epochs: 30
+per_device_train_batch_size: 8
+per_device_eval_batch_size: 8
+gradient_accumulation_steps: 1
+learning_rate: 2.5e-5
+warmup_ratio: 0.1
+weight_decay: 1.0e-4
+lr_scheduler_type: cosine
+bf16: true
+dataloader_num_workers: 8
+remove_unused_columns: false
+eval_strategy: epoch
+save_strategy: epoch
+save_total_limit: 1
+# DETR-family eval_loss is a poor mAP proxy; keep last (most-trained) checkpoint.
+load_best_model_at_end: false
+metric_for_best_model: eval_loss
+greater_is_better: false
+report_to: none
+push_to_hub: false
+logging_steps: 50
+disable_tqdm: true

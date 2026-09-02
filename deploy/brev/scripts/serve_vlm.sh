@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 # Start a local OpenAI-compatible VLM server (vLLM) for the rtvi demos.
 #
@@ -32,7 +46,7 @@ MAX_MODEL_LEN=${MAX_MODEL_LEN:-8192}
 
 VLM_ENDPOINT="http://127.0.0.1:${VLM_PORT}/v1"
 
-if [ "${SERVE_VLM}" != "1" ]; then
+if [[ "${SERVE_VLM}" != "1" ]]; then
   cat <<MSG
 Local VLM serve is disabled (SERVE_VLM != 1).
 To serve ${VLM_MODEL} on ${VLM_ENDPOINT} for the rtvi demos:
@@ -64,7 +78,7 @@ docker pull "${VLM_IMAGE}"
 
 echo "Starting vLLM (${VLM_MODEL}) on ${VLM_ENDPOINT}"
 HF_ENV=()
-if [ -n "${HF_TOKEN}" ]; then
+if [[ -n "${HF_TOKEN}" ]]; then
   HF_ENV+=(-e "HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}")
 fi
 

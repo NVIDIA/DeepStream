@@ -1,0 +1,38 @@
+# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License").
+#
+# tao-finetune-huggingface-model config for the RT-DETR + aerial-sheep worked example.
+# Consumes the HF-arrow dataset produced by coco_to_hf.py (see README step 3).
+model_id: PekingU/rtdetr_r50vd
+model_short_name: rtdetr-sheep
+task: object-detection
+auto_model_class: AutoModelForObjectDetection
+ignore_mismatched_sizes: true
+dataset_id: keremberke/aerial-sheep-object-detection
+label_names: [sheep]
+n_train: 3609
+n_eval: 120
+output_dir: ./checkpoints
+num_train_epochs: 30
+per_device_train_batch_size: 8
+per_device_eval_batch_size: 8
+gradient_accumulation_steps: 1
+learning_rate: 1.0e-4
+warmup_ratio: 0.05
+weight_decay: 1.0e-4
+bf16: true
+dataloader_num_workers: 8
+remove_unused_columns: false
+eval_strategy: epoch
+save_strategy: epoch
+save_total_limit: 1
+# DETR-family eval_loss is a POOR mAP proxy (it rose 8.4->11 here while deployed
+# mAP@50 reached 0.87). Keep load_best_model_at_end FALSE so the last (best-mAP)
+# checkpoint is used, not the lowest-eval_loss one.
+load_best_model_at_end: false
+metric_for_best_model: eval_loss
+greater_is_better: false
+report_to: none
+push_to_hub: false
+logging_steps: 20
+disable_tqdm: true

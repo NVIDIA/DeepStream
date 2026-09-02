@@ -1,0 +1,109 @@
+{
+  "_comment": "Declarative description of the validated, turnkey demos the Web UI can run end-to-end. Each entry is the data behind examples/rtdetr-aerial-sheep/run.sh (aerial-sheep) and examples/rtdetr-pcb/run.sh (pcb). pipeline.py reads these fields; it never hard-codes a demo. Paths are relative to the working root (ROOT, normally /work). Only models whose model_id matches `model_id` here have a deploy recipe; anything else is flagged needs_recipe.",
+  "presets": {
+    "aerial-sheep": {
+      "label": "RT-DETR + Aerial Sheep",
+      "model_id": "PekingU/rtdetr_r50vd",
+      "model_label": "RT-DETR R50vd",
+      "dataset_id": "keremberke/aerial-sheep-object-detection",
+      "dataset_label": "Aerial Sheep (1 class, dense tiny objects)",
+      "blurb": "COCO already has a 'sheep' class, so the stock model gives a real non-zero baseline; the aerial/tiny-object domain shift leaves large fine-tuning headroom. Validated: deployed mAP@50 0.19 -> 0.95.",
+      "editable": true,
+      "deploy_recipe": true,
+
+      "assets_dir": ".claude/skills/deepstream-eval-and-finetune/examples/rtdetr-aerial-sheep/assets",
+      "config_yaml": ".claude/skills/deepstream-eval-and-finetune/examples/rtdetr-aerial-sheep/config.yaml",
+      "data_dir": "data/aerial_sheep",
+      "orig_dir": "models/rtdetr_sheep_orig",
+      "orig_dir_aliases": [
+        "models/rtdetr_r50vd"
+      ],
+      "ft_dir": "models/rtdetr_sheep_ft",
+      "run_dir": "runs/rtdetr_sheep",
+
+      "ingest": { "kind": "ingest_dataset", "splits": ["train", "valid", "test"] },
+      "eval_split": "valid",
+      "eval_labels": "model",
+
+      "orig_onnx": "rtdetr_orig.onnx",
+      "orig_engine": "rtdetr_orig_ds.engine",
+      "orig_nclasses": 80,
+      "ft_onnx": "rtdetr_sheep_ft.onnx",
+      "ft_engine": "rtdetr_sheep_ft_ds.engine",
+      "ft_nclasses": 1,
+
+      "canvas": [640, 640],
+      "n_eval": 200,
+      "bbox_format": "xywh",
+      "resize_mode": "stretch",
+      "epochs": 30,
+
+      "comparison": "reports/sheep_comparison.json",
+      "samples_dir": "reports/samples",
+      "report_pdf": "reports/rtdetr_sheep_report.pdf",
+      "report_basename": "rtdetr_sheep_report.pdf",
+      "sample_overlays_extra": [],
+
+      "report_meta": {
+        "model_id": "PekingU/rtdetr_r50vd (RT-DETR)",
+        "model_link": "https://huggingface.co/PekingU/rtdetr_r50vd",
+        "model_license": "Apache-2.0",
+        "model_desc": "RT-DETR R50vd. Baseline = stock COCO-80 model (has a 'sheep' class); fine-tuned = 30 epochs on aerial-sheep (1 class).",
+        "dataset_id": "keremberke/aerial-sheep-object-detection",
+        "dataset_link": "https://huggingface.co/datasets/keremberke/aerial-sheep-object-detection",
+        "dataset_desc": "Aerial/drone sheep detection, 1 class; dense small objects. eval on 200 valid images."
+      }
+    },
+
+    "pcb": {
+      "label": "RT-DETR + PCB Defects",
+      "model_id": "PekingU/rtdetr_r50vd",
+      "model_label": "RT-DETR R50vd",
+      "dataset_id": "itsyoboieltr/pcb",
+      "dataset_label": "PKU/HRIPCB (6 defect classes)",
+      "blurb": "No PCB-defect class exists in COCO-80, so the stock model scores an honest mAP 0; fine-tuning on 6 defect classes is what raises it. Both eval legs are built against the 6-class TARGET labels.",
+      "editable": true,
+      "deploy_recipe": true,
+
+      "assets_dir": ".claude/skills/deepstream-eval-and-finetune/examples/rtdetr-aerial-sheep/assets",
+      "config_yaml": ".claude/skills/deepstream-eval-and-finetune/examples/rtdetr-pcb/config_pcb.yaml",
+      "data_dir": "data/pcb_defect",
+      "orig_dir": "models/rtdetr_pcb_orig",
+      "ft_dir": "models/rtdetr_pcb_ft",
+      "run_dir": "runs/rtdetr_pcb",
+
+      "ingest": { "kind": "convert_pcb", "splits": ["train", "valid", "test"] },
+      "eval_split": "test",
+      "eval_labels": "data/pcb_defect/labels.txt",
+
+      "orig_onnx": "rtdetr_orig.onnx",
+      "orig_engine": "rtdetr_orig_ds.engine",
+      "orig_nclasses": 80,
+      "ft_onnx": "rtdetr_pcb_ft.onnx",
+      "ft_engine": "rtdetr_pcb_ft_ds.engine",
+      "ft_nclasses": 6,
+
+      "canvas": [640, 640],
+      "n_eval": 200,
+      "bbox_format": "xywh",
+      "resize_mode": "stretch",
+      "epochs": 30,
+
+      "comparison": "reports/pcb_comparison.json",
+      "samples_dir": "reports/samples_pcb",
+      "report_pdf": "reports/rtdetr_pcb_report.pdf",
+      "report_basename": "rtdetr_pcb_report.pdf",
+      "sample_overlays_extra": ["--min-gt", "1", "--max-gt", "12", "--max-boxes", "12"],
+
+      "report_meta": {
+        "model_id": "PekingU/rtdetr_r50vd (RT-DETR)",
+        "model_link": "https://huggingface.co/PekingU/rtdetr_r50vd",
+        "model_license": "Apache-2.0",
+        "model_desc": "RT-DETR R50vd. Baseline = stock COCO-80 model (no PCB-defect class -> honest mAP 0); fine-tuned = 30 epochs on PKU/HRIPCB (6 defect classes).",
+        "dataset_id": "itsyoboieltr/pcb (PKU/HRIPCB)",
+        "dataset_link": "https://huggingface.co/datasets/itsyoboieltr/pcb",
+        "dataset_desc": "PCB surface-defect detection, 6 classes (mouse_bite, spur, missing_hole, short, open_circuit, spurious_copper); 6370 train. Eval on 200 test images."
+      }
+    }
+  }
+}

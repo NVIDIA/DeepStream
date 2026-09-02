@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="copyright" content="Copyright (c) 2026 NVIDIA CORPORATION &amp; AFFILIATES. All rights reserved."/>
+<meta name="license" content="Apache-2.0"/>
+<title>DeepStream Eval &amp; Fine-tune | NVIDIA</title>
+<link rel="stylesheet" href="/static/style.css"/>
+<script src="https://unpkg.com/lucide@0.468.0"></script>
+</head>
+<body>
+<div class="topbar"></div>
+
+<header>
+  <span class="brand">
+    <span class="wordmark">NVIDIA</span>
+    <span class="appname">DeepStream Eval &amp; Fine-tune</span>
+    <span class="tagline">deploy → measure → fine-tune → compare, in DeepStream</span>
+  </span>
+  <span class="spacer"></span>
+  <span class="sysinfo" id="sysinfo"></span>
+  <button class="sysbtn" id="qcBtn" aria-label="Dataset QC" title="Dataset QC — class balance, box geometry, unlabeled images, train↔val leakage"><i data-lucide="clipboard-check"></i></button>
+  <button class="sysbtn" id="sysBtn" aria-label="System &amp; environment" title="System &amp; environment — CPU · GPU · driver/CUDA · DeepStream · TensorRT · packages"><i data-lucide="cpu"></i></button>
+</header>
+
+<nav class="steps" id="steps">
+  <div class="step" data-step="1"><span class="n">1</span> Setup</div>
+  <i class="arrow" data-lucide="chevron-right"></i>
+  <div class="step" data-step="2"><span class="n">2</span> Baseline</div>
+  <i class="arrow" data-lucide="chevron-right"></i>
+  <div class="step" data-step="3"><span class="n">3</span> Fine-tune</div>
+  <i class="arrow" data-lucide="chevron-right"></i>
+  <div class="step" data-step="4"><span class="n">4</span> Compare</div>
+  <i class="arrow" data-lucide="chevron-right"></i>
+  <div class="step" data-step="5"><span class="n">5</span> Analyze</div>
+  <i class="arrow" data-lucide="chevron-right"></i>
+  <div class="step" data-step="6"><span class="n">6</span> Playground</div>
+</nav>
+
+<div class="ctxbar hide" id="ctxbar">
+  <span>Viewing <b id="ctxLabel"></b></span>
+  <span class="cmeta" id="ctxMeta"></span>
+  <button class="newbtn" id="ctxNew">+ New run</button>
+</div>
+
+<div class="main">
+
+  <section class="panel" id="panel1" aria-label="Step 1 — Setup">
+    <h2>Start a run</h2>
+    <p class="sub">Enter an RT-DETR-family model + a detection dataset, or click a previous run below. The dataset can be a HuggingFace id or URL, an http(s) link to a .zip, or a local path (YOLO / Roboflow-COCO layout).</p>
+
+    <div class="newrun">
+      <div class="field grow"><label>Model — RT-DETR family</label><input id="f_model" value="PekingU/rtdetr_r50vd" placeholder="org/model or HF URL"></div>
+      <div class="field grow"><label>Dataset — HF id / URL / local path</label><input id="f_dataset" value="keremberke/aerial-sheep-object-detection" placeholder="org/dataset, https://…/data.zip, or /path/to/dataset"></div>
+      <div class="field sm"><label>Eval split</label><input id="f_split" value="valid"></div>
+      <div class="field sm"><label>Epochs</label><input id="f_epochs" type="number" min="1" value="30"></div>
+      <button class="btn primary" id="startRun"><i data-lucide="play"></i> Deploy &amp; run</button>
+    </div>
+    <div class="cachebox" id="cacheBox" style="display:none">
+      <span id="cacheStatus"></span>
+      <label><input id="f_refresh_cache" type="checkbox"> Refresh source cache and rebuild this run</label>
+    </div>
+    <div class="quickfill" id="quickfill"></div>
+    <div id="recipeBanner"></div>
+
+    <h3 class="sec">Runs — history</h3>
+    <p class="muted" style="font-size:12px;margin:-4px 0 10px">Validated demos and your previous runs. Re-open any to review its results, or re-run a stage.</p>
+    <div class="runlist" id="runlist"></div>
+  </section>
+
+  <section class="panel" id="panel2" aria-label="Step 2 — Baseline">
+    <h2>Original model — deployed in DeepStream</h2>
+    <p class="sub">Ground truth vs the stock model's detections on your KPI images (TensorRT FP16).</p>
+
+    <div id="baselineRunning">
+      <div class="progwrap">
+        <div class="progrow"><span class="stg" id="b_stage">starting…</span><span class="muted" id="b_count"></span></div>
+        <div class="bar"><i id="b_bar"></i></div>
+      </div>
+      <div class="log" id="b_log"></div>
+    </div>
+
+    <div id="baselineResults" style="display:none">
+      <div class="tiles" id="b_tiles"></div>
+      <h3 class="sec">Per-class accuracy (AP) — classes present in your ground truth</h3>
+      <table class="tbl" id="b_pertable"></table>
+      <h3 class="sec">Sample frames — ground truth vs baseline detections</h3>
+      <div class="legend">
+        <span><i style="background:#46a302"></i> ground truth</span>
+        <span><i style="background:#46a302"></i> baseline detection (on a target class)</span>
+        <span><i style="background:#e08a00"></i> baseline detection (off-target / spurious)</span>
+      </div>
+      <div class="cmplayout">
+        <aside class="cmpside">
+          <div class="confbar">
+            <span>Confidence ≥ <b id="blConfVal">0.20</b></span>
+            <input type="range" id="blConf" min="0.01" max="0.70" step="0.005" value="0.2">
+            <span class="muted">drag to filter baseline detections in real time</span>
+          </div>
+          <div class="colorctl">
+            <span class="cclbl">Box color</span>
+            <span class="swatches" data-ck="box"></span>
+            <input type="color" data-ck="box" value="#46a302" title="custom box color">
+            <span class="cclbl">Text</span>
+            <input type="color" data-ck="text" value="#ffffff" title="label text color">
+            <label class="lblchk"><input type="checkbox" class="labelsChk" checked> Show labels</label>
+            <span class="muted">colors apply to all frames (remembered)</span>
+            <button class="recolorbtn">Apply to report</button>
+          </div>
+        </aside>
+        <div class="frames cmpmain" id="b_frames"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="backToSetup"><i data-lucide="arrow-left"></i> Back</button>
+        <button class="btn primary" id="goFinetune"><i data-lucide="sparkles"></i> Fine-tune this model →</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel3" aria-label="Step 3 — Fine-tune">
+    <h2>Fine-tuning on your dataset</h2>
+    <p class="sub">Training the model, then re-deploying and re-measuring in DeepStream. This is the long stage.</p>
+
+    <div class="subtabs" id="ftSubtabs" style="display:none" aria-label="AutoML runs only: 3a AutoML sweep, 3b Fine-tuning">
+      <button class="subtab active" data-sub="automl"><b>3a</b> AutoML sweep <span class="submeta" id="automlPhaseChip"></span></button>
+      <button class="subtab" data-sub="train"><b>3b</b> Fine-tuning</button>
+    </div>
+    <div id="automlView" style="display:none"></div>
+
+    <div id="ftTrainWrap">
+    <div class="donenote" id="finetuneDone" style="display:none"><b>Fine-tune complete.</b> Showing the training curve for this run — see <b>Compare</b> for the before/after results.
+      <div class="actions" id="continueAction">
+        <label class="contlbl">Continue training: +<input type="number" id="continueEpochs" min="1" max="200" value="20" class="contep"> more epochs</label>
+        <button class="btn" id="continueBtn"><i data-lucide="repeat"></i> Continue (warm-start)</button>
+        <span class="muted">Trains N <b>more</b> epochs on top of this run, extending the same loss curve (no restart). Warm-starts from the current weights with a fresh LR schedule, then re-deploys + re-evaluates. Overwrites this run (keeps a weights backup).</span>
+      </div>
+    </div>
+    <div class="summarycard" id="ftSummary" style="display:none"></div>
+    <div id="finetuneRunning">
+      <div class="progwrap">
+        <div class="progrow"><span class="stg" id="f_stage">starting…</span><span class="muted" id="f_count"></span></div>
+        <div class="bar"><i id="f_bar"></i></div>
+      </div>
+    </div>
+    <h3 class="sec">Live training curve</h3>
+    <div class="curvewrap">
+      <canvas id="curve" width="1000" height="240"></canvas>
+      <div class="clegend">
+        <span><i style="background:#76B900"></i> train loss</span>
+        <span><i style="background:#1f77b4"></i> eval loss</span>
+        <span class="muted" id="curveLive"></span>
+      </div>
+    </div>
+    <div class="charts">
+      <div class="chartnote" id="chartNote">waiting for the first training epoch…</div>
+      <h3 class="sec" id="lossHdr" style="display:none">Report charts — training curves</h3>
+      <img class="reportchart" id="chartLoss" alt="training loss" style="display:none"/>
+      <h3 class="sec" id="mapHdr" style="display:none">Report charts — per-epoch mAP (PyTorch proxy) &amp; per-class AP</h3>
+      <img class="reportchart" id="chartMap" alt="per-epoch mAP" style="display:none"/>
+      <h3 class="sec" id="accHdr" style="display:none">Report charts — deployed accuracy &amp; per-class AP</h3>
+      <img class="reportchart" id="chartAcc" alt="accuracy" style="display:none"/>
+    </div>
+    <div class="log" id="f_log"></div>
+    <div class="actions" id="finetuneActions">
+      <button class="btn primary" id="stopRun"><i data-lucide="flag"></i> Stop training</button>
+      <button class="btn" id="cancelRun"><i data-lucide="x"></i> Cancel (discard)</button>
+      <span class="muted" id="stopHint">Stop halts training and keeps the latest completed epoch — you then choose whether to evaluate it.</span>
+    </div>
+    <div class="donenote" id="evalGate" style="display:none">
+      <b id="evalGateTitle">Checkpoint ready.</b> <span id="evalGateMsg">Deploy → DeepStream eval → report.</span>
+      <div class="actions">
+        <button class="btn primary" id="evaluateRun"><i data-lucide="gauge"></i> <span id="evaluateRunLbl">Evaluate</span></button>
+        <button class="btn" id="cancelEval"><i data-lucide="x"></i> Cancel (discard)</button>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel4" aria-label="Step 4 — Compare">
+    <h2>Compare — training checkpoint vs DeepStream deployed</h2>
+    <p class="sub">Side-by-side accuracy: PyTorch training eval at the selected checkpoint, then baseline vs fine-tuned through the real DeepStream pipeline (ONNX → TensorRT → nvinfer).</p>
+    <div class="summarycard" id="cmpVerdict" style="display:none"></div>
+    <div class="donenote cmpwarn" id="cmpStaleWarn" style="display:none"></div>
+    <div class="summarycard" id="cmpSummary" style="display:none"></div>
+    <h3 class="sec cmpsec">① Training eval — selected checkpoint <span id="ckTrainEp" class="epbadge"></span></h3>
+    <p class="cmpnote muted">PyTorch on the 120-image validation subset (same images used each training epoch). <b>Not</b> DeepStream — this is the score logged when that epoch finished training.</p>
+    <div class="tiles" id="c_tiles_train"></div>
+    <h3 class="sec cmpsec">② DeepStream deployed — stock baseline → fine-tuned <span id="ckDeployEp" class="epbadge"></span></h3>
+    <p class="cmpnote muted">Exported ONNX → TensorRT FP16 engine → DeepStream <code>nvinfer</code> on the same eval images. This is what production inference would run.</p>
+    <div class="tiles" id="c_tiles_ds"></div>
+    <h3 class="sec">Per-class AP — training epoch vs DeepStream deployed</h3>
+    <table class="tbl" id="c_pertable"></table>
+    <h3 class="sec">Sample frames — ground truth | baseline | fine-tuned</h3>
+    <div class="cmplayout">
+      <aside class="cmpside">
+        <div class="confbar">
+          <span>Confidence ≥ <b id="cmpConfVal">0.20</b></span>
+          <input type="range" id="cmpConf" min="0.01" max="0.70" step="0.005" value="0.2">
+          <span class="muted">drag to filter boxes in real time (mAP itself uses all thresholds)</span>
+        </div>
+        <div class="colorctl">
+          <span class="cclbl">Box color</span>
+          <span class="swatches" data-ck="box"></span>
+          <input type="color" data-ck="box" value="#46a302" title="custom box color">
+          <span class="cclbl">Text</span>
+          <input type="color" data-ck="text" value="#ffffff" title="label text color">
+          <label class="lblchk"><input type="checkbox" class="labelsChk" checked> Show labels</label>
+          <span class="muted">colors apply to all frames (remembered)</span>
+          <button class="recolorbtn" title="re-render the PDF + frames using these colors AND the current confidence slider value">Apply colors + conf to report</button>
+        </div>
+      </aside>
+      <div class="frames cmpmain" id="c_frames"></div>
+    </div>
+    <div class="actions">
+      <a class="btn primary" id="dlReport" download><i data-lucide="file-text"></i> Download PDF report</a>
+      <button class="btn" id="restart"><i data-lucide="rotate-ccw"></i> Run another demo</button>
+    </div>
+  </section>
+
+  <section class="panel" id="panel5">
+    <h2>Error analysis</h2>
+    <p class="sub">Where the model confuses classes, and the images it gets wrong — class-agnostic IoU match of the deployed predictions vs ground truth (no re-inference). Predictions come from the <b>currently selected run</b> in the sidebar (each run has its own fine-tuned deploy + checkpoint epoch).</p>
+    <div class="cmplayout">
+      <aside class="cmpside analyse-side">
+        <div class="confbar">
+          <label class="sidefld">Model
+            <select id="confWhich"><option value="ft">fine-tuned</option><option value="orig">baseline</option></select>
+          </label>
+          <span>Confidence ≥ <b id="confConfVal">0.20</b></span>
+          <input type="range" id="confConf" min="0.01" max="0.70" step="0.005" value="0.2">
+          <span>IoU ≥ <b id="confIouVal">0.50</b></span>
+          <input type="range" id="confIou" min="0.30" max="0.90" step="0.05" value="0.5">
+          <label class="lblchk"><input type="checkbox" class="labelsChk" checked> Show labels</label>
+          <span class="muted">Controls stay fixed while you scroll results on the right.</span>
+        </div>
+      </aside>
+      <div class="cmpmain analyse-main">
+        <div id="confModelBanner" class="modelbanner modelbanner-main" style="display:none"></div>
+        <div id="confSummary" class="confsummary"></div>
+        <h3 class="sec">Confusion matrix <span class="muted" style="font-weight:400">— rows = ground-truth class, columns = what the model predicted (incl. <i>(missed)</i> / <i>(background)</i>)</span></h3>
+        <div id="confWrap"></div>
+        <h3 class="sec">Hardest images <span class="muted" style="font-weight:400">— the images with the most errors (FP + misses); intentionally different from the Compare tab's showcase frames</span></h3>
+        <div class="frames" id="hardFrames"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel6">
+    <h2>Inference playground</h2>
+    <p class="sub">Drop or pick any image and run it through the <b>deployed DeepStream engine</b> — exactly what's deployed. Great for a quick spot-check on your own images (no dataset needed).</p>
+    <div id="pgModelBanner" class="modelbanner" style="display:none"></div>
+    <div class="errctl">
+      <label>Model <select id="pgWhich"><option value="ft">fine-tuned</option><option value="orig">baseline</option></select></label>
+      <label>Confidence ≥ <b id="pgConfVal">0.20</b> <input type="range" id="pgConf" min="0.01" max="0.70" step="0.005" value="0.2"></label>
+      <label class="lblchk"><input type="checkbox" class="labelsChk" checked> Show labels</label>
+    </div>
+    <div class="colorctl">
+      <span class="cclbl">Box color</span>
+      <span class="swatches" data-ck="box"></span>
+      <input type="color" data-ck="box" value="#ff3b30" title="custom box color">
+      <span class="cclbl">Text</span>
+      <input type="color" data-ck="text" value="#ffffff" title="label text color">
+      <span class="muted">red by default for contrast on green PCBs; pick any (remembered)</span>
+    </div>
+    <div class="pgdrop" id="pgDrop">
+      <input type="file" id="pgFile" accept="image/*" hidden>
+      <div class="pgdroptext">Drop an image here, or <button class="btn" id="pgPick">choose a file</button><div class="muted">JPG / PNG · runs the deployed FP16 engine (~1–4 s)</div></div>
+    </div>
+    <div id="pgStatus" class="muted"></div>
+    <div id="pgResult" style="display:none">
+      <div class="frame" style="max-width:700px">
+        <div class="cap" id="pgCap">Detections</div>
+        <div id="pgImgHost"></div>
+        <div class="boxlist" id="pgList"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="statusbar">
+  <span class="pill" id="statePill">idle</span>
+  <span id="statusMsg" class="muted">Ready.</span>
+  <span id="sbProg" class="sbprog"></span>
+  <span class="sbbar"><i id="sbBar"></i></span>
+  <span class="el" id="elapsed"></span>
+</div>
+
+<div class="modal" id="qcModal">
+  <div class="modalbox">
+    <span class="modalclose" id="qcClose">&times;</span>
+    <div class="modalh">Dataset QC — health check</div>
+    <div id="qcBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="sysModal">
+  <div class="modalbox">
+    <span class="modalclose" id="sysClose">&times;</span>
+    <div class="modalh">System &amp; environment</div>
+    <div class="modalsub">Hardware + software stack this run executed on (same provenance as report §7).</div>
+    <div id="sysBody"></div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <span class="lbclose">&times;</span>
+  <img id="lbImg" alt="zoomed sample"/>
+  <div class="lbcap" id="lbCap"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

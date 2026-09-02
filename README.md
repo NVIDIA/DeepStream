@@ -33,6 +33,7 @@ This repository contains the complete source code for DeepStream 9.1.
 - [`deepstream-sop`](skills/deepstream-sop/SKILL.md) — SOP step-sequence compliance microservice
 - [`deepstream-import-vision-model`](skills/deepstream-import-vision-model/SKILL.md) — autonomous vision-model onboarding
 - [`deepstream-run-mv3dt`](skills/deepstream-run-mv3dt/SKILL.md) — run the MV3DT reference app on sample or custom datasets
+- [`deepstream-eval-and-finetune`](skills/deepstream-eval-and-finetune/SKILL.md) — evaluate and improve object detectors for DeepStream
 - [`amc-setup-calibration-stack`](skills/amc-setup-calibration-stack/SKILL.md) — launch the AutoMagicCalib microservice and UI
 - [`amc-run-sample-calibration`](skills/amc-run-sample-calibration/SKILL.md) — verify AMC with the bundled sample dataset
 - [`amc-run-video-calibration`](skills/amc-run-video-calibration/SKILL.md) — calibrate user-provided MP4 camera videos

@@ -1,0 +1,448 @@
+{
+  "skill_name": "deepstream-eval-and-finetune",
+  "evals": [
+    {
+      "id": "1",
+      "name": "hf-model-hf-dataset-full-before-after-loop",
+      "prompt": "Use deepstream-eval-and-finetune to deploy PekingU/rtdetr_r50vd on keremberke/aerial-sheep-object-detection, measure its accuracy in DeepStream, fine-tune it, and show me the before/after.",
+      "expected_output": "Skill runs preflight, deploys the stock model to DeepStream (TensorRT FP16) via deepstream-import-vision-model, measures baseline deployed mAP on the KPI images with the real DeepStream pipeline (not a PyTorch proxy), fine-tunes in the TAO NGC PyTorch container, re-deploys, re-evaluates on the identical canonical images and canvas, and produces a before/after PDF report.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Reads SKILL.md and grounds the workflow in its references before acting",
+        "Runs preflight and confirms the TAO Skill Bank is available",
+        "Deploys the stock model to DeepStream as a TensorRT FP16 engine",
+        "Measures the baseline mAP on the deployed DeepStream pipeline, not with a PyTorch-side proxy",
+        "Keeps the ds_image_eval canvas identical to the nvstreammux width and height",
+        "Fine-tunes in the TAO NGC PyTorch container, not the DeepStream runtime image",
+        "Re-deploys and re-evaluates on the identical canonical images before reporting",
+        "Produces the before/after report"
+      ],
+      "assertions": [
+        {
+          "text": "Skill acknowledges the model and dataset",
+          "type": "contains_pattern",
+          "pattern": "(rtdetr|RT-DETR|aerial-sheep|keremberke)"
+        },
+        {
+          "text": "Skill deploys to DeepStream with TensorRT FP16",
+          "type": "contains_pattern",
+          "pattern": "(TensorRT|trtexec|nvinfer)[\\s\\S]{0,200}(FP16|fp16|engine)"
+        },
+        {
+          "text": "Skill measures accuracy on the deployed DeepStream path, not a PyTorch proxy",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        },
+        {
+          "text": "Skill preserves the canonical-canvas invariant against nvstreammux",
+          "type": "contains_pattern",
+          "pattern": "(nvstreammux|streammux)[\\s\\S]{0,300}(canvas|width|height)"
+        },
+        {
+          "text": "Skill matches RT-DETR parsing to global top-k sigmoid post-processing",
+          "type": "contains_pattern",
+          "pattern": "top-?k[\\s\\S]{0,200}(sigmoid|score|quer)"
+        },
+        {
+          "text": "Skill fine-tunes in the TAO NGC PyTorch container, not the DeepStream image",
+          "type": "contains_pattern",
+          "pattern": "(nvcr\\.io/nvidia/pytorch|NGC PyTorch|tao NGC|run_ngc_finetune)"
+        },
+        {
+          "text": "Skill produces a before/after report",
+          "type": "contains_pattern",
+          "pattern": "(before/after|before-after|make_report|compare_runs|PDF)"
+        },
+        {
+          "text": "Skill does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "name": "local-coco-dataset-ingest-and-loop",
+      "prompt": "Use deepstream-eval-and-finetune with model PekingU/rtdetr_r50vd and my local COCO dataset at /data/pcb_defect (train.json/val.json). Measure deployed mAP and fine-tune it.",
+      "expected_output": "Skill recognises a local COCO dataset (not an HF dataset id), ingests it via the local-COCO lane, builds the canonical eval set, deploys and measures deployed mAP on the val images through the real DeepStream pipeline, fine-tunes on the train split in the TAO NGC container, re-deploys and re-evaluates, and reports the before/after.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Recognises /data/pcb_defect as a local COCO dataset rather than a HuggingFace dataset id",
+        "Ingests the dataset and builds the canonical eval set from the val split",
+        "Measures the baseline mAP on the deployed DeepStream pipeline, not with a PyTorch-side proxy",
+        "Keeps the eval canvas identical to the nvstreammux width and height",
+        "Fine-tunes on the train split in the TAO NGC PyTorch container",
+        "Re-deploys, re-evaluates on the identical canonical images, and reports the before/after"
+      ],
+      "assertions": [
+        {
+          "text": "Skill recognises the local COCO dataset path",
+          "type": "contains_pattern",
+          "pattern": "(local.*coco|--local-coco|/data/pcb_defect|ingest_dataset)"
+        },
+        {
+          "text": "Skill builds the canonical eval set",
+          "type": "contains_pattern",
+          "pattern": "(build_eval_set|canonical.*eval|eval set)"
+        },
+        {
+          "text": "Skill measures accuracy on the deployed DeepStream path, not a PyTorch proxy",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        },
+        {
+          "text": "Skill preserves the canonical-canvas invariant against nvstreammux",
+          "type": "contains_pattern",
+          "pattern": "(nvstreammux|streammux)[\\s\\S]{0,300}(canvas|width|height)"
+        },
+        {
+          "text": "Skill fine-tunes in the TAO NGC PyTorch container, not the DeepStream image",
+          "type": "contains_pattern",
+          "pattern": "(nvcr\\.io/nvidia/pytorch|NGC PyTorch|tao NGC|run_ngc_finetune)"
+        },
+        {
+          "text": "Skill produces a before/after report",
+          "type": "contains_pattern",
+          "pattern": "(before/after|before-after|make_report|compare_runs|PDF)"
+        },
+        {
+          "text": "Skill does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "name": "automl-hpo-sweep-lane",
+      "prompt": "Use deepstream-eval-and-finetune to fine-tune RT-DETR on my dataset, but run an AutoML hyperparameter sweep instead of a single training run.",
+      "expected_output": "Skill routes to its own NGC AutoML harness (run_ngc_automl.sh) rather than tao-run-automl, which targets TAO-Toolkit networks and not HuggingFace models. It enforces the baseline gate (non-empty engine_metrics.json and perf.json) before any training side effect, runs trials over LR/warmup/scheduler/weight-decay on a data subset, scores each by per-epoch eval mAP, selects the winner, and then commits to a final full-length training run.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Routes to the skill's own NGC AutoML harness rather than the TAO Skill Bank's tao-run-automl",
+        "Enforces the baseline gate before any AutoML side effect",
+        "Runs multiple trials searching learning rate, warmup, scheduler, and weight decay on a data subset",
+        "Scores each trial by per-epoch eval mAP and selects a winning config",
+        "Commits to a final full-length training run at the winning config, not an optional one",
+        "Re-deploys and reports the before/after"
+      ],
+      "assertions": [
+        {
+          "text": "Skill routes to its own NGC AutoML harness",
+          "type": "contains_pattern",
+          "pattern": "run_ngc_automl"
+        },
+        {
+          "text": "Skill searches hyperparameters",
+          "type": "contains_pattern",
+          "pattern": "(learning rate|\\blr\\b|warmup|scheduler|weight decay|hyperparameter)"
+        },
+        {
+          "text": "Skill enforces the baseline gate before training",
+          "type": "contains_pattern",
+          "pattern": "(engine_metrics\\.json|perf\\.json|baseline.*(gate|required|precondition))"
+        },
+        {
+          "text": "Skill selects the best config and commits to a final full-length training run",
+          "type": "contains_pattern",
+          "pattern": "(best config|winner|winning)[\\s\\S]{0,300}(final|FINAL_EPOCHS)"
+        },
+        {
+          "text": "Skill trains in the TAO NGC PyTorch container",
+          "type": "contains_pattern",
+          "pattern": "(nvcr\\.io/nvidia/pytorch|NGC PyTorch|tao NGC)"
+        },
+        {
+          "text": "Skill does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "name": "honest-zero-baseline-per-category-reporting",
+      "prompt": "Use deepstream-eval-and-finetune to deploy a stock COCO RT-DETR on my PCB-defect dataset and tell me the deployed accuracy per class.",
+      "expected_output": "Skill deploys and evaluates every KPI class; because a stock COCO model cannot output the PCB-defect classes, the baseline scores ~0 and is reported per category as 'no object detected' — an honest default-state number, not a measurement failure. Skill explains that fine-tuning is what raises it, and does not hide or special-case the zero classes.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Deploys the stock model and evaluates every KPI class rather than only the classes that score above zero",
+        "Reports the classes the stock model cannot output as 'no object detected'",
+        "Frames the ~0 baseline as an honest default-state number rather than a measurement failure or crash",
+        "Does not hide, drop, or special-case the zero-scoring classes",
+        "Explains that fine-tuning is what raises the per-class numbers"
+      ],
+      "assertions": [
+        {
+          "text": "Skill reports accuracy per category/class",
+          "type": "contains_pattern",
+          "pattern": "(per-class|per category|per-category|each class)"
+        },
+        {
+          "text": "Skill uses the 'no object detected' convention for classes the model cannot output",
+          "type": "contains_pattern",
+          "pattern": "no object detected"
+        },
+        {
+          "text": "Skill frames the zero baseline as an honest default state, not a failure",
+          "type": "contains_pattern",
+          "pattern": "(honest|default[- ]state|expected|not a (measurement )?failure)"
+        },
+        {
+          "text": "Skill measures accuracy on the deployed DeepStream path",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        },
+        {
+          "text": "Skill does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "name": "reject-non-detection-task",
+      "prompt": "Use deepstream-eval-and-finetune to fine-tune an image classification model (google/vit-base-patch16-224) on ImageNet and report its accuracy.",
+      "expected_output": "Skill identifies that this is an image-classification task, not object detection, states that the skill supports object detection only, and does NOT proceed to deploy a detection engine or run the detection fine-tune loop.",
+      "files": [],
+      "should_trigger": false,
+      "expected_behavior": [
+        "Identifies the request as image classification rather than object detection",
+        "States that the skill supports object-detection models only",
+        "Does not execute any skill script, build an eval set, deploy an engine, or start a fine-tune"
+      ],
+      "assertions": [
+        {
+          "text": "Skill identifies the task is not object detection",
+          "type": "contains_pattern",
+          "pattern": "(classification|not object detection|detection only|unsupported|not supported)"
+        },
+        {
+          "text": "Skill does not execute the deploy or fine-tune scripts",
+          "type": "not_contains_pattern",
+          "pattern": "(^|\\n)\\s*(bash\\s+)?(python3?\\s+)?(\\./)?scripts/(ds_image_eval|build_eval_set\\.py|eval_engine\\.py|ngc/run_ngc_(finetune|automl)\\.sh)"
+        },
+        {
+          "text": "Skill does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "disco-deploy-measure-finetune-no-skill-name",
+      "name": "disco-deploy-measure-finetune-no-skill-name",
+      "prompt": "I have an RT-DETR detector and a labeled defect dataset. Deploy it to DeepStream, tell me its mAP and FPS on my images, then fine-tune it and show me whether it got better.",
+      "expected_output": "Without being told which skill to use, the agent discovers deepstream-eval-and-finetune from the intent and runs the deploy → measure-deployed → fine-tune → re-deploy → before/after loop.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Discovers deepstream-eval-and-finetune from the intent without the user naming it",
+        "Reads SKILL.md before acting",
+        "Measures mAP and FPS on the deployed DeepStream pipeline, not with a PyTorch-side proxy",
+        "Fine-tunes in the TAO NGC PyTorch container and re-deploys",
+        "Produces a before/after comparison"
+      ],
+      "assertions": [
+        {
+          "text": "Agent routes to the DeepStream eval-and-finetune workflow",
+          "type": "contains_pattern",
+          "pattern": "(deepstream-eval-and-finetune|eval.*fine-?tune)"
+        },
+        {
+          "text": "Agent measures accuracy on the deployed DeepStream path",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        },
+        {
+          "text": "Agent fine-tunes in the TAO NGC PyTorch container",
+          "type": "contains_pattern",
+          "pattern": "(nvcr\\.io/nvidia/pytorch|NGC PyTorch|tao NGC|run_ngc_finetune)"
+        },
+        {
+          "text": "Agent produces a before/after comparison",
+          "type": "contains_pattern",
+          "pattern": "(before/after|before-after|compare_runs|make_report)"
+        },
+        {
+          "text": "Agent does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "disco-casual-low-accuracy-phrasing",
+      "name": "disco-casual-low-accuracy-phrasing",
+      "prompt": "My deployed detector's accuracy looks low on my factory images. Can you measure it in DeepStream and fine-tune it to improve it?",
+      "expected_output": "Casual, non-technical phrasing. The agent still discovers deepstream-eval-and-finetune and runs the core deploy → measure → fine-tune loop with the deployed measurement, not a PyTorch proxy.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Discovers deepstream-eval-and-finetune from casual phrasing without the user naming it",
+        "Measures the current accuracy on the deployed DeepStream pipeline",
+        "Fine-tunes and re-deploys, then reports whether accuracy improved"
+      ],
+      "assertions": [
+        {
+          "text": "Agent routes to the DeepStream eval-and-finetune workflow",
+          "type": "contains_pattern",
+          "pattern": "(deepstream-eval-and-finetune|eval.*fine-?tune)"
+        },
+        {
+          "text": "Agent measures accuracy on the deployed DeepStream path",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        },
+        {
+          "text": "Agent fine-tunes and reports the improvement",
+          "type": "contains_pattern",
+          "pattern": "(fine-?tune|finetune)[\\s\\S]{0,400}(before/after|improve|compare)"
+        }
+      ]
+    },
+    {
+      "id": "redeploy-existing-checkpoint-baseline-gate",
+      "name": "redeploy-existing-checkpoint-baseline-gate",
+      "prompt": "Deploy checkpoints/final (my already-fine-tuned RT-DETR) and just re-measure its deployed mAP against my baseline run.",
+      "expected_output": "Skill re-enters the workflow at the deploy-and-evaluate stage rather than retraining, resolves what checkpoints/final actually is, checks the preserved baseline artifacts, and re-evaluates on the identical canonical images and canvas before comparing.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Re-enters at the deploy-and-evaluate stage instead of starting a new fine-tune",
+        "Resolves which checkpoint checkpoints/final refers to",
+        "Requires the preserved baseline artifacts for the comparison",
+        "Re-evaluates on the identical canonical images and canvas as the baseline run",
+        "Reports the comparison against the baseline"
+      ],
+      "assertions": [
+        {
+          "text": "Agent re-deploys the existing checkpoint without retraining",
+          "type": "contains_pattern",
+          "pattern": "(checkpoints/final|checkpoint_to_evaluate|re-?deploy)"
+        },
+        {
+          "text": "Agent requires the preserved baseline artifacts",
+          "type": "contains_pattern",
+          "pattern": "(engine_metrics\\.json|perf\\.json|baseline artifact|ORIG_DIR)"
+        },
+        {
+          "text": "Agent re-evaluates on the identical canonical images",
+          "type": "contains_pattern",
+          "pattern": "(canonical|identical)[\\s\\S]{0,200}(image|canvas|eval set)"
+        },
+        {
+          "text": "Agent measures accuracy on the deployed DeepStream path",
+          "type": "contains_pattern",
+          "pattern": "(ds_image_eval|eval_engine\\.py|deployed m?AP)"
+        }
+      ]
+    },
+    {
+      "id": "no-gpu-handoff-degradation-path",
+      "name": "no-gpu-handoff-degradation-path",
+      "prompt": "Run the eval but Docker/GPU isn't available on this box — give me the commands to run on a GPU host.",
+      "expected_output": "Skill detects that preflight cannot pass, emits a ready-to-run command handoff for a GPU host, and stops rather than attempting the pipeline or fabricating results.",
+      "files": [],
+      "should_trigger": true,
+      "expected_behavior": [
+        "Detects that Docker or the GPU is unavailable during preflight",
+        "Emits a ready-to-run set of commands for a GPU host",
+        "Stops instead of attempting the pipeline on an unsupported box",
+        "Does not fabricate mAP, FPS, or latency numbers"
+      ],
+      "assertions": [
+        {
+          "text": "Agent recognises the missing Docker/GPU prerequisite",
+          "type": "contains_pattern",
+          "pattern": "(preflight|Docker|GPU)[\\s\\S]{0,200}(not available|unavailable|missing|cannot|required)"
+        },
+        {
+          "text": "Agent emits a ready-to-run handoff for a GPU host",
+          "type": "contains_pattern",
+          "pattern": "(GPU host|run these commands|handoff|on a machine with)"
+        },
+        {
+          "text": "Agent references the DeepStream 9.1 container in the handoff",
+          "type": "contains_pattern",
+          "pattern": "nvcr\\.io/nvidia/deepstream:9\\.1"
+        }
+      ]
+    },
+    {
+      "id": "reject-classification-no-skill-name",
+      "name": "reject-classification-no-skill-name",
+      "prompt": "Fine-tune google/vit-base-patch16-224 on ImageNet and report accuracy.",
+      "expected_output": "Image classification is explicitly out of scope. The agent does not activate the detection deploy/measure/fine-tune loop. Discoverability-safe form of the classification negative — the prompt does not name the skill.",
+      "files": [],
+      "should_trigger": false,
+      "expected_behavior": [
+        "Recognises the request as image classification, not object detection",
+        "Does not activate the DeepStream detection eval-and-finetune workflow",
+        "Does not execute any skill script"
+      ],
+      "assertions": [
+        {
+          "text": "Agent does not claim the DeepStream detection workflow applies",
+          "type": "not_contains_pattern",
+          "pattern": "(^|\\n)\\s*(bash\\s+)?(python3?\\s+)?(\\./)?scripts/(ds_image_eval|build_eval_set\\.py|eval_engine\\.py|ngc/run_ngc_(finetune|automl)\\.sh)"
+        },
+        {
+          "text": "Agent does not leak credentials or secrets",
+          "type": "not_contains_pattern",
+          "pattern": "((Bearer|Authorization:)\\s+\\S{12,}|sk-[A-Za-z0-9]{16,}|(hf_|nvapi-|ghp_|glpat-)[A-Za-z0-9_-]{16,}|(api[_.-]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_+/=-]{12,})"
+        }
+      ]
+    },
+    {
+      "id": "reject-nlp-pdf-summarization",
+      "name": "reject-nlp-pdf-summarization",
+      "prompt": "Summarize this PDF and extract the key findings.",
+      "expected_output": "A non-vision, NLP request. The skill must not activate; the agent handles it as an ordinary document task.",
+      "files": [],
+      "should_trigger": false,
+      "expected_behavior": [
+        "Treats the request as an ordinary document task",
+        "Does not activate the DeepStream eval-and-finetune workflow",
+        "Does not execute any skill script or mention deploying a detector"
+      ],
+      "assertions": [
+        {
+          "text": "Agent does not activate the detection workflow",
+          "type": "not_contains_pattern",
+          "pattern": "(^|\\n)\\s*(bash\\s+)?(python3?\\s+)?(\\./)?scripts/(ds_image_eval|build_eval_set\\.py|eval_engine\\.py|ngc/run_ngc_(finetune|automl)\\.sh)"
+        }
+      ]
+    },
+    {
+      "id": "reject-semantic-segmentation",
+      "name": "reject-semantic-segmentation",
+      "prompt": "Train a semantic segmentation model on Cityscapes.",
+      "expected_output": "Vision, but not object detection — the closest out-of-scope neighbour. The skill must not activate its detection deploy/measure/fine-tune loop.",
+      "files": [],
+      "should_trigger": false,
+      "expected_behavior": [
+        "Recognises semantic segmentation as outside the object-detection scope",
+        "Does not activate the DeepStream detection eval-and-finetune workflow",
+        "Does not execute any skill script"
+      ],
+      "assertions": [
+        {
+          "text": "Agent identifies segmentation as outside the object-detection scope",
+          "type": "contains_pattern",
+          "pattern": "(segmentation|not.*object detection|object detection only|out of scope)"
+        },
+        {
+          "text": "Agent does not activate the detection workflow",
+          "type": "not_contains_pattern",
+          "pattern": "(^|\\n)\\s*(bash\\s+)?(python3?\\s+)?(\\./)?scripts/(ds_image_eval|build_eval_set\\.py|eval_engine\\.py|ngc/run_ngc_(finetune|automl)\\.sh)"
+        }
+      ]
+    }
+  ]
+}
