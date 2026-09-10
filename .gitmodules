@@ -1,7 +1,3 @@
 [submodule "src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/nvocdr"]
 	path = src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/nvocdr
 	url = https://github.com/NVIDIA-AI-IOT/NVIDIA-Optical-Character-Detection-and-Recognition-Solution.git
-[submodule "tools/auto-magic-calib"]
-	path = tools/auto-magic-calib
-	url = https://github.com/NVIDIA-AI-IOT/auto-magic-calib
-	branch = main

@@ -1,0 +1,50 @@
+services:
+  auto-magic-calib-ms:
+    image: nvcr.io/nvstaging/vss-core/vss-auto-calibration:3.3.0-5
+    container_name: auto-magic-calib-ms-1
+    
+    # GPU support
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              device_ids: ["0"]
+
+    ports:
+      - ${AUTO_MAGIC_CALIB_MS_PORT:-8000}:8000
+    
+    # IPC settings for GPU memory sharing
+    ipc: host
+   
+    environment:
+      - VGGT_MODEL_PATH=${VGGT_MODEL_PATH:-/tmp/vggt_model/vggt_1B_commercial.pt}
+      - VIOS_BASE_URL=${VIOS_BASE_URL:-}
+      - HOST_IP=${HOST_IP:-localhost}
+      - AUTO_MAGIC_CALIB_MS_PORT=${AUTO_MAGIC_CALIB_MS_PORT:-8000}
+    
+    # Volume mounts
+    volumes:
+      - ${PROJECT_DIR:-../../projects}:/home/auto-calibration-ms/server/projects
+      - ${MODEL_DIR:-../../models}/vggt:/tmp/vggt_model:ro
+    
+    # Working directory inside container
+    working_dir: /home/auto-calibration-ms/server
+   
+    # Entrypoint runs setup script first, then executes command
+    entrypoint: ["bash", "/home/auto-calibration-ms/server/docker/entrypoint.sh"]
+
+    # Command
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 1000s
