@@ -238,7 +238,7 @@ bash build/build.sh --help
 | `--deepstream-libraries-wheel[=DIR]` | Build only the DeepStream Libraries wheel. Output defaults to `artifacts/`; a relative `DIR` is resolved from the repository root. |
 | `--deepstream-libraries-wheel-version=VERSION` | Build the DeepStream Libraries wheel at `VERSION` (default: `1.4`). |
 
-Environment variables may also be passed on the command line: `CUDA_VER=13.2`, `NVDS_VERSION=9.1`, `NVDS_ARTIFACT_VERSION=9.1.1`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
+Environment variables may also be passed on the command line: `CUDA_VER=13.2`, `NVDS_VERSION=9.1.1`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
 
 ### Examples
 
@@ -292,12 +292,13 @@ Default CUDA version is `13.2` (`13.0` for IGX Thor systems). Set `CUDA_VER` acc
 CUDA_VER=13.2 bash build/build.sh
 ```
 
-To override the install-path version (default: `9.1`) or the GitHub Release
-tag / asset-name version (default: `9.1.1`):
+To override the DeepStream version (default: `9.1.1`, must be `MAJOR.MINOR.PATCH`;
+the install tree uses the truncated `MAJOR.MINOR` form). The GitHub Release
+proprietary-libs / sample-data assets are always fetched from the `v9.1.1`
+release (hardcoded, not derived from `NVDS_VERSION`):
 
 ```bash
-NVDS_VERSION=9.1 bash build/build.sh
-NVDS_ARTIFACT_VERSION=9.1.1 bash build/build.sh
+NVDS_VERSION=9.1.1 bash build/build.sh
 ```
 
 If a user-local `cmake` wrapper shadows the system CMake, either remove it from `PATH` or point the build script at a known-good binary:

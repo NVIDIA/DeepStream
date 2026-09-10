@@ -139,8 +139,11 @@ Packaging (--package / --package-format=):
 
 Environment variables (alternative to CLI):
   CUDA_VER                CUDA toolkit version (default: 13.0 on IGX; 13.2 otherwise)
-  NVDS_VERSION            DeepStream install version (default: 9.1)
-  NVDS_ARTIFACT_VERSION   GitHub Release tag / asset-name version (default: 9.1.1)
+  NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.1.1); the install
+                          tree uses MAJOR.MINOR only. GitHub Release
+                          proprietary-libs / sample-data assets are always
+                          fetched from the v9.1.1 release (hardcoded; not
+                          derived from NVDS_VERSION).
   INSTALL_METHOD          Artifact install method: deb (default) | tar
   CMAKE_BIN               Path to cmake binary
 
@@ -239,8 +242,7 @@ KEEP_ASSETS=0
 ONLY_STAGES=()
 JOBS=$(nproc 2>/dev/null || echo 4)
 CUDA_VER=${CUDA_VER:-$CUDA_VER_DEFAULT}
-NVDS_VERSION=${NVDS_VERSION:-9.1}
-NVDS_ARTIFACT_VERSION=${NVDS_ARTIFACT_VERSION:-9.1.1}
+NVDS_VERSION=${NVDS_VERSION:-9.1.1}
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 DO_PACKAGE=0
 PACKAGE_FORMAT=both
@@ -353,6 +355,17 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.1.1). MAJOR.MINOR alone is
+# rejected so install paths and packaging stay unambiguous; the install tree
+# and every downstream make/install.sh invocation use the truncated
+# MAJOR.MINOR form below.
+if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.1.1)" >&2
+  exit 1
+fi
+NVDS_FULL_VERSION="$NVDS_VERSION"
+NVDS_VERSION="${NVDS_FULL_VERSION%.*}"
+
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 STAGE_STATE_FILE="$SCRIPT_DIR/.stage-state"
 DEPS_STAGE_STATE_FILE="$SCRIPT_DIR/.stage-state.deps"
@@ -444,8 +457,13 @@ stage_had_failures() {
   [[ "${#FAILED_BUILDS[@]}" -gt "$before" ]]
 }
 
+# GitHub Release tag the proprietary-libs / sample-data assets are published
+# under. Hardcoded (not derived from NVDS_VERSION) — bump by hand once a
+# newer patch release's assets are live on GitHub.
+GITHUB_ASSET_VERSION="9.1.1"
+
 # Release assets are fetched from the DeepStream GitHub release into ARTIFACTS_DIR.
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_ARTIFACT_VERSION}"
+GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_ASSET_VERSION}"
 # Track what we downloaded so it can be cleaned up after a successful build.
 DOWNLOADED_ASSETS=()
 ARTIFACTS_DIR_CREATED=0
@@ -480,17 +498,17 @@ download_asset() {
 download_release_assets() {
   local sample_asset binaries_asset
   if [[ "$INSTALL_METHOD" == "deb" ]]; then
-    sample_asset="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.deb"
+    sample_asset="deepstream-sample-data_${GITHUB_ASSET_VERSION}.deb"
     case "$PLATFORM" in
-      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_ARTIFACT_VERSION}_amd64.deb" ;;
-      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_ARTIFACT_VERSION}_arm64.deb" ;;
+      x86)     binaries_asset="deepstream-binaries-x86_${GITHUB_ASSET_VERSION}_amd64.deb" ;;
+      aarch64) binaries_asset="deepstream-binaries-aarch64_${GITHUB_ASSET_VERSION}_arm64.deb" ;;
       *) echo "error: unsupported platform for asset download: $PLATFORM" >&2; exit 1 ;;
     esac
   else
-    sample_asset="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.tar.gz"
+    sample_asset="deepstream-sample-data_${GITHUB_ASSET_VERSION}.tar.gz"
     case "$PLATFORM" in
-      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_ARTIFACT_VERSION}.tar.gz" ;;
-      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_ARTIFACT_VERSION}.tar.gz" ;;
+      x86)     binaries_asset="deepstream-binaries-x86_${GITHUB_ASSET_VERSION}.tar.gz" ;;
+      aarch64) binaries_asset="deepstream-binaries-aarch64_${GITHUB_ASSET_VERSION}.tar.gz" ;;
       *) echo "error: unsupported platform for asset download: $PLATFORM" >&2; exit 1 ;;
     esac
   fi
@@ -582,7 +600,7 @@ if [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
   fi
 else
   echo "==> Artifact install method: $INSTALL_METHOD (override with --install-method=deb|tar)"
-  echo "==> Artifact version pinned to $NVDS_ARTIFACT_VERSION"
+  echo "==> Artifact version pinned to $GITHUB_ASSET_VERSION"
 fi
 if [[ "$RESUME" -eq 1 ]]; then
   echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
@@ -603,7 +621,7 @@ finalize_install() {
 # with --package / --package-format. Artifacts are written to build/.
 run_package() {
   echo "==> Packaging DeepStream (format=$PACKAGE_FORMAT) via build/package.sh"
-  env NVDS_VERSION="$NVDS_ARTIFACT_VERSION" \
+  env NVDS_VERSION="$NVDS_FULL_VERSION" \
     bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT"
 }
 
@@ -616,7 +634,7 @@ if [[ "$SKIP_ARTIFACTS" -eq 0 ]] && begin_stage "$ARTIFACTS_STAGE"; then
     : >"$ARTIFACTS_STAGE_STATE_FILE"
   fi
   download_release_assets
-  run_as_root env NVDS_VERSION="$NVDS_VERSION" NVDS_ARTIFACT_VERSION="$NVDS_ARTIFACT_VERSION" PLATFORM="$PLATFORM" \
+  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     INSTALL_METHOD="$INSTALL_METHOD" \
     ARTIFACTS_DIR="$ARTIFACTS_DIR" \
     ARTIFACTS_STAGE_STATE_FILE="$ARTIFACTS_STAGE_STATE_FILE" \
