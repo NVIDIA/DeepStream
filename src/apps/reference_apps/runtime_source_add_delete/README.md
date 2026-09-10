@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ to install the prequisites for Deepstream SDK apps.
 - Edit all the inference models config files according to the location of the models to be used
 
 ## Compilation Steps and Execution:
-The app can be built by the [build script](../../../../build/BUILD.md)
+The app can be built by the [repository build](../../../../build/BUILD.md)
 The app can also be built separatedly by the following commands:
 ```
   $ Set CUDA_VER in the MakeFile as per platform.

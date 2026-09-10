@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@ This repository provides sample applications for Multi-View 3D Tracking (MV3DT) 
 This repository aims to demonstrate MV3DT through live visualization of 3D tracking results, and is structured as follows:
 - **[Prerequisites](#prerequisites)** - System requirements and setup instructions
 - **[Option 1: Sample applications using DeepStream Container](#option-1-running-mv3dt-using-deepstream-container)** - The DeepStream Container has the DeepStream SDK pre-installed. The samples automate MV3DT config generation and launch the DeepStream app inside the container.
-- **[Option 2: Sample applications using Inference Builder](#option-2-running-mv3dt-using-inference-builder)** - Inference Builder is an open-source tool that automates inference pipeline generation across AI frameworks and packages them as deployable containers. The samples in this repo are solely intended to demonstrate building and running MV3DT using Inference Builder. For additional capabilities, see the [Inference Builder README](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18).
+- **[Option 2: Sample applications using Inference Builder](#option-2-running-mv3dt-using-inference-builder)** - Inference Builder automates inference pipeline generation across AI frameworks and packages them as deployable containers. These samples demonstrate building and running MV3DT with the [in-tree Inference Builder](../../../../tools/inference_builder/README.md).
 - **[Output Visualization Explanations](#output-visualization)** - Expected visualization from DeepStream On-Screen Display (OSD) and real-time Bird's Eye View (BEV) app
 - **[Receiving 3D Tracking Metadata from Kafka](#receiving-3d-tracking-metadata-from-kafka)** - How to consume MV3DT tracking metadata from Kafka broker for downstream applications
 - **[Customization](#customization)** - How to use MV3DT on custom datasets, and how to convert existing 2D DeepStream tracking pipelines to MV3DT pipeline
@@ -54,8 +54,8 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
     sudo apt install git-lfs
     git lfs install
 
-    git clone https://github.com/NVIDIA/DeepStream.git
-    cd DeepStream/src/apps/reference_apps/deepstream-tracker-3d-multi-view
+    git clone https://github.com/NVIDIA/deepstream.git
+    cd deepstream/src/apps/reference_apps/deepstream-tracker-3d-multi-view
     git lfs pull  # In case repo is already cloned before installing git-lfs
     ```
 
@@ -76,15 +76,16 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
 
     **Environment Variables:**
     - `USE_INFERENCE_BUILDER` - Enable Inference Builder setup (default: false, DeepStream Container only)
-    - `BASE_DIR` - Base directory for Kafka and Inference Builder installations (default: `$HOME`)
+    - `BASE_DIR` - Base directory for the Kafka installation (default: `$HOME`)
+    - `INFERENCE_BUILDER_DIR` - Inference Builder component path (default: `<deepstream-root>/tools/inference_builder`)
     - `DEEPSTREAM_IMAGE` - DeepStream Docker image (default: `nvcr.io/nvidia/deepstream:9.1-triton-multiarch` for x86 and Jetson platforms)
 
-    * **Use case 1: If you want to use a different base directory** for Kafka and Inference Builder installations other than `$HOME`, you can set the `BASE_DIR` environment variable before running the script.
+    * **Use case 1: If you want to use a different base directory** for Kafka, set the `BASE_DIR` environment variable before running the script. Override `INFERENCE_BUILDER_DIR` only when testing a different checkout.
         ```bash
         export BASE_DIR=/path/to/your/preferred/base/directory
         # If you want to use Inference Builder (Option 2), uncomment the lines below
         # export USE_INFERENCE_BUILDER=true
-        # export INFERENCE_BUILDER_DIR="$BASE_DIR/inference_builder"
+        # export INFERENCE_BUILDER_DIR=/path/to/another/inference_builder
         ./scripts/setup_prerequisites.sh
         ```
     * **Use case 2: If you are on ARM SBSA platforms**, the DeepStream docker image will be different from the default one. Please set the `DEEPSTREAM_IMAGE` environment variable before running the script.
@@ -193,8 +194,8 @@ Run the provided script to quickly start the 4-camera DeepStream Inference Build
 ```bash
 # sudo xhost + # give container access to display
 
-# If you changed BASE_DIR in the prerequisites setup, you need to export INFERENCE_BUILDER_DIR to the correct path
-# export INFERENCE_BUILDER_DIR=<path-to-inference-builder-repo>
+# The script uses tools/inference_builder by default. Override only for another checkout:
+# export INFERENCE_BUILDER_DIR=/path/to/another/inference_builder
 
 # chmod +x scripts/test_4cam_ib.sh
 ./scripts/test_4cam_ib.sh
@@ -238,8 +239,8 @@ For detailed window explanations and important notes, see the [4-camera DeepStre
 ```bash
 # sudo xhost + # give container access to display
 
-# If you changed BASE_DIR in the prerequisites setup, you need to export INFERENCE_BUILDER_DIR to the correct path
-# export INFERENCE_BUILDER_DIR=<path-to-inference-builder-repo>
+# The script uses tools/inference_builder by default. Override only for another checkout:
+# export INFERENCE_BUILDER_DIR=/path/to/another/inference_builder
 
 # chmod +x scripts/test_12cam_ib.sh
 ./scripts/test_12cam_ib.sh
@@ -482,7 +483,4 @@ For detailed usage and all available options, see the **[Auto-Configurator Docum
 
 For more details on python utility scripts including auto-configuration generators and visualization tools, see
 📁 **[Python Util Scripts Documentation](utils/README.md)**
-
-
-
 

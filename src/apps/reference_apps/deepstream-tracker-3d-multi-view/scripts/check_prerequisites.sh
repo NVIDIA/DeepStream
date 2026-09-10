@@ -17,12 +17,14 @@
 # Global variables - same as setup script
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
+MV3DT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEEPSTREAM_ROOT="$(git -C "$MV3DT_ROOT" rev-parse --show-toplevel)"
 KAFKA_VERSION="4.2.0"
 SCALA_VERSION="2.13"
 
 # Standardized paths
 KAFKA_DIR="$BASE_DIR/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
-INFERENCE_BUILDER_DIR="$BASE_DIR/inference_builder"
+INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}"
 
 # Initialize status variables
 GPU_STATUS="✓"
@@ -75,8 +77,8 @@ else
     if [[ ! -d "$INFERENCE_BUILDER_DIR" ]]; then
         echo "Inference builder directory not found: $INFERENCE_BUILDER_DIR"
         INFERENCE_BUILDER_STATUS="✗"
-    elif [[ ! -d "$INFERENCE_BUILDER_DIR/ib_venv" ]]; then
-        echo "Inference builder virtual environment 'ib_venv' not found: $INFERENCE_BUILDER_DIR/ib_venv"
+    elif [[ ! -d "$INFERENCE_BUILDER_DIR/.venv" ]]; then
+        echo "Inference builder virtual environment '.venv' not found: $INFERENCE_BUILDER_DIR/.venv"
         INFERENCE_BUILDER_STATUS="✗"
     fi
 fi

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,6 +56,14 @@ public:
     // Initialize only once
     if (!initialized_) {
       probe.getProperty("frame-interval", frame_interval);
+      // frames % frame_interval below is undefined for 0 (SIGFPE) and matches
+      // every frame for -1, so a bad config would either kill the pipeline or
+      // silently emit on every frame. Fall back to the default instead.
+      if (frame_interval <= 0) {
+        std::cerr << "add_message_meta_probe: frame-interval must be > 0, got "
+                  << frame_interval << "; using 1" << std::endl;
+        frame_interval = 1;
+      }
       std::string source_config;
       probe.getProperty("source-config", source_config);
       std::string label_file;
@@ -83,9 +91,11 @@ public:
     FrameMetadata::Iterator frame_itr;
     for (data.initiateIterator(frame_itr); !frame_itr->done(); frame_itr->next())
     {
+      auto source_id = (*frame_itr)->sourceId();
+      int frames = frames_[source_id];
       ObjectMetadata::Iterator obj_itr;
       for ((*frame_itr)->initiateIterator(obj_itr); !obj_itr->done(); obj_itr->next()) {
-        if (frames_ % frame_interval == 0)
+        if (frames % frame_interval == 0)
         {
           EventMessageUserMetadata event_user_meta;
           if (data.acquire(event_user_meta)) {
@@ -93,7 +103,6 @@ public:
               event_user_meta.generate(**obj_itr, **frame_itr, "N/A", "N/A", labels_);
               (*frame_itr)->append(event_user_meta);
             } else {
-            auto source_id = (*frame_itr)->sourceId();
             auto itr = sensor_map_.find(source_id);
             if (itr != sensor_map_.end()) {
               const std::string sensor = itr->second.sensor_id;
@@ -105,14 +114,18 @@ public:
           }
         }
       }
-      frames_++;
+      frames_[source_id] = frames + 1;
     }
 
     return probeReturn::Probe_Ok;
   }
 
  protected:
-  int frames_ = 0;
+  // Per source: a single shared counter would advance once per frame in the
+  // batch, so frame_interval would apply to the batch rather than to each
+  // source. With N sources and an interval that divides N, a source would then
+  // emit either on every frame or never.
+  std::map<uint32_t, int> frames_;   // source id -> frames seen from that source
   int frame_interval = 1;
   std::map<uint32_t, SensorInfo> sensor_map_;
   std::vector<std::string> labels_;

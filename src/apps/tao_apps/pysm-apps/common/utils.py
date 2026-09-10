@@ -20,6 +20,7 @@
 
 import os, yaml
 from pyservicemaker import Flow
+from pyservicemaker.flow import StreamInfo
 from pyservicemaker.logging import get_logger
 from typing import Dict, Optional, Any
 import subprocess
@@ -265,16 +266,30 @@ def flow_cls_hook(self, type_names: list, properties: list) -> "Flow":
     Return: A derived flow
     Raises: Upstream Exception
     """
-    last_name=""
-    for index, name in enumerate(type_names):
+    if len(type_names) != len(properties):
+        raise ValueError("type_names and properties must have the same length")
+    if not type_names:
+        return Flow(self._pipeline, streams=self._streams, parent=self)
+
+    last_name = ""
+    media_type = "generic"
+    for name, prop in zip(type_names, properties, strict=True):
         element_name = get_node_name(flow_cls_hook, name)
-        self._pipeline.add(name, element_name, properties[index])
+        self._pipeline.add(name, element_name, prop)
         stream = self._streams[0]
-        source = stream.originator if hasattr(stream, 'originator') else stream
+        if hasattr(stream, "originator"):
+            source = stream.originator
+            media_type = getattr(stream, "media_type", media_type) or media_type
+        else:
+            source = stream
         self._pipeline.link(source, element_name)
-        self._streams=[element_name]
-        last_name=element_name
-    return Flow(self._pipeline, streams=[last_name], parent=self)
+        self._streams = [StreamInfo(element_name, media_type=media_type)]
+        last_name = element_name
+    return Flow(
+        self._pipeline,
+        streams=[StreamInfo(last_name, media_type=media_type)],
+        parent=self,
+    )
 
 
 def is_enc_hw_support():

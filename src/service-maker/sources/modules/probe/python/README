@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+===============================================================================
+DeepStream Service-Maker — Reusable Python Probe Modules
+===============================================================================
+
+This directory contains Python probe modules that can be attached to pipeline
+elements as lightweight glue logic. Each module uses the @probe decorator to
+register itself in CommonFactory under a name string. Once registered, the
+probe is indistinguishable from a compiled C++ probe plugin — it can be used
+in YAML config or the direct pipeline API.
+
+-------------------------------------------------------------------------------
+How to use a Python probe module
+-------------------------------------------------------------------------------
+
+1. Add the modules directory to sys.path and import the module:
+
+     import sys
+     sys.path.insert(0, "/opt/nvidia/deepstream/deepstream/service-maker/modules/python")
+     import sample_video_probe  # registers "sample_video_probe" in CommonFactory
+
+2a. YAML config — declare as a pipeline node with type "python.<name>":
+
+     - type: python.sample_video_probe
+       name: svp
+       properties:
+         font-size: 18
+
+2b. Direct API — attach by registered name:
+
+     pipeline.attach("infer", "sample_video_probe", "svp",
+                     properties={"font-size": 18})
+
+For a complete working example see:
+  <install_dir>/service-maker/sources/apps/python/pipeline_api/deepstream_python_probe_app/
+
+===============================================================================
+Available Modules
+===============================================================================
+
+-------------------------------------------------------------------------------
+sample_video_probe
+-------------------------------------------------------------------------------
+  Counts vehicles and persons detected per frame and overlays the result as
+  text on the OSD display.
+
+  Attach point: nvinfer (or any element after object detection)
+
+  Parameters:
+    font-size  integer  12   size of the font for the counter text overlay
+
+-------------------------------------------------------------------------------
+measure_fps_probe
+-------------------------------------------------------------------------------
+  Measures pipeline throughput and prints frames-per-second to stdout at a
+  configurable interval.
+
+  Attach point: any pipeline element
+
+  Parameters:
+    interval   integer  5    FPS reporting interval in seconds
+
+-------------------------------------------------------------------------------
+measure_latency_probe
+-------------------------------------------------------------------------------
+  Measures and prints end-to-end pipeline latency per frame to stdout.
+
+  Attach point: any pipeline element (typically the sink-side element)
+
+  Parameters: none
+
+-------------------------------------------------------------------------------
+kitti_dump_probe
+-------------------------------------------------------------------------------
+  Dumps object detection or tracker results to KITTI-format label files on
+  disk, one file per frame.
+
+  Attach point: nvinfer or nvtracker
+
+  Parameters:
+    kitti-dir             string   "/tmp/kitti"   output directory for KITTI label files
+    tracker-kitti-output  boolean  false          use tracker bbox/confidence instead
+                                                  of detector output
+
+-------------------------------------------------------------------------------
+add_message_meta_probe
+-------------------------------------------------------------------------------
+  Attaches DeepStream event message metadata to frames so that downstream
+  messaging plugins (nvmsgconv + nvmsgbroker) can forward events to Kafka,
+  MQTT, or other message brokers.
+
+  Attach point: nvinfer or nvtracker
+
+  Parameters:
+    frame-interval  integer  1    generate event metadata every N frames
+    source-config   string   ""   path to source config YAML
+    label-file      string   ""   path to label file (one label per line)
+
+-------------------------------------------------------------------------------
+resnet_tensor_parser
+-------------------------------------------------------------------------------
+  Parses raw ResNet detector output tensors and populates NvDsObjectMeta in
+  the pipeline. Use this when nvinfer is configured with output-tensor-meta=1
+  and you want custom post-processing in Python instead of a C++ parser.
+
+  Attach point: nvinfer (output-tensor-meta mode)
+
+  Parameters:
+    network-width   integer  960   model input width
+    network-height  integer  544   model input height
+    stream-width    integer  1280  source stream width
+    stream-height   integer  720   source stream height
+    num-classes     integer  4     number of detection classes

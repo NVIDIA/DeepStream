@@ -19,7 +19,8 @@ export EXPERIMENT_DIR=$PWD/experiments/inference_builder/12cam
 export MODEL_REPO=$PWD/models
 
 REPO_DIR=$PWD
-INFERENCE_BUILDER_DIR=${INFERENCE_BUILDER_DIR:-$HOME/inference_builder}
+DEEPSTREAM_ROOT="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
+INFERENCE_BUILDER_DIR=${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}
 
 # Select detector model: PeopleNetTransformer (default), RTDETR, or PeopleNet2.6.3
 export DETECTOR_MODEL=${DETECTOR_MODEL:-PeopleNetTransformer}
@@ -63,7 +64,7 @@ cp $EXPERIMENT_DIR/nvdsinfer_config.yaml $MODEL_REPO/$DETECTOR_MODEL/
 
 # Generate Python package for MV3DT inference flow using Inference Builder
 cd $INFERENCE_BUILDER_DIR
-source ib_venv/bin/activate
+source .venv/bin/activate
 python builder/main.py $EXPERIMENT_DIR/ds_mv3dt.yaml \
     -o builder/samples/mv3dt_app \
     --server-type serverless

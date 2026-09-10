@@ -57,9 +57,9 @@ This page provides detailed step-by-step instructions for running MV3DT using In
 
 3. Generate a Python package at `$INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app` containing the MV3DT inference flow.
     ```bash
-    export INFERENCE_BUILDER_DIR=<path to inference builder repo>
+    export INFERENCE_BUILDER_DIR="$(git rev-parse --show-toplevel)/tools/inference_builder"
     cd $INFERENCE_BUILDER_DIR
-    source ib_venv/bin/activate
+    source .venv/bin/activate
     python builder/main.py $EXPERIMENT_DIR/ds_mv3dt.yaml \
         -o builder/samples/mv3dt_app \
         --server-type serverless

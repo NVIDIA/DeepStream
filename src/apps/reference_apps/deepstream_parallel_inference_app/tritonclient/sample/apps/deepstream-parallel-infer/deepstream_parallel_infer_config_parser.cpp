@@ -406,14 +406,20 @@ parse_config_file_yaml (NvDsConfig *config, gchar *cfg_file_path)
       parse_err = !parse_metamux_yaml (&config->meta_mux_config, cfg_file_path);
     }
     else if (paramKey.compare(0, branch_str.size(), branch_str) == 0) {
+      if (config->num_src_ids_sub_bins == MAX_PRIMARY_GIE_BINS) {
+        NVGSTDS_ERR_MSG_V ("App supports max %d branches", MAX_PRIMARY_GIE_BINS);
+        ret = FALSE;
+        goto done;
+      }
       if(configyml[paramKey]["pgie-id"].as<int>()){
           config->srcids_config[config->num_src_ids_sub_bins].pgie_id =
 		  configyml[paramKey]["pgie-id"].as<int>();
           if(configyml[paramKey]["src-ids"]) {
               std::string src_ids = configyml[paramKey]["src-ids"].as<std::string>();
               int index = config->num_src_ids_sub_bins;
-	      config->srcids_config[index].src_ids = (char*) calloc(sizeof(char) * src_ids.size(), sizeof(char));
+	      config->srcids_config[index].src_ids = (char*) calloc(src_ids.size() + 1, sizeof(char));
 	      std::strncpy (config->srcids_config[index].src_ids , src_ids.c_str(), src_ids.size());
+	      config->srcids_config[index].src_ids[src_ids.size()] = '\0';
 	      g_print("src_ids:%s\n",  config->srcids_config[index].src_ids);
          }
       }

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -258,7 +258,8 @@ typedef enum
   StatusUriTooLong,                     // HTTP error code : 414
   StatusUnsupportedMediaType,           // HTTP error code : 415
   StatusInternalServerError,            // HTTP error code : 500
-  StatusNotImplemented                  // HTTP error code : 501
+  StatusNotImplemented,                 // HTTP error code : 501
+  StatusServiceUnavailable              // HTTP error code : 503
 } NvDsServerStatusCode;
 
 typedef struct NvDsServerErrorInfo

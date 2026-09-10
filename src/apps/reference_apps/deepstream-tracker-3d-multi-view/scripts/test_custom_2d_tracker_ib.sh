@@ -19,7 +19,8 @@ export EXPERIMENT_DIR=$PWD/experiments/inference_builder/6cam
 export MODEL_REPO=$PWD/models
 
 export REPO_DIR=$PWD
-export INFERENCE_BUILDER_DIR=${INFERENCE_BUILDER_DIR:-$HOME/inference_builder}
+DEEPSTREAM_ROOT="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
+export INFERENCE_BUILDER_DIR=${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}
 
 # Set correct GPU flag considering diffent platforms
 if docker info | grep -q 'Runtimes.*nvidia'; then
@@ -46,7 +47,7 @@ cp $EXPERIMENT_DIR/nvdsinfer_config.yaml $MODEL_REPO/PeopleNetTransformer/
 
 # Generate Python package for MV3DT inference flow using Inference Builder
 cd $INFERENCE_BUILDER_DIR
-source ib_venv/bin/activate
+source .venv/bin/activate
 python builder/main.py $EXPERIMENT_DIR/ds_mv3dt.yaml \
     -o builder/samples/mv3dt_app \
     --server-type serverless

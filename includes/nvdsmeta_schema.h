@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,7 @@
 #define NVDSMETA_H_
 
 #include <glib.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -316,6 +317,62 @@ typedef struct _NvDsBbox3dObjectList {
     SourceTimePair entries[MAX_ENTRIES];
     int count;
 } NvDsBbox3dObjectList;
+
+/** Max lengths for the string fields of @ref InferenceProvenanceMeta. */
+#define NVDS_INFER_PROV_NAME_LEN   128
+#define NVDS_INFER_PROV_ENGINE_LEN 256
+/** Magic stamped in @ref InferenceProvenanceMeta.magic by the producer and
+ *  REQUIRED by consumers that identify the struct through an untyped channel
+ *  (e.g. NvDsEventMsgMeta.extMsg + extMsgSize): a size-only match is silent
+ *  under compile skew (struct grew in one component, not the other) or an
+ *  unrelated custom blob of equal size. 'IPrv' */
+#define NVDS_INFER_PROV_MAGIC 0x49507276u
+
+/**
+ * Holds per-frame inference provenance attached by Gst-nvmodelmux as frame
+ * user-meta of type @ref NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE. Records which
+ * model / version / engine, on which GPU, produced each frame's inference
+ * (@a model_name is "passthrough" when the frame bypassed inference), together
+ * with the originating stream identity. A downstream element (e.g.
+ * Gst-nvmsgconv) can parse it to attribute results per model/stream and to
+ * recover the true @a source_id after the combined muxer renumbers it. Declared
+ * here (public) so any DeepStream component can consume it without the plugin's
+ * private headers.
+ *
+ * NOTE: the meta-type enum @ref NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE is declared
+ * in nvdsmeta.h (this header is not included here, by convention) -- a consumer
+ * matching frame user-meta must include BOTH nvdsmeta.h and this header.
+ */
+typedef struct
+{
+  /** Always @ref NVDS_INFER_PROV_MAGIC (see there); lets extMsg-style consumers
+   *  verify the payload really is this struct (and this layout revision). */
+  guint magic;
+  /** Global stream id (from nvmultiurisrcbin). */
+  guint source_id;
+  /** Camera/sensor name ("src" if unknown). */
+  gchar camera_name[NVDS_INFER_PROV_NAME_LEN];
+  /** Camera id (REST camera_id). */
+  gchar camera_id[NVDS_INFER_PROV_NAME_LEN];
+  /** Producing nvinfer unique-id (0 for passthrough). */
+  guint gie_id;
+  /** "Primary" | "Shadow" (slot-derived role). */
+  gchar role[16];
+  /** Logical model name (the model id); "passthrough" if not inferred. */
+  gchar model_name[NVDS_INFER_PROV_NAME_LEN];
+  /** Checkpoint version (defaults to the engine basename when unset). */
+  gchar model_version[NVDS_INFER_PROV_NAME_LEN];
+  /** Current engine/checkpoint path. */
+  gchar engine[NVDS_INFER_PROV_ENGINE_LEN];
+  /** Frame number. */
+  guint frame_num;
+  /** Device this frame was inferred on (pipeline device for passthrough). */
+  guint gpu;
+  /** Producing instance's CONFIGURED batch size (its max co-batched streams,
+   *  the per-model-batch-size resolution) -- NOT the per-call batch fill.
+   *  0 = passthrough (no inference). */
+  guint batch;
+} InferenceProvenanceMeta;
 
 /**
  * Holds Single View 3D Tracking metadata.

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ Follow https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstar
 ```
 
 ## Build the applications
-The app can be built by [build script](../../../../build/BUILD.md).
+The app can be built by the [repository build](../../../../build/BUILD.md).
 The separated compilation of the app and related library can refer to the following commands:
 ```bash
 # Build custom nvinfer parser of BodyPose3DNet

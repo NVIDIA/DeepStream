@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -116,9 +116,13 @@ class AddLabel(BatchMetadataOperator):
       for roi_meta in preprocess_batch_meta.rois:
         for classifier_meta in roi_meta.classifier_items:
           num_labels = classifier_meta.n_labels
+          print(f"ClassifierMetadata: component_id={classifier_meta.unique_component_id} "
+                f"type={classifier_meta.classifier_type} n_labels={num_labels}")
           for i in range(num_labels):
-            label = classifier_meta.get_n_label(i)
-            self._add_label_text(batch_meta, roi_meta, label)
+            info = classifier_meta.get_label_info(i)
+            print(f"  LabelInfo[{i}]: label={info.label} class_id={info.class_id} "
+                  f"prob={info.prob:.4f} label_id={info.label_id}")
+            self._add_label_text(batch_meta, roi_meta, info.label)
 
     for frame_meta in batch_meta.frame_items:
       fps = g_fps_cal.update_fps(frame_meta.source_id)

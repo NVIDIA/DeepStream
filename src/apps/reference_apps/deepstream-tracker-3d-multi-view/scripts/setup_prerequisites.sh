@@ -51,6 +51,7 @@ log_error() {
 # Global variables
 export DEEPSTREAM_IMAGE="${DEEPSTREAM_IMAGE:-nvcr.io/nvidia/deepstream:9.1-triton-multiarch}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEEPSTREAM_ROOT="$(git -C "$REPO_ROOT" rev-parse --show-toplevel)"
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
 KAFKA_VERSION="4.2.0"
@@ -58,7 +59,7 @@ SCALA_VERSION="2.13"
 
 # Standardized paths
 KAFKA_DIR="$BASE_DIR/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
-INFERENCE_BUILDER_DIR="$BASE_DIR/inference_builder"
+INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}"
 
 # Reusable string constants
 DPKG_STATUS_FORMAT='${Status}'
@@ -518,39 +519,22 @@ setup_inference_builder() {
     log_info "Setting up DeepStream Inference Builder..."
     
     if [[ ! -d "$INFERENCE_BUILDER_DIR" ]]; then
-        log_info "Cloning Inference Builder repository..."
-        cd "$BASE_DIR"
-        if ! git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder || ! git -C inference_builder checkout 3f0c09f2e3da076cbbb75e17bdebd565b03d1a18; then
-            log_warning "Failed to clone Inference Builder repository"
-            log_info "This is optional - Inference Builder is skipped by default. Set USE_INFERENCE_BUILDER=true to enable it."
-            return 0
-        fi
-        
-        cd inference_builder
-        git submodule update --init --recursive
-    else
-        log_success "Inference Builder directory already exists"
-        cd "$INFERENCE_BUILDER_DIR"
+        log_error "Inference Builder directory not found: $INFERENCE_BUILDER_DIR"
+        return 1
     fi
-    
-    # Install system dependencies
-    log_info "Checking protobuf-compiler package..."
-    if ! dpkg-query -W -f="$DPKG_STATUS_FORMAT" protobuf-compiler 2>/dev/null | grep -q "$DPKG_INSTALLED"; then
-        log_info "Installing protobuf-compiler..."
-        sudo apt update && sudo apt install -y protobuf-compiler
-    else
-        log_success "protobuf-compiler is already installed"
-    fi
+
+    log_success "Using in-tree Inference Builder at $INFERENCE_BUILDER_DIR"
+    cd "$INFERENCE_BUILDER_DIR"
     
     # Create virtual environment
-    if [[ ! -d "ib_venv" ]]; then
+    if [[ ! -d ".venv" ]]; then
         log_info "Creating Inference Builder virtual environment..."
-        python -m venv ib_venv
+        python -m venv .venv
     fi
     
     # Install requirements
     log_info "Installing Inference Builder dependencies..."
-    source ib_venv/bin/activate
+    source .venv/bin/activate
     
     if [[ -f "requirements.txt" ]]; then
         pip install --quiet --upgrade pip
@@ -630,7 +614,8 @@ OPTIONS:
     --check-only               Only run prerequisites check without setup
     
 ENVIRONMENT VARIABLES:
-    BASE_DIR                   Base directory for installations (default: $HOME)
+    BASE_DIR                   Base directory for Kafka (default: $HOME)
+    INFERENCE_BUILDER_DIR      Inference Builder path (default: <deepstream-root>/tools/inference_builder)
     USE_INFERENCE_BUILDER      Set to 'true' to enable Inference Builder setup (default: false)
 
 EOF
