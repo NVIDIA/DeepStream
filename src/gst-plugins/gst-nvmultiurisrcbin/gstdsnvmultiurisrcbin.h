@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,6 +107,10 @@ enum
   PROP_SYNC_INPUTS_NTP,
   PROP_DROP_BACKWARD_SEI,
   MULTIURIBIN_PROP_SIMULATE_FPS_INTERVAL_MS,
+  MULTIURIBIN_PROP_HTTP_DOWNLOAD_TIMEOUT,
+  MULTIURIBIN_PROP_HTTP_CONNECT_TIMEOUT,
+  MULTIURIBIN_PROP_HTTP_MAX_CONCURRENT_DOWNLOADS,
+  MULTIURIBIN_PROP_IPC_FRAME_COPY,
   MULTIURIBIN_PROP_LAST
 };
 
@@ -133,6 +137,19 @@ typedef struct _GstDsNvMultiUriBin
   void* restServer;
   gchar* httpIp;
   gchar* httpPort;
+  /** HTTP(S) file-download (curl) timeouts in seconds, settable as properties */
+  guint httpDownloadTimeout;
+  guint httpConnectTimeout;
+  /** Bound on concurrent HTTP(S) file downloads (0 = unlimited). Downloads run
+   * outside bin_lock so multiple stream/add requests fetch in parallel. */
+  guint httpMaxConcurrentDownloads;
+  guint httpActiveDownloads;
+  GMutex httpDlLock;
+  GCond httpDlCond;
+  /** One-shot guard: per-sensor model bindings for statically added (uri-list)
+   * sources are forwarded downstream exactly once, after the pipeline reaches
+   * PLAYING. Reset on READY_TO_NULL so a restart re-emits. */
+  gboolean staticBindsEmitted;
 } GstDsNvMultiUriBin;
 
 typedef struct _GstDsNvMultiUriBinClass

@@ -1,0 +1,57 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef __GST_DS_NVINFERSERVER_BIN_H__
+#define __GST_DS_NVINFERSERVER_BIN_H__
+
+#include <gst/video/video.h>
+
+G_BEGIN_DECLS
+/* Standard GStreamer boilerplate */
+typedef struct _GstDsNvInferServerBin
+{
+  GstBin bin;
+  GstElement *queue;
+  GstElement *nvinferserver;
+} GstDsNvInferServerBin;
+
+typedef struct _GstDsNvInferServerBinClass
+{
+  GstBinClass parent_class;
+
+  /** Signals */
+  /** signal : model-update
+    * err: int, error result, type NvDsInferServerStatus.
+    * cfg_file: update cfg file.
+    */
+  // void (*model_updated) (GstDsNvInferServerBin *, gint err, const gchar *cfg_file);
+} GstDsNvInferServerBinClass;
+
+
+/* Standard GStreamer boilerplate */
+#define GST_TYPE_DS_NVINFERSERVER_BIN (gst_ds_nvinferserver_bin_get_type())
+#define GST_DS_NVINFERSERVER_BIN(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_DS_NVINFERSERVER_BIN,GstDsNvInferServerBin))
+#define GST_DS_NVINFERSERVER_BIN_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DS_NVINFERSERVER_BIN,GstDsNvInferServerBinClass))
+#define GST_DS_NVINFERSERVER_BIN_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), GST_TYPE_DS_NVINFERSERVER_BIN, GstDsNvInferServerBinClass))
+#define GST_IS_DS_NVINFERSERVER_BIN(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_DS_NVINFERSERVER_BIN))
+#define GST_IS_DS_NVINFERSERVER_BIN_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DS_NVINFERSERVER_BIN))
+#define GST_DS_NVINFERSERVER_BIN_CAST(obj)  ((GstDsNvInferServerBin *)(obj))
+
+GType gst_ds_nvinferserver_bin_get_type (void);
+
+G_END_DECLS
+#endif /* __GST_DS_NVINFERSERVER_BIN_H__ */

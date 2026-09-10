@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -144,6 +144,8 @@ parse_config_file_yaml (NvDsConfig *config, gchar *cfg_file_path)
 {
   gboolean parse_err = false;
   gboolean ret = FALSE;
+  g_free (config->cfg_file_path);
+  config->cfg_file_path = g_strdup (cfg_file_path);
   YAML::Node configyml = YAML::LoadFile(cfg_file_path);
   std::string source_str = "source";
   std::string sink_str = "sink";

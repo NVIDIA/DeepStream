@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1206,6 +1206,50 @@ generate_mask_array (NvDsEventMsgMeta *meta, JsonArray *jArray, GList *mask)
   json_array_add_string_element (jArray, ss.str().c_str());
 }
 
+/* TRUE iff this event is a synthesized inference-provenance wrapper from
+ * Gst-nvmsgconv (InferenceProvenanceMeta riding extMsg -- attached per frame by
+ * Gst-nvmodelmux as NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE user meta). Matched by
+ * type + exact payload size so an unrelated NVDS_EVENT_CUSTOM cannot alias it. */
+static inline InferenceProvenanceMeta *
+event_inference_provenance (NvDsEventMsgMeta *meta)
+{
+  if (meta && meta->type == NVDS_EVENT_CUSTOM && meta->extMsg &&
+      meta->extMsgSize == sizeof (InferenceProvenanceMeta) &&
+      ((InferenceProvenanceMeta *) meta->extMsg)->magic == NVDS_INFER_PROV_MAGIC)
+    return (InferenceProvenanceMeta *) meta->extMsg;
+  return NULL;
+}
+
+/* Compact JSON string with EVERY provenance field -- ONE map entry carries the
+ * whole record (protobuf map values are strings; the minimal JSON embeds the
+ * same object natively). Built with json-glib so string fields are ESCAPED --
+ * camera ids/names are REST-supplied and may contain quotes/backslashes; raw
+ * printf interpolation produced invalid JSON for such inputs. Caller g_free's. */
+static gchar *
+inference_provenance_to_json (const InferenceProvenanceMeta *prov)
+{
+  JsonObject *o = json_object_new ();
+  JsonNode *node;
+  gchar *out;
+  json_object_set_int_member (o, "sourceId", prov->source_id);
+  json_object_set_string_member (o, "cameraId", prov->camera_id);
+  json_object_set_string_member (o, "cameraName", prov->camera_name);
+  json_object_set_int_member (o, "gieId", prov->gie_id);
+  json_object_set_string_member (o, "role", prov->role);
+  json_object_set_string_member (o, "modelName", prov->model_name);
+  json_object_set_string_member (o, "modelVersion", prov->model_version);
+  json_object_set_string_member (o, "engine", prov->engine);
+  json_object_set_int_member (o, "frameNum", prov->frame_num);
+  json_object_set_int_member (o, "gpu", prov->gpu);
+  json_object_set_int_member (o, "batch", prov->batch);
+  node = json_node_new (JSON_NODE_OBJECT);
+  json_node_set_object (node, o);
+  out = json_to_string (node, FALSE /* compact */);
+  json_node_free (node);
+  json_object_unref (o);
+  return out;
+}
+
 gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint size)
 {
   /*
@@ -1248,6 +1292,7 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
   char *verbose = getenv("SPARSE4D_DEBUG_TS");
 
   jArray = json_array_new ();
+  JsonArray *provArray = NULL;   /* frame-level "inferenceProvenance" member */
 
   for (eventCount = 0; eventCount < size; eventCount++) {
     GList *objectMask = NULL;
@@ -1256,6 +1301,32 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
     ss.clear();
 
     NvDsEventMsgMeta *meta = events[eventCount].metadata;
+
+    /* inference provenance (InferenceProvenanceMeta via extMsg): a FRAME-level
+     * record, not an object -- emit it structured under "inferenceProvenance"
+     * (one entry per A/B role) and skip the pipe-delimited object path (which
+     * would add a junk empty string to "objects"). */
+    {
+      InferenceProvenanceMeta *prov = event_inference_provenance (meta);
+      if (prov) {
+        JsonObject *pobj = json_object_new ();
+        json_object_set_int_member (pobj, "sourceId", prov->source_id);
+        json_object_set_string_member (pobj, "cameraId", prov->camera_id);
+        json_object_set_string_member (pobj, "cameraName", prov->camera_name);
+        json_object_set_int_member (pobj, "gieId", prov->gie_id);
+        json_object_set_string_member (pobj, "role", prov->role);
+        json_object_set_string_member (pobj, "modelName", prov->model_name);
+        json_object_set_string_member (pobj, "modelVersion", prov->model_version);
+        json_object_set_string_member (pobj, "engine", prov->engine);
+        json_object_set_int_member (pobj, "frameNum", prov->frame_num);
+        json_object_set_int_member (pobj, "gpu", prov->gpu);
+        json_object_set_int_member (pobj, "batch", prov->batch);
+        if (!provArray)
+          provArray = json_array_new ();
+        json_array_add_object_element (provArray, pobj);
+        continue;
+      }
+    }
 #if 0
     ss << meta->trackingId << "|" << meta->bbox.left << "|" << meta->bbox.top
         << "|" << meta->bbox.left + meta->bbox.width << "|" << meta->bbox.top + meta->bbox.height
@@ -1520,6 +1591,8 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
   }
 
     json_object_set_array_member (jobject, "objects", jArray);
+  if (provArray)
+    json_object_set_array_member (jobject, "inferenceProvenance", provArray);
   if (verbose != NULL && atoi(verbose) == 1) {
     json_object_set_array_member (jobject, "info", infoArray);
   }
@@ -1598,6 +1671,16 @@ static void dump_json_to_file(NvDsEvent *events, guint size) {
 
   for (guint i = 0; i < size; i++) {
     NvDsEventMsgMeta *meta = events[i].metadata;
+
+    /* provenance wrappers are frame-level records serialized via Frame.info in
+     * the real payload -- dumping them through the object path emits a junk
+     * zero-bbox "Unknown" object; dump the record itself instead. */
+    if (InferenceProvenanceMeta *prov = event_inference_provenance (meta)) {
+      gchar *pj = inference_provenance_to_json (prov);
+      fprintf (fp, "{\"inferenceProvenance\": %s}\n", pj);
+      g_free (pj);
+      continue;
+    }
     JsonObject *obj = json_object_new();
 
     if (meta->objType == NVDS_OBJECT_TYPE_3D && meta->extMsg && meta->extMsgSize) {
@@ -1740,11 +1823,37 @@ gchar* generate_event_message_protobuf (void *privData, NvDsEvent *events, guint
     }
   }
 
+  // inference provenance -> Frame.info map (map<string,string>, no .proto change):
+  // ONE entry per provenance event, keyed by role so a unified A/B frame pair
+  // (Primary + Shadow) never collides:
+  //   info["inferenceProvenance.<role>"] = "{...every InferenceProvenanceMeta field...}"
+  for (guint i = 0; i < size; i++) {
+    InferenceProvenanceMeta *prov = event_inference_provenance (events[i].metadata);
+    if (prov) {
+      gchar *pj = inference_provenance_to_json (prov);
+      std::string key = std::string ("inferenceProvenance.") +
+          (prov->role[0] ? prov->role : "Primary");
+      /* single-mux frames carry ONE provenance -> plain role key. A merged
+       * pipeline (e.g. nvmetamux) can fold multiple same-role records onto one
+       * frame; a map overwrite would silently drop one -- disambiguate by the
+       * producing gie instead of losing data. */
+      if (pbFrame.info().count (key))
+        key += "." + std::to_string (prov->gie_id);
+      (*pbFrame.mutable_info())[key] = pj;
+      g_free (pj);
+    }
+  }
+
   // objects
   for (guint i = 0; i < size; i++) {
     NvDsEventMsgMeta *meta = events[i].metadata;
+    nv::Object *object = NULL;
 
-    nv::Object *object = pbFrame.add_objects();
+    if (event_inference_provenance (meta))
+      continue;                 /* frame-level record: already in Frame.info above --
+                                 * an (empty) Object entry for it would be junk */
+
+    object = pbFrame.add_objects();
     if (meta->extMsg && meta->extMsgSize) {
       // Attach secondary inference attributes.
       switch (meta->objType) {

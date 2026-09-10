@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,21 @@ bool nvds_rest_inferserver_parse (const Json::Value & in,
     NvDsServerInferServerInfo * inferserver_info);
 bool nvds_rest_stream_parse (const Json::Value & in,
     NvDsServerStreamInfo * stream_info);
+bool nvds_rest_model_parse (const Json::Value & in,
+    NvDsServerModelInfo * model_info);
+bool nvds_rest_model_update_parse (const Json::Value & in,
+    NvDsServerModelInfo * model_info);
+bool nvds_rest_stream_route_parse (const Json::Value & in,
+    NvDsServerRouteInfo * route_info);
+/* Response tail shared by this plane's async POSTs (model/load|unload,
+ * model/update, stream/route). Defined in nvds_model_parse.cpp beside the
+ * model_fail / route_fail vocabulary they belong to, so nvds_rest_server.cpp
+ * stays a thin dispatcher and a future endpoint adds its tail to its own
+ * *_parse.cpp instead of to the shared server body. */
+void nvds_rest_ctl_fail_no_handler (NvDsServerErrorInfo & err,
+    std::string & log, const char *what);
+NvDsServerStatusCode nvds_rest_ctl_finish_async_response (Json::Value & response,
+    const NvDsServerErrorInfo & err_info, const std::string & log);
 bool nvds_rest_infer_parse (const Json::Value & in, NvDsServerInferInfo * infer_info);
 bool nvds_rest_nvtracker_parse (const Json::Value & in, NvDsServerNvTrackerInfo * trackerInfo);
 bool nvds_rest_osd_parse (const Json::Value & in, NvDsServerOsdInfo * osd_info);

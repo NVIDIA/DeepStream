@@ -25,6 +25,7 @@ SRCS:= nvds_dec_parse.cpp nvds_infer_parse.cpp \
        nvds_rest_server.cpp nvds_roi_parse.cpp nvds_stream_parse.cpp \
        nvds_mux_parse.cpp nvds_inferserver_parse.cpp nvds_conv_parse.cpp nvds_enc_parse.cpp \
        nvds_app_instance_parse.cpp nvds_osd_parse.cpp nvds_analytics_parse.cpp nvds_nvtracker_parse.cpp \
+	   nvds_model_parse.cpp \
 	   nvds_rest_metrics.cpp prometheus_client.cpp opentelemetry_client.cpp
 
 INCS:= $(wildcard *.h)
@@ -32,7 +33,7 @@ LIB:=libnvds_rest_server.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.1\" \
  	 -I../../../includes \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \
 	 -I/usr/include/jsoncpp

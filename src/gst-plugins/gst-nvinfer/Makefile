@@ -28,7 +28,7 @@ LIB:=libnvdsgst_infer.so
 
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -std=c++11 -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -std=c++11 -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../includes \
 	 -I ../gst-nvdspreprocess/include \

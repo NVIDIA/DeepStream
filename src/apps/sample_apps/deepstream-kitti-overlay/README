@@ -1,0 +1,187 @@
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+*****************************************************************************
+                     deepstream-kitti-overlay
+                             README
+*****************************************************************************
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for the DeepStream SDK, the DeepStream SDK itself,
+and the apps.
+
+You must have the following development packages installed
+   GStreamer-1.0
+   GStreamer-1.0 Base Plugins
+
+To install these packages, execute the following command:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
+
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This sample does NOT run inference. It overlays bounding boxes from
+pre-generated DeepStream KITTI dump files onto one or more video sources for
+offline analysis.
+
+It builds on deepstream-test3 to demonstrate how to:
+
+* Use multiple sources in the pipeline.
+* Use a uridecodebin so that any type of input (e.g. RTSP/File), any GStreamer
+  supported container format, and any codec can be used as input.
+* Attach already generated KITTI data (inferred object information per frame)
+  to the source video.
+* Access buffers using appsink APIs for use outside GStreamer.
+
+Pipeline overview:
+  uridecodebin (per source) -> nvstreammux -> nvmultistreamtiler ->
+  nvvideoconvert -> nvdsosd -> display / filesink (+ appsink branch)
+
+KITTI metadata is attached in a pad probe before OSD, so boxes are drawn by
+nvdsosd from the dump files rather than from a live PGIE.
+
+
+===============================================================================
+3. To compile:
+===============================================================================
+
+  $ cd src/apps/sample_apps/deepstream-kitti-overlay
+  $ Set CUDA_VER in the Makefile as per platform.
+      For x86 & Jetson, CUDA_VER=13.2
+  $ sudo make CUDA_VER=13.2
+    (sudo not required in Docker containers)
+
+NOTE: To compile the sources, run make with "sudo" or root permission when
+installing into system paths.
+
+
+===============================================================================
+4. End-to-end steps to run:
+===============================================================================
+
+This app requires a KITTI dump directory produced by deepstream-app for the
+SAME video URI(s) you will overlay. Dump files are named:
+
+  <ctx>_<stream>_<frame>.txt
+  e.g. 00_000_000000.txt, 00_000_000001.txt, ...
+
+-------------------------------------------------------------------------------
+Step A — Generate KITTI dumps with deepstream-app
+-------------------------------------------------------------------------------
+
+1) Pick a deepstream-app config (example uses the shipped 4-source sample):
+
+     /opt/nvidia/deepstream/deepstream-9.1/samples/configs/deepstream-app/
+
+2) In the [application] section, set (or uncomment) an absolute output directory:
+
+     [application]
+     gie-kitti-output-dir=/tmp/kitti_data1
+
+   Create the directory first:
+
+     $ mkdir -p /tmp/kitti_data1
+
+3) Ensure the config URI matches the video you will later pass to this overlay
+   app. Example:
+
+     [source0]
+     uri=file:///opt/nvidia/deepstream/deepstream-9.1/samples/streams/sample_1080p_h264.mp4
+
+4) Run deepstream-app from the config directory (relative model/stream paths
+   resolve from cwd):
+
+     $ cd /opt/nvidia/deepstream/deepstream-9.1/samples/configs/deepstream-app
+     $ deepstream-app -c source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.txt
+
+5) Verify dumps were written:
+
+     $ ls /tmp/kitti_data1 | head
+     # expect: 00_000_000000.txt 00_000_000001.txt ...
+
+NOTE: For multi-source deepstream-app runs, dumps for all streams typically
+land in the same gie-kitti-output-dir with different stream IDs in the
+filename. For this overlay app, pass one URI + one kitti directory pair per
+source. Prefer generating one dump directory per source when overlaying
+multiple inputs.
+
+-------------------------------------------------------------------------------
+Step B — Run deepstream-kitti-overlay
+-------------------------------------------------------------------------------
+
+Always run from this sample directory (or use absolute paths for kitti dirs):
+
+  $ cd src/apps/sample_apps/deepstream-kitti-overlay
+
+Arguments are URI / kitti-dir pairs:
+
+  $ ./deepstream-kitti-overlay <uri1> <kitti1> [uri2] <kitti2> ... [uriN] <kittiN>
+
+Display output (single source):
+
+  $ ./deepstream-kitti-overlay \
+      file:///opt/nvidia/deepstream/deepstream-9.1/samples/streams/sample_1080p_h264.mp4 \
+      /tmp/kitti_data1
+
+Display output (two sources):
+
+  $ ./deepstream-kitti-overlay \
+      file:///path/to/video1.mp4 /tmp/kitti_data1 \
+      file:///path/to/video2.mp4 /tmp/kitti_data2
+
+RTSP example:
+
+  $ ./deepstream-kitti-overlay \
+      rtsp://127.0.0.1/video1 /tmp/kitti_data1 \
+      rtsp://127.0.0.1/video2 /tmp/kitti_data2
+
+Save overlayed output to an MP4 (hardware encoder):
+
+  $ ./deepstream-kitti-overlay \
+      file:///opt/nvidia/deepstream/deepstream-9.1/samples/streams/sample_1080p_h264.mp4 \
+      /tmp/kitti_data1 \
+      outfile-hw-enc /tmp/out.mp4
+
+Software encoder (e.g. Ampere platforms if HW encode is unavailable):
+
+  $ ./deepstream-kitti-overlay \
+      file:///opt/nvidia/deepstream/deepstream-9.1/samples/streams/sample_1080p_h264.mp4 \
+      /tmp/kitti_data1 \
+      outfile-sw-enc /tmp/out.mp4
+
+
+===============================================================================
+5. Notes / common failures:
+===============================================================================
+
+* The third (and later odd) arguments must be directories of KITTI dump files,
+  not a single video path and not an empty folder.
+* Use absolute paths for kitti directories when possible.
+* The video URI used for overlay should match the stream that produced the
+  dumps (same content / frame count). Mismatched frame numbers are reported
+  at runtime and boxes may not align.
+* Non-KITTI files in the dump directory are skipped; if no valid
+  <ctx>_<stream>_<frame>.txt files are present, the app exits with
+  "Empty Kitti Directory Provided".
+* outfile-hw-enc / outfile-sw-enc require a .mp4 output filename.
+
+Refer to the deepstream-test3 sample documentation for an example of simple
+multi-stream inference, bounding-box overlay, and rendering.

@@ -38,7 +38,7 @@ DEP:=dsexample_lib/libdsexample.a
 DEP_FILES:=$(wildcard dsexample_lib/dsexample_lib.* )
 DEP_FILES-=$(DEP)
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../includes
 

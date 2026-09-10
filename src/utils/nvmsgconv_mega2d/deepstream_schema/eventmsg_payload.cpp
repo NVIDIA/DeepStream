@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -887,6 +887,48 @@ generate_mask_array (NvDsEventMsgMeta *meta, JsonArray *jArray, GList *mask)
   json_array_add_string_element (jArray, ss.str().c_str());
 }
 
+/* TRUE iff this event is a synthesized inference-provenance wrapper from
+ * Gst-nvmsgconv (InferenceProvenanceMeta riding extMsg -- attached per frame by
+ * Gst-nvmodelmux as NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE user meta). Matched by
+ * type + exact size + magic so nothing else can alias it. */
+static inline InferenceProvenanceMeta *
+event_inference_provenance (NvDsEventMsgMeta *meta)
+{
+  if (meta && meta->type == NVDS_EVENT_CUSTOM && meta->extMsg &&
+      meta->extMsgSize == sizeof (InferenceProvenanceMeta) &&
+      ((InferenceProvenanceMeta *) meta->extMsg)->magic == NVDS_INFER_PROV_MAGIC)
+    return (InferenceProvenanceMeta *) meta->extMsg;
+  return NULL;
+}
+
+/* Compact JSON string with EVERY provenance field -- ONE map entry carries the
+ * whole record. Built with json-glib so string fields are ESCAPED (camera
+ * ids/names are REST-supplied). Caller g_free's. */
+static gchar *
+inference_provenance_to_json (const InferenceProvenanceMeta *prov)
+{
+  JsonObject *o = json_object_new ();
+  JsonNode *node;
+  gchar *out;
+  json_object_set_int_member (o, "sourceId", prov->source_id);
+  json_object_set_string_member (o, "cameraId", prov->camera_id);
+  json_object_set_string_member (o, "cameraName", prov->camera_name);
+  json_object_set_int_member (o, "gieId", prov->gie_id);
+  json_object_set_string_member (o, "role", prov->role);
+  json_object_set_string_member (o, "modelName", prov->model_name);
+  json_object_set_string_member (o, "modelVersion", prov->model_version);
+  json_object_set_string_member (o, "engine", prov->engine);
+  json_object_set_int_member (o, "frameNum", prov->frame_num);
+  json_object_set_int_member (o, "gpu", prov->gpu);
+  json_object_set_int_member (o, "batch", prov->batch);
+  node = json_node_new (JSON_NODE_OBJECT);
+  json_node_set_object (node, o);
+  out = json_to_string (node, FALSE /* compact */);
+  json_node_free (node);
+  json_object_unref (o);
+  return out;
+}
+
 gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint size)
 {
   /*
@@ -927,6 +969,7 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
   gchar *message = NULL;
 
   jArray = json_array_new ();
+  JsonArray *provArray = NULL;   /* frame-level "inferenceProvenance" member */
 
   for (i = 0; i < size; i++) {
     GList *objectMask = NULL;
@@ -935,6 +978,30 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
     ss.clear();
 
     NvDsEventMsgMeta *meta = events[i].metadata;
+
+    /* inference provenance: a FRAME-level record, not an object -- emit it
+     * structured under "inferenceProvenance" and skip the object path. */
+    {
+      InferenceProvenanceMeta *prov = event_inference_provenance (meta);
+      if (prov) {
+        JsonObject *pobj = json_object_new ();
+        json_object_set_int_member (pobj, "sourceId", prov->source_id);
+        json_object_set_string_member (pobj, "cameraId", prov->camera_id);
+        json_object_set_string_member (pobj, "cameraName", prov->camera_name);
+        json_object_set_int_member (pobj, "gieId", prov->gie_id);
+        json_object_set_string_member (pobj, "role", prov->role);
+        json_object_set_string_member (pobj, "modelName", prov->model_name);
+        json_object_set_string_member (pobj, "modelVersion", prov->model_version);
+        json_object_set_string_member (pobj, "engine", prov->engine);
+        json_object_set_int_member (pobj, "frameNum", prov->frame_num);
+        json_object_set_int_member (pobj, "gpu", prov->gpu);
+        json_object_set_int_member (pobj, "batch", prov->batch);
+        if (!provArray)
+          provArray = json_array_new ();
+        json_array_add_object_element (provArray, pobj);
+        continue;
+      }
+    }
     if(meta->objType!=NVDS_OBJECT_TYPE_DUMMY){
      ss << meta->trackingId << "|" << meta->bbox.left << "|" << meta->bbox.top
         << "|" << meta->bbox.left + meta->bbox.width << "|" << meta->bbox.top + meta->bbox.height
@@ -1135,6 +1202,8 @@ gchar* generate_event_message_minimal (void *privData, NvDsEvent *events, guint 
   }
 
   json_object_set_array_member (jobject, "objects", jArray);
+  if (provArray)
+    json_object_set_array_member (jobject, "inferenceProvenance", provArray);
   if (maskArray && json_array_get_length (maskArray) > 0)
     json_object_set_array_member (jobject, "masks", maskArray);
 
@@ -1162,6 +1231,14 @@ static void dump_json_to_file(NvDsEvent *events, guint size) {
 
   for (guint i = 0; i < size; i++) {
     NvDsEventMsgMeta *meta = events[i].metadata;
+
+    /* provenance: frame-level record -- dump it as such, not as a junk object */
+    if (InferenceProvenanceMeta *prov = event_inference_provenance (meta)) {
+      gchar *pj = inference_provenance_to_json (prov);
+      fprintf (fp, "{\"inferenceProvenance\": %s}\n", pj);
+      g_free (pj);
+      continue;
+    }
     JsonObject *obj = json_object_new();
 
     // Handle 2D objects
@@ -1267,10 +1344,28 @@ gchar* generate_event_message_protobuf (void *privData, NvDsEvent *events, guint
     pbFrame.set_sensorid("0");
   }
 
+  // inference provenance -> Frame.info map (map<string,string>, no .proto change):
+  // one entry per provenance event, keyed by role (gie-suffixed if a merged
+  // pipeline ever folds duplicates onto one frame -- never overwrite).
+  for (guint i = 0; i < size; i++) {
+    InferenceProvenanceMeta *prov = event_inference_provenance (events[i].metadata);
+    if (prov) {
+      gchar *pj = inference_provenance_to_json (prov);
+      std::string key = std::string ("inferenceProvenance.") +
+          (prov->role[0] ? prov->role : "Primary");
+      if (pbFrame.info().count (key))
+        key += "." + std::to_string (prov->gie_id);
+      (*pbFrame.mutable_info())[key] = pj;
+      g_free (pj);
+    }
+  }
+
   // objects
   for (guint i = 0; i < size; i++) {
     NvDsEventMsgMeta *meta = events[i].metadata;
 
+   if (event_inference_provenance (meta))
+     continue;                  /* frame-level record: already in Frame.info above */
    if(meta->objType!=NVDS_OBJECT_TYPE_DUMMY){
     nv::Object *object = pbFrame.add_objects();
     object->set_id(std::to_string(meta->trackingId));

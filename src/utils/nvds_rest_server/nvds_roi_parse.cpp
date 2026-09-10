@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,13 @@ bool
 nvds_rest_roi_parse (const Json::Value & in, NvDsServerRoiInfo * roi_info)
 {
   if (roi_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      roi_info->roi_log =
+          "ROI_UPDATE_FAIL, request body must be a JSON object";
+      roi_info->status = ROI_UPDATE_FAIL;
+      roi_info->err_info.code = StatusBadRequest;
+      return false;
+    }
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
       try {
         std::string root_val = it.key ().asString ().c_str ();

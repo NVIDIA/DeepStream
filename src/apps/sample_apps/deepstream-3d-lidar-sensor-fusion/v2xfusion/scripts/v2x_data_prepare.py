@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -232,9 +232,13 @@ if __name__ == "__main__":
 
     # 1.1 To demonstrate the case with batch size of 4
     # copy three more copies of the dataset.
-    shutil.copytree(base_path, os.path.join(dump_path, str(1)))
-    shutil.copytree(base_path, os.path.join(dump_path, str(2)))
-    shutil.copytree(base_path, os.path.join(dump_path, str(3)))
+    def copytree_replace(src, dst):
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+    copytree_replace(base_path, os.path.join(dump_path, str(1)))
+    copytree_replace(base_path, os.path.join(dump_path, str(2)))
+    copytree_replace(base_path, os.path.join(dump_path, str(3)))
 
     # Image size (1920,1080)  -> (1536, 864)
     img_aug_matrix = np.array(

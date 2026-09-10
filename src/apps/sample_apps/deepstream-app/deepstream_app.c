@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,7 @@
 
 #include "deepstream_app.h"
 #include "nvds_tracker_meta.h"
+#include "frame_dump.h"
 #include "nvds_msgapi.h"
 #include "nvds_utils.h"
 
@@ -695,6 +696,27 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer data)
           if (app_quit)
             appCtx->quit = TRUE;
         }
+      }
+      /* model-plane completion notice (nvmodelmux): loaded/unloaded/updated/routed,
+       * success OR failure -- mirrors the stream-add notification below. */
+      if (gst_nvmessage_is_model_event (message)) {
+        NvDsModelEventInfo e = {0};
+        gst_nvmessage_parse_model_event (message, &e);
+        gchar *ev = g_strdup (e.event);
+        g_strdelimit (ev, "-", ' ');            /* "model-loaded" -> "model loaded" */
+        /* "new" only fits a model that just APPEARED (loaded); unload/update/route/
+         * bind act on an EXISTING model, so they read plainly. Failures -> "FAILED". */
+        const char *pre = !e.ok ? "FAILED "
+            : (g_strcmp0 (e.event, "model-loaded") == 0 ? "new " : "");
+        const char *sep = (e.detail && *e.detail) ? " -- " : "";
+        const char *det = (e.detail && *e.detail) ? e.detail : "";
+        if (e.version && *e.version && e.gpu >= 0)
+          g_print ("%s%s [%s@%s gpu %d]%s%s\n", pre, ev, e.name, e.version, e.gpu, sep, det);
+        else if (e.version && *e.version)
+          g_print ("%s%s [%s@%s]%s%s\n", pre, ev, e.name, e.version, sep, det);
+        else
+          g_print ("%s%s [%s]%s%s\n", pre, ev, e.name, sep, det);
+        g_free (ev);
       }
       if(gst_nvmessage_is_stream_add(message)) {
         g_mutex_lock (&(appCtx->perf_struct).struct_lock);
@@ -1885,6 +1907,28 @@ create_common_elements (NvDsConfig * config, NvDsPipeline * pipeline,
     *sink_elem = pipeline->common_elements.text_embedder;
   }
 
+  if (config->infer_eval_config.enable) {
+    pipeline->common_elements.infer_eval =
+        gst_element_factory_make ("nvinfereval", "infer-eval");
+    if (!pipeline->common_elements.infer_eval) {
+      NVGSTDS_ERR_MSG_V ("Failed to create 'nvinfereval'");
+      goto done;
+    }
+    if (config->infer_eval_config.config_file) {
+      g_object_set (G_OBJECT (pipeline->common_elements.infer_eval),
+          "config-file", config->infer_eval_config.config_file, NULL);
+    }
+    gst_bin_add (GST_BIN (pipeline->pipeline),
+        pipeline->common_elements.infer_eval);
+    if (!*src_elem) {
+      *src_elem = pipeline->common_elements.infer_eval;
+    }
+    if (*sink_elem) {
+      NVGSTDS_LINK_ELEMENT (pipeline->common_elements.infer_eval, *sink_elem);
+    }
+    *sink_elem = pipeline->common_elements.infer_eval;
+  }
+
   if (config->tracker_config.enable) {
     if (!create_tracking_bin (&config->tracker_config,
             &pipeline->common_elements.tracker_bin)) {
@@ -1901,6 +1945,9 @@ create_common_elements (NvDsConfig * config, NvDsPipeline * pipeline,
           *sink_elem);
     }
     *sink_elem = pipeline->common_elements.tracker_bin.bin;
+
+    frame_dump_wire (config->cfg_file_path,
+        pipeline->common_elements.tracker_bin.tracker);
   }
 
   if (config->replay_config.enable) {
@@ -2172,6 +2219,8 @@ create_pipeline (AppCtx * appCtx,
         config->low_latency_mode, NULL);
     g_object_set (pipeline->multi_src_bin.nvmultiurisrcbin, "sei-uuid",
         config->sei_uuid, NULL);
+    g_object_set (pipeline->multi_src_bin.nvmultiurisrcbin, "file-loop",
+        config->file_loop, NULL);
 
     /** Set error propagation properties if enabled */
     if (config->enable_error_propagation) {
@@ -2491,6 +2540,9 @@ destroy_pipeline (AppCtx * appCtx)
 
   if (!appCtx)
     return;
+
+  g_free (config->cfg_file_path);
+  config->cfg_file_path = NULL;
 
   gst_element_send_event(appCtx->pipeline.pipeline, gst_event_new_eos());
   sleep (1);

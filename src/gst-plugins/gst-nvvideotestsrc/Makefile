@@ -31,12 +31,12 @@ LIB:=libnvdsgst_videotestsrc.so
 
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I include \
 	 -I ../../../includes
 
-NVCC_CFLAGS+= -DHAVE_CONFIG_H -std=c++17 -DDS_VERSION=\"9.1.0\" \
+NVCC_CFLAGS+= -DHAVE_CONFIG_H -std=c++17 -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I include \
 	 -I ../../../includes \

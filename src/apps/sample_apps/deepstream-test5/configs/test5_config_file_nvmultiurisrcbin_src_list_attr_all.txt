@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -266,3 +266,14 @@ model-engine-file=/opt/nvidia/deepstream/deepstream/samples/models/Secondary_Veh
 
 [tests]
 file-loop=1
+
+# Runtime JPEG + metadata dump (tracker-src probe). Disabled by default.
+[frame-dump]
+enable=0
+fps=1
+location=/tmp/frame_dumps
+all-cameras=1
+quality=80
+hour-subfolder=0
+unique-filenames=0
+retention-days=0

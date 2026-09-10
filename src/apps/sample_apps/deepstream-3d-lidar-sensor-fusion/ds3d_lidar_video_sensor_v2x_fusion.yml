@@ -22,10 +22,10 @@ type: ds3d::gstparsebin
 link_to: videobridge_2d_to_3d
 config_body:
   parse_bin: >-
-    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/0/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvv4l2decoder ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_0
-    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/1/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvv4l2decoder ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_1
-    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/2/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvv4l2decoder ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_2
-    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/3/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvv4l2decoder ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_3
+    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/0/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_0
+    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/1/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_1
+    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/2/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_2
+    multifilesrc location=v2xfusion/example-data/v2x-seq.4scenes.10Hz.200frame/3/camera/camera_%05d.jpg ! image/jpeg, framerate=10/1 ! jpegparse ! nvjpegdec ! queue ! nvvideoconvert ! video/x-raw(memory:NVMM), format=RGBA ! m.sink_3
     nvstreammux name=m width=1920 height=1080 align-inputs=true batch-size=4 ! nvdspreprocess config-file=v2xfusion/config/config_preprocess.txt
 
 # bridge (2d->3d)

@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,7 @@ BASE_IMAGE="nvcr.io/nvidia/deepstream:9.1-triton-multiarch"
 NVDS_VERSION=${NVDS_VERSION:-9.1}
 TARGET_IMAGE="deepstream-triton-bevfusion:${NVDS_VERSION}"
 WORKSPACE=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
-COMMIT_ID=840392ade92dc75ae513ef829173d5e27ce33b70
+COMMIT_ID=7c1623f234d5a9794fd862c9456f68f87ae7b900
 SPCONV_CUDA_VERSION=13.0
 
 if [[ $# -ge 1 ]]; then

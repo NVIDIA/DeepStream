@@ -28,7 +28,7 @@ LIB:=libnvdsgst_metautils.so
 
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../includes -I ./common \
 	 -std=c++17 -Wall -Werror

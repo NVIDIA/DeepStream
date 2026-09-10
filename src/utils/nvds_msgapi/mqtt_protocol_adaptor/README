@@ -19,7 +19,7 @@ The adaptor implements and exposed the DSMI API for client applications to inter
 Dependencies
 -------------
 * glib 2.0
- $ sudo apt-get install libglib2.0 libglib2.0-dev
+ $ apt-get install libglib2.0 libglib2.0-dev
 
 * cjson
  $ apt-get install libcjson-dev
@@ -29,7 +29,6 @@ Dependencies
   apt-get install libssl-dev
 
 * libmosquitto-dev
- $ apt-add-repository ppa:mosquitto-dev/mosquitto-ppa
  $ apt-get update
  $ apt-get install libmosquitto-dev mosquitto
 

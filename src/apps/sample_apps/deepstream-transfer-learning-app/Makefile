@@ -38,6 +38,7 @@ SRCS:= deepstream_transfer_learning_app_main.cpp image_meta_consumer.cpp image_m
 SRCS+= ../deepstream-app/deepstream_app.c ../deepstream-app/deepstream_app_config_parser.c \
        ../../../../src/utils/nvds_msgapi/common_src/nvds_utils.cpp
 SRCS+= $(wildcard ../../common/src/*.c)
+SRCS+= ../../common/src/frame_dump.cpp
 
 INCS:= $(wildcard *.h)
 
@@ -45,7 +46,7 @@ PKGS:= gstreamer-1.0 gstreamer-video-1.0 x11 json-glib-1.0
 
 OBJS:= $(patsubst %.c,%.o, $(patsubst %.cpp,%.o, $(SRCS)))
 
-CFLAGS+= -I../../common/includes \
+CFLAGS+= -I../../common/includes -I../../../gst-utils/gstnvdscustomhelper \
 		 -I../../../../includes \
 		 -I../deepstream-app/ -DDS_VERSION_MINOR=0 -DDS_VERSION_MAJOR=5 \
 		 -I /usr/local/cuda-$(CUDA_VER)/include
@@ -76,5 +77,4 @@ install: $(APP)
 
 clean:
 	rm -rf $(OBJS) $(APP)
-
 

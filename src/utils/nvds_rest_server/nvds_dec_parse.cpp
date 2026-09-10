@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,19 @@ bool
 nvds_rest_dec_parse (const Json::Value & in, NvDsServerDecInfo * dec_info)
 {
   if (dec_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      dec_info->dec_log =
+          "DEC_UPDATE_FAIL, request body must be a JSON object";
+      if (dec_info->dec_flag == DROP_FRAME_INTERVAL)
+        dec_info->status = DROP_FRAME_INTERVAL_UPDATE_FAIL;
+      else if (dec_info->dec_flag == SKIP_FRAMES)
+        dec_info->status = SKIP_FRAMES_UPDATE_FAIL;
+      else if (dec_info->dec_flag == LOW_LATENCY_MODE)
+        dec_info->status = LOW_LATENCY_MODE_UPDATE_FAIL;
+      dec_info->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
 
       std::string root_val = it.key ().asString ().c_str ();
@@ -84,6 +97,17 @@ nvds_rest_dec_parse (const Json::Value & in, NvDsServerDecInfo * dec_info)
             return false;
         }
       }
+    }
+    } catch (const std::exception& e) {
+      dec_info->dec_log = "DEC_UPDATE_FAIL, error: " + std::string(e.what());
+      if (dec_info->dec_flag == DROP_FRAME_INTERVAL)
+        dec_info->status = DROP_FRAME_INTERVAL_UPDATE_FAIL;
+      else if (dec_info->dec_flag == SKIP_FRAMES)
+        dec_info->status = SKIP_FRAMES_UPDATE_FAIL;
+      else if (dec_info->dec_flag == LOW_LATENCY_MODE)
+        dec_info->status = LOW_LATENCY_MODE_UPDATE_FAIL;
+      dec_info->err_info.code = StatusBadRequest;
+      return false;
     }
   } else {
     g_print ("Unsupported REST API version\n");

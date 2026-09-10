@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,6 +91,11 @@ typedef struct
   gboolean rtsp_reconnect_attempt_exceeded;
   guint simulate_fps_interval_ms;
   guint udp_buffer_size;
+  /** HTTP(S) file-download (curl) timeouts in seconds for nvmultiurisrcbin */
+  guint http_download_timeout;
+  guint http_connect_timeout;
+  /** Max concurrent HTTP(S) downloads for nvmultiurisrcbin (0 = max-batch-size). */
+  guint http_max_concurrent_downloads;
   gboolean sensorIdToPadIdMapping;
   /** Desired input audio rate to nvinferaudio from PGIE config;
    * This config shall be copied over from NvDsGieConfig
@@ -100,6 +105,9 @@ typedef struct
   gchar* alsa_device;
   /** Video format to be applied at nvvideoconvert source pad. */
   gchar* video_format;
+  /** VIA-S-5: publish this source's decoded frames over IPC (sets the
+   * nvurisrcbin/nvmultiurisrcbin `ipc-frame-copy` property). */
+  gboolean ipc_frame_copy;
 } NvDsSourceConfig;
 
 typedef struct NvDsSrcParentBin NvDsSrcParentBin;

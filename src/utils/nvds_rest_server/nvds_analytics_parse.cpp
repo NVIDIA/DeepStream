@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,14 @@ bool
 nvds_rest_analytics_parse (const Json::Value & in, NvDsServerAnalyticsInfo * analytics_info)
 {
   if (analytics_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      analytics_info->analytics_log =
+          "ANALYTICS_UPDATE_FAIL, request body must be a JSON object";
+      analytics_info->status = RELOAD_CONFIG_UPDATE_FAIL;
+      analytics_info->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
 
       std::string root_val = it.key ().asString ().c_str ();
@@ -42,6 +50,12 @@ nvds_rest_analytics_parse (const Json::Value & in, NvDsServerAnalyticsInfo * ana
             return false;
         }
       }
+    }
+    } catch (const std::exception& e) {
+      analytics_info->analytics_log = "ANALYTICS_UPDATE_FAIL, error: " + std::string(e.what());
+      analytics_info->status = RELOAD_CONFIG_UPDATE_FAIL;
+      analytics_info->err_info.code = StatusBadRequest;
+      return false;
     }
   } else {
     g_print ("Unsupported REST API version\n");

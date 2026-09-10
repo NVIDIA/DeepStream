@@ -30,7 +30,7 @@ LIB:=libnvdsgst_metamux.so
 
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.1.1\" \
 	 -I include \
 	 -I ../../../includes
 

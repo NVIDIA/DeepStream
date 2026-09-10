@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,14 @@ nvds_rest_nvtracker_parse (const Json::Value & in, NvDsServerNvTrackerInfo * tra
 {
   if (trackerInfo->uri.find("/api/v1/") != std::string::npos)
   {
+    if (!in.isObject ()) {
+      trackerInfo->nvTracker_log =
+          "NVTRACKER_UPDATE_FAIL, request body must be a JSON object";
+      trackerInfo->status = NVTRACKER_CONFIG_UPDATE_FAIL;
+      trackerInfo->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin(); it != in.end(); ++it)
     {
       std::string root_val = it.key().asString ().c_str();
@@ -51,6 +59,13 @@ nvds_rest_nvtracker_parse (const Json::Value & in, NvDsServerNvTrackerInfo * tra
           return false;
         }
       }
+    }
+    } catch (const std::exception& e) {
+      trackerInfo->nvTracker_log = "NVTRACKER_UPDATE_FAIL, error: "
+                                   + std::string(e.what());
+      trackerInfo->status = NVTRACKER_CONFIG_UPDATE_FAIL;
+      trackerInfo->err_info.code = StatusBadRequest;
+      return false;
     }
   }
   else

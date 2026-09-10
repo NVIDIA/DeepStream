@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1629,8 +1629,21 @@ set_properties_nvuribin (GstElement * element_, NvDsSourceConfig const *config)
     g_object_set (element_, "max-size-buffers", config->max_size_buffers, NULL);
   g_object_set (element_, "buffer-mode", config->buffer_mode,
     NULL);
+  /* HTTP(S) download timeouts apply only to nvmultiurisrcbin; set when present */
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (element_),
+          "http-download-timeout")) {
+    g_object_set (element_, "http-download-timeout",
+        config->http_download_timeout, "http-connect-timeout",
+        config->http_connect_timeout, "http-max-concurrent-downloads",
+        config->http_max_concurrent_downloads, NULL);
+  }
   if (config->loop)
     g_object_set (element_, "file-loop", config->loop, NULL);
+  /* VIA-S-5: enable per-source decoded-frame IPC publish (covers both nvurisrcbin
+   * and nvmultiurisrcbin, which share this setter). Only set when requested so a
+   * multi-source nvmultiurisrcbin is enabled if any source asks for it. */
+  if (config->ipc_frame_copy)
+    g_object_set (element_, "ipc-frame-copy", TRUE, NULL);
   if (config->smart_record)
     g_object_set (element_, "smart-record", config->smart_record, NULL);
   if (config->smart_rec_cache_size)

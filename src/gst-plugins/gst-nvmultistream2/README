@@ -43,24 +43,24 @@ Ensure below order for build
 How to test (Sample Pipeline):
 For X86 device:
 New Muxer
-   $ USE_NEW_NVSTREAMMUX=yes gst-launch-1.0 filesrc location=
-   ~/streams/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder \
+   $ USE_NEW_NVSTREAMMUX=yes gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
+   ! qtdemux ! h264parse ! nvv4l2decoder \
    ! m.sink_0 nvstreammux batch-size=1 name=m ! nvstreamdemux name=d d.src_0 \
    ! nveglglessink
 Old Muxer
-   $ gst-launch-1.0 filesrc location=~/streams/sample_720p.mp4 !
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 !
    qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux \
    name=m width=720 height=480 batch-size=1 ! nvstreamdemux \
    name=d d.src_0 ! nveglglessink
 
 For Jetson device:
 New Muxer
-   $ USE_NEW_NVSTREAMMUX=yes gst-launch-1.0 filesrc location=
-   ~/streams/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder \
+   $ USE_NEW_NVSTREAMMUX=yes gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 \
+   ! qtdemux ! h264parse ! nvv4l2decoder \
    ! m.sink_0 nvstreammux batch-size=1 name=m ! nvstreamdemux name=d d.src_0 \
    ! nv3dsink
 Old Muxer
-   $ gst-launch-1.0 filesrc location=~/streams/sample_720p.mp4 !
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 !
    qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux \
    name=m width=720 height=480 batch-size=1 ! nvstreamdemux \
    name=d d.src_0 ! nv3dsink

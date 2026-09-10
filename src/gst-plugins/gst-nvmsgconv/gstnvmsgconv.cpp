@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1057,6 +1057,70 @@ gst_nvmsgconv_transform_ip_video_audio (GstBaseTransform * trans,
           NvDsEvent *
               eventList = g_new0 (NvDsEvent, g_list_length (user_meta_list));
           guint eventCount = 0;
+          /* wrappers we SYNTHESIZE for provenance user-metas (freed after payload
+           * generation -- the msg2p lib deep-copies what it serializes). Borrowed
+           * NVDS_EVENT_MSG_META entries are freed by their own meta release. */
+          GPtrArray *provMsgs = g_ptr_array_new ();
+
+          /* PASS 1: provenance FIRST. events[0] seeds the payload header, and the
+           * wrapper carries the frame's OWN numeric ids plus the CONSISTENT camera
+           * name -- unlike the app's NVDS_EVENT_MSG_META whose sensor lookup FAILS
+           * for a Shadow lane (its offset source_id has no registered-sensor entry
+           * -> "0"). On a frame with no provenance this pass is a no-op and the app
+           * events below seed the header as before. */
+          {
+            for (l = user_meta_list; l; l = l->next) {
+              user_event_meta = (NvDsUserMeta *) (l->data);
+
+              if (user_event_meta && user_event_meta->base_meta.meta_type ==
+                  NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE &&
+                  user_event_meta->user_meta_data) {
+                InferenceProvenanceMeta *
+                    prov = (InferenceProvenanceMeta *) user_event_meta->user_meta_data;
+                NvDsEventMsgMeta *
+                    provMsg = NULL;
+
+                /* honour the plugin's comp-id filter: the provenance's gie_id IS
+                 * its producing component (lets one msgconv instance publish only
+                 * one A/B arm, exactly like it filters NVDS_EVENT_MSG_META).
+                 * gie_id 0 = PASSTHROUGH (no producing component): it belongs to
+                 * no arm, so every instance publishes it -- filtering it out
+                 * would silently lose the "frame bypassed inference" record. */
+                if (self->compId && prov->gie_id && prov->gie_id != self->compId)
+                  continue;
+
+                provMsg = (NvDsEventMsgMeta *) g_malloc0 (sizeof (NvDsEventMsgMeta));
+                provMsg->type = NVDS_EVENT_CUSTOM;
+                /* NUMERIC identity from the frame -- these DIVERGE for a Shadow
+                 * lane (the restore probe offsets source_id by max_streams, and
+                 * frame_num keeps the combined-mux numbering) and other consumers
+                 * (PERF/tiler/msgbroker) need the frame's own value. */
+                provMsg->sensorId = ((NvDsFrameMeta *) frame_meta)->source_id;
+                provMsg->frameId = (gint) ((NvDsFrameMeta *) frame_meta)->frame_num;
+                /* camera STRING from provenance: it does NOT diverge (same camera
+                 * for both A/B arms), and the sensor-id map has no entry for the
+                 * Shadow lane's OFFSET source_id -- so deriving it from the frame
+                 * yields "0" for Shadow. componentId stays unset (the frame carries
+                 * none; the comp-id filter reads prov->gie_id directly). */
+                provMsg->sensorStr = g_strdup (prov->camera_id[0] ? prov->camera_id
+                    : prov->camera_name);
+                provMsg->ts = (gchar *) g_malloc0 (MAX_TIME_STAMP_LEN + 1);
+                generate_ts_from_frame_ntp (provMsg->ts, MAX_TIME_STAMP_LEN,
+                    ((NvDsFrameMeta *) frame_meta)->ntp_timestamp);
+                /* flat struct -> a plain copy is a complete deep copy */
+                provMsg->extMsg = g_memdup2 (prov, sizeof (InferenceProvenanceMeta));
+                provMsg->extMsgSize = sizeof (InferenceProvenanceMeta);
+
+                eventList[eventCount].eventType = NVDS_EVENT_CUSTOM;
+                eventList[eventCount].metadata = provMsg;
+                eventCount++;
+                g_ptr_array_add (provMsgs, provMsg);
+              }
+            }
+          }
+
+          /* PASS 2: the app's NVDS_EVENT_MSG_META events (their objects). Appended
+           * after provenance so provenance seeds the header (see PASS 1). */
           for (l = user_meta_list; l; l = l->next) {
             user_event_meta = (NvDsUserMeta *) (l->data);
 
@@ -1078,7 +1142,12 @@ gst_nvmsgconv_transform_ip_video_audio (GstBaseTransform * trans,
             guint payloadCount = 0;
             NvDsEventMsgMeta *msg_meta = NULL;
 
-            if (!eventCount || self->dummyPayload) {
+            /* dummy ONLY when nothing else exists (matches the property doc:
+             * "generated if there is no NVDS_EVENT_MSG_META attached"). The old
+             * unconditional overwrite clobbered eventList[0] -- with synthesized
+             * provenance events that silently dropped the frame's (often only)
+             * provenance record whenever dummy-payload was enabled. */
+            if (!eventCount) {
               msg_meta = (NvDsEventMsgMeta *) g_malloc0 (sizeof (NvDsEventMsgMeta));
 
               msg_meta->frameId = ((NvDsFrameMeta *) frame_meta)->frame_num;
@@ -1119,9 +1188,32 @@ gst_nvmsgconv_transform_ip_video_audio (GstBaseTransform * trans,
               g_free(msg_meta);
             }
 
-            if (errcode)
+            if (errcode) {
+              for (guint pi = 0; pi < provMsgs->len; pi++) {
+                NvDsEventMsgMeta *
+                    pm = (NvDsEventMsgMeta *) g_ptr_array_index (provMsgs, pi);
+                g_free (pm->sensorStr);
+                g_free (pm->ts);
+                g_free (pm->extMsg);
+                g_free (pm);
+              }
+              g_ptr_array_free (provMsgs, TRUE);
+              g_free (eventList);
               return GST_FLOW_ERROR;
+            }
           }
+          /* release the synthesized provenance wrappers (generation deep-copied
+           * everything it serialized; the borrowed NVDS_EVENT_MSG_META entries
+           * are NOT ours to free) */
+          for (guint pi = 0; pi < provMsgs->len; pi++) {
+            NvDsEventMsgMeta *
+                pm = (NvDsEventMsgMeta *) g_ptr_array_index (provMsgs, pi);
+            g_free (pm->sensorStr);
+            g_free (pm->ts);
+            g_free (pm->extMsg);
+            g_free (pm);
+          }
+          g_ptr_array_free (provMsgs, TRUE);
           g_free (eventList);
         } else {
           for (l = user_meta_list; l; l = l->next) {

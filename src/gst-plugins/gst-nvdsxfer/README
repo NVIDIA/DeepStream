@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+Refer to the DeepStream SDK documentation for a description of the plugin.
+--------------------------------------------------------------------------------
+Pre-requisites:
+- GStreamer-1.0 Development package
+- GStreamer-1.0 Base Plugins Development package
+
+
+Install gstreamer developement packages using:
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
+
+--------------------------------------------------------------------------------
+Compiling and installing the plugin:
+Export or set in Makefile the appropriate CUDA_VER
+Run make and sudo make install
+
+--------------------------------------------------------------------------------
+Build:
+$ export CUDA_VER=13.2
+$ cd gst-nvdsxfer
+$ make
+$ sudo -E make install
+
+--------------------------------------------------------------------------------
+How to test:
+
+NOTES:
+a) nvdsxfer is currently supported for X86 only. support with "Jetson + dGPU" is not yet enabled.
+b) Multi-dGPUs are connected using NVLINK Bridge Connector.
+   Use below command to confirm the NVLINK state (active/inactive) if ready to use.
+   $ nvidia-smi nvlink -s
+c) nvdsxfer plugin currently verified using 2 separate dGPU (discrete GPUs) only.Below listed gst-launch-1.0
+   pipelines simulates some of the reference usecases pipelines using 2 separate dGPU (discrete GPUs).
+d) Set property p2p_gpu_id=0 if Peer to Peer (P2P) access between discrete GPUs permitted.
+e) If P2P access is not possible then pipeline will fail, remove p2p_gpu_id=0 property
+   to make it run without P2P access.
+f) Below mentioned reference gst-launch-1.0 pipelines uses legacy streammux by default.
+   Use USE_NEW_NVSTREAMMUX=yes along with correponding changes for new streammux properties
+   to use with the gst-launch-1.0 pipelines in case user need to use new streammux gst-plugin.
+g) Below reference gst-launch-1.0 pipelines are not optimal pipelines though can demonstrate
+   nvdsxfer plugin usage for various usecases to achieve better performance and GPU utilization.
+
+Usecases:
+
+1) Single Stream + Multi-dGPUs Setup
+
+A) Running "Decode + StreamMux + PGIE" and "Tracker + SGIE (Multiple)" on separate dGPUs
+
+$ gst-launch-1.0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 nvstreammux name=m batch-size=1 gpu-id=0 \
+width=1920 height=1080 nvbuf-memory-type=2 ! queue ! nvinfer gpu-id=0 batch-size=1 \
+config-file-path=samples/configs/deepstream-app/config_infer_primary.txt ! queue ! \
+nvdsxfer gpu-id=1 p2p_gpu_id=0 ! queue ! nvtracker gpu-id=1  \
+ll-lib-file=lib/libnvds_nvmultiobjecttracker.so ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=2 config-file-path=samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=3 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=4 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! \
+queue ! fpsdisplaysink video-sink=fakesink sync=0 -e -v
+
+B) Running "Decode + StreamMux" and "PGIE + Tracker + SGIE (Multiple)" on separate dGPUs
+
+$ gst-launch-1.0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 nvstreammux name=m batch-size=1 gpu-id=0 \
+width=1920 height=1080 nvbuf-memory-type=2 ! queue ! nvdsxfer gpu-id=1 p2p_gpu_id=0 ! queue ! \
+nvinfer gpu-id=1 batch-size=1 config-file-path= samples/configs/deepstream-app/config_infer_primary.txt ! queue ! \
+nvtracker gpu-id=1  ll-lib-file=lib/libnvds_nvmultiobjecttracker.so \
+ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=2 \
+config-file-path= samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=3 \
+config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=4 \
+config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! queue ! fpsdisplaysink video-sink=fakesink sync=0 -e -v
+
+2) Multiple Streams + Multi-dGPU Setup
+
+A) Running "Multi-instance(4) decode + Streammux + PGIE" on single dGPU and " tracker + SGIE - multiple models" on separate dGPU
+
+$ gst-launch-1.0 nvstreammux name=m batch-size=4 gpu-id=0 width=1920 height=1080 nvbuf-memory-type=2 ! queue ! \
+nvinfer gpu-id=0 batch-size=4 config-file-path=samples/configs/deepstream-app/config_infer_primary.txt ! queue ! \
+nvdsxfer gpu-id=1 p2p_gpu_id=0 ! queue ! nvtracker gpu-id=1  \
+ll-lib-file=lib/libnvds_nvmultiobjecttracker.so ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! queue ! \
+nvinfer gpu-id=1 batch-size=16 unique-id=2 config-file-path=samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! queue ! \
+nvinfer gpu-id=1 batch-size=16 unique-id=3 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! queue ! \
+nvinfer gpu-id=1 batch-size=16 unique-id=4 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! queue ! \
+fpsdisplaysink video-sink=fakesink sync=0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_1 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_2 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_3 -e -v
+
+B) Running "Multi-instance(4) decode + StreamMux" on single-dGPU and "PGIE + Tracker + SGIE(Multiple)" on separate dGPU
+
+$ gst-launch-1.0 nvstreammux name=m batch-size=4 gpu-id=0 width=1920 height=1080 nvbuf-memory-type=2 ! queue ! \
+nvdsxfer gpu-id=1 p2p_gpu_id=0 ! queue ! nvinfer gpu-id=1 batch-size=4 config-file-path=samples/configs/deepstream-app/config_infer_primary.txt ! queue ! \
+nvtracker gpu-id=1  ll-lib-file=lib/libnvds_nvmultiobjecttracker.so \
+ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=2 \
+config-file-path=samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=3 \
+config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! queue ! nvinfer gpu-id=1 batch-size=16 unique-id=4 \
+config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! queue ! fpsdisplaysink video-sink=fakesink sync=0 \
+multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 \
+multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_1 \
+multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_2 \
+multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_3 -e -v
+
+C) Running "Multi-instance(8) decode" on multi-dGPU and "StreamMux + PGIE + Tracker + SGIE(Multiple)" on anyone dGPU
+
+$ gst-launch-1.0 nvstreammux name=m batch-size=8 gpu-id=0 width=1920 height=1080 nvbuf-memory-type=2 ! queue ! nvinfer gpu-id=0 batch-size=8 \
+config-file-path=samples/configs/deepstream-app/config_infer_primary.txt ! queue ! nvtracker gpu-id=0  \
+ll-lib-file=lib/libnvds_nvmultiobjecttracker.so ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! queue ! \
+nvinfer gpu-id=0 batch-size=16 unique-id=2 config-file-path= samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! queue ! \
+nvinfer gpu-id=0 batch-size=16 unique-id=3 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! queue ! \
+nvinfer gpu-id=0 batch-size=16 unique-id=4 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! queue ! \
+fpsdisplaysink video-sink=fakesink sync=0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_1 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_2 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_3 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_4 multifilesrc \
+location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! \
+nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_5 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_6 multifilesrc \
+location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! \
+nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_7 -e -v
+
+D) Running "Multi-instance(8) decode" on multi-dGPU, "StreamMux + PGIE" and  "Tracker + SGIE(Multiple)" on separate dGPU
+
+$ gst-launch-1.0 nvstreammux name=m batch-size=8 gpu-id=0 width=1920 height=1080 nvbuf-memory-type=2 ! queue ! nvinfer gpu-id=0 batch-size=8 \
+config-file-path=samples/configs/deepstream-app/config_infer_primary.txt ! queue ! nvdsxfer gpu-id=1 p2p_gpu_id=0 ! queue ! nvtracker gpu-id=1 \
+ ll-lib-file=lib/libnvds_nvmultiobjecttracker.so ll-config-file=samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=2 config-file-path= samples/configs/deepstream-app/config_infer_secondary_carcolor.txt ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=3 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehiclemake.txt ! \
+queue ! nvinfer gpu-id=1 batch-size=16 unique-id=4 config-file-path=samples/configs/deepstream-app/config_infer_secondary_vehicletypes.txt ! \
+queue ! fpsdisplaysink video-sink=fakesink sync=0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! \
+queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_0 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! \
+queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_1 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! \
+queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_2 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! \
+queue ! nvv4l2decoder gpu-id=0 cudadec-memtype=0 ! queue ! m.sink_3 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! \
+queue ! nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_4 multifilesrc \
+location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! \
+nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_5 multifilesrc location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! \
+nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_6 multifilesrc \
+location=samples/streams/sample_1080p.h265 loop=true ! h265parse ! queue ! nvv4l2decoder gpu-id=1 cudadec-memtype=0 ! queue ! \
+nvdsxfer gpu-id=0 p2p_gpu_id=1 ! queue ! m.sink_7 -e -v
