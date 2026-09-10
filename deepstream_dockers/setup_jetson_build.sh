@@ -27,7 +27,7 @@ cp ./common/files/* ./jetson_dockerfiles/
 
 # ADDVAR99jetson="${ADDVAR99jetson:-$(pwd -P)}"
 
-if [ -z "${ADDVAR99:-}" ]; then
+if [[ -z "${ADDVAR99:-}" ]]; then
   echo "Error: ADDVAR99 is not set" >&2
   exit 1
 fi
@@ -37,10 +37,3 @@ fi
 cp $ADDVAR99/jetson/gst/libgstrtpmanager.so ./jetson_dockerfiles/
 cp $ADDVAR99/jetson/gst/libgstrtsp.so ./jetson_dockerfiles/
 cp $ADDVAR99/jetson/gst/libgstvideoparsersbad.so ./jetson_dockerfiles/
-
-mkdir -p ./jetson_dockerfiles/optel
-
-# echo 'copying open tel *.deb files'
-
-
-cp $ADDVAR99/jetson/optel/* ./jetson_dockerfiles/optel/

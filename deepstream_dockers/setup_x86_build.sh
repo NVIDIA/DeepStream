@@ -35,7 +35,7 @@ cp ./x86_64_specific_files/entrypoint.sh ./x86_dockerfiles/
 
 # ADDVAR99x86="${ADDVAR99x86:-$(pwd -P)}"
 
-if [ -z "${ADDVAR99:-}" ]; then
+if [[ -z "${ADDVAR99:-}" ]]; then
   echo "Error: ADDVAR99 is not set" >&2
   exit 1
 fi
@@ -45,11 +45,5 @@ fi
 cp $ADDVAR99/x86/gst/libgstrtpmanager.so ./x86_dockerfiles/
 cp $ADDVAR99/x86/gst/libgstrtsp.so ./x86_dockerfiles/
 cp $ADDVAR99/x86/gst/libgstvideoparsersbad.so ./x86_dockerfiles/
-
-mkdir -p ./x86_dockerfiles/optel
-
-# echo 'copying open tel *.deb files'
-
-cp $ADDVAR99/x86/optel/* ./x86_dockerfiles/optel/
 
 

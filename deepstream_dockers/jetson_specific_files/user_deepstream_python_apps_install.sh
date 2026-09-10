@@ -42,7 +42,7 @@ while [[ "$#" > 0 ]]; do
     esac
 done
 
-if [ -z "$version" ] && [ -z "$build_bindings" ]; then usage "The version of PyDS to download and install"; fi;
+if [[ -z "$version" ]] && [[ -z "$build_bindings" ]]; then usage "The version of PyDS to download and install"; fi;
 
 cd /opt/nvidia/deepstream/deepstream
 echo "####################################"
@@ -55,7 +55,7 @@ apt install -y python3-gi python3-dev python3-gst-1.0 python-gi-dev git meson \
     libglib2.0-dev-bin libgstreamer1.0-dev libtool m4 autoconf automake libgirepository-2.0-dev libcairo2-dev
 
 cd /opt/nvidia/deepstream/deepstream/sources
-if [ -z "$remote_branch" ]
+if [[ -z "$remote_branch" ]]
 then
     remote_branch="master"
     echo "#################################"
@@ -64,7 +64,7 @@ then
 fi
 
 git clone -b "$remote_branch" https://github.com/NVIDIA-AI-IOT/deepstream_python_apps.git
-if [ $? -eq 0 ]; then
+if [[ $? -eq 0 ]]; then
    echo "deepstream_python_apps cloned successfully from branch $remote_branch"
 else
    echo "deepstream_python_apps clone from branch $remote_branch FAILED! Exiting..."
@@ -79,7 +79,7 @@ pip3 install build
 pip3 install PyGObject
 pip3 install cuda-python
 
-if [ -z "$version" ] && [ $build_bindings == 1 ]
+if [[ -z "$version" ]] && [[ $build_bindings == 1 ]]
 then
     echo "############################"
     echo "Building downloaded bindings"
@@ -100,7 +100,7 @@ then
     echo "Installing built PyDS wheel"
     echo "###########################"
     pip3 install ./pyds-1*_aarch64.whl
-elif [ -z "$build_bindings" ] && [[ ! -z $version ]]
+elif [[ -z "$build_bindings" ]] && [[ ! -z $version ]]
 then
     echo "##############################"
     echo "Pulling PyDS version: $version"
@@ -110,7 +110,7 @@ then
     echo "url"
     echo $URL
     wget "$URL"
-    if [ -f "pyds-$version-cp312-cp312-linux_aarch64.whl" ]
+    if [[ -f "pyds-$version-cp312-cp312-linux_aarch64.whl" ]]
     then
         echo "########################################################"
         echo "Downloaded wheel pyds-$version-cp312-cp312-linux_aarch64.whl"

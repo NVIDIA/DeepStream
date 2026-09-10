@@ -85,6 +85,15 @@ Options:
   --resume                Skip stages already marked complete in build/.stage-state
   --verbose               Show stderr from sub-makes (no 2>/dev/null suppression)
   -j N                    Parallel jobs for make and cmake (default: nproc)
+  --package               After a full build, package the install tree (deb + tar)
+                          into build/ via build/package.sh
+  --package-format=FMT    Package format: deb | tar | both (default: both);
+                          implies --package
+  --deepstream-libraries-wheel[=DIR]
+                          Build the DeepStream Libraries wheel only. DIR defaults
+                          to artifacts/.
+  --deepstream-libraries-wheel-version=VERSION
+                          Set the DeepStream Libraries wheel version (default: 1.4).
 
 Component stages (--only=):
   gst-utils, utils, gst-plugins, sample_apps, tao_apps, reference_apps, service-maker
@@ -110,7 +119,9 @@ Stage state:
   Each completed stage is recorded as "DONE <name>". Without --resume, the
   relevant file is reset before that stage runs. With --resume, completed
   stages are skipped. Sub-stages are managed by scripts/install_artifacts.sh
-  and scripts/install_opensource_deps.sh in their own state files.
+  and scripts/install_opensource_deps.sh in their own state files; those scripts
+  only honor resume when build.sh passes RESUME=1 (from --resume). Running them
+  directly always reinstalls (RESUME defaults to 0).
 
 Artifact install method (--install-method=):
   deb (default)  Download and install prebuilt Debian packages
@@ -118,9 +129,18 @@ Artifact install method (--install-method=):
   tar            Download and extract the deepstream-binaries-* and
                  deepstream-sample-data_* tarballs into the opt install tree.
 
+Packaging (--package / --package-format=):
+  When --package (or --package-format=) is given, a full successful build is
+  followed by build/package.sh, which stages the installed tree and emits a
+  .deb and/or .tar.gz into build/. Skipped for --only= scoped builds.
+  deb   Debian package only.
+  tar   Tarball only.
+  both  Both (default).
+
 Environment variables (alternative to CLI):
-  CUDA_VER                CUDA toolkit version (default: 13.2)
+  CUDA_VER                CUDA toolkit version (default: 13.0 on IGX; 13.2 otherwise)
   NVDS_VERSION            DeepStream install version (default: 9.1)
+  NVDS_ARTIFACT_VERSION   GitHub Release tag / asset-name version (default: 9.1.1)
   INSTALL_METHOD          Artifact install method: deb (default) | tar
   CMAKE_BIN               Path to cmake binary
 
@@ -132,6 +152,11 @@ Examples:
   bash build/build.sh --only=gst-plugins --skip-deps
   bash build/build.sh --only=service-maker -j8
   bash build/build.sh --only=gst-plugins --verbose
+  bash build/build.sh --package
+  bash build/build.sh --package-format=deb
+  bash build/build.sh --deepstream-libraries-wheel
+  bash build/build.sh --deepstream-libraries-wheel=artifacts
+  bash build/build.sh --deepstream-libraries-wheel-version=1.4
   CUDA_VER=13.2 bash build/build.sh --skip-deps
 EOF
 }
@@ -179,6 +204,11 @@ reset_stage_state() {
   : >"$STAGE_STATE_FILE"
 }
 
+is_igx_system() {
+  [[ -r /proc/device-tree/model ]] || return 1
+  [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]
+}
+
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64)  PLATFORM=x86;     CUDA_VER_DEFAULT=13.2 ;;
@@ -193,6 +223,10 @@ case "$ARCH" in
   *)        echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
+if [[ "$PLATFORM" == "aarch64" ]] && is_igx_system; then
+  CUDA_VER_DEFAULT=13.0
+fi
+
 SKIP_DEPS=0
 # SBSA bare-metal DeepStream installation is not supported; artifacts are shipped
 # inside the Docker container only. Skip the artifacts stage automatically on SBSA.
@@ -206,7 +240,13 @@ ONLY_STAGES=()
 JOBS=$(nproc 2>/dev/null || echo 4)
 CUDA_VER=${CUDA_VER:-$CUDA_VER_DEFAULT}
 NVDS_VERSION=${NVDS_VERSION:-9.1}
+NVDS_ARTIFACT_VERSION=${NVDS_ARTIFACT_VERSION:-9.1.1}
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
+DO_PACKAGE=0
+PACKAGE_FORMAT=both
+BUILD_DEEPSTREAM_LIBRARIES_WHEEL=0
+DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT=
+DEEPSTREAM_LIBRARIES_WHEEL_VERSION=1.4
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -229,6 +269,48 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       INSTALL_METHOD="$1"
+      ;;
+    --package)         DO_PACKAGE=1 ;;
+    --deepstream-libraries-wheel)
+      BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
+      ;;
+    --deepstream-libraries-wheel=*)
+      BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
+      DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT="${1#--deepstream-libraries-wheel=}"
+      if [[ -z "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" ]]; then
+        echo "error: --deepstream-libraries-wheel requires a non-empty output directory" >&2
+        exit 1
+      fi
+      ;;
+    --deepstream-libraries-wheel-version=*)
+      BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
+      DEEPSTREAM_LIBRARIES_WHEEL_VERSION="${1#--deepstream-libraries-wheel-version=}"
+      if [[ -z "$DEEPSTREAM_LIBRARIES_WHEEL_VERSION" ]]; then
+        echo "error: --deepstream-libraries-wheel-version requires a non-empty version" >&2
+        exit 1
+      fi
+      ;;
+    --deepstream-libraries-wheel-version)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "error: --deepstream-libraries-wheel-version requires a version" >&2
+        exit 1
+      fi
+      BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
+      DEEPSTREAM_LIBRARIES_WHEEL_VERSION="$1"
+      ;;
+    --package-format=*)
+      DO_PACKAGE=1
+      PACKAGE_FORMAT="${1#--package-format=}"
+      ;;
+    --package-format)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "error: --package-format requires a value (deb | tar | both)" >&2
+        exit 1
+      fi
+      DO_PACKAGE=1
+      PACKAGE_FORMAT="$1"
       ;;
     --only=*)
       IFS=',' read -ra _only_parts <<< "${1#--only=}"
@@ -278,6 +360,23 @@ ARTIFACTS_STAGE_STATE_FILE="$SCRIPT_DIR/.stage-state.artifacts"
 
 # build.sh lives in build/; cd to the repo root so relative paths resolve.
 cd "$SCRIPT_DIR/.."
+ARTIFACTS_DIR="$(pwd)/artifacts"
+
+if [[ "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
+  if [[ -z "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" ]]; then
+    DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT="$(pwd)/artifacts"
+  elif [[ "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" != /* ]]; then
+    DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT="$(pwd)/$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT"
+  fi
+
+  echo "==> Building DeepStream Libraries wheel"
+  (
+    cd deepstream_libraries/build
+    bash build_package.sh "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" \
+      "$DEEPSTREAM_LIBRARIES_WHEEL_VERSION"
+  )
+  exit 0
+fi
 
 want_stage() {
   local stage=$1
@@ -296,6 +395,11 @@ want_stage() {
 case "$INSTALL_METHOD" in
   deb|tar) ;;
   *) echo "error: invalid --install-method '$INSTALL_METHOD' (valid: deb | tar)" >&2; exit 1 ;;
+esac
+
+case "$PACKAGE_FORMAT" in
+  deb|tar|both) ;;
+  *) echo "error: invalid --package-format '$PACKAGE_FORMAT' (valid: deb | tar | both)" >&2; exit 1 ;;
 esac
 
 for s in "${ONLY_STAGES[@]}"; do
@@ -340,76 +444,11 @@ stage_had_failures() {
   [[ "${#FAILED_BUILDS[@]}" -gt "$before" ]]
 }
 
-run_submake() {
-  if [[ "$VERBOSE" -eq 1 ]]; then
-    run_as_root make -j"$JOBS" "$@"
-  else
-    run_submake_quiet "$@"
-  fi
-}
-
-run_submake_quiet() {
-  run_as_root make -j"$JOBS" "$@" 2>/dev/null
-}
-
-run_user_make() {
-  if [[ "$VERBOSE" -eq 1 ]]; then
-    make -j"$JOBS" "$@"
-  else
-    make -j"$JOBS" "$@" 2>/dev/null
-  fi
-}
-
-# Extra make flags for SBSA
-PLATFORM_MAKE_FLAGS=
-[[ "$PLATFORM" = "sbsa" ]] && PLATFORM_MAKE_FLAGS="AARCH64_IS_SBSA=1"
-
-CMAKE_BIN=$(find_cmake)
-SM_APP_BUILD=/tmp/ds-sm-apps-$(id -un)
-SM_MOD_BUILD=/tmp/ds-sm-modules-$(id -un)
-
-BUILD_LOG="$SCRIPT_DIR/build.log"
-: >"$BUILD_LOG"
-exec > >(tee "$BUILD_LOG") 2>&1
-
-echo "==> Build log: $BUILD_LOG (overwritten each run)"
-echo "==> Building PLATFORM=$PLATFORM CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION (outputs to /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/)"
-echo "==> Using cmake: $CMAKE_BIN (jobs: $JOBS)"
-if [[ ${#ONLY_STAGES[@]} -gt 0 ]]; then
-  echo "==> Scoped build: ${ONLY_STAGES[*]}"
-fi
-if [[ "$SKIP_DEPS" -eq 1 ]]; then
-  echo "==> Skipping deps stage (--skip-deps; $DEPS_STAGE_STATE_FILE is unchanged)"
-fi
-if [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
-  if [[ "$PLATFORM" = "sbsa" ]]; then
-    echo "==> Skipping artifacts stage (SBSA: bare-metal DS installation not supported; use Docker)"
-  else
-    echo "==> Skipping artifacts stage (--skip-artifacts; $ARTIFACTS_STAGE_STATE_FILE is unchanged)"
-  fi
-else
-  echo "==> Artifact install method: $INSTALL_METHOD (override with --install-method=deb|tar)"
-fi
-if [[ "$RESUME" -eq 1 ]]; then
-  echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
-fi
-
-MK="CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION $PLATFORM_MAKE_FLAGS"
-FAILED_BUILDS=()
-
-DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
-ARTIFACTS_DIR="$(pwd)/artifacts"
-
 # Release assets are fetched from the DeepStream GitHub release into ARTIFACTS_DIR.
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_VERSION}.0"
+GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_ARTIFACT_VERSION}"
 # Track what we downloaded so it can be cleaned up after a successful build.
 DOWNLOADED_ASSETS=()
 ARTIFACTS_DIR_CREATED=0
-
-finalize_install() {
-  echo "==> Running install.sh (NVDS_VERSION=$NVDS_VERSION)"
-  run_as_root env NVDS_VERSION="$NVDS_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
-}
 
 # Download a single release asset into ARTIFACTS_DIR (skip if already present).
 download_asset() {
@@ -441,17 +480,17 @@ download_asset() {
 download_release_assets() {
   local sample_asset binaries_asset
   if [[ "$INSTALL_METHOD" == "deb" ]]; then
-    sample_asset="deepstream-sample-data_${NVDS_VERSION}.0.deb"
+    sample_asset="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.deb"
     case "$PLATFORM" in
-      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_VERSION}.0_amd64.deb" ;;
-      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_VERSION}.0_arm64.deb" ;;
+      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_ARTIFACT_VERSION}_amd64.deb" ;;
+      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_ARTIFACT_VERSION}_arm64.deb" ;;
       *) echo "error: unsupported platform for asset download: $PLATFORM" >&2; exit 1 ;;
     esac
   else
-    sample_asset="deepstream-sample-data_${NVDS_VERSION}.0.tar.gz"
+    sample_asset="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.tar.gz"
     case "$PLATFORM" in
-      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_VERSION}.0.tar.gz" ;;
-      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_VERSION}.0.tar.gz" ;;
+      x86)     binaries_asset="deepstream-binaries-x86_${NVDS_ARTIFACT_VERSION}.tar.gz" ;;
+      aarch64) binaries_asset="deepstream-binaries-aarch64_${NVDS_ARTIFACT_VERSION}.tar.gz" ;;
       *) echo "error: unsupported platform for asset download: $PLATFORM" >&2; exit 1 ;;
     esac
   fi
@@ -488,6 +527,86 @@ cleanup_downloaded_assets() {
   fi
 }
 
+run_submake() {
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    run_as_root make -j"$JOBS" "$@"
+  else
+    run_submake_quiet "$@"
+  fi
+}
+
+run_submake_quiet() {
+  run_as_root make -j"$JOBS" "$@" 2>/dev/null
+}
+
+run_user_make() {
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    make -j"$JOBS" "$@"
+  else
+    make -j"$JOBS" "$@" 2>/dev/null
+  fi
+}
+
+# Extra make flags for SBSA
+PLATFORM_MAKE_FLAGS=
+[[ "$PLATFORM" = "sbsa" ]] && PLATFORM_MAKE_FLAGS="AARCH64_IS_SBSA=1"
+
+CMAKE_BIN=$(find_cmake)
+# Scratch build trees are kept across runs so cmake can build incrementally.
+# /tmp is sticky, so a fixed path is unusable once another account (or an
+# earlier "sudo build.sh") owns it: the stale-cache guard below cannot remove
+# what it does not own. Scope the paths by uid so each account gets its own.
+SM_SCRATCH_ID=$(id -u)
+SM_APP_BUILD=${TMPDIR:-/tmp}/ds-sm-apps-$SM_SCRATCH_ID
+SM_MOD_BUILD=${TMPDIR:-/tmp}/ds-sm-modules-$SM_SCRATCH_ID
+SM_PYTHON_BUILD=${TMPDIR:-/tmp}/ds-sm-python-$SM_SCRATCH_ID
+
+BUILD_LOG="$SCRIPT_DIR/build.log"
+: >"$BUILD_LOG"
+exec > >(tee "$BUILD_LOG") 2>&1
+
+echo "==> Build log: $BUILD_LOG (overwritten each run)"
+echo "==> Building PLATFORM=$PLATFORM CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION (outputs to /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/)"
+echo "==> Using cmake: $CMAKE_BIN (jobs: $JOBS)"
+if [[ ${#ONLY_STAGES[@]} -gt 0 ]]; then
+  echo "==> Scoped build: ${ONLY_STAGES[*]}"
+fi
+if [[ "$SKIP_DEPS" -eq 1 ]]; then
+  echo "==> Skipping deps stage (--skip-deps; $DEPS_STAGE_STATE_FILE is unchanged)"
+fi
+if [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
+  if [[ "$PLATFORM" = "sbsa" ]]; then
+    echo "==> Skipping artifacts stage (SBSA: bare-metal DS installation not supported; use Docker)"
+  else
+    echo "==> Skipping artifacts stage (--skip-artifacts; $ARTIFACTS_STAGE_STATE_FILE is unchanged)"
+  fi
+else
+  echo "==> Artifact install method: $INSTALL_METHOD (override with --install-method=deb|tar)"
+  echo "==> Artifact version pinned to $NVDS_ARTIFACT_VERSION"
+fi
+if [[ "$RESUME" -eq 1 ]]; then
+  echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
+fi
+
+MK="CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION $PLATFORM_MAKE_FLAGS"
+FAILED_BUILDS=()
+
+DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
+
+finalize_install() {
+  echo "==> Running install.sh (NVDS_VERSION=$NVDS_VERSION)"
+  run_as_root env NVDS_VERSION="$NVDS_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
+}
+
+# Package the freshly installed tree into a Debian package and/or tarball via
+# build/package.sh. Runs only for full builds and only when the user opts in
+# with --package / --package-format. Artifacts are written to build/.
+run_package() {
+  echo "==> Packaging DeepStream (format=$PACKAGE_FORMAT) via build/package.sh"
+  env NVDS_VERSION="$NVDS_ARTIFACT_VERSION" \
+    bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT"
+}
+
 # ---------------------------------------------------------------------------
 # Stage: artifacts (proprietary libs + sample payloads)
 # ---------------------------------------------------------------------------
@@ -497,11 +616,12 @@ if [[ "$SKIP_ARTIFACTS" -eq 0 ]] && begin_stage "$ARTIFACTS_STAGE"; then
     : >"$ARTIFACTS_STAGE_STATE_FILE"
   fi
   download_release_assets
-  run_as_root env NVDS_VERSION="$NVDS_VERSION" PLATFORM="$PLATFORM" \
+  run_as_root env NVDS_VERSION="$NVDS_VERSION" NVDS_ARTIFACT_VERSION="$NVDS_ARTIFACT_VERSION" PLATFORM="$PLATFORM" \
     INSTALL_METHOD="$INSTALL_METHOD" \
     ARTIFACTS_DIR="$ARTIFACTS_DIR" \
     ARTIFACTS_STAGE_STATE_FILE="$ARTIFACTS_STAGE_STATE_FILE" \
     bash "$SCRIPT_DIR/../scripts/install_artifacts.sh"
+
   finish_stage "$ARTIFACTS_STAGE"
 fi
 
@@ -515,6 +635,7 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
   fi
   run_as_root env NVDS_VERSION="$NVDS_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
+    RESUME="$RESUME" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
   finish_stage "$DEPS_STAGE"
 fi
@@ -524,10 +645,19 @@ fi
 # ---------------------------------------------------------------------------
 if begin_stage gst-utils; then
   _fb_before=${#FAILED_BUILDS[@]}
+  # Order matters: libnvds_meta and libnvds_stats no longer ship in the
+  # prebuilt artifacts, so the leaf utils that provide them must be built here
+  # even though the utils stage — which runs later — builds them again.
+  # gst-nvdsmeta then supplies libnvdsgst_meta for gstnvdscustomhelper, and
+  # nvds_rest_server comes last since it needs both libnvds_stats and
+  # libnvdsgst_customhelper.
   for dir in \
     src/gst-utils/gstnvcustomhelper \
     src/gst-utils/gst-nvdssr \
-    src/gst-utils/gstnvdscustomhelper\
+    src/utils/nvdsmeta \
+    src/utils/nvds_stats \
+    src/gst-utils/gst-nvdsmeta \
+    src/gst-utils/gstnvdscustomhelper \
     src/utils/nvds_rest_server; do
     if run_submake -C "$dir" $MK; then
       run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
@@ -535,6 +665,16 @@ if begin_stage gst-utils; then
       FAILED_BUILDS+=("$dir")
     fi
   done
+  if [[ "$PLATFORM" == "aarch64" ]]; then
+    dir=src/gst-utils/gst-nvipcmeta
+    if run_submake -C "$dir" $MK; then
+      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    else
+      FAILED_BUILDS+=("$dir")
+    fi
+  else
+    echo "Skipping gst-nvipcmeta on $PLATFORM (Jetson/aarch64 only)"
+  fi
   if ! stage_had_failures "$_fb_before"; then
     finish_stage gst-utils
   fi
@@ -545,6 +685,22 @@ fi
 # ---------------------------------------------------------------------------
 if begin_stage utils; then
   _fb_before=${#FAILED_BUILDS[@]}
+  # The plain glob below is alphabetical, which puts some consumers ahead of the
+  # leaf libraries they link against (nvdsinfer/nvdsinferserver need
+  # libnvds_meta and libnvds_inferlogger; nvds_rest_server needs libnvds_stats;
+  # nvll_osd needs libnvds_utils; nvmsgbroker needs libnvds_logger). Those libs
+  # used to be satisfied by the prebuilt artifacts; now that they are built
+  # from source they must come first.
+  for leaf in nvdsmeta nvdsinfer_logger nvds_logger nvds_stats nvdsutils nvtx_helper; do
+    dir="src/utils/$leaf"
+    [[ -f "$dir/Makefile" ]] || continue
+    if run_submake -C "$dir" $MK; then
+      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    else
+      FAILED_BUILDS+=("$dir")
+    fi
+  done
+
   for dir in src/utils/*/; do
     [[ -f "$dir/Makefile" ]] || continue
     # nvstreammux has no install target; skip install step for it
@@ -595,6 +751,19 @@ if begin_stage utils; then
       done
     fi
   done
+
+  # gst-nvdsinferbase links against nvdsinfer utils (-lnvds_infer,
+  # -lnvds_inferlogger, …) so it must build after the utils stage.
+  if [[ -f src/gst-utils/gst-nvdsinferbase/Makefile ]]; then
+    echo "Building deferred gst-nvdsinferbase (depends on nvdsinfer utils)"
+    if run_submake -C src/gst-utils/gst-nvdsinferbase $MK; then
+      run_submake -C src/gst-utils/gst-nvdsinferbase $MK install \
+        || FAILED_BUILDS+=("src/gst-utils/gst-nvdsinferbase (install)")
+    else
+      FAILED_BUILDS+=("src/gst-utils/gst-nvdsinferbase")
+    fi
+  fi
+
   if ! stage_had_failures "$_fb_before"; then
     finish_stage utils
   fi
@@ -608,9 +777,22 @@ if begin_stage gst-plugins; then
   run_as_root mkdir -p "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/gst-plugins/"
   for dir in src/gst-plugins/*/; do
     plugin=$(basename "$dir")
-    if [[ "$plugin" == "gst-nvdsudp" || "$plugin" == "gst-dsexample-cuda" ]]; then
-      echo "Skipping $plugin (see its README for build steps)"
+    # Built last: depends on other gst-plugins (infer, tracker, osd, tiler, …).
+    if [[ "$plugin" == "gst-nvdsudp" || "$plugin" == "gst-dsexample-cuda" || "$plugin" == "gst-nvdsbins" ]]; then
+      if [[ "$plugin" == "gst-nvdsbins" ]]; then
+        echo "Deferring $plugin (depends on other gst-plugins)"
+      else
+        echo "Skipping $plugin (see its README for build steps)"
+      fi
       continue
+    fi
+    if [[ "$PLATFORM" != "x86" ]]; then
+      case "$plugin" in
+        gst-nvblender|gst-nvbufferpool|gst-nvbufsurfacewrite|gst-nvdsucx|gst-nvdsxfer)
+          echo "Skipping $plugin on $PLATFORM (x86 only)"
+          continue
+          ;;
+      esac
     fi
     if run_submake -C "$dir" $MK; then
       run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
@@ -636,6 +818,15 @@ if begin_stage gst-plugins; then
       FAILED_BUILDS+=("$sublib_dir")
     fi
   done
+  # gst-nvdsbins links against sibling plugins (msgbroker, infer, tracker,
+  # osd, tiler, …) so it must build after they are installed.
+  if [[ -f src/gst-plugins/gst-nvdsbins/Makefile ]]; then
+    if run_submake -C src/gst-plugins/gst-nvdsbins $MK; then
+      run_submake -C src/gst-plugins/gst-nvdsbins $MK install || FAILED_BUILDS+=("src/gst-plugins/gst-nvdsbins (install)")
+    else
+      FAILED_BUILDS+=("src/gst-plugins/gst-nvdsbins")
+    fi
+  fi
   if ! stage_had_failures "$_fb_before"; then
     finish_stage gst-plugins
   fi
@@ -772,6 +963,20 @@ fi
 # ---------------------------------------------------------------------------
 if begin_stage service-maker; then
   _fb_before=${#FAILED_BUILDS[@]}
+  # The core library and its static helper archive must be built and installed
+  # before anything that links against them: the engine (ds-launch) below, and
+  # the modules and apps that resolve them via find_package().
+  for dir in \
+    src/service-maker/sources/core/src/gst/utils \
+    src/service-maker/sources/core \
+    src/service-maker/sources/engine; do
+    if run_submake -C "$dir" $MK; then
+      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    else
+      FAILED_BUILDS+=("$dir")
+    fi
+  done
+
   SM_BIN_INSTALL=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin
   for dir in src/service-maker/sources/apps/cpp/*/; do
     app=$(basename "$dir")
@@ -801,6 +1006,10 @@ if begin_stage service-maker; then
   run_as_root mkdir -p "$SM_MODULES_INSTALL"
   for dir in src/service-maker/sources/modules/*/; do
     mod=$(basename "$dir")
+    # Not every module is a cmake target: modules/probe/ ships interpreted
+    # Python probes, installed separately below. Skip anything without a
+    # CMakeLists.txt rather than failing its configure step.
+    [[ -f "$dir/CMakeLists.txt" ]] || continue
     # Drop a stale build dir whose cache was generated from a different source
     # path (e.g. the repo moved/renamed); otherwise cmake refuses to reconfigure.
     cache="$SM_MOD_BUILD/$mod/CMakeCache.txt"
@@ -818,6 +1027,48 @@ if begin_stage service-maker; then
     run_as_root cp -v "$SM_MOD_BUILD/$mod/lib${mod}.so" "$SM_MODULES_INSTALL/" \
       || FAILED_BUILDS+=("$dir (install lib${mod}.so)")
   done
+
+  # Python probe modules need no build step, but the sample apps add this
+  # directory to sys.path to import them, so install them alongside the
+  # compiled modules. package.sh stages service-maker/ from the install tree,
+  # so this is what lands in the deb/tarball too.
+  SM_PY_MODULES_SRC=src/service-maker/sources/modules/probe/python
+  if [[ -d "$SM_PY_MODULES_SRC" ]]; then
+    run_as_root mkdir -p "$SM_MODULES_INSTALL/python"
+    run_as_root cp -v "$SM_PY_MODULES_SRC"/*.py "$SM_PY_MODULES_SRC"/README \
+      "$SM_MODULES_INSTALL/python/" \
+      || FAILED_BUILDS+=("$SM_PY_MODULES_SRC (install python probes)")
+  fi
+
+  # Build the pyservicemaker wheel last: its extension module links the core
+  # library installed above. scripts/install.sh pip-installs the wheel from
+  # SM_PYTHON_INSTALL, replacing the prebuilt one shipped by the artifacts stage.
+  SM_PYTHON_INSTALL=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/service-maker/python
+  run_as_root mkdir -p "$SM_PYTHON_INSTALL"
+  rm -rf "$SM_PYTHON_BUILD" && mkdir -p "$SM_PYTHON_BUILD"
+  bash src/service-maker/sources/python/build.sh --output-dir "$SM_PYTHON_BUILD" || true
+  # sources/python/build.sh does not set -e and ends in an echo, so it can exit 0
+  # even when python -m build failed. Check for the wheel itself rather than
+  # trusting the exit status, otherwise a build failure is misreported below as
+  # an install failure.
+  SM_WHEEL=$(ls "$SM_PYTHON_BUILD"/pyservicemaker-*.whl 2>/dev/null | head -1)
+  if [[ -z "$SM_WHEEL" ]]; then
+    FAILED_BUILDS+=("src/service-maker/sources/python (wheel build)")
+  elif ! run_as_root cp -v "$SM_WHEEL" "$SM_PYTHON_INSTALL/"; then
+    FAILED_BUILDS+=("src/service-maker/sources/python (install wheel)")
+  else
+    # Install the wheel for whoever invoked the build as well. scripts/install.sh
+    # runs as root, so its pip install lands in the system dist-packages; a
+    # pre-existing copy in the invoking user's site-packages takes precedence
+    # over that and would silently keep stale bindings loaded.
+    if ! python3 -m pip install --force-reinstall --break-system-packages \
+         "$SM_WHEEL" >/dev/null 2>&1; then
+      echo "    WARNING: could not pip-install the wheel for $(id -un);" >&2
+      echo "             run: python3 -m pip install --force-reinstall \\" >&2
+      echo "                  --break-system-packages $SM_PYTHON_INSTALL/$(basename "$SM_WHEEL")" >&2
+    fi
+  fi
+
   if ! stage_had_failures "$_fb_before"; then
     finish_stage service-maker
   fi
@@ -836,11 +1087,18 @@ fi
 
 if [[ ${#ONLY_STAGES[@]} -gt 0 ]]; then
   echo "==> Scoped build (--only): skipping install.sh (run a full build to finalize system integration)"
+  if [[ "$DO_PACKAGE" -eq 1 ]]; then
+    echo "==> Scoped build (--only): skipping packaging (run a full build to package)"
+  fi
   echo "==> Done (scoped build succeeded: ${ONLY_STAGES[*]})"
   exit 0
 fi
 
 finalize_install
+
+if [[ "$DO_PACKAGE" -eq 1 ]]; then
+  run_package
+fi
 
 cleanup_downloaded_assets
 
