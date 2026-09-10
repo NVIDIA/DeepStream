@@ -91,6 +91,7 @@ update-alternatives --remove deepstream-nmos-app /opt/nvidia/deepstream/deepstre
 update-alternatives --remove deepstream-server-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-server-app
 update-alternatives --remove deepstream-demuxer-static /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-static
 update-alternatives --remove deepstream-demuxer-dynamic /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-dynamic
+update-alternatives --remove deepstream-kitti-overlay /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-kitti-overlay
 update-alternatives --remove service-maker-3d-action-recognition-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-3d-action-recognition-app
 update-alternatives --remove service-maker-appsrc-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-appsrc-test
 update-alternatives --remove service-maker-sr-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-sr-test-app
@@ -99,7 +100,12 @@ update-alternatives --remove service-maker-test2-app /opt/nvidia/deepstream/deep
 update-alternatives --remove service-maker-test3-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test3-app
 update-alternatives --remove service-maker-test4-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test4-app
 update-alternatives --remove service-maker-test5-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test5-app
-pip uninstall pyservicemaker -y --break-system-packages
+update-alternatives --remove ds-launch /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/ds-launch
+# Uninstall with python3 -m pip for the same reason install.sh installs with it:
+# a 'pip' resolved from PATH may belong to a different interpreter than the one
+# the wheel was installed for, in which case the uninstall removes nothing and
+# reports the package as absent.
+python3 -m pip uninstall pyservicemaker -y --break-system-packages
 
 # Delete the installed files first, then deregister the Debian packages. Doing
 # the rm -rf up front leaves dpkg nothing to complain about (e.g. "directory not

@@ -36,7 +36,11 @@
 #
 # Environment:
 #   INSTALL_METHOD            deb (default) | tar
-#   NVDS_VERSION              DeepStream version (default: 9.1)
+#   NVDS_VERSION              DeepStream install version (default: 9.1); the
+#                             install tree uses MAJOR.MINOR only
+#   NVDS_ARTIFACT_VERSION     GitHub Release tag / asset-name version (default:
+#                             9.1.1); the proprietary-libs and sample-data
+#                             assets are published under this full version
 #   PLATFORM                  x86 | aarch64 | sbsa (auto-detected if unset)
 #   ARTIFACTS_DIR             Local artifacts directory (default: <repo>/artifacts)
 #   ARTIFACTS_STAGE_STATE_FILE Stage resume file (default: build/.stage-state.artifacts)
@@ -47,6 +51,7 @@ set -e
 
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 NVDS_VERSION=${NVDS_VERSION:-9.1}
+NVDS_ARTIFACT_VERSION=${NVDS_ARTIFACT_VERSION:-9.1.1}
 INSTALL_ROOT=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}
 DEEPSTREAM_BASE=/opt/nvidia/deepstream
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -82,12 +87,12 @@ if [[ -z "${PLATFORM:-}" ]]; then
 fi
 
 # Tarball names mirror the .deb names (minus the arch/_all suffix).
-PROPRIETARY_TAR_NAME="deepstream-binaries-${PLATFORM}_${NVDS_VERSION}.0.tar.gz"
-GITHUB_RELEASE_URL="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_VERSION}.0/${PROPRIETARY_TAR_NAME}"
+PROPRIETARY_TAR_NAME="deepstream-binaries-${PLATFORM}_${NVDS_ARTIFACT_VERSION}.tar.gz"
+GITHUB_RELEASE_URL="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_ARTIFACT_VERSION}/${PROPRIETARY_TAR_NAME}"
 
 # Debian package name globs (version/arch are baked in at build time).
 PROPRIETARY_DEB_GLOB="deepstream-binaries-${PLATFORM}_*.deb"
-SAMPLE_TAR_NAME="deepstream-sample-data_${NVDS_VERSION}.0.tar.gz"
+SAMPLE_TAR_NAME="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.tar.gz"
 SAMPLE_DEB_GLOB="deepstream-sample-data_*.deb"
 
 # Exact deb/tar names and GitHub Release download URLs for each artifact.
@@ -96,9 +101,9 @@ case "$PLATFORM" in
   aarch64) DEB_ARCH=arm64 ;;
   *)       DEB_ARCH=unknown ;;
 esac
-PROPRIETARY_DEB_NAME="deepstream-binaries-${PLATFORM}_${NVDS_VERSION}.0_${DEB_ARCH}.deb"
-SAMPLE_DEB_NAME="deepstream-sample-data_${NVDS_VERSION}.0.deb"
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_VERSION}.0"
+PROPRIETARY_DEB_NAME="deepstream-binaries-${PLATFORM}_${NVDS_ARTIFACT_VERSION}_${DEB_ARCH}.deb"
+SAMPLE_DEB_NAME="deepstream-sample-data_${NVDS_ARTIFACT_VERSION}.deb"
+GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${NVDS_ARTIFACT_VERSION}"
 GITHUB_RELEASE_DEB_URL="${GITHUB_RELEASE_BASE}/${PROPRIETARY_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_DEB_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_TAR_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_TAR_NAME}"

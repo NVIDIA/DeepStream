@@ -65,13 +65,45 @@ The output result will output to `yolo.mp4`
 
 #### YOLOv8
 ##### 1. Run on GPU with int8 precision with calibrated model(GPU Only)
+- Generate QDQ model with ONNX model and QDQ calibration data in [model-list](../README.md#model-list)
+
+  * Create and activate the python virtual environment if work in host, this step can be skipped if working inside DeepStream docker container or already work inside python virtual environmen.
+  ```bash
+    python3 -m venv --system-site-packages .venv
+    source .venv/bin/activate
+   python -m pip install --upgrade pip
+  ```
+
+  `--system-site-packages` reuses the OS TensorRT Python package in host.
+
+  * Install the required packages
+
+  Match `cuda-python` to the installed CUDA toolkit (for example **CUDA 13.2** → `cuda-python==13.2.0`):
+  ```bash
+  python -m pip install \
+    "onnx>=1.16" \
+    "cuda-python==13.2.0"
+  ```
+
+  * Insert QDQ from calib cache to generate QDQ ONNX model
+
+  ```bash
+  python insert_qdq_from_calib_cache.py \
+    --input yolov8s_640_dynamic.onnx \
+    --cache yolov8s_gpu_precision_config_calib.cache \
+    --output yolov8s_640_dynamic_qdq.onnx
+  ```
+
 - Convert model with trtexec
 
-  The model can be found in [model-list](../README.md#model-list)
+  The INT8 engine should be generated from QDQ ONNX model
 
   ```bash
   # batchsize = 16
-  $ /usr/src/tensorrt/bin/trtexec --onnx=yolov8s_640_dynamic.onnx --fp16 --verbose --saveEngine=yolov8s_640_dynamic.onnx_b16.engine --minShapes=x.1:16x3x640x640 --optShapes=x.1:16x3x640x640 --maxShapes=x.1:16x3x640x640
+  /usr/src/tensorrt/bin/trtexec --onnx=yolov8s_640_dynamic_qdq.onnx --stronglyTyped \
+    --separateProfileRun --profilingVerbosity=detailed --verbose \
+    --saveEngine=yolov8s_640_dynamic_qdq.onnx_b16_gpu0_int8.engine \
+    --minShapes=x.1:16x3x640x640 --optShapes=x.1:16x3x640x640 --maxShapes=x.1:16x3x640x640
   ```
 
 - Enable the configure on config files, edit [deepstream_app_config_yolo.txt](./deepstream_app_config_yolo.txt)

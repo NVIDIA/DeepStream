@@ -27,12 +27,24 @@
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  x86 v2.67.0 nv26.03 / aarch64 v2.68.0 nv26.04 (zip) -> /opt/tritonclient
 #   protobuf compiler  v3.21.12           -> /opt/proto
-#   apt packages: libpango, libcairo, libjson-glib, librabbitmq, librdkafka, etc.
+#   pybind11           v2.12.0 (headers)  -> /opt/pybind11
+#   dlpack             v0.8    (headers)  -> /opt/dlpack
+#   apt packages: python3-build, python3-venv, python3-setuptools, python3-wheel
+#                 (needed by sources/python/build.sh to produce the wheel)
+#   apt packages: libpango, libcairo, libjson-glib, librabbitmq, librdkafka,
+#                 libboost-dev, openucx/libucx-dev (prefer 1.13.1), etc.
 #   mosquitto (from PPA)
 #
 # Usage:
 #   sudo PLATFORM=x86 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.1]
 #   sudo PLATFORM=aarch64 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.1]
+#   sudo PLATFORM=sbsa bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.1]
+#     (SBSA/DGX Spark Docker: stages 1–3 and 5–7 skipped; azure-iot still built)
+#
+# Environment:
+#   RESUME=1                  Skip stages already marked DONE (used by build.sh --resume).
+#                             Default 0: always rebuild/install; stage state is reset first.
+#   DEPS_STAGE_STATE_FILE     Stage resume file (default: build/.stage-state.deps)
 
 set -e
 
@@ -43,6 +55,7 @@ INSTALL_DIR=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
 BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 STAGE_STATE_FILE="${DEPS_STAGE_STATE_FILE:-$SCRIPT_DIR/../build/.stage-state.deps}"
+RESUME=${RESUME:-0}
 
 # Detect platform if not passed via environment
 if [[ -z "${PLATFORM:-}" ]]; then
@@ -62,6 +75,8 @@ fi
 
 stage_is_done() {
   local stage=$1
+  # Manual / non-resume runs always execute; skip only when RESUME=1 (build.sh --resume).
+  [[ "$RESUME" -eq 1 ]] || return 1
   [[ -f "$STAGE_STATE_FILE" ]] && grep -qx "DONE ${stage}" "$STAGE_STATE_FILE"
 }
 
@@ -86,6 +101,13 @@ echo "==> Installing open-source DeepStream dependencies"
 echo "    Install dir : $INSTALL_DIR"
 echo "    Build root  : $BUILD_ROOT"
 echo "    Stage state : $STAGE_STATE_FILE"
+echo "    Resume      : $RESUME"
+
+# Standalone / non-resume runs always rebuild; reset stage markers first.
+if [[ "$RESUME" -eq 0 ]]; then
+  mkdir -p "$(dirname "$STAGE_STATE_FILE")"
+  : >"$STAGE_STATE_FILE"
+fi
 
 mkdir -p "$INSTALL_DIR"
 
@@ -93,7 +115,10 @@ mkdir -p "$INSTALL_DIR"
 # 1. opentelemetry-cpp v1.23.0
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-opentelemetry; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- opentelemetry-cpp v1.23.0 (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-opentelemetry
+elif stage_is_done deps-opentelemetry; then
   echo "--- opentelemetry-cpp v1.23.0 (skipped, already DONE) ---"
 else
   echo "--- opentelemetry-cpp v1.23.0 ---"
@@ -140,7 +165,10 @@ fi
 # 2. civetweb v1.16
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-civetweb; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- civetweb v1.16 (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-civetweb
+elif stage_is_done deps-civetweb; then
   echo "--- civetweb v1.16 (skipped, already DONE) ---"
 else
   CIVETWEB_DIR=$BUILD_ROOT/civetweb
@@ -168,7 +196,10 @@ fi
 # 3. prometheus-cpp v1.2.4
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-prometheus; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- prometheus-cpp v1.2.4 (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-prometheus
+elif stage_is_done deps-prometheus; then
   echo "--- prometheus-cpp v1.2.4 (skipped, already DONE) ---"
 else
   echo "--- prometheus-cpp v1.2.4 ---"
@@ -228,7 +259,10 @@ fi
 # 5. Half v2.1.0
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-half; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- Half v2.1.0 (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-half
+elif stage_is_done deps-half; then
   echo "--- Half v2.1.0 (skipped, already DONE) ---"
 else
   echo "--- Half v2.1.0 ---"
@@ -244,7 +278,10 @@ fi
 # 6. Triton client SDK (x86 v2.67.0 nv26.03 / aarch64 v2.68.0 nv26.04)
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-tritonclient; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- Triton client SDK (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-tritonclient
+elif stage_is_done deps-tritonclient; then
   echo "--- Triton client SDK (skipped, already DONE) ---"
 else
   echo "--- Triton client SDK (PLATFORM=$PLATFORM) ---"
@@ -263,9 +300,9 @@ else
     mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
     rm -rf /tmp/tritonclient-sdk "/tmp/${TRITON_SDK_ZIP}"
   else
-    # aarch64 / SBSA: download the prebuilt aarch64 Triton SDK zip (same flow as
-    # x86). lib64 -> lib so consumers see a single lib dir. The public asset name
-    # uses an underscore (tritonserver_sdk) plus a release build id.
+    # aarch64 (Jetson): download the prebuilt aarch64 Triton SDK zip (same flow
+    # as x86). lib64 -> lib so consumers see a single lib dir. The public asset
+    # name uses an underscore (tritonserver_sdk) plus a release build id.
     TRITON_SDK_ZIP=tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
     wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.68.0/${TRITON_SDK_ZIP}
     rm -rf /tmp/tritonclient-sdk
@@ -282,7 +319,10 @@ fi
 # 7. Protobuf compiler v3.21.12
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-protoc; then
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "--- Protobuf compiler v3.21.12 (skipped, preinstalled on SBSA) ---"
+  mark_stage_done deps-protoc
+elif stage_is_done deps-protoc; then
   echo "--- Protobuf compiler v3.21.12 (skipped, already DONE) ---"
 else
   echo "--- Protobuf compiler v3.21.12 (PLATFORM=$PLATFORM) ---"
@@ -309,12 +349,26 @@ if stage_is_done deps-apt-libs; then
 else
   echo "--- APT library dependencies ---"
   apt-get update
+  # OpenUCX: prefer v1.13.1 when that version is present in apt; otherwise
+  # install the distro candidate (DeepStream Gst-NvDsUcx requires UCX >= 1.13).
+  UCX_APT_PKGS=(libucx-dev libucx0)
+  if apt-cache madison libucx0 2>/dev/null | awk '{print $3}' | grep -qE '^1\.13\.1'; then
+    echo "    OpenUCX: installing preferred apt version 1.13.1"
+    UCX_APT_PKGS=(libucx-dev=1.13.1* libucx0=1.13.1*)
+  else
+    UCX_CANDIDATE=$(apt-cache policy libucx0 2>/dev/null | awk '/Candidate:/ {print $2; exit}')
+    echo "    OpenUCX: preferred 1.13.1 not in apt; installing candidate ${UCX_CANDIDATE:-unknown}"
+  fi
+
   apt-get install -y \
     libpango1.0-dev libcairo2-dev libjpeg-dev \
     libglib2.0-dev libjson-glib-dev uuid-dev libyaml-cpp-dev \
     librabbitmq-dev librdkafka-dev \
     libjansson4 libjansson-dev \
-    libssl-dev libcjson-dev libhiredis-dev protobuf-compiler
+    libssl-dev libcjson-dev libhiredis-dev protobuf-compiler \
+    libboost-dev \
+    "${UCX_APT_PKGS[@]}"
+
   mark_stage_done deps-apt-libs
   echo "    Stage deps-apt-libs: DONE"
 fi
@@ -350,10 +404,74 @@ else
     libgstrtspserver-1.0-dev libx11-dev \
     gstreamer1.0-libav libavahi-compat-libdnssd-dev \
     libjson-glib-dev libjsoncpp-dev libyaml-cpp-dev \
-    libgbm1 libglapi-mesa libgles2-mesa-dev \
+    libgbm1 libglapi-mesa libgles2-mesa-dev libegl-dev \
     rapidjson-dev
   mark_stage_done deps-sample-app-prereqs
   echo "    Stage deps-sample-app-prereqs: DONE"
+fi
+
+# ---------------------------------------------------------------------------
+# 11. pybind11 v2.12.0 (header-only; Service Maker Python bindings)
+# ---------------------------------------------------------------------------
+echo ""
+if stage_is_done deps-pybind11; then
+  echo "--- pybind11 v2.12.0 (skipped, already DONE) ---"
+else
+  echo "--- pybind11 v2.12.0 ---"
+  # Clear any prior target dir so the extraction below is idempotent across
+  # re-runs. --strip-components=1 drops the pybind11-2.12.0/ prefix from the
+  # release tarball so headers land at /opt/pybind11/include.
+  rm -rf /opt/pybind11
+  mkdir -p /opt/pybind11
+  # Drop any stale tarball first: with fs.protected_regular set, root cannot
+  # open a /tmp file owned by another user, so curl -o would fail outright.
+  rm -f /tmp/pybind11-2.12.0.tar.gz
+  curl -Lo /tmp/pybind11-2.12.0.tar.gz \
+    https://github.com/pybind/pybind11/archive/refs/tags/v2.12.0.tar.gz
+  tar -xzf /tmp/pybind11-2.12.0.tar.gz -C /opt/pybind11 --strip-components=1
+  rm -f /tmp/pybind11-2.12.0.tar.gz
+  mark_stage_done deps-pybind11
+  echo "    Stage deps-pybind11: DONE"
+fi
+
+# ---------------------------------------------------------------------------
+# 12. dlpack v0.8 (header-only; tensor interop for the Python bindings)
+# ---------------------------------------------------------------------------
+echo ""
+if stage_is_done deps-dlpack; then
+  echo "--- dlpack v0.8 (skipped, already DONE) ---"
+else
+  echo "--- dlpack v0.8 ---"
+  # Same idempotency and prefix-stripping rationale as the pybind11 stage above.
+  rm -rf /opt/dlpack
+  mkdir -p /opt/dlpack
+  # Same stale-tarball guard as the pybind11 stage above.
+  rm -f /tmp/dlpack-0.8.tar.gz
+  curl -Lo /tmp/dlpack-0.8.tar.gz \
+    https://github.com/dmlc/dlpack/archive/refs/tags/v0.8.tar.gz
+  tar -xzf /tmp/dlpack-0.8.tar.gz -C /opt/dlpack --strip-components=1
+  rm -f /tmp/dlpack-0.8.tar.gz
+  mark_stage_done deps-dlpack
+  echo "    Stage deps-dlpack: DONE"
+fi
+
+# ---------------------------------------------------------------------------
+# 13. Python wheel build prerequisites (pyservicemaker)
+# ---------------------------------------------------------------------------
+echo ""
+if stage_is_done deps-python-build; then
+  echo "--- Python wheel build prerequisites (skipped, already DONE) ---"
+else
+  echo "--- Python wheel build prerequisites ---"
+  # python3-build provides 'python3 -m build', which sources/python/build.sh
+  # uses to produce the wheel. It builds in an isolated environment by default,
+  # which needs python3-venv; setuptools and wheel are the build backend.
+  # python3-dev supplies Python.h and libpython3.x.so, which the pybind11
+  # extension in sources/python/src includes and links.
+  apt-get install -y python3-build python3-venv python3-setuptools python3-wheel \
+    python3-dev
+  mark_stage_done deps-python-build
+  echo "    Stage deps-python-build: DONE"
 fi
 
 # ---------------------------------------------------------------------------
@@ -367,5 +485,10 @@ echo "==> Running ldconfig"
 ldconfig
 
 echo ""
-echo "==> Done. Installed to $INSTALL_DIR:"
-ls "$INSTALL_DIR"/libopentelemetry_* "$INSTALL_DIR"/libcivetweb* "$INSTALL_DIR"/libprometheus* "$INSTALL_DIR"/libiothub_client* 2>/dev/null
+if [[ "$PLATFORM" = "sbsa" ]]; then
+  echo "==> Done (SBSA: stages 1–3 and 5–7 skipped; azure-iot and remaining deps installed)."
+  ls "$INSTALL_DIR"/libiothub_client* 2>/dev/null
+else
+  echo "==> Done. Installed to $INSTALL_DIR:"
+  ls "$INSTALL_DIR"/libopentelemetry_* "$INSTALL_DIR"/libcivetweb* "$INSTALL_DIR"/libprometheus* "$INSTALL_DIR"/libiothub_client* 2>/dev/null
+fi

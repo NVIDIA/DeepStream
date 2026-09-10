@@ -113,6 +113,7 @@ update-alternatives --install /usr/bin/deepstream-nmos-app deepstream-nmos-app /
 update-alternatives --install /usr/bin/deepstream-server-app deepstream-server-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-server-app ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/deepstream-demuxer-static deepstream-demuxer-static /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-demuxer-static ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/deepstream-demuxer-dynamic deepstream-demuxer-dynamic /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-demuxer-dynamic ${NVDS_PRIORITY}
+update-alternatives --install /usr/bin/deepstream-kitti-overlay deepstream-kitti-overlay /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-kitti-overlay ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/service-maker-3d-action-recognition-app service-maker-3d-action-recognition-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-3d-action-recognition-app ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/service-maker-appsrc-test service-maker-appsrc-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-appsrc-test ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/service-maker-sr-test-app service-maker-sr-test-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-sr-test-app ${NVDS_PRIORITY}
@@ -121,7 +122,15 @@ update-alternatives --install /usr/bin/service-maker-test2-app service-maker-tes
 update-alternatives --install /usr/bin/service-maker-test3-app service-maker-test3-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test3-app ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/service-maker-test4-app service-maker-test4-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test4-app ${NVDS_PRIORITY}
 update-alternatives --install /usr/bin/service-maker-test5-app service-maker-test5-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test5-app ${NVDS_PRIORITY}
-pip install /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/service-maker/python/pyservicemaker*.whl --force-reinstall --break-system-packages
+update-alternatives --install /usr/bin/ds-launch ds-launch /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/ds-launch ${NVDS_PRIORITY}
+# The service-maker build stage builds this wheel from
+# src/service-maker/sources/python and drops it here, overwriting the prebuilt
+# one installed earlier by the artifacts stage. A source build therefore always
+# installs bindings matching the libnvds_service_maker.so it was built against.
+# Install with python3 -m pip rather than a bare pip: the wheel carries the ABI
+# tag of the interpreter that built it (cp312 here), and a 'pip' picked up from
+# PATH may belong to a different Python, which rejects the wheel outright.
+python3 -m pip install /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/service-maker/python/pyservicemaker*.whl --force-reinstall --break-system-packages
 ldconfig
 rm -rf /home/*/.cache/gstreamer-1.0/
 rm -rf /root/.cache/gstreamer-1.0/
