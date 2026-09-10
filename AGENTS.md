@@ -28,7 +28,7 @@ runtime assets (downloaded from GitHub Releases), build tooling, agent skills, a
   packages (`deepstream-binaries-*`, `deepstream-sample-data-*`) as part of the source
   build flow — do not run it directly for a manual bare-metal install.
 - `skills/`, `example_prompts/` — agent assets (see "Skills & prompts" below).
-- `tools/`, `deepstream_libraries/` (submodule), `deepstream_dockers/`.
+- `tools/` (`inference_builder/` in-repo, `auto-magic-calib/` submodule), `deepstream_libraries/`, `deepstream_dockers/`.
 
 ## GitHub Release Assets
 
