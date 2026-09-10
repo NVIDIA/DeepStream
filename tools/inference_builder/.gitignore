@@ -1,0 +1,13 @@
+**/__pycache__
+*.swp
+.vscode/
+dist
+.venv/
+output
+generated_client
+*tmp*
+*.tgz
+.tmp
+mcp/.mcp_server.pid
+mcp/.mcp_server.log
+builder/tests/logs/

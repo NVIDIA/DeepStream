@@ -1,0 +1,248 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+openapi: 3.1.0
+info:
+  title: NVIDIA INFERENCE SERVICE API for nvidia/changenet
+  description: NVIDIA INFERENCE SERVICE API
+  version: 1.0.0
+  termsOfService: https://nvidia.com/legal/terms-of-use
+  contact:
+    name: NVIDIA Support
+    url: https://help.nvidia.com/
+  license:
+    name: NVIDIA AI Foundation Models Community License
+    url: https://docs.nvidia.com/ai-foundation-models-community-license.pdf
+tags:
+  - name: "NVIDIA CHANGENET API"
+    description: Get a segmentation representation for the difference between two pictures.
+  - name: "Health"
+    description: Health check endpoints
+paths:
+  "/v1/health/ready":
+    get:
+      tags:
+        - Health
+      summary: Health Ready
+      description: Provide your implementation of readiness to know when container ready to accept traffic
+      operationId: health_ready_v1_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  "/v1/infer":
+    post:
+      tags:
+        - "NVIDIA ChangeNet API"
+      summary: Change detection on images.
+      description: "Invokes inference for the input images."
+      operationId: inference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectionRequest'
+        required: true
+      responses:
+        "200":
+          description: Invocation is fulfilled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionResponse'
+        "202":
+          description: Result is pending. Client should poll using the requestId.
+          content:
+            application/json:
+              example: {}
+              schema: {}
+          headers:
+            NVCF-REQID:
+              description: requestId required for pooling.
+              schema:
+                type: string
+                format: uuid
+                maxLength: 36
+            NVCF-STATUS:
+              description: Invocation status.
+              schema:
+                type: string
+                format: ^[a-zA-Z-]{1,64}$
+                maxLength: 64
+        "402":
+          description: Payment Required.
+          content:
+            application/json:
+              schema:
+                properties:
+                  detail:
+                    type: string
+                    maxLength: 256
+                    format: ^[a-zA-Z-]{1,64}$
+                    description: Contains specific information related to the error and why it occurred.
+                    example: You have reached your limit of credits.
+                type: object
+                title: PaymentRequiredError
+        "422":
+          description: Validation failed, provided entity could not be processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+              example:
+                type: urn:nvcf-worker-service:problem-details:unprocessable-entity
+                title: Unprocessable Entity
+                status: 422
+                detail: string
+                instance: /v2/nvcf/pexec/functions/9446dad0-ff4f-46d1-89f4-726e113cfca0
+                requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        "500":
+          description: The invocation ended with an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Errors'
+              example:
+                type: urn:nvcf-worker-service:problem-details:internal-server-error
+                title: Internal Server Error
+                status: 500
+                detail: string
+                instance: /v2/nvcf/pexec/functions/9446dad0-ff4f-46d1-89f4-726e113cfca0
+                requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+security:
+  - Token: []
+components:
+  securitySchemes:
+    Token:
+      type: http
+      scheme: bearer
+  schemas:
+    DetectionRequest:
+      additionalProperties: false
+      properties:
+        input:
+          type: array
+          items:
+            type: string
+            pattern: ^.*$
+            maxLength: 4294967296
+          maxItems: 2
+          minItems: 2
+          title: Input
+          description: 'The two of images that you want to detect change
+            for. Images should be in form of `data:image/{format};base64,{base64encodedimage}`.
+            For NVCF deployment, if the size of an image is more than 200KB, it needs to be uploaded to
+            a presigned S3 bucket using NVCF Asset APIs. Once uploaded you can refer
+            to it using the following format: `<img src="data:image/png;asset_id,{asset_id}"
+            />`. Accepted formats are `jpg`, `png` and `jpeg`.'
+        model:
+          type: string
+          enum: [nvidia/changenet]
+          title: Model
+          description: ID of the mask model.
+          examples:
+            - nvidia/changenet
+      type: object
+      required:
+        - input
+        - model
+      title: DetectionRequest
+      description: Input images for the inference request.
+    DetectionResponse:
+      type: object
+      properties:
+        data:
+          type: string
+          description: base64 encoded image for change representation
+          pattern: ^.*$
+          maxLength: 4294967296
+        model:
+          type: string
+          description: Model used to generate masks.
+          example: nvidia/changenet
+          title: Model
+          const: nvidia/changenet
+        usage:
+          $ref: '#/components/schemas/Usage'
+          description: Usage statistics for the masks request.
+          examples:
+          - num_images: 1
+      additionalProperties: false
+      required:
+        - data
+        - usage
+        - model
+      title: DetectionResponse
+      description: Response schema for the inference request.
+    Usage:
+      properties:
+        num_images:
+          type: integer
+          format: int32
+          title: Num Images
+          minimum: 0
+          maximum: 64
+          description: Number of images processed.
+      additionalProperties: false
+      type: object
+      required:
+        - num_images
+      title: Usage
+      description: Usage information for the inference request.
+    Errors:
+      properties:
+        type:
+          type: string
+          format: "^.{1, 128}$"
+          maxLength: 128
+          description: Error type
+        title:
+          type: string
+          format: "^.{1, 128}$"
+          maxLength: 128
+          description: Error title
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 999
+          description: Error status code
+        detail:
+          type: string
+          format: "^.{1, 1024}$"
+          maxLength: 1024
+          description: Detailed information about the error
+        instance:
+          type: string
+          format: "^.{1, 256}$"
+          maxLength: 256
+          description: Function instance used to invoke the request
+        requestId:
+          type: string
+          format: uuid
+          maxLength: 36
+          description: UUID of the request
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+        - requestId
+      title: InvokeError

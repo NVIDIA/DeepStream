@@ -1,0 +1,233 @@
+[
+  {
+    "name": "vllm_qwen3_vl_sw_decoder",
+    "description": "Test Qwen3-VL-2B-Instruct with vLLM backend and software decoder",
+    "build_args": {
+      "TEST_APP_NAME": "vllm",
+      "CACHE_BUSTER": "vllm_qwen3_vl_sw_test",
+      "APP_YAML_PATH": "vllm_qwen3_vl.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../qwen/processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "../qwen/openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "Qwen/Qwen3-VL-2B-Instruct",
+        "HTTP_PORT": "8020"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "error_detection": {
+        "enabled": true,
+        "patterns": [
+          "ERROR",
+          "Exception:",
+          "Traceback",
+          "Fatal error",
+          "CRITICAL"
+        ]
+      },
+      "prerequisite_script": null,
+      "models": {
+        "Qwen3-VL": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "Qwen/Qwen3-VL-2B-Instruct"
+        }
+      }
+    }
+  },
+  {
+    "name": "vllm_qwen3_vl_hw_decoder",
+    "description": "Test Qwen3-VL-2B-Instruct with vLLM backend and hardware decoder (NVDEC)",
+    "build_args": {
+      "TEST_APP_NAME": "vllm",
+      "CACHE_BUSTER": "vllm_qwen3_vl_hw_test",
+      "APP_YAML_PATH": "vllm_nvdec_qwen3_vl.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../qwen/processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "../qwen/openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "Qwen/Qwen3-VL-2B-Instruct",
+        "HTTP_PORT": "8021"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        {
+          "payload_path": "payloads/videos.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "error_detection": {
+        "enabled": true,
+        "patterns": [
+          "ERROR",
+          "Exception:",
+          "Traceback",
+          "Fatal error",
+          "CRITICAL"
+        ]
+      },
+      "prerequisite_script": null,
+      "models": {
+        "Qwen3-VL": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "Qwen/Qwen3-VL-2B-Instruct"
+        }
+      }
+    }
+  },
+  {
+    "name": "vllm_cosmos_sw_decoder",
+    "description": "Test Cosmos-Reason2-2B with vLLM backend and software decoder",
+    "build_args": {
+      "TEST_APP_NAME": "vllm",
+      "CACHE_BUSTER": "vllm_cosmos_sw_test",
+      "APP_YAML_PATH": "vllm_cosmos.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../qwen/processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "../qwen/openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "nvidia/Cosmos-Reason2-2B",
+        "HTTP_PORT": "8022"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "error_detection": {
+        "enabled": true,
+        "patterns": [
+          "ERROR",
+          "Exception:",
+          "Traceback",
+          "Fatal error",
+          "CRITICAL"
+        ]
+      },
+      "prerequisite_script": null,
+      "models": {
+        "Cosmos": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/Cosmos-Reason2-2B"
+        }
+      }
+    }
+  },
+  {
+    "name": "vllm_cosmos_hw_decoder",
+    "description": "Test Cosmos-Reason2-2B with vLLM backend and hardware decoder (NVDEC)",
+    "build_args": {
+      "TEST_APP_NAME": "vllm",
+      "CACHE_BUSTER": "vllm_cosmos_hw_test",
+      "APP_YAML_PATH": "vllm_nvdec_cosmos.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "../qwen/processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "../qwen/openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "nvidia/Cosmos-Reason2-2B",
+        "HTTP_PORT": "8023"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        {
+          "payload_path": "payloads/videos.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "error_detection": {
+        "enabled": true,
+        "patterns": [
+          "ERROR",
+          "Exception:",
+          "Traceback",
+          "Fatal error",
+          "CRITICAL"
+        ]
+      },
+      "prerequisite_script": null,
+      "models": {
+        "Cosmos": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/Cosmos-Reason2-2B"
+        }
+      }
+    }
+  }
+]
+

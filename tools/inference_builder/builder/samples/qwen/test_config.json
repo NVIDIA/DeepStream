@@ -1,0 +1,142 @@
+[
+  {
+    "name": "qwen_pytorch_sw_decoder",
+    "description": "Test Qwen2.5-VL-3B-Instruct with PyTorch backend and software decoder",
+    "build_args": {
+      "TEST_APP_NAME": "qwen",
+      "CACHE_BUSTER": "qwen_pytorch_sw_test",
+      "APP_YAML_PATH": "pytorch_qwen.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "HTTP_PORT": "8888"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "prerequisite_script": null,
+      "models": {
+        "Qwen2.5-VL": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "Qwen/Qwen2.5-VL-3B-Instruct"
+        }
+      }
+    }
+  },
+  {
+    "name": "qwen_trtllm_sw_decoder",
+    "description": "Test Qwen2.5-VL-3B-Instruct with TensorRT-LLM backend and software decoder",
+    "build_args": {
+      "TEST_APP_NAME": "qwen",
+      "CACHE_BUSTER": "qwen_trtllm_sw_test",
+      "APP_YAML_PATH": "trtllm_qwen.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "HTTP_PORT": "8889"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "prerequisite_script": null,
+      "models": {
+        "Qwen2.5-VL": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "Qwen/Qwen2.5-VL-3B-Instruct"
+        }
+      }
+    }
+  },
+  {
+    "name": "qwen_trtllm_hw_decoder",
+    "description": "Test Qwen2.5-VL-3B-Instruct with TensorRT-LLM backend, hardware decoder (NVDEC), with both image and video inputs",
+    "build_args": {
+      "TEST_APP_NAME": "qwen",
+      "CACHE_BUSTER": "qwen_trtllm_hw_test",
+      "APP_YAML_PATH": "trtllm_nvdec_qwen.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "MODEL_REPO": "/workspace/model-repo",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "HF_MODEL_NAME": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "HTTP_PORT": "8890"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/model-repo"
+      },
+      "test_requests": [
+        {
+          "payload_path": "payloads/images.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        {
+          "payload_path": "payloads/videos.jsonl",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      ],
+      "endpoint": "/v1/chat/completions",
+      "prerequisite_script": null,
+      "models": {
+        "Qwen2.5-VL": {
+          "source": "HF",
+          "target": "/tmp/model-repo",
+          "path": "Qwen/Qwen2.5-VL-3B-Instruct"
+        }
+      }
+    }
+  }
+]
+

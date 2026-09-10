@@ -1,0 +1,153 @@
+[
+  {
+    "name": "tao_gdino_video_inference",
+    "description": "Test TAO Grounding DINO inference with video input",
+    "build_args": {
+      "TEST_APP_NAME": "tao-cv",
+      "CACHE_BUSTER": "tao_gdino_video_test",
+      "APP_YAML_PATH": "ds_gdino.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 1000,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/workspace/.cache/model-repo",
+        "TAO_MODEL_NAME": "gdino",
+        "TEST_TOLERANCE": "1"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/.cache/model-repo"
+      },
+      "auto_validation": "./validation/gdino",
+      "prerequisite_script": null,
+      "models": {
+        "gdino": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/grounding_dino",
+          "version": "grounding_dino_swin_tiny_commercial_deployable_v1.0",
+          "configs": "../ds_app/gdino/gdino"
+        }
+      }
+    }
+  },
+  {
+    "name": "tao_citysemsegformer_inference",
+    "description": "Test TAO CitySemSegFormer inference for segmentation",
+    "build_args": {
+      "TEST_APP_NAME": "tao-cv",
+      "CACHE_BUSTER": "tao_citysemsegformer_test",
+      "APP_YAML_PATH": "ds_tao.yaml",
+      "OUTPUT_DIR": ".",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 1000,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/workspace/.cache/model-repo",
+        "TAO_MODEL_NAME": "citysemsegformer",
+        "TEST_TOLERANCE": "1"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/.cache/model-repo"
+      },
+      "auto_validation": "./validation/citysemsegformer",
+      "prerequisite_script": null,
+      "models": {
+        "citysemsegformer": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/citysemsegformer",
+          "version": "deployable_onnx_v1.0",
+          "configs": "../ds_app/segmentation/citysemsegformer"
+        }
+      }
+    }
+  },
+  {
+    "name": "tao_rtdetr_inference",
+    "description": "Test TAO RT-DETR inference for object detection",
+    "build_args": {
+      "TEST_APP_NAME": "tao-cv",
+      "CACHE_BUSTER": "tao_rtdetr_test",
+      "APP_YAML_PATH": "ds_tao.yaml",
+      "OUTPUT_DIR": ".",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": true,
+      "timeout": 1000,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/workspace/.cache/model-repo",
+        "TAO_MODEL_NAME": "rtdetr",
+        "TEST_TOLERANCE": "1"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/.cache/model-repo"
+      },
+      "auto_validation": "./validation/rtdetr",
+      "prerequisite_script": null,
+      "models": {
+        "rtdetr": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/trafficcamnet_transformer_lite",
+          "version": "deployable_v1.0",
+          "configs": "../ds_app/detection/rtdetr"
+        }
+      }
+    }
+  },
+  {
+    "name": "tao_mask_gdino_inference",
+    "description": "Test TAO Mask Grounding DINO inference for segmentation",
+    "build_args": {
+      "TEST_APP_NAME": "tao-cv",
+      "CACHE_BUSTER": "tao_mask_gdino_test",
+      "APP_YAML_PATH": "ds_gdino.yaml",
+      "OUTPUT_DIR": ".",
+      "PROCESSORS_PATH": "processors.py",
+      "SERVER_TYPE": "fastapi",
+      "OPENAPI_SPEC": "openapi.yaml"
+    },
+    "test_config": {
+      "default_enable": false,
+      "timeout": 600,
+      "env": {
+        "NVSTREAMMUX_ADAPTIVE_BATCHING": "yes",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,video,graphics",
+        "MODEL_REPO": "/workspace/.cache/model-repo",
+        "TAO_MODEL_NAME": "mask_gdino",
+        "TEST_TOLERANCE": "1"
+      },
+      "volumes": {
+        "/tmp/model-repo": "/workspace/.cache/model-repo"
+      },
+      "auto_validation": "./validation/mgdino",
+      "prerequisite_script": null,
+      "models": {
+        "mask_gdino": {
+          "source": "NGC",
+          "target": "/tmp/model-repo",
+          "path": "nvidia/tao/mask_grounding_dino",
+          "version": "mask_grounding_dino_swin_tiny_commercial_deployable_v1.0",
+          "configs": "../ds_app/gdino/mask_gdino"
+        }
+      }
+    }
+  }
+]
+

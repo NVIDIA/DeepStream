@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "test-app"
+model_repo: "/workspace/models"
+
+input:
+  - name: "video"
+    data_type: TYPE_CUSTOM_LONG_VIDEO_ASSETS
+    dims: [ -1 ]
+    optional: true
+  - name: "image"
+    data_type: TYPE_CUSTOM_IMAGE_ASSETS
+    dims: [ -1 ]
+    optional: true
+  - name: "video_chunk"
+    data_type: TYPE_CUSTOM_VIDEO_CHUNK_ASSETS
+    dims: [ -1 ]
+    optional: true
+
+output:
+  - name: "output"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+
+models:
+- name: dummy
+  backend: dummy
+  max_batch_size: 1
+  input:
+  - name: inputs
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  output:
+  - name: output
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+
+routes: {
+  ':["video"]': 'dummy:["inputs"]',
+  ':["image"]': 'dummy:["inputs"]',
+  ':["video_chunk"]': 'dummy:["inputs"]',
+  'dummy:["output"]': ':'
+}

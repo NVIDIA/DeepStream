@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+class-attrs-all:
+  topk: 20
+  pre-cluster-threshold: 0.2
+property:
+  gie-unique-id: 1
+  # std: 0.5
+  net-scale-factor: 0.0078431372549
+  onnx-file: grounding_dino_swin_tiny_commercial_deployable.onnx
+  model-engine-file: grounding_dino_swin_tiny_commercial_deployable.onnx_b1_gpu0_fp16.engine
+  network-mode: 2
+  network-type: 100 # detection
+  offsets: 127.5;127.5;127.5
+  output-tensor-meta: 1
+  input-tensor-from-meta: 1
+  infer-dims: 3;544;960
+  custom-lib-path: /opt/nvidia/deepstream/deepstream/lib/libnvds_infercustomparser_tao.so
+

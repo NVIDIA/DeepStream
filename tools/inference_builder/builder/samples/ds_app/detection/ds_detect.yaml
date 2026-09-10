@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+name: "deepstream-app"
+model_repo: "/workspace/models"
+
+input:
+- name: media_url
+  data_type: TYPE_CUSTOM_LIST
+  dims: [ -1 ]
+  optional: true
+- name: mime
+  data_type: TYPE_CUSTOM_DS_MIME
+  dims: [ -1 ]
+  optional: true
+- name: source_config
+  data_type: TYPE_CUSTOM_DS_SOURCE_CONFIG
+  dims: [ 1 ]
+  optional: true
+
+output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+
+models:
+- name: rtdetr
+  backend: deepstream/nvinfer
+  max_batch_size: "$MAX_BATCH_SIZE|4"
+  input:
+  - name: images
+    data_type: TYPE_CUSTOM_DS_IMAGE
+    dims: [ -1 ]
+    optional: true
+  - name: media_url
+    data_type: TYPE_CUSTOM_DS_MEDIA_URL
+    dims: [ -1 ]
+    optional: true
+  - name: mime
+    data_type: TYPE_CUSTOM_DS_MIME
+    dims: [ -1 ]
+    optional: true
+  - name: source_config
+    data_type: TYPE_CUSTOM_DS_SOURCE_CONFIG
+    dims: [ 1 ]
+    optional: true
+  output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+  parameters:
+    # timeout in microseconds for batching multiple inputs
+    batch_timeout: 33333
+    infer_config_path:
+      - nvdsinfer_config.yaml
+    tracker_config:
+      ll_lib_file: /opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+      ll_config_file: /opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_perf.yml
+      width: 960
+      height: 544
+      display_tracking_id: true
+    # analytics_config:
+    #   config_file_path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-nvdsanalytics-test/config_nvdsanalytics.txt
+    #   gpu_id: 0
+    # msgbroker_config:
+    #   msgbroker_proto_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+    #   msgbroker_conn_str: localhost;9092
+    #   msgbroker_topic: ds_app
+    #   msgconv_config_path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/dstest5_msgconv_sample_config.txt
+    render_config:
+      enable_display: "$ENABLE_DISPLAY|true"
+      enable_osd: true
+      # enable_stream: true
+      # rtsp_mount_point: /ds_app
+      # rtsp_port: 8554
+    perf_config:
+      enable_fps_logs: true
+      enable_latency_logs: true
+    # kitti_output_path:
+    #   infer: /workspace/models/resnet/infer-kitti-dump/
+    #   tracker: /workspace/models/resnet/tracker-kitti-dump/
+    inference_timeout: "$INFERENCE_TIMEOUT|5"

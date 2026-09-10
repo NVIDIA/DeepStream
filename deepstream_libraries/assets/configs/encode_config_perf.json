@@ -1,0 +1,18 @@
+{
+    "codec" : "h264",
+    "preset" : "P3",
+    "tuning_info" : "high_quality",
+    "rc": "constqp",
+    "constqp":"28,31,25",
+    "fps"  : 30,
+    "gop" : 250,
+    "bf" : 1,
+    "bitrate" : "10M",
+    "maxbitrate" : "10M",
+    "vbvinit" : "2M",
+    "vbvbufsize" : "2M",
+    "initqp" : 32,
+    "qmin"         : "0,0,0",
+    "qmax"         : "0,0,0",
+    "initqp"       : "0,0,0"
+}
