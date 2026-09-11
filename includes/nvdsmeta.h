@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -174,6 +174,8 @@ typedef enum {
   NVDS_FRAME_META_NVDSANALYTICS,
   /** Specifies metadata type for nvdsanalytics object. */
   NVDS_OBJ_META_NVDSANALYTICS,
+  /** Specifies metadata type for inference provenance. */
+  NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE,
   /** Reserved field */
   NVDS_RESERVED_META = 4095,
   /**

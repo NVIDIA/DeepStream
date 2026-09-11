@@ -57,9 +57,12 @@ def deepstream_nvocdr_app(yaml_config_path):
     type_names.append("nvdsvideotemplate")
     properties.append(vt_properties)
     flow = flow.make_link_element(type_names, properties)
+    # Flow._streams holds StreamInfo; pipeline indexing requires the element name
+    vt_stream = flow._streams[0]
+    vt_name = vt_stream.originator if hasattr(vt_stream, "originator") else vt_stream
     for prop in list_props:
         my_dict = {"customlib-props": prop}
-        flow.pipeline[flow._streams[0]].set(my_dict)
+        flow.pipeline[vt_name].set(my_dict)
   
     # Add OSD overlay to the pipeline for encoder can output bbox and mask
     osd_properties = {}

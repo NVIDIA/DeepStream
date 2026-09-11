@@ -21,10 +21,10 @@ cd x86_dockerfiles
 
 # build x86 triton
 
-sudo docker build --network host --progress=plain --build-arg DS_DIR=/opt/nvidia/deepstream/deepstream-9.1 -t deepstream:9.1.0-triton-local -f Dockerfile_triton_x86 ..
+sudo docker build --network host --progress=plain --build-arg DS_DIR=/opt/nvidia/deepstream/deepstream-9.1 -t deepstream:9.1.1-triton-local -f Dockerfile_triton_x86 ..
 
 # x86-samples
 
-# sudo docker build --network host --progress=plain -t deepstream:9.1.0-samples-local -f Dockerfile_samples_x86 ..
+# sudo docker build --network host --progress=plain -t deepstream:9.1.1-samples-local -f Dockerfile_samples_x86 ..
 
 cd ..

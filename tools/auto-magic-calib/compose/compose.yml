@@ -1,0 +1,4 @@
+include:
+  - path: ./ms/compose.yml
+  - path: ./ui/compose.yml
+

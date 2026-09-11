@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "deepstream_libraries"
+version = "1.4"
+description = "Nvidia Deepstream"
+readme = "deepstream_libraries/README.md"
+license = "CC-BY-4.0 AND Apache-2.0"
+authors = ["Nvidia Deepstream"]
+homepage = "https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Libraries.html"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.15"
+cvcuda-cu13 = "0.16.0"
+PyNvVideoCodec = "2.1"
+nvidia-nvimgcodec-cu13 = "0.8.0.22"
+numpy = ">=1.26.0,<2.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "setuptools>=44", "wheel>=0.32"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dev-dependencies]
+pytest = ">=7.0"
+twine = ">=4.0.2"

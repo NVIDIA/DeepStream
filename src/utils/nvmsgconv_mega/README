@@ -42,10 +42,14 @@ Install using:
 If running deepstream on baremetal and not docker:
   Install other dependencies (Needs sudo or root privilege):
   A. For X86 Device -
-  1. Triton gRPC Client into "/opt/tritonclient":
-  mkdir -p  /opt/tritonclient/
-  wget https://github.com/triton-inference-server/server/releases/download/v2.56.0/v2.56.0_ubuntu2204.clients.tar.gz
-  tar xzf v2.56.0_ubuntu2204.clients.tar.gz -C /opt/tritonclient/ lib include
+  1. Triton client SDK into "/opt/tritonclient":
+  mkdir -p /opt/tritonclient/
+  rm -rf /opt/tritonclient/lib /opt/tritonclient/include
+  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
+  unzip -q -o /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -d /tmp/tritonclient-sdk
+  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
+  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
+  rm -rf /tmp/tritonclient-sdk /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
 
   2. Protobuf compiler v3.21.12 into "/opt/proto":
   mkdir /opt/proto
@@ -55,12 +59,17 @@ If running deepstream on baremetal and not docker:
   chmod -R +rx /opt/proto/
 
   B. For Jetson Device -
-  1. Please download the correct version of Triton gRPC client from
-    https://github.com/triton-inference-server/server/releases 
-    and install into "/opt/tritonclient". Example commands :
-  mkdir -p  /opt/tritonclient/
-  wget https://github.com/triton-inference-server/server/releases/download/v2.60.0/tritonserver2.60.0-agx.tar.gz
-  tar xzf tritonserver2.60.0-agx.tar.gz -C /opt/tritonclient/ --strip-components=2 tritonserver/clients/lib/ tritonserver/clients/include
+  1. Triton client SDK into "/opt/tritonclient" (the exact asset name/version
+    may change between Triton releases — check
+    https://github.com/triton-inference-server/server/releases for the latest
+    aarch64 SDK zip). Example commands :
+  mkdir -p /opt/tritonclient/
+  rm -rf /opt/tritonclient/lib /opt/tritonclient/include
+  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
+  unzip -q -o /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -d /tmp/tritonclient-sdk
+  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
+  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
+  rm -rf /tmp/tritonclient-sdk /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
 
   2. Protobuf compiler v3.21.12 into "/opt/proto":
   mkdir /opt/proto

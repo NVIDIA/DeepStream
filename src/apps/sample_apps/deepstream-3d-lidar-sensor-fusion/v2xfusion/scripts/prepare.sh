@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ################################################################################
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,7 +56,6 @@ function prepareEngine() {
         (echoRed "Build ${MODEL_NAME}.engine failed, Please check ../models/v2xfusion/${MODEL_NAME}.log"; exit 1)
 
     echoGreen "Moving the generated model engine file and configs to triton_model_repo"
-    rm -rf /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion
     mkdir -p /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/1
     cp ../models/v2xfusion/1/*.engine /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/1
     cp ../models/v2xfusion/config.pbtxt /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/v2xfusion/

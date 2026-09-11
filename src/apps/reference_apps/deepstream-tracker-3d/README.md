@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,8 +32,8 @@ This sample application can be run on both x86 and Jetson platforms inside DeepS
 
 2. Git clone the current `deepstream` repository to the host machine, and enter single-view 3D tracking directory inside the repository.
     ```bash
-    git clone https://github.com/NVIDIA/DeepStream.git
-    cd DeepStream/src/apps/reference_apps/deepstream-tracker-3d
+    git clone https://github.com/NVIDIA/deepstream.git
+    cd deepstream/src/apps/reference_apps/deepstream-tracker-3d
     ```
 
 3. Download NVIDIA pretrained [`PeopleNet`](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet/files?version=deployable_quantized_onnx_v2.6.3) for 2D detection.

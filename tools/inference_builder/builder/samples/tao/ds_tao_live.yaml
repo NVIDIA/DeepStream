@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "tao"
+model_repo: "/workspace/.cache/model-repo"
+
+input:
+- name: source_config
+  data_type: TYPE_CUSTOM_DS_SOURCE_CONFIG
+  dims: [ -1 ]
+
+output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+
+server:
+  # map server implementation to the operation endpoint
+  responders:
+    infer:
+      operation: inference
+      requests:
+        InferenceRequest: >
+          {
+            "source_config": "live_source.yaml"
+          }
+      responses:
+        InferenceResponse: >
+          {
+            "data": [
+              {% for item in response.output %} {
+                "index": {{loop.index0}},
+                "shape": {{item["shape"]}},
+                "bboxes": {{item["bboxes"]}},
+                "probs": {{item["probs"]}},
+                "labels": {{item["labels"]|tojson}},
+                "masks": {{item["seg_maps"]}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ],
+            "usage": { "num_images": 1},
+            "model": "nvidia/nvdinov2"
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+- name: tao
+  backend: deepstream/nvinfer
+  max_batch_size: "$MAX_BATCH_SIZE|1"
+  input:
+  - name: source_config
+    data_type: TYPE_CUSTOM_DS_SOURCE_CONFIG
+    dims: [ -1 ]
+  output:
+  - name: output
+    data_type: TYPE_CUSTOM_DS_METADATA
+    dims: [ -1 ]
+  parameters:
+    infer_config_path:
+      - nvdsinfer_config.yaml

@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+===============================================================================
+1. Prerequisites:
+===============================================================================
+
+Please follow instructions in the apps/sample_apps/deepstream-app/README on how
+to install the prerequisites for Deepstream SDK, the DeepStream SDK itself and
+the apps.
+
+The Python probe modules must be installed at:
+  /opt/nvidia/deepstream/deepstream/service-maker/modules/python/
+
+===============================================================================
+2. Purpose:
+===============================================================================
+
+This document describes the sample deepstream_python_probe application.
+
+It demonstrates how to use an installed Python probe module with the
+DeepStream service-maker pipeline API. Python probes are lightweight handlers
+written in Python that can be attached to pipeline elements as glue logic —
+for example to overlay OSD annotations or transform metadata between elements.
+
+The sample uses the "sample_video_probe" Python probe module which counts
+vehicles and persons per frame and overlays the result on the OSD.
+
+The Python probe module is discovered and registered in CommonFactory by
+importing it at application startup. Once registered, it can be attached to
+pipeline elements by name string — identically to a compiled C++ probe plugin:
+
+  - YAML config:  type: python.sample_video_probe
+  - Direct API:   pipeline.attach("infer", "sample_video_probe", "svp",
+                                  properties={"font-size": 18})
+
+===============================================================================
+3. Usage:
+===============================================================================
+
+  Run with the h264 elementary stream or YAML pipeline config file.
+  With YAML pipeline config approach, user can modify the config file to
+  configure pipeline and probe properties.
+
+    $ python3 deepstream_python_probe.py <h264_elementary_stream>
+
+    Or
+
+    $ python3 deepstream_python_probe.py <pipeline config in yaml>
+
+  To enable end-to-end latency measurement with the measure_latency_probe
+  module, set the following environment variable before running:
+
+    $ export NVDS_ENABLE_LATENCY_MEASUREMENT=1
+
+  Note: with RTSP/live sources, both measure_fps_probe and
+  measure_latency_probe report valid values (FPS and latency respectively).
+
+===============================================================================
+4. Reusable Python Probe Modules:
+===============================================================================
+
+  Additional Python probe modules (measure_fps_probe, measure_latency_probe,
+  kitti_dump_probe, add_message_meta_probe, resnet_tensor_parser) are
+  pre-installed alongside sample_video_probe. Each can be used the same way —
+  import to register, then attach by name in YAML or the direct API.
+
+  For the full list of modules and their parameters see:
+    /opt/nvidia/deepstream/deepstream/service-maker/modules/python/README

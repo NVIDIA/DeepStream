@@ -28,6 +28,9 @@ service-maker/
 ├── cmake/                        # CMake find-modules and toolchain files
 ├── includes/                     # Public C++ headers
 └── sources/
+    ├── core/                     # Service Maker runtime library (libnvds_service_maker.so)
+    ├── engine/                   # ds-launch — runs a pipeline from a YAML graph file
+    ├── python/                   # pyservicemaker: pybind11 bindings + Python package
     ├── apps/
     │   ├── cpp/                  # C++ sample applications
     │   └── python/
@@ -52,16 +55,72 @@ For full system dependency setup, see [build/BUILD.md](../../build/BUILD.md).
 
 ### Full Build (via build/build.sh)
 
-Service Maker apps are built automatically as part of the top-level `build/build.sh`. Binaries are installed to:
+Service Maker is built automatically as part of the top-level `build/build.sh`. The
+`service-maker` stage builds, in order:
+
+1. `sources/core/src/gst/utils` → `libnvds_service_maker_utils.a`, the static helper
+   archive that loadable modules link against
+2. `sources/core` → `libnvds_service_maker.so`, the runtime library
+3. `sources/engine` → `ds-launch`
+4. `sources/apps/cpp/*` and `sources/modules/*`
+5. `sources/python` → the `pyservicemaker` wheel
+
+The core library must be installed before the apps and modules, which resolve it
+through `find_package(nvds_service_maker)`.
+
+Libraries are installed to:
+
+```
+/opt/nvidia/deepstream/deepstream-9.1/lib/
+```
+
+Binaries are installed to:
 
 ```
 /opt/nvidia/deepstream/deepstream-9.1/bin/service-maker-<app>
+/opt/nvidia/deepstream/deepstream-9.1/bin/ds-launch
 ```
 
 Modules are installed to:
 
 ```
 /opt/nvidia/deepstream/deepstream-9.1/service-maker/modules/
+```
+
+The `pyservicemaker` wheel is installed to:
+
+```
+/opt/nvidia/deepstream/deepstream-9.1/service-maker/python/
+```
+
+overwriting the prebuilt wheel placed there by the `artifacts` stage, so the
+bindings always match the core they were built against. `scripts/install.sh`
+then `pip install`s it.
+
+### Building the Python bindings alone
+
+`sources/python` needs the pybind11 and dlpack headers that
+`scripts/install_opensource_deps.sh` installs to `/opt/pybind11` and
+`/opt/dlpack`, and it links the core library, so build and install that first.
+
+```bash
+bash sources/python/build.sh --output-dir /tmp/whl
+python3 -m pip install /tmp/whl/pyservicemaker-*.whl --force-reinstall --break-system-packages
+```
+
+`build.sh` also accepts `--minor-ver <N>` to target a different Python 3 minor
+version and `--arch aarch64` to cross-compile. Override `PYBIND11_ROOT` or
+`DLPACK_ROOT` to build against headers installed elsewhere.
+
+### Building the core library or engine alone
+
+`sources/core` and `sources/engine` use Makefiles rather than CMake:
+
+```bash
+make -C sources/core/src/gst/utils CUDA_VER=13.2
+make -C sources/core CUDA_VER=13.2
+make -C sources/engine CUDA_VER=13.2
+sudo make -C sources/core install     # and likewise for the others
 ```
 
 ### Local CMake Build (single app)

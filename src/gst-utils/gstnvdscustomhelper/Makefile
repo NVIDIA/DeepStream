@@ -28,7 +28,7 @@ LIB:=libnvdsgst_customhelper.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.1\" \
  	 -I../../../includes \
 	 -I../../apps/common/includes/ \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \

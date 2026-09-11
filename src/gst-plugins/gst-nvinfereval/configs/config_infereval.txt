@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# nvinfereval config -- GKeyFile INI format.
+# Point the element at this file via:  nvinfereval config-file=/path/to/config_nvinfereval.txt
+# Values here OVERRIDE the corresponding GObject property values.
+#
+# Operating modes (auto-detected from upstream element):
+#   Mode A -- nvinfer -> nvinfereval          Single model vs GT, no promotion.
+#   Mode B -- nvmodelmux -> nvinfereval        Multi-model A/B with per-pair GT + auto-promotion.
+
+# [eval] -- global / plugin-level settings
+[eval]
+# Primary frames per epoch (Shadow frames excluded from count); each model_name counted independently
+eval-interval = 1000
+# IoU threshold for TP/FP classification in precision/recall/F1 (AP50 and AP50:95 use fixed thresholds)
+iou-threshold = 0.50
+# 0 = promote (shadow->primary, A/B ends); 1 = swap (roles flip, A/B continues); 2 = report-only (no REST)
+promotion-mode = 0
+# 1 = metrics computed over all frames since pipeline start; 0 = independent tumbling window per epoch
+cumulative = 1
+# 1 = auto-exclude classes with zero detections (TP=0, FP=0) from mean AP/P/R; shown as [UNDETECTED]
+exclude-undetected = 1
+# Comma-separated class labels to exclude from mean AP/P/R (e.g. unknown,Box); shown as [EXCLUDED]
+exclude-classes =
+# 1 = print per-class AP table to console at each epoch; 0 = silent (GstMessage still posted)
+show-ap-table = 0
+# 1 = draw GT boxes as green rectangles via nvosd (debug GT alignment); 0 = off
+show-gt-overlay = 0
+# File to dump JSON epoch reports (appended per epoch within a run; cleared on each new run); empty = off
+report-file =infereval_report.json
+# REST base URL of upstream nvmodelmux (e.g. http://localhost:9000); empty = no REST promotion
+rest-url =
+# Fallback GT file for any model without a [model-<name>] section (auto-detected: KITTI/NVSchema/COCO/TAO)
+default-gt-file =
+
+
+# [model-<name>] -- per-model overrides (one section per logical model_name in nvmodelmux / nvinfer)
+# Section name must match MmProvenanceMeta.model_name exactly (Mode B) or the nvinfer model name (Mode A).
+# Fields absent from a model section fall back to [eval] globals above.
+
+# Example: warehouse detector running A/B between v2 (primary) and v1 (shadow)
+#[model-RTDTR]
+#gt-file       = /data/gt/warehouse_gt.json    # GT file for this model (format auto-detected)
+#min-ap-margin = 0.02                          # shadow AP50 must exceed primary by this delta to promote
+#kpi-ap50      = 0.75                          # minimum AP50 the shadow must reach (0.0 = disabled)
+#kpi-precision = 0.0                           # minimum mean precision (0.0 = disabled)
+#kpi-recall    = 0.0                           # minimum mean recall (0.0 = disabled)
+
+# Example: second model pair running independently on separate streams
+#[model-PersonNet]
+#gt-file       = /data/gt/person_gt_kitti/
+#min-ap-margin = 0.03
+#kpi-ap50      = 0.80
+#kpi-precision = 0.75
+#kpi-recall    = 0.70

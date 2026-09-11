@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -72,7 +72,7 @@ The following pyservicemaker applications with TAO models are provided:
 Run below script to download models
 
 ```bash
-$ git clone https://github.com/NVIDIA/DeepStream.git
+$ git clone https://github.com/NVIDIA/deepstream.git
 
 $ cd DeepStream/src/apps/tao_apps
 

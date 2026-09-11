@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,14 @@ bool
 nvds_rest_mux_parse (const Json::Value & in, NvDsServerMuxInfo * mux_info)
 {
   if (mux_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      mux_info->mux_log =
+          "MUX_UPDATE_FAIL, request body must be a JSON object";
+      mux_info->status = BATCHED_PUSH_TIMEOUT_UPDATE_FAIL;
+      mux_info->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
 
       std::string root_val = it.key ().asString ().c_str ();
@@ -53,6 +61,12 @@ nvds_rest_mux_parse (const Json::Value & in, NvDsServerMuxInfo * mux_info)
       if (mux_info->mux_flag == MAX_LATENCY) {
         mux_info->max_latency = sub_root_val.get ("max_latency", 0).asUInt ();
       }
+    }
+    } catch (const std::exception& e) {
+      mux_info->mux_log = "MUX_UPDATE_FAIL, error: " + std::string(e.what());
+      mux_info->status = BATCHED_PUSH_TIMEOUT_UPDATE_FAIL;
+      mux_info->err_info.code = StatusBadRequest;
+      return false;
     }
   } else {
     g_print ("Unsupported REST API version\n");

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -393,6 +393,8 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
   GKeyFile *cfg_file = g_key_file_new ();
   GError *error = NULL;
   gboolean ret = FALSE;
+  g_free (config->cfg_file_path);
+  config->cfg_file_path = g_strdup (cfg_file_path);
   gchar **groups = NULL;
   gchar **group;
   guint i, j;
@@ -580,6 +582,12 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
        * it will override the value set using global_gpu_id in parse_tracker function */
       parse_err =
           !parse_tracker (&config->tracker_config, cfg_file, cfg_file_path);
+    }
+
+    if (!g_strcmp0 (*group, CONFIG_GROUP_INFER_EVAL)) {
+      parse_err =
+          !parse_infer_eval (&config->infer_eval_config, cfg_file,
+          cfg_file_path);
     }
 
     if (!g_strcmp0 (*group, CONFIG_GROUP_VISIONENCODER)) {

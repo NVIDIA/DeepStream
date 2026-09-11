@@ -1,0 +1,109 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+name: "changenet"
+model_repo: /workspace/model_repo/
+
+input:
+  - name: "reference_image"
+    data_type: TYPE_CUSTOM_IMAGE_BASE64
+    dims: [ -1 ]
+    optional: false
+
+  - name: "test_image"
+    data_type: TYPE_CUSTOM_IMAGE_BASE64
+    dims: [ -1 ]
+    optional: false
+
+output:
+  - name: "output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+
+server:
+  responders:
+    infer:
+      operation: inference
+      requests:
+        DetectionRequest: >
+          {
+            "reference_image": [{{ request.input[0]|tojson }}],
+            "test_image": [{{ request.input[1]|tojson }}]
+          }
+      responses:
+        DetectionResponse: >
+          {
+            "data": {{ response.output[0]|tojson }},
+            "usage": { "num_images": 1},
+            "model": "nvidia/changenet"
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+- name: visual_changenet
+  backend: "triton/tensorrt"
+  max_batch_size: 1
+  parameters:
+    FORCE_CPU_ONLY_INPUT_TENSORS: "no"
+  input:
+  - name: input0
+    data_type: TYPE_FP32
+    dims: [3, 768, 768]
+  - name: input1
+    data_type: TYPE_FP32
+    dims: [3, 768, 768]
+  output:
+  - name: output_final
+    data_type: TYPE_FP32
+    dims: [10,768, 768]
+  - name: output0
+    data_type: TYPE_FP32
+    dims: [10, 48, 48]
+  - name: output1
+    data_type: TYPE_FP32
+    dims: [10, 48, 48]
+  - name: output2
+    data_type: TYPE_FP32
+    dims: [10, 96, 96]
+  - name: output3
+    data_type: TYPE_FP32
+    dims: [10, 192, 192]
+  preprocessors:
+    - kind: "custom"
+      name: "changenet-normalizer"
+      input: ["reference_image", "test_image"]
+      output: ["input0", "input1"]
+      config:
+        network_size: [768, 768]
+  postprocessors:
+    - kind: "custom"
+      name: "changenet-masking"
+      input: ["output_final"]
+      output: ["output_final"]
+      config:
+        network_size: [768, 768]
+        n_class: 10
+
+# route map
+# A route is defined as <tensor source : tensor destination>
+# Source and destination should be defined as <MODEL_NAME:["TENSOR_NAME1", "TENSOR_NAME2", ...]>
+# Model name is optional, so <:["TENSOR_NAME1", "TENSOR_NAME2", ...]> is valid
+# Tensor list is optional too and <my_model:> is valid
+routes: {
+  ':["reference_image", "test_image"]': 'visual_changenet',
+  'visual_changenet:["output_final"]': ':["output"]',
+}

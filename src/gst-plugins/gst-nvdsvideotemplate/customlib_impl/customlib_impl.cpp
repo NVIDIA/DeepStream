@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +70,7 @@ struct PacketInfo {
 class SampleAlgorithm : public DSCustomLibraryBase
 {
 public:
-  SampleAlgorithm() {
+  explicit SampleAlgorithm(GObject *obj) : DSCustomLibraryBase(GST_BASE_TRANSFORM(obj)) {
     m_vectorProperty.clear();
     outputthread_stopped = false;
   }
@@ -147,11 +147,14 @@ public:
   int dump_max_frames = 5;
 };
 
-extern "C" IDSCustomLibrary *CreateCustomAlgoCtx(DSCustom_CreateParams *params);
+extern "C" IDSCustomLibrary *CreateCustomAlgoCtx(GObject *obj);
 // Create Custom Algorithm / Library Context
-extern "C" IDSCustomLibrary *CreateCustomAlgoCtx(DSCustom_CreateParams *params)
+// obj is the nvdsvideotemplate element itself. Caps and the remaining
+// DSCustom_CreateParams fields are not negotiated yet at this point; they are
+// delivered later through SetInitParams().
+extern "C" IDSCustomLibrary *CreateCustomAlgoCtx(GObject *obj)
 {
-  return new SampleAlgorithm();
+  return new SampleAlgorithm(obj);
 }
 
 // Set Init Parameters

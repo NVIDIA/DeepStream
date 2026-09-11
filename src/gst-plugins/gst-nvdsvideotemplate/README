@@ -41,21 +41,21 @@ Single Stream and Rendering
    $ sudo make
 Test for transform-ip
 On dGPU
-   $ gst-launch-1.0 filesrc location=/home/nvidia/sample_720p.mp4 ! decodebin ! \
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 ! decodebin ! \
       nvvideoconvert ! nvdsvideotemplate customlib-name="./libcustom_videoimpl.so" \
       customlib-props="key1:value1" customlib-props="key2:value2" ! identity silent=1 ! nveglglessink
 On Jetson
-   $ gst-launch-1.0 filesrc location=/home/nvidia/sample_720p.mp4 ! decodebin ! \
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 ! decodebin ! \
       nvvideoconvert ! nvdsvideotemplate customlib-name="./libcustom_videoimpl.so" \
       customlib-props="key1:value1" customlib-props="key2:value2" ! identity silent=1 ! nv3dsink
 Test for transformed output
 On dGPU
-   $ gst-launch-1.0 filesrc location=/home/nvidia/sample_720p.mp4 ! decodebin ! \
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 ! decodebin ! \
       nvvideoconvert ! nvdsvideotemplate customlib-name="./libcustom_videoimpl.so" \
       customlib-props="key1:value1" customlib-props="key2:value2" customlib-props="scale-factor:2" ! \
       identity silent=1 ! nveglglessink
 On Jetson
-   $ gst-launch-1.0 filesrc location=/home/nvidia/sample_720p.mp4 ! decodebin ! \
+   $ gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.mp4 ! decodebin ! \
       nvvideoconvert ! nvdsvideotemplate customlib-name="./libcustom_videoimpl.so" \
       customlib-props="key1:value1" customlib-props="key2:value2" customlib-props="scale-factor:2" ! \
       identity silent=1 ! nv3dsink

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +35,7 @@ typedef enum
   NV_DS_GIE_PLUGIN_INFER_SERVER,
   NV_DS_GIE_PLUGIN_VIDEO_TEMPLATE,
   NV_DS_GIE_PLUGIN_VISION_ENCODER,
+  NV_DS_GIE_PLUGIN_MULTIMODEL,
 } NvDsGiePluginType;
 
 typedef struct

@@ -32,10 +32,11 @@ LIB:=libnvdsgst_nvmultiurisrcbin.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.1.0\" \
-     -I../../../includes \
-     -I../../apps/common/includes/ \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.1.1\" \
      -I../../utils/nvds_rest_server \
+     -I../../gst-utils/gstnvdscustomhelper \
+     -I../../apps/common/includes/ \
+     -I../../../includes \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \
 	 -I/usr/include/jsoncpp
 
@@ -75,4 +76,3 @@ install: $(LIB)
 
 clean:
 	rm -rf $(OBJS) nvds_utils.o $(LIB)
-

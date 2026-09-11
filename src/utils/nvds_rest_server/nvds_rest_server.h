@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 #include <functional>
 #include "gst-nvdscustomevent.h"
@@ -81,6 +82,13 @@ typedef enum
  * GET_STARTUP_INFO     - Application startup state via /startup
  * GET_METRICS_INFO     - Query application metrics via /api/v1/metrics
  * GET_METADATA_INFO    - Query application metadata via /api/v1/metadata
+ * GET_MODEL_STATUS_INFO - Query the MODEL plane via /api/v1/model/status
+ * GET_STREAM_ROUTE_INFO - Query the ROUTING plane via GET /api/v1/stream/route.
+ *                        Optional ?stream=<camera_id> point lookup; an absent
+ *                        filter returns every route, a present-but-empty one
+ *                        matches nothing. Unlike the flags above, a backend
+ *                        failure is propagated to the HTTP status line rather
+ *                        than reported only in the body.
  */
 typedef enum
 {
@@ -90,6 +98,8 @@ typedef enum
   GET_STARTUP_INFO = 1 << 3,
   GET_METRICS_INFO = 1 << 4,
   GET_METADATA_INFO = 1 << 5,
+  GET_MODEL_STATUS_INFO = 1 << 6,   /* /api/v1/model/status -- app model-pool state */
+  GET_STREAM_ROUTE_INFO = 1 << 7,   /* GET /api/v1/stream/route -- routing plane only */
 } NvDsServerGetRequestPropFlag;
 
 typedef enum
@@ -138,6 +148,25 @@ typedef enum
 
 typedef enum
 {
+  MODEL_LOAD_SUCCESS = 0,
+  MODEL_LOAD_FAIL,
+  MODEL_UNLOAD_SUCCESS,
+  MODEL_UNLOAD_FAIL,
+  /* model/update = IN-PLACE checkpoint transition on the live instance group
+   * (same network, new weights, NEW version). Stream routing is a different
+   * plane: see NvDsServerRouteStatus / /api/v1/stream/route. */
+  MODEL_UPDATE_SUCCESS,
+  MODEL_UPDATE_FAIL,
+} NvDsServerModelStatus;
+
+typedef enum
+{
+  STREAM_ROUTE_SUCCESS = 0,
+  STREAM_ROUTE_FAIL,
+} NvDsServerRouteStatus;
+
+typedef enum
+{
   GET_LIVE_STREAM_INFO_SUCCESS = 0,
   GET_LIVE_STREAM_INFO_FAIL,
   GET_READY_INFO_SUCCESS,
@@ -150,6 +179,10 @@ typedef enum
   GET_METRICS_INFO_FAIL,
   GET_METADATA_INFO_SUCCESS,
   GET_METADATA_INFO_FAIL,
+  GET_MODEL_STATUS_INFO_SUCCESS,
+  GET_MODEL_STATUS_INFO_FAIL,
+  GET_STREAM_ROUTE_INFO_SUCCESS,
+  GET_STREAM_ROUTE_INFO_FAIL,
 } NvDsServerGetRequestStatus;
 
 typedef enum
@@ -258,13 +291,20 @@ typedef enum
   StatusUriTooLong,                     // HTTP error code : 414
   StatusUnsupportedMediaType,           // HTTP error code : 415
   StatusInternalServerError,            // HTTP error code : 500
-  StatusNotImplemented                  // HTTP error code : 501
+  StatusNotImplemented,                 // HTTP error code : 501
+  StatusServiceUnavailable              // HTTP error code : 503
 } NvDsServerStatusCode;
 
 typedef struct NvDsServerErrorInfo
 {
   std::pair < int, std::string > err_log;
   NvDsServerStatusCode code;
+  /* Machine-readable error envelope (emitted as error{code,message,hint} in the
+   * HTTP response body when code != StatusOk). Clients must never parse prose:
+   * `err_code` is a stable identifier (e.g. "MODEL_NOT_LOADED",
+   * "SHADOW_WITHOUT_MODEL"); `hint` is the actionable next step. */
+  std::string err_code;
+  std::string hint;
 } NvDsServerErrorInfo;
 
 typedef struct NvDsServerDecInfo
@@ -348,6 +388,9 @@ typedef struct NvDsServerStreamInfo
   std::string metadata_resolution;
   std::string metadata_codec;
   std::string metadata_framerate;
+  /* Full metadata object forwarded verbatim as a JSON string (variable keys),
+   * so custom per-stream metadata (e.g. model selection) reaches the app. */
+  std::string metadata_json;
 
   std::string headers_source;
   std::string headers_created_at;
@@ -356,6 +399,89 @@ typedef struct NvDsServerStreamInfo
   std::string uri;
   NvDsServerErrorInfo err_info;
 } NvDsServerStreamInfo;
+
+/* MODEL PLANE (lifecycle) request info -- /api/v1/model/load|unload|update.
+ *
+ *   load:   register + warm one immutable (name, version); deploy its
+ *           instance set (declarative full set).
+ *   unload: reclaim an idle version (version "" => all non-serving versions).
+ *   update: IN-PLACE checkpoint transition on the LIVE instance group -- same
+ *           network, new weights, NEW version. from_version is a REQUIRED CAS
+ *           guard. Engines: `engine_file` (single-instance groups only) XOR
+ *           `engine_files` (exact per-GPU map).
+ *
+ * Stream routing is a different plane (never mixed in here): NvDsServerRouteInfo.
+ * The raw request `value` object is also carried verbatim in `value_json` --
+ * that is what travels in-band to the consuming element (one schema end-to-end). */
+typedef struct NvDsServerModelInfo
+{
+  std::string key;
+  std::string name;                /**< logical model name (no '@' / ';')          */
+  std::string version;             /**< positive-integer version (required: load/update) */
+  std::string from_version;        /**< update only: REQUIRED CAS guard             */
+  std::string config_file;         /**< load: required on first load of a name      */
+  std::string engine_file;         /**< SEED engine (load) / single-instance (update) */
+  std::map<guint, std::string> engine_files;  /**< EXACT per-GPU engine map (gpu -> path) */
+  std::vector<guint> gpus;         /**< gpu id set: load = instance placement (one per gpu), unload = subset to drain */
+  gboolean has_gpus;               /**< 'gpus' present in the request               */
+  std::string value_json;          /**< the request "value" object, serialized verbatim */
+  std::string value_change;        /**< set by handler: "model_load"|"model_unload"|"model_update" */
+  NvDsServerModelStatus status;
+  std::string model_log;
+  std::string uri;
+  NvDsServerErrorInfo err_info;
+} NvDsServerModelInfo;
+
+/* STREAM PLANE (routing) request info -- /api/v1/stream/route.
+ * Declarative routing request: per-group desired (model, shadow) state plus an
+ * optional default switch. Parse/admission constraints enforced at this layer:
+ *   - at least one of routes[] / default present (EMPTY_REQUEST);
+ *   - every route carries `streams`: an explicit camera_id list or the literal
+ *     "all" (an omitted list must fail validation, never mean "everything");
+ *   - no stream named in two routes (STREAM_DUPLICATE_ROUTE);
+ *   - a route ALWAYS resolves to a serving model: `"model": null` (explicit
+ *     passthrough) with a shadow present is rejected (SHADOW_WITHOUT_MODEL);
+ *   - refs are structured {name, version[, gpu]}; version is a positive integer.
+ * Whether a stream exists is checked by the nvmultiurisrcbin callback (it owns
+ * the camera_id -> source_id map); model-loaded/state checks belong to the
+ * consuming element. The raw `value` travels verbatim in `value_json`. */
+typedef struct NvDsServerRouteRef
+{
+  std::string name;
+  std::string version;
+  gint gpu;                        /**< -1 = no placement hint                     */
+} NvDsServerRouteRef;
+
+typedef struct NvDsServerRouteEntry
+{
+  std::vector<std::string> camera_ids;  /**< empty + all_streams=TRUE => "all"     */
+  gboolean all_streams;
+  gboolean has_model;              /**< "model" key present                        */
+  gboolean model_null;             /**< "model": null => PASSTHROUGH               */
+  NvDsServerRouteRef model;
+  gboolean has_shadow;             /**< "shadow" key present                       */
+  gboolean shadow_null;            /**< "shadow": null => clear                    */
+  NvDsServerRouteRef shadow;
+} NvDsServerRouteEntry;
+
+typedef struct NvDsServerRouteInfo
+{
+  std::string key;
+  std::vector<NvDsServerRouteEntry> routes;
+  gboolean has_default;
+  gboolean default_has_model;
+  NvDsServerRouteRef default_model;
+  gboolean default_has_shadow;
+  gboolean default_shadow_null;
+  NvDsServerRouteRef default_shadow;
+  gint64 if_revision;              /**< -1 = no optimistic-concurrency guard       */
+  std::string value_json;          /**< the request "value" object, serialized verbatim */
+  std::string value_change;        /**< set by handler: "stream_route"             */
+  NvDsServerRouteStatus status;
+  std::string route_log;
+  std::string uri;
+  NvDsServerErrorInfo err_info;
+} NvDsServerRouteInfo;
 
 typedef struct NvDsGetRequestInfo
 {
@@ -497,6 +623,10 @@ typedef struct NvDsServerCallbacks
   std::function < void (NvDsServerEncInfo * enc_info, void *ctx) > enc_cb;
   std::function < void (NvDsServerStreamInfo * stream_info,
     void *ctx) > stream_cb;
+  std::function < void (NvDsServerModelInfo * model_info,
+    void *ctx) > model_cb;
+  std::function < void (NvDsServerRouteInfo * route_info,
+    void *ctx) > route_cb;
   std::function < void (NvDsServerInferInfo * infer_info,
     void *ctx) > infer_cb;
   std::function < void (NvDsServerConvInfo * conv_info, void *ctx) > conv_cb;

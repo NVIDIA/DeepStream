@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,15 @@ bool
 nvds_rest_stream_parse (const Json::Value & in, NvDsServerStreamInfo * stream_info)
 {
   if (stream_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      bool is_remove =
+          stream_info->uri.find ("/stream/remove") != std::string::npos;
+      stream_info->stream_log =
+          "STREAM_PARSE_FAIL, request body must be a JSON object";
+      stream_info->status = is_remove ? STREAM_REMOVE_FAIL : STREAM_ADD_FAIL;
+      stream_info->err_info.code = StatusBadRequest;
+      return false;
+    }
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
         try {
 
@@ -34,6 +43,9 @@ nvds_rest_stream_parse (const Json::Value & in, NvDsServerStreamInfo * stream_in
         if (root_val == "key") {
           stream_info->key = in.get ("key", EMPTY_STRING).asString ().c_str ();
         }
+        /* Accept BOTH body wrappers: "value" (current) and "event" (v0, still
+         * used by VST). Rejecting "event" broke live VST camera_add/streaming
+         * requests -- restore the original dual-wrapper parsing. */
         if (root_val == "value" || root_val == "event") {
 
           for (Json::ValueConstIterator it_sr = sub_root_val.begin ();
@@ -49,6 +61,15 @@ nvds_rest_stream_parse (const Json::Value & in, NvDsServerStreamInfo * stream_in
                   metadata_in.get ("codec", EMPTY_STRING).asString ().c_str ();
               stream_info->metadata_framerate =
                   metadata_in.get ("framerate", EMPTY_STRING).asString ().c_str ();
+              /* Forward the WHOLE metadata object (variable keys) as compact JSON
+               * so the app receives custom per-stream metadata (e.g. model
+               * selection), not just the three known fields. */
+              {
+                Json::StreamWriterBuilder wbuilder;
+                wbuilder["indentation"] = "";
+                stream_info->metadata_json =
+                    Json::writeString (wbuilder, metadata_in);
+              }
 
             } else {
               stream_info->value_camera_id =
@@ -63,20 +84,18 @@ nvds_rest_stream_parse (const Json::Value & in, NvDsServerStreamInfo * stream_in
                   sub_root_val.get ("change", EMPTY_STRING).asString ().c_str ();
               stream_info->value_creation_time =
                   sub_root_val.get ("creation_time", EMPTY_STRING).asString ().c_str ();
-              if (stream_info->value_camera_url == "") {
-                stream_info->status =
-                    stream_info->value_change.find ("add") !=
-                    std::string::npos ? STREAM_ADD_FAIL : STREAM_REMOVE_FAIL;
-                stream_info->stream_log = stream_info->status == STREAM_ADD_FAIL ?
-                                          "STREAM_ADD_FAIL, Source url empty" :
-                                          "STREAM_REMOVE_FAIL, Source url empty" ;
+              bool is_remove =
+                  stream_info->value_change.find ("remove") != std::string::npos ||
+                  stream_info->uri.find ("/stream/remove") != std::string::npos;
+              if (stream_info->value_camera_url == "" && !is_remove) {
+                stream_info->status = STREAM_ADD_FAIL;
+                stream_info->stream_log = "STREAM_ADD_FAIL, Source url empty";
                 stream_info->err_info.code = StatusBadRequest;
                 return false;
               }
               if (stream_info->value_camera_id == "") {
                 stream_info->status =
-                    stream_info->value_change.find ("add") !=
-                    std::string::npos ? STREAM_ADD_FAIL : STREAM_REMOVE_FAIL;
+                    is_remove ? STREAM_REMOVE_FAIL : STREAM_ADD_FAIL;
                 stream_info->stream_log = stream_info->status == STREAM_ADD_FAIL ?
                                           "STREAM_ADD_FAIL, Source id empty" :
                                           "STREAM_REMOVE_FAIL, Source id empty" ;

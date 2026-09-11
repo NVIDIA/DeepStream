@@ -22,7 +22,7 @@
 # 1. Add -DBUILD_SHARED_LIBS=ON to build shared libraries
 # 2. USe 'make -j4' instead of 'make -j' to avoid system becoming unreponsive
 
-if [ `id -u` -ne 0 ]
+if [[ $(id -u) -ne 0 ]]
   then CMD_PREFIX=sudo
 fi
 

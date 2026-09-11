@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,7 +54,7 @@ The sample should be downloaded and built with **root** permission.
    ```
    apt install git-lfs
    git lfs install --skip-repo
-   cd DeepStream/src/apps/reference_apps/deepstream_parallel_inference_app
+   cd deepstream/src/apps/reference_apps/deepstream_parallel_inference_app
    git lfs pull
    ```
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -784,6 +784,14 @@ gst_ds_nvurisrc_bin_class_init (GstDsNvUriSrcBinClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
 
+  g_object_class_install_property (gobject_class, PROP_IPC_FRAME_COPY,
+      g_param_spec_boolean ("ipc-frame-copy", "IPC decoder frame copy",
+          "Publish this source's DECODED frames over IPC (nvunixfdsink, tapped right "
+          "after the decoder). Socket: /tmp/nvds_ipc_<source-id>.sock",
+          FALSE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+
   klass->start_sr = gst_ds_nvurisrc_start_sr;
   klass->stop_sr = gst_ds_nvurisrc_stop_sr;
 
@@ -837,6 +845,9 @@ gst_ds_nvurisrc_bin_set_property (GObject * object, guint prop_id,
       break;
     case PROP_FILE_LOOP:
       config->loop = g_value_get_boolean (value);
+      break;
+    case PROP_IPC_FRAME_COPY:
+      config->ipc_frame_copy = g_value_get_boolean (value);
       break;
     case PROP_SMART_RECORD:
       config->smart_record = (NvDsUriSrcBinSRType) g_value_get_enum (value);
@@ -982,6 +993,9 @@ gst_ds_nvurisrc_bin_get_property (GObject * object, guint prop_id,
       break;
     case PROP_FILE_LOOP:
       g_value_set_boolean (value, config->loop);
+      break;
+    case PROP_IPC_FRAME_COPY:
+      g_value_set_boolean (value, config->ipc_frame_copy);
       break;
     case PROP_SMART_RECORD:
       g_value_set_enum (value, config->smart_record);
@@ -1481,10 +1495,56 @@ populate_uri_bin_video (GstDsNvUriSrcBin * nvurisrcbin, GstPad * pad)
     return FALSE;
   }
 
-  GstPadUPtr target_pad =
-      gst_element_get_static_pad (nvurisrcbin->cap_filter1, "src");
+  /* VIA-S-5: ipc-frame-copy => tap this source's DECODED frames before the bin's src ghost:
+   *   cap_filter1 -> tee -> [vsrc_0 ghost] + [nvvideoconvert -> nvunixfdsink].
+   * Single-stream => nvunixfdsink buffer-copy=true gives per-consumer isolation. */
+  GstPad *target_pad = NULL;
+  if (config->ipc_frame_copy) {
+    GstElement *tee = gst_element_factory_make ("tee", "nvurisrc_bin_ipc_tee");
+    GstElement *pubq = gst_element_factory_make ("queue", "nvurisrc_bin_ipc_queue");
+    GstElement *conv = gst_element_factory_make ("nvvideoconvert", "nvurisrc_bin_ipc_conv");
+    GstElement *sink = gst_element_factory_make ("nvunixfdsink", "nvurisrc_bin_ipc_sink");
+    if (tee && pubq && conv && sink) {
+      gchar *spath = g_strdup_printf ("/tmp/nvds_ipc_%d.sock", config->source_id);
+      /* publish from the SAME GPU the source decodes on (else multi-GPU mismatches);
+       * the consumer side moves frames to its own GPU via nvdsxfer if different. */
+      g_object_set (G_OBJECT (sink), "socket-path", spath, "buffer-copy", TRUE,
+          "buffer-timestamp-copy", TRUE, "sync", FALSE, "async", FALSE,
+          "gpu-id", config->gpu_id, NULL);
+      g_object_set (G_OBJECT (conv), "gpu-id", config->gpu_id, NULL);
+      /* leaky queue decouples the publisher branch so it never blocks the main path */
+      g_object_set (G_OBJECT (pubq), "leaky", 2, "max-size-buffers", 5, NULL);
+      gst_bin_add_many (GST_BIN (nvurisrcbin), tee, pubq, conv, sink, NULL);
+      gst_element_sync_state_with_parent (tee);
+      gst_element_sync_state_with_parent (pubq);
+      gst_element_sync_state_with_parent (conv);
+      gst_element_sync_state_with_parent (sink);
+      gst_element_link (nvurisrcbin->cap_filter1, tee);
+      gst_element_link_many (pubq, conv, sink, NULL);
+      GstPad *tpub = gst_element_request_pad_simple (tee, "src_%u");
+      GstPad *cs = gst_element_get_static_pad (pubq, "sink");
+      gst_pad_link (tpub, cs);
+      gst_object_unref (tpub);
+      gst_object_unref (cs);
+      target_pad = gst_element_request_pad_simple (tee, "src_%u");  /* ghost targets tee */
+      g_print ("[nvurisrcbin ipc-frame-copy] source %d publishing decoded frames at %s\n",
+          config->source_id, spath);
+      g_free (spath);
+    } else {
+      if (tee) gst_object_unref (tee);
+      if (pubq) gst_object_unref (pubq);
+      if (conv) gst_object_unref (conv);
+      if (sink) gst_object_unref (sink);
+      GST_WARNING_OBJECT (nvurisrcbin,
+          "ipc-frame-copy: element create failed (nvunixfdsink installed?); not publishing");
+    }
+  }
+  if (!target_pad)
+    target_pad = gst_element_get_static_pad (nvurisrcbin->cap_filter1, "src");
+
   GstPad *src_pad = gst_ghost_pad_new_from_template ("vsrc_0", target_pad,
       gst_static_pad_template_get (&gst_nvurisrc_bin_vsrc_template));
+  gst_object_unref (target_pad);
 
   gst_pad_add_probe (src_pad, GST_PAD_PROBE_TYPE_QUERY_BOTH,
       src_pad_query_probe, nvurisrcbin, NULL);

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -106,8 +106,16 @@ public:
       for (auto &roi_meta : preprocess_batch_meta.getRois()) {
         roi_meta.iterate([&data, &roi_meta](const ClassifierMetadata &classifier_meta) {
           unsigned int num_labels = classifier_meta.nLabels();
+          printf("ClassifierMetadata: component_id=%u type=%s n_labels=%u\n",
+                 classifier_meta.uniqueComponentId(),
+                 classifier_meta.classifierType().c_str(),
+                 num_labels);
           for (unsigned int i = 0; i < num_labels; i++) {
-            std::string label = classifier_meta.getLabel(i);
+            LabelInfo info = classifier_meta.getLabelInfo(i);
+            printf("  LabelInfo[%u]: label=%s class_id=%u prob=%.4f label_id=%u\n",
+                   i, info.label().c_str(), info.classId(), info.prob(),
+                   info.labelId());
+            std::string label = info.label();
             std::stringstream ss;
             ss << "Label: "<< label;
             std::string str = ss.str();

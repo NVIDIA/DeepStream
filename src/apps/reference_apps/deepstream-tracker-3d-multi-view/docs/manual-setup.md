@@ -181,30 +181,25 @@ limitations under the License.
 
 8. (Optional) This step is only needed if you choose to use Option 2: Inference Builder.
 
-    Set up [Deepstream Inference Builder](https://github.com/NVIDIA-AI-IOT/inference_builder/tree/3f0c09f2e3da076cbbb75e17bdebd565b03d1a18). It is recommended to clone the `inference_builder` repo outside of the current repo.
-    * Clone the inference builder repo
+    DeepStream Inference Builder is included in this repository. From the DeepStream
+    repository root, enter the component:
 
     ```bash
-    git clone https://github.com/NVIDIA-AI-IOT/inference_builder.git inference_builder && cd inference_builder && git checkout 3f0c09f2e3da076cbbb75e17bdebd565b03d1a18 && cd ..
-    cd inference_builder
-    git submodule update --init --recursive
+    cd tools/inference_builder
     ```
-    * Create a new virtual environment for inference builder and install prerequisites. Please follow the following instructions exactly for quick start. **Note that there are 2 virtual environments used in this repo, `mv3dt_venv` and `ib_venv`. The scripts provided in the repo assumes that a `mv3dt_venv` folder is under the current repo, and a `ib_venv` folder is under the inference_builder repo.**
+    * Create a virtual environment for Inference Builder and install prerequisites. The MV3DT app uses `mv3dt_venv`; Inference Builder uses `tools/inference_builder/.venv`.
 
     ```bash
-    # Install required deb packages
-    sudo apt install protobuf-compiler
-
-    # Deactivate the mv3dt_venv, and create a new virtual environment named ib_venv for inference builder
+    # Deactivate mv3dt_venv, then create the component-local environment
     deactivate
-    python -m venv ib_venv
-    source ib_venv/bin/activate
+    python -m venv .venv
+    source .venv/bin/activate
     pip3 install -r requirements.txt
     ```
     * Check the virtual environment. If any specific package fails, please install it manually with `pip install <package-name>`.
     ```bash
-    ls -d ib_venv
-    # [Expected output] You should see "ib_venv" printed. If you see "No such file or directory", please check the previous step "python -m venv ib_venv". 
+    ls -d .venv
+    # [Expected output] You should see ".venv" printed.
 
     pip list
     # [Expected output] You should see omegaconf  2.3.0 in the list
@@ -228,4 +223,3 @@ limitations under the License.
 
     # [Expected output] You should see "naming to docker.io/library/inference-builder-mv3dt:latest" printed as the last line.
     ```
-

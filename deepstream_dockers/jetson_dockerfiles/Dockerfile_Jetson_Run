@@ -18,6 +18,9 @@
 
 FROM nvcr.io/nvidia/cuda:13.2.1-cudnn-runtime-ubuntu24.04
 
+ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
+ARG OPENTELEMETRY_BUILD_JOBS
+
 ENV DS_VERSION=9.1
 
 RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
@@ -86,17 +89,50 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libopencv-dev=4.6.0+dfsg-13.1ubuntu1 && \
     ldconfig
 
-# open telemetry
-RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
-     mkdir -p /tmp/temp_otel99 && \
-     cd /tmp/temp_otel99 && \
-     cp  /tmp/docker/optel/* . && \
-     dpkg -i *.deb && \
-     cd / && \
-     rm -rf /tmp/temp_otel99
-
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.3 libprotoc32t64=3.21.12-8.2ubuntu0.3
+
+
+# open telemetry
+# Built from source instead of prebuilt .deb packages: the Debian/Ubuntu archives
+# rotate opentelemetry-cpp binaries out of the pool, which breaks the docker build.
+# Runs after the protobuf step so the OTLP exporters link against the same protobuf
+# the image ships. Default OTELCPP_VERSIONED_LIBS=OFF and WITH_STL=OFF are required:
+# prebuilt DeepStream libraries expect unversioned SONAMEs
+# (libopentelemetry_metrics.so) and the nostd ABI used by includes/opentelemetry.
+# CURL comes from the libcurl4-openssl-dev installed above.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      cmake \
+      libgrpc++-dev \
+      libprotobuf-dev=3.21.12-8.2ubuntu0.3 \
+      nlohmann-json3-dev \
+      protobuf-compiler \
+      protobuf-compiler-grpc && \
+    git clone --depth 1 --branch ${OPENTELEMETRY_CPP_VERSION} \
+      https://github.com/open-telemetry/opentelemetry-cpp.git /tmp/opentelemetry-cpp && \
+    git -C /tmp/opentelemetry-cpp submodule update --init --depth 1 third_party/opentelemetry-proto && \
+    cmake -S /tmp/opentelemetry-cpp -B /tmp/opentelemetry-cpp/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_INSTALL_LIBDIR=lib/aarch64-linux-gnu \
+      -DCMAKE_CXX_STANDARD=17 \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+      -DBUILD_SHARED_LIBS=ON \
+      -DOPENTELEMETRY_INSTALL=ON \
+      -DWITH_OTLP_HTTP=ON \
+      -DWITH_OTLP_GRPC=ON \
+      -DWITH_EXAMPLES=OFF \
+      -DWITH_FUNC_TESTS=OFF \
+      -DWITH_BENCHMARK=OFF \
+      -DBUILD_TESTING=OFF && \
+    cmake --build /tmp/opentelemetry-cpp/build \
+      --parallel "${OPENTELEMETRY_BUILD_JOBS:-$(nproc)}" && \
+    cmake --install /tmp/opentelemetry-cpp/build && \
+    rm -rf /tmp/opentelemetry-cpp && \
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y cmake && \
+    rm -rf /var/lib/apt/lists/* && \
+    ldconfig
 
 RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         tar --version ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v*_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \

@@ -65,7 +65,7 @@ Sample contents for DeepStream Triton:
   DeepStream metadata, stream IDs in this example.
 - triton_model_repo/Primary_Detector, Secondary_VehicleMake, Secondary_VehicleTypes:
   Softlinks to the corresponding Triton models. These softlinks are NOT shipped
-  in this repository's source tree; they are created when you run
+  in the source tree; they are created when you run
   prepare_ds_triton_model_repo.sh (see Prerequisites section). The script
   populates triton_model_repo/ with links pointing at the deb-installed models
   under /opt/nvidia/deepstream/deepstream/samples/triton_model_repo/.

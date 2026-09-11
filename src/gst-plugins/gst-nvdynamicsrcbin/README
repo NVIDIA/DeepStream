@@ -114,9 +114,9 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 How to test:
 
 Test with Sample Application:
-   $ cd ../../../apps/deepstream/sample_apps/deepstream-dynamicsrcbin-test
+   $ cd ../../apps/sample_apps/deepstream-dynamicsrcbin-test
    $ sudo make
-   $ ./deepstream-dynamicsrcbin-test-app
+   $ ./deepstream-dynamicsrcbin-test
 
 --------------------------------------------------------------------------------
 Technical Notes:

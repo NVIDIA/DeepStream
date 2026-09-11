@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,6 +91,7 @@ extern "C"
 #define CONFIG_GROUP_TILED_DISPLAY "tiled-display"
 #define CONFIG_GROUP_DSANALYTICS "nvds-analytics"
 #define CONFIG_GROUP_DSEXAMPLE "ds-example"
+#define CONFIG_GROUP_INFER_EVAL "infer-eval"
 #define CONFIG_GROUP_STREAMMUX "streammux"
 #define CONFIG_GROUP_DEWARPER "dewarper"
 #define CONFIG_GROUP_MSG_CONVERTER  "message-converter"
@@ -383,6 +384,14 @@ parse_image_save (NvDsImageSave *config, GKeyFile *key_file,
  */
 gchar *
 get_absolute_file_path (gchar *cfg_file_path, gchar * file_path);
+
+typedef struct {
+  gboolean  enable;
+  gchar    *config_file;
+} NvDsInferEvalConfig;
+
+gboolean parse_infer_eval (NvDsInferEvalConfig *config, GKeyFile *key_file,
+                           gchar *cfg_file_path);
 
 #ifdef __cplusplus
 }

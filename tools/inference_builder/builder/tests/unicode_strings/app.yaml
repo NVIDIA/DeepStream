@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "test-app"
+model_repo: "/workspace/models"
+
+input:
+  - name: "text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+
+output:
+  - name: "output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+
+server:
+  responders:
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+    infer:
+      operation: inference
+      requests:
+        InferenceRequest: >
+          {
+            {% if request.text is not none %}
+            "text": [
+              {% for item in request.text %}
+                {{ item|tojson }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ]
+            {% endif %}
+          }
+      responses:
+        InferenceResponse: >
+          {
+            "data": [
+              {% for item in response.output %}
+              {
+                "index": {{ loop.index0 }},
+                "output": {{ item | tojson }}
+              }{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ]
+          }
+
+models:
+  - name: unicode_strings_dummy
+    backend: "dummy"
+    max_batch_size: 1
+    parameters: {}
+    input:
+      - name: text
+        data_type: TYPE_STRING
+        dims: [ -1 ]
+    output:
+      - name: model_output
+        data_type: TYPE_STRING
+        dims: [ 3 ]
+    preprocessors:
+      - kind: "custom"
+        name: "unicode-string-input-validator"
+        input:
+          - text
+        output:
+          - text
+    postprocessors:
+      - kind: "custom"
+        name: "unicode-string-output-processor"
+        input:
+          - model_output
+        output:
+          - output

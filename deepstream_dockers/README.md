@@ -1,4 +1,4 @@
-# DeepStream 9.1 Open Source Dockerfiles Guide
+# DeepStream 9.1.1 Open Source Dockerfiles Guide
 
 The documentation here is intended to help customers build the Open Source DeepStream Dockerfiles.
 
@@ -39,9 +39,7 @@ export ADDVAR99=\<your x86 and Jetson content directory\>
 
 ```
 mkdir -p $ADDVAR99/x86/gst
-mkdir -p $ADDVAR99/x86/optel
 mkdir -p $ADDVAR99/jetson/gst
-mkdir -p $ADDVAR99/jetson/optel
 ```
 
 
@@ -86,12 +84,27 @@ For x86 copy x86 gst libraries into $ADDVAR99/x86/gst
 
 For Jetson Thor copy jetson gst libraries into $ADDVAR99/jetson/gst
 
-### 1.2.2 Packages for Open Telemetry
+### 1.2.2 Open Telemetry
 
-This may require updates to the particular packages if there are changes in location or versions. This is a helper script to download the packages for reference.
+Nothing to download. The Dockerfiles build opentelemetry-cpp from source at the tag
+pinned by the ``OPENTELEMETRY_CPP_VERSION`` build arg, so a network connection is
+required during the build (the documented ``docker build`` commands already pass
+``--network host``).
 
-``get_optel_pkgs.sh`` is a script to help download these packages. These packages will be downloaded for both x86 and Jetson ($ADDVAR99/x86/optel and $ADDVAR99/jetson/optel).
+Previously these packages were installed from prebuilt Debian ``.deb`` files staged in
+``$ADDVAR99/{x86,jetson}/optel``; that is no longer needed, as those files are
+periodically removed from the Debian archive pool.
 
+### 1.2.3 OpenTelemetry build parallelism
+
+The Dockerfiles build OpenTelemetry with all available cores by default. To limit
+the number of parallel compile jobs, pass ``OPENTELEMETRY_BUILD_JOBS`` as a Docker
+build argument. This can help when building an ARM64 image through emulation on an
+x86 host:
+
+```
+sudo docker build --build-arg OPENTELEMETRY_BUILD_JOBS=2 ...
+```
 
 ## 1.3 Jetson Dockers (adding to the released DS 9.1 NGC Jetson dockers)
 
@@ -118,10 +131,10 @@ Please refer to the Prerequisites section at DeepStream NGC page [NVIDIA NGC](ht
 
 ### 2.1.1 Prerequisites; Mandatory; (DeepStreamSDK package and terminology)
 
-1) Please download the [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0) x86 tarball and place it locally
+1) Please download the [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.1) x86 tarball and place it locally
 in the ``$ROOT/`` folder of this repository.
 
-``cp deepstream_sdk_v9.1.0_x86_64.tbz2 ./x86_dockerfiles/``
+``cp deepstream_sdk_v9.1.1_x86_64.tbz2 ./x86_dockerfiles/``
  
 
 #### 2.1.2 CuDNN 9.20.0 install 
@@ -176,7 +189,7 @@ NOTE: Make sure you run the x86 Build setup command first.
 
 ```
 cd $ROOT/x86_dockerfiles
-sudo docker build --network host --progress=plain --build-arg DS_DIR=/opt/nvidia/deepstream/deepstream-9.1 -t deepstream:9.1.0-triton-local -f Dockerfile_triton_x86 ..
+sudo docker build --network host --progress=plain --build-arg DS_DIR=/opt/nvidia/deepstream/deepstream-9.1 -t deepstream:9.1.1-triton-local -f Dockerfile_triton_x86 ..
 
 ```
 NOTE: There is an example build script called $ROOT/buildx86.sh with the same contents.
@@ -187,7 +200,7 @@ NOTE: Make sure you run the x86 Build setup command first.
 
 ```
 cd $ROOT/x86_dockerfiles
-sudo docker build --network host --progress=plain -t deepstream:9.1.0-samples-local -f Dockerfile_samples_x86 ..
+sudo docker build --network host --progress=plain -t deepstream:9.1.1-samples-local -f Dockerfile_samples_x86 ..
 
 ```
 
@@ -201,14 +214,14 @@ Must be built on a x86 Linux machine.
 
 Please refer to the Prerequisites section at DeepStream NGC page [NVIDIA NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream) to run deepstream containers.
 
-Download DeepStreamSDK tarball from [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0) Jetson tarball and place it locally
+Download DeepStreamSDK tarball from [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.1) Jetson tarball and place it locally
 in the ``$ROOT/`` folder of this repository.
 
-``cp deepstream_sdk_v9.1.0_jetson.tbz2 ./jetson_dockerfiles/ ``
+``cp deepstream_sdk_v9.1.1_jetson.tbz2 ./jetson_dockerfiles/ ``
 
-## 3.1.1 Jetson requires JP 7.2 to run the dockers on Jetson
+## 3.1.1 Jetson requires JP 7.2.1 to run the dockers on Jetson
 
-More information found here [JetPack 7.2 GA](https://developer.nvidia.com/embedded/jetpack).
+More information found here [JetPack 7.2.1](https://developer.nvidia.com/embedded/jetpack).
 
 ## 3.1.2 Jetson build setup for x86 cross compile
 
@@ -219,8 +232,8 @@ ls $ADDVAR99/jetson/ #To verify $ADDVAR99 env variable is set correctly & requir
 ./setup_jetson_build.sh
 ```
 
-> **NOTE:** `setup_jetson_build.sh` copies the GST `.so` files and OpenTelemetry packages from
-> `$ADDVAR99/jetson/gst/` and `$ADDVAR99/jetson/optel/` into `jetson_dockerfiles/` — the Docker
+> **NOTE:** `setup_jetson_build.sh` copies the GST `.so` files from
+> `$ADDVAR99/jetson/gst/` into `jetson_dockerfiles/` — the Docker
 > build context. The Dockerfiles use `--mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker`,
 > so **this step is mandatory and must be run before `docker build`**. Skipping it causes:
 > ```text
@@ -235,7 +248,7 @@ NOTE: Make sure you run the Jetson setup (x86 cross-compile) and Build setup com
 
 ```
 cd $ROOT/jetson_dockerfiles  
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.1.0-triton-local -f Dockerfile_Jetson_Devel ..
+sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.1.1-triton-local -f Dockerfile_Jetson_Devel ..
 
 ```
 
@@ -263,9 +276,9 @@ $ROOT is the root directory of this git repo.
 
 ```
 cd $ROOT/jetson_dockerfiles  
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.1.0-samples-local -f Dockerfile_Jetson_Run ..
+sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.1.1-samples-local -f Dockerfile_Jetson_Run ..
 
 ```
 ## 4 Triton Migration Guide
 
-N/A for DS 9.1
+N/A for DS 9.1.1

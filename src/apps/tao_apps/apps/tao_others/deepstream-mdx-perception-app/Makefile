@@ -30,6 +30,7 @@ SRCS+= ../../../../../apps/sample_apps/deepstream-app/deepstream_app_config_pars
 SRCS+= ../../../../../apps/sample_apps/deepstream-app/deepstream_app_config_parser_yaml.cpp
 SRCS+= $(wildcard ../../../../../apps/common/src/*.c)
 SRCS+= $(wildcard ../../../../../apps/common/src/deepstream-yaml/*.cpp)
+SRCS+= ../../../../../apps/common/src/frame_dump.cpp
 SRCS+= $(wildcard ../../../../../utils/nvds_msgapi/common_src/*.cpp)
 INCS:= $(wildcard *.h)
 
@@ -48,7 +49,7 @@ CFLAGS+= -I../../../../../apps/apps-common/includes \
 LIBS:= -L/usr/local/cuda/lib64/ -lcudart
 LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvdsgst_helper -lnvdsgst_customhelper \
 	   -lnvdsgst_smartrecord -lnvds_utils -lnvds_msgbroker -lm -lnvds_logger -lcrypto \
-       -lyaml-cpp -lcuda -lgstrtspserver-1.0 -ldl -Wl,-rpath,$(LIB_INSTALL_DIR)
+       -lyaml-cpp -lcuda -lgstrtspserver-1.0 -lnvds_batch_jpegenc -lpthread -ldl -Wl,-rpath,$(LIB_INSTALL_DIR)
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 
@@ -70,4 +71,3 @@ install: $(APP)
 
 clean:
 	rm -rf $(OBJS) $(APP)
-

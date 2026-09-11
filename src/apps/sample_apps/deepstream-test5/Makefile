@@ -37,6 +37,7 @@ SRCS+= ../deepstream-app/deepstream_app.c ../deepstream-app/deepstream_app_confi
 SRCS+= ../deepstream-app/deepstream_app_config_parser_yaml.cpp
 SRCS+= $(wildcard ../../common/src/*.c)
 SRCS+= $(wildcard ../../common/src/deepstream-yaml/*.cpp)
+SRCS+= ../../common/src/frame_dump.cpp
 
 INCS:= $(wildcard *.h)
 
@@ -45,7 +46,7 @@ PKGS:= gstreamer-1.0 gstreamer-video-1.0 x11 json-glib-1.0
 OBJS:= $(SRCS:.c=.o)
 OBJS:= $(OBJS:.cpp=.o)
 
-CFLAGS+= -I../../common/includes \
+CFLAGS+= -I../../common/includes -I../../../gst-utils/gstnvdscustomhelper \
 		 -I../../../../includes \
 		 -I../deepstream-app/ -DDS_VERSION_MINOR=0 -DDS_VERSION_MAJOR=5 \
 		 -I../../../src/utils/nvds_msgapi/inc \
@@ -54,7 +55,7 @@ CFLAGS+= -I../../common/includes \
 LIBS:= -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart
 
 LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta -lnvdsgst_helper -lnvdsgst_customhelper -lnvdsgst_smartrecord -lnvds_utils -lnvds_msgbroker -lm \
-       -lyaml-cpp -lcuda -lgstrtspserver-1.0 -lnvbufsurface -lnvbufsurftransform -ldl -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_logger -lcrypto
+       -lyaml-cpp -lcuda -lgstrtspserver-1.0 -lnvbufsurface -lnvbufsurftransform -lnvds_batch_jpegenc -lpthread -ldl -Wl,-rpath,$(LIB_INSTALL_DIR) -lnvds_logger -lcrypto
 
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
 
@@ -76,4 +77,3 @@ install: $(APP)
 
 clean:
 	rm -rf $(OBJS) $(APP)
-

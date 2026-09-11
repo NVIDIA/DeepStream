@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -165,6 +165,18 @@ create_primary_gie_bin (NvDsGieConfig * config, NvDsPrimaryGieBin * bin)
       // Set nvdsvideotemplate specific properties
 		g_object_set (G_OBJECT (bin->primary_gie),
           "config-file", GET_FILE_PATH(config->config_file_path),
+          NULL);
+      break;
+
+    case NV_DS_GIE_PLUGIN_MULTIMODEL:
+      bin->primary_gie =
+          gst_element_factory_make ("nvmodelmux", "primary_gie");
+      if (!bin->primary_gie) {
+        NVGSTDS_ERR_MSG_V ("Failed to create 'primary_gie' with nvmodelmux");
+        goto done;
+      }
+      g_object_set (G_OBJECT (bin->primary_gie),
+          "config-file-path", GET_FILE_PATH (config->config_file_path),
           NULL);
       break;
 

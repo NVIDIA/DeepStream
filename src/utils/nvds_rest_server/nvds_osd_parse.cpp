@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,14 @@ bool
 nvds_rest_osd_parse (const Json::Value & in, NvDsServerOsdInfo * osd_info)
 {
   if (osd_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      osd_info->osd_log =
+          "OSD_UPDATE_FAIL, request body must be a JSON object";
+      osd_info->status = PROCESS_MODE_UPDATE_FAIL;
+      osd_info->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
 
       std::string root_val = it.key ().asString ().c_str ();
@@ -45,6 +53,12 @@ nvds_rest_osd_parse (const Json::Value & in, NvDsServerOsdInfo * osd_info)
             return false;
         }
       }
+    }
+    } catch (const std::exception& e) {
+      osd_info->osd_log = "OSD_UPDATE_FAIL, error: " + std::string(e.what());
+      osd_info->status = PROCESS_MODE_UPDATE_FAIL;
+      osd_info->err_info.code = StatusBadRequest;
+      return false;
     }
   } else {
     g_print ("Unsupported REST API version\n");

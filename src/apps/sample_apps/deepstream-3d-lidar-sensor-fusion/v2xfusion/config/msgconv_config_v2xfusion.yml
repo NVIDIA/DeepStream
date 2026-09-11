@@ -14,6 +14,7 @@
 # limitations under the License.
 
 %YAML 1.2
+---
 ds3d::datamap:
   3d_objects_key: DS3D::Lidar3DBboxRawData_0
   lidar_data_key: DS3D::LidarXYZI_0+1

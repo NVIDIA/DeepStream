@@ -119,6 +119,9 @@ A 4 X File(mp4) stream analytics pipeline config
 A 2 X RTSP Camera analytics pipeline config
 3) test5_config_file_src_infer_tracker_sgie.txt(.yml) -
 A 4 X File(mp4) stream analytics pipeline config with SGIE usage
+4) ab_testing/test5_config_file_src_modelmux.txt -
+A 4 X File(mp4) live A/B model-comparison pipeline config using the
+"nvmodelmux" plugin. See section 5.2.
 
 Please provide message broker connection string in [sink1] section
 
@@ -134,6 +137,34 @@ specific to the protocol in use.
 [sink] group keys associated with type=6 for nvmsgconv and nvmsgbroker
 configuration are discussed in the DeepStream_Development_Guide ->
 Reference Application Configuration -> Configuration Groups.
+
+===============================================================================
+5.2 A/B model testing with nvmodelmux (configs/ab_testing)
+===============================================================================
+These configs demonstrate the "nvmodelmux" plugin ([primary-gie]
+plugin-type=4), which runs two models over the SAME streams at once -- a
+Primary and a Shadow -- so their detections can be compared live. Models can
+also be bound per sensor and swapped at runtime over REST, with no restart.
+
+  test5_config_file_src_modelmux.txt  main config, 4 X File(mp4) cam-0..cam-3
+  config_modelmux.txt                 nvmodelmux config ([primary-gie]
+                                      config-file points here, not nvinfer)
+  config_infer_primary.txt            "Trafficcamnet", all classes. Primary
+  config_infer_primary_car.txt        "Car", same engine filtered to class 0
+                                      (cars only). Shadow
+
+To run:
+
+  $ cd configs/ab_testing
+  $ deepstream-test5-app -c test5_config_file_src_modelmux.txt -t
+
+unified-batch=1 tiles both models together (rows=2 columns=4): top row
+Primary, bottom row Shadow, one column per stream.
+
+Streams are listed statically, so no REST call is needed to start. To check
+which model is bound to each stream and role:
+
+  $ curl http://localhost:9000/api/v1/model/status
 
 ===============================================================================
 6. Option -p [Default=0]
@@ -511,3 +542,31 @@ Example:
 [sensor0], [place0], [analytics0] groups in the nvmsgconv config file
 [source1] in DeepStream config maps to:
 [sensor1], [place1], [analytics1] groups in the nvmsgconv config file
+
+7) How do I enable runtime JPEG and metadata frame dumps?
+===============================================================================
+
+Answer:
+The `deepstream-test5` configuration
+`configs/test5_config_file_nvmultiurisrcbin_src_list_attr_all.txt` contains a
+disabled-by-default `[frame-dump]` section. Set `enable=1` to write JPEG images
+and matching metadata from the tracker source pad.
+
+Example:
+
+```ini
+[frame-dump]
+enable=1
+fps=1
+location=/tmp/frame_dumps
+all-cameras=1
+quality=80
+hour-subfolder=0
+unique-filenames=0
+retention-days=0
+```
+
+`fps` controls the sampling rate and `location` selects the output directory.
+Set `all-cameras=0` and provide `enable-sensors` as a semicolon-separated list
+of sensor IDs when dumps should be limited to selected inputs. Leave `enable=0`
+to retain the existing sample behavior.

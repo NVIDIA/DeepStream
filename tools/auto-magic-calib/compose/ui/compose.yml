@@ -1,0 +1,12 @@
+services:
+  auto-magic-calib-ui:
+    image: nvcr.io/nvstaging/vss-core/vss-auto-calibration-ui:3.3.0-5
+    container_name: auto-magic-calib-ui-1
+    
+    ports:
+      - ${AUTO_MAGIC_CALIB_UI_PORT:-5000}:5000
+    
+    environment:
+      - API_URL=${AUTO_MAGIC_CALIB_MS_API_URL:-http://${HOST_IP}:${AUTO_MAGIC_CALIB_MS_PORT:-8000}/v1}
+
+    restart: unless-stopped

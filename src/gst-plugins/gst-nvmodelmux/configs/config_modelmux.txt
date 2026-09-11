@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# [multimodel] -- global inference behaviour + default model refs (name;version).
+# Models are defined in the [model-name-*] catalog blocks below.
+[multimodel]
+# 1 = run inference; 0 = passthrough (model APIs disabled)
+enable=1
+# 1 = primary + shadow share ONE combined A/B batch
+unified-batch=1
+# 1 = block startup (PLAYING) until default model(s) are warmed (infer every frame from start, like nvinfer); 0 = warm async, streams passthrough until ready (runtime model/load always async).
+wait-for-default-models=1
+# max concurrent streams (>= app batch; element batch-size property overrides if set)
+batch-size=10
+# 1 = auto-shard on overflow (default); 0 = over-cap streams pass through (no inference)
+model-sharding=1
+# 1 = demote lone-idle model to limbo for cross-role reuse (default); 0 = keep role-tagged
+compact-idle-models-across-pools=1
+# per-model nvinfer/mux batch (overflow auto-shards); the combined-mux batch is auto-derived
+per-model-batch-size=4
+# attach-perf-metric: 1=enable model/role-level fps & latency metrics (reported in model/status); 0=off (default, no counters/timers, no overhead, no model/status change)
+attach-perf-metric=0
+# measurement window in seconds for fps/latency (default 5, min 1); used only when attach-perf-metric=1
+perf-metric-interval-sec=5
+# which lane deep-copies the frame (nvvideoconvert before queue; frees decoder buffer at fan-out): 0=none 1=shadow(default) 2=primary 3=both
+buffer-copy-mode=1
+# copy-lane nvvideoconvert output pool size (0 = element default; raise if a slow copy lane backpressures)
+copy-buffer-pool-size=0
+# unconstrained multi-GPU instance-group placement: pack (default, fill instances[] in order, binpack) | spread (least-loaded)
+placement-policy=pack
+# 1 = elastic scale-out: grow an over-capacity model onto an IDENTICAL other GPU (engine reused); single/heterogeneous-GPU systems grow same-device as usual.
+auto-gpu-scale=0
+# default PRIMARY model, name;version (OPTIONAL; comment out => no default, streams pass through)
+primary-model=Trafficcamnet;1
+# default SHADOW model for A/B, name;version (OPTIONAL; comment out => primary only)
+#shadow-model=Trafficcamnet;2
+
+# [muxer] -- nvstreammux settings shared by the per-model inference muxers AND the combined
+# output muxer. width/height/live-source are common to all; only the flush cadence differs.
+[muxer]
+width=1920
+height=1080
+live-source=1
+# 10 ms -- per-model mux just regroups the already-batched upstream
+per-model-batch-push-timeout=10000
+# ~33 ms (~30 fps) -- combined mux aggregates parallel inference outputs
+combined-batch-push-timeout=33333
+
+# MODEL CATALOG -- models addressable by name (name + base config; backend auto-detected).
+# Only models referenced above or loaded via the model/load API are instantiated.
+[model-name-0]
+name=Trafficcamnet
+config=config_infer_primary.txt
+
+[model-name-1]
+name=Car
+config=config_infer_primary_car.txt
+
+[model-name-2]
+name=Person
+config=config_infer_primary_person.txt
+
+# PER-VERSION artifacts (OPTIONAL) -- [model-<name>-<version>] gives a version its own engine
+# and/or config. Omit a block => that version runs the model's base config+checkpoint, so two
+# versions differ ONLY if you give one its own engine/config (else the A/B scores the same model).
+#   engine = <path>   # this version's checkpoint (swapped in as model-engine-file)
+#   config = <path>   # custom config for this version (instead of the catalog base)
+# Example (commented out -- set real paths to enable):
+#[model-Trafficcamnet-1]
+#engine=<checkpoint-1>
+#config=<custom-config-1>
+
+#[model-Trafficcamnet-2]
+#engine=<checkpoint-2>
+#config=<custom-config-2>
+
+# PER-SENSOR binding (OPTIONAL) -- [stream-model-<sensor_id>] binds a camera (sensor-id-list /
+# REST camera_id) to primary-model=name;version (required) + shadow-model=name;version (optional A/B).
+# Unset roles fall back to [multimodel] defaults; REST selection overrides; non-default bound
+# models load lazily on first stream-add (passthrough while warming, then auto-promote, zero-drop).
+# Example: cam-0 = Car;1 primary + Car;2 shadow; cam-1 = Person;1 primary only.
+#[stream-model-cam-0]
+#primary-model=Car;1
+#shadow-model=Car;2
+
+#[stream-model-cam-1]
+#primary-model=Person;1

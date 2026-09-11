@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,6 +56,7 @@ GST_DEBUG_CATEGORY (APP_CFG_PARSER_CAT);
 #define CONFIG_GROUP_SOURCE_RTSP_INIT_RECONNECT_INTERVAL_SEC "init-rtsp-reconnect-interval-sec"
 #define CONFIG_GROUP_SOURCE_SIMULATE_FPS_INTERVAL_MS "simulate-fps-interval-ms"
 #define CONFIG_GROUP_SOURCE_SMART_RECORD_ENABLE "smart-record"
+#define CONFIG_GROUP_SOURCE_IPC_FRAME_COPY "ipc-frame-copy"
 #define CONFIG_GROUP_SOURCE_SMART_RECORD_DIRPATH "smart-rec-dir-path"
 #define CONFIG_GROUP_SOURCE_SMART_RECORD_FILE_PREFIX "smart-rec-file-prefix"
 #define CONFIG_GROUP_SOURCE_SMART_RECORD_CACHE_SIZE_LEGACY "smart-rec-video-cache"
@@ -67,6 +68,9 @@ GST_DEBUG_CATEGORY (APP_CFG_PARSER_CAT);
 #define CONFIG_GROUP_SOURCE_SMART_RECORD_INTERVAL "smart-rec-interval"
 #define CONFIG_GROUP_SOURCE_ALSA_DEVICE "alsa-device"
 #define CONFIG_GROUP_SOURCE_UDP_BUFFER_SIZE "udp-buffer-size"
+#define CONFIG_GROUP_SOURCE_HTTP_DOWNLOAD_TIMEOUT "http-download-timeout"
+#define CONFIG_GROUP_SOURCE_HTTP_CONNECT_TIMEOUT "http-connect-timeout"
+#define CONFIG_GROUP_SOURCE_HTTP_MAX_CONCURRENT_DOWNLOADS "http-max-concurrent-downloads"
 #define CONFIG_GROUP_SOURCE_SENSORID_PADID_MAPPING "sensorID-padID-mapping"
 #define CONFIG_GROUP_SOURCE_VIDEO_FORMAT "video-format"
 #if defined(__aarch64__) && !defined(AARCH64_IS_SBSA)
@@ -512,6 +516,10 @@ parse_source (NvDsSourceConfig * config, GKeyFile * key_file, gchar * group,
   config->latency = 100;
   config->num_decode_surfaces = N_DECODE_SURFACES;
   config->num_extra_surfaces = N_EXTRA_SURFACES;
+  /* Match nvmultiurisrcbin's property defaults (seconds) */
+  config->http_download_timeout = 300;
+  config->http_connect_timeout = 30;
+  config->http_max_concurrent_downloads = 0;   /* 0 = unlimited */
   for (key = keys; *key; key++) {
     if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_TYPE)) {
       config->type =
@@ -561,6 +569,21 @@ parse_source (NvDsSourceConfig * config, GKeyFile * key_file, gchar * group,
       config->udp_buffer_size =
           g_key_file_get_integer (key_file, group,
           CONFIG_GROUP_SOURCE_UDP_BUFFER_SIZE, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_HTTP_DOWNLOAD_TIMEOUT)) {
+      config->http_download_timeout =
+          g_key_file_get_integer (key_file, group,
+          CONFIG_GROUP_SOURCE_HTTP_DOWNLOAD_TIMEOUT, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_HTTP_CONNECT_TIMEOUT)) {
+      config->http_connect_timeout =
+          g_key_file_get_integer (key_file, group,
+          CONFIG_GROUP_SOURCE_HTTP_CONNECT_TIMEOUT, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_HTTP_MAX_CONCURRENT_DOWNLOADS)) {
+      config->http_max_concurrent_downloads =
+          g_key_file_get_integer (key_file, group,
+          CONFIG_GROUP_SOURCE_HTTP_MAX_CONCURRENT_DOWNLOADS, &error);
       CHECK_ERROR (error);
     } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_SENSORID_PADID_MAPPING)) {
       config->sensorIdToPadIdMapping =
@@ -701,6 +724,11 @@ parse_source (NvDsSourceConfig * config, GKeyFile * key_file, gchar * group,
       config->smart_record =
           g_key_file_get_integer (key_file, group,
           CONFIG_GROUP_SOURCE_SMART_RECORD_ENABLE, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_IPC_FRAME_COPY)) {
+      config->ipc_frame_copy =
+          g_key_file_get_integer (key_file, group,
+          CONFIG_GROUP_SOURCE_IPC_FRAME_COPY, &error);
       CHECK_ERROR (error);
     } else if (!g_strcmp0 (*key, CONFIG_GROUP_SOURCE_SMART_RECORD_DIRPATH)) {
       config->dir_path =
@@ -2720,5 +2748,43 @@ done:
   if (!ret) {
     NVGSTDS_ERR_MSG_V ("%s failed", __func__);
   }
+  return ret;
+}
+
+gboolean
+parse_infer_eval (NvDsInferEvalConfig *config, GKeyFile *key_file,
+                  gchar *cfg_file_path)
+{
+  gboolean  ret   = FALSE;
+  gchar   **keys  = NULL;
+  gchar   **key   = NULL;
+  GError   *error = NULL;
+
+  keys = g_key_file_get_keys (key_file, CONFIG_GROUP_INFER_EVAL, NULL, &error);
+  CHECK_ERROR (error);
+
+  for (key = keys; *key; key++) {
+    if (!g_strcmp0 (*key, CONFIG_GROUP_ENABLE)) {
+      config->enable =
+          g_key_file_get_integer (key_file, CONFIG_GROUP_INFER_EVAL,
+          CONFIG_GROUP_ENABLE, &error);
+      CHECK_ERROR (error);
+    } else if (!g_strcmp0 (*key, "config-file")) {
+      config->config_file =
+          get_absolute_file_path (cfg_file_path,
+          g_key_file_get_string (key_file, CONFIG_GROUP_INFER_EVAL,
+          "config-file", &error));
+      CHECK_ERROR (error);
+    } else {
+      NVGSTDS_WARN_MSG_V ("Unknown key '%s' for group [%s]", *key,
+          CONFIG_GROUP_INFER_EVAL);
+    }
+  }
+
+  ret = TRUE;
+done:
+  if (error)  g_error_free (error);
+  if (keys)   g_strfreev (keys);
+  if (!ret)   NVGSTDS_ERR_MSG_V ("%s failed", __func__);
   return ret;
 }

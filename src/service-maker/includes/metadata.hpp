@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -149,6 +149,26 @@ class UserMetadata : public Metadata {
   void get_(void*&);
 };
 
+/** @brief Holds all fields of a single label entry from a classifier */
+class LabelInfo {
+ public:
+  LabelInfo(void* data);
+
+  /** @brief The label string of the result */
+  std::string label() const;
+  /** @brief Class ID of the best result */
+  unsigned int classId() const;
+  /** @brief Probability of the best result */
+  float prob() const;
+  /** @brief Label ID for multi-label classifiers */
+  unsigned int labelId() const;
+  /** @brief Number of classes for this label */
+  unsigned int numClasses() const;
+
+ private:
+  void* data_;
+};
+
 /** @brief Meta generated from a classifier */
 class ClassifierMetadata : public Metadata {
 public:
@@ -168,7 +188,11 @@ public:
   unsigned int nLabels() const;
   /** @brief Identifying the unique component that generates the metadata */
   unsigned int uniqueComponentId() const;
-  /** @brief Get the nth label */
+  /** @brief Type of the classifier */
+  std::string classifierType() const;
+  /** @brief Get all fields of the nth label */
+  LabelInfo getLabelInfo(unsigned int nth) const;
+  /** @brief Get the label string of the nth label */
   std::string getLabel(unsigned int nth) const;
 
 };
@@ -650,6 +674,26 @@ class ObjectImageFootLocationUserMetadata : public UserMetadata {
 
   /** @brief Get the image foot location of the object */
   std::pair<float, float> getImageFootLocation() const;
+};
+
+class ObjectWorldFootLocationUserMetadata : public UserMetadata {
+ public:
+  ObjectWorldFootLocationUserMetadata(void* data=nullptr);
+  ObjectWorldFootLocationUserMetadata(const UserMetadata& user_meta);
+  virtual ~ObjectWorldFootLocationUserMetadata();
+
+  /** @brief Get the estimated foot location of the object on the world ground plane */
+  std::pair<float, float> getWorldFootLocation() const;
+};
+
+class ObjectConvexHullUserMetadata : public UserMetadata {
+ public:
+  ObjectConvexHullUserMetadata(void* data=nullptr);
+  ObjectConvexHullUserMetadata(const UserMetadata& user_meta);
+  virtual ~ObjectConvexHullUserMetadata();
+
+  /** @brief Get the convex hull points (x, y) of the object, estimated from the 3D cylinder model */
+  std::vector<std::pair<int, int>> getConvexHull() const;
 };
 
 class Object3DBBoxUserMetadata : public UserMetadata {

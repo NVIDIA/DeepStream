@@ -28,7 +28,7 @@ runtime assets (downloaded from GitHub Releases), build tooling, agent skills, a
   packages (`deepstream-binaries-*`, `deepstream-sample-data-*`) as part of the source
   build flow — do not run it directly for a manual bare-metal install.
 - `skills/`, `example_prompts/` — agent assets (see "Skills & prompts" below).
-- `tools/`, `deepstream_libraries/` (submodule), `deepstream_dockers/`.
+- `tools/` (`inference_builder/`, `auto-magic-calib/` — both in-repo), `deepstream_libraries/`, `deepstream_dockers/`.
 
 ## GitHub Release Assets
 
@@ -62,7 +62,7 @@ bash build/build.sh
   `sample_apps`, `yolo`, `tao_apps`, `reference_apps`, `service-maker`) → `install.sh`.
 - Common flags: `--only=STAGE[,STAGE]`, `--resume`, `--skip-deps`, `--skip-artifacts`,
   `--install-method=deb|tar`, `--verbose`, `-j N`.
-- Defaults: `CUDA_VER=13.2`, `NVDS_VERSION=9.1`. Outputs install to
+- Defaults: `CUDA_VER=13.2`, `NVDS_VERSION=9.1.1` (install tree uses the truncated `9.1`). Outputs install to
   `/opt/nvidia/deepstream/deepstream-9.1/`.
 - Each run writes a transcript to `build/build.log`; stage state lives in
   `build/.stage-state*` (enables `--resume`).

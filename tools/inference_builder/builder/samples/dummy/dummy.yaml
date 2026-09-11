@@ -1,0 +1,233 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# the name will be used to identify the microservice.
+name: dummy
+# the root path to the directory containing the model files.
+model_repo: /workspace/.cache/model-repo/
+
+# top level inference input specification
+input:
+  # a text input typically for LLM prompts
+  - name: "text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    optional: true
+  # base64 encoded image inputs typically for computer vision tasks
+  - name: "images"
+    data_type: TYPE_CUSTOM_IMAGE_BASE64
+    dims: [ -1 ]
+    optional: true
+  # a list of asset ids for image files
+  - name: "image_assets"
+    data_type: TYPE_CUSTOM_IMAGE_ASSETS
+    dims: [ -1 ]
+    optional: true
+  # a list of asset ids for video files
+  - name: "video_assets"
+    data_type: TYPE_CUSTOM_LONG_VIDEO_ASSETS
+    dims: [ -1 ]
+    optional: true
+
+# top level inference output specification
+output:
+  - name: "output"
+    data_type: TYPE_FP32
+    dims: [ -1, -1, -1 ]
+
+server:
+  responders:
+    infer:
+      operation: inference
+      requests:
+        InferenceRequest: >
+          {
+            {% set input_items = request.input %}
+            {% if input_items|length > 0 %}
+              {% if input_items[0] is string %}
+                "images": [
+                  {% for item in input_items %}
+                      {{ item|tojson }}{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                ]
+                {% if request.text is not none %}
+                ,
+                "text": [
+                  {% for item in request.text %}
+                    {{ item|tojson }}{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                ]
+                {% endif %}
+              {% elif input_items[0] is mapping %}
+                {% if input_items[0].contentType.startswith("image/") %}
+                  "image_assets": [
+                    {% for item in input_items %}
+                      {{ item.id|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  ]
+                  {% if request.text is not none %}
+                  ,
+                  "text": [
+                    {% for item in request.text %}
+                      {{ item|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  ]
+                  {% endif %}
+                {% elif input_items[0].contentType.startswith("video/") %}
+                  "video_assets": [
+                    {% for item in input_items %}
+                      {{ item.id|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  ]
+                {% if request.text is not none %}
+                  ,
+                  "text": [
+                    {% for item in request.text %}
+                      {{ item|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  ]
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            {% endif %}
+          }
+      responses:
+        InferenceResponse: >
+          {
+            "data": [
+              {% for item in response.output %} {
+                "index": {{loop.index0}},
+                "output": {{item | tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %} ],
+            "usage": { "num_images": 1},
+            "model": "nvidia/nvdinov2"
+          }
+    add_file:
+      operation: add_media_file
+      responses:
+        AddFileResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "duration": {{response.duration|tojson}},
+              "contentType": {{response.mime_type|tojson}}
+            }
+          }
+    add_live_stream:
+      operation: add_live_stream
+      requests:
+        AddLiveStreamRequest: >
+          {
+            "url": {{request.url|tojson}},
+            "description": {{request.description|tojson}},
+            "username": {{request.username|tojson}},
+            "password": {{request.password|tojson}}
+          }
+      responses:
+        AddLiveStreamResponse: >
+          {
+            "data": {
+              "id": {{response.id|tojson}},
+              "path": {{response.path|tojson}},
+              "size": {{response.size|tojson}},
+              "contentType": {{response.mime_type|tojson}},
+              "description": {{response.description|tojson}}
+            }
+          }
+    del_file:
+      operation: delete_media_file
+      responses:
+        DeleteAssetResponse: >
+            {
+              "deleted": {{response.status|tojson}}
+            }
+    del_live_stream:
+      operation: delete_live_stream
+      responses:
+        DeleteAssetResponse: >
+          {
+            "deleted": {{response.status|tojson}}
+          }
+    list_files:
+      operation: list_media_files
+      responses:
+        ListFilesResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    list_live_streams:
+      operation: list_live_streams
+      responses:
+        ListLiveStreamsResponse: >
+          {
+            "data": [
+              {% for item in response.assets %} {
+                "id": {{item.id|tojson}},
+                "path": {{item.path|tojson}},
+                "size": {{item.size|tojson}},
+                "contentType": {{item.mime_type|tojson}}
+              } {% if not loop.last %}, {% endif %} {% endfor %}
+            ]
+          }
+    healthy_ready:
+      operation: health_ready_v1_health_ready_get
+
+models:
+  - name: dummy
+    backend: "dummy"
+    max_batch_size: 1
+    parameters: {}
+    input:
+      - name: images
+        data_type: TYPE_FP32
+        dims: [3, 768, 768]
+      - name: input_ids
+        data_type: TYPE_INT32
+        dims: [ -1 ]
+      - name: input_lengths
+        data_type: TYPE_INT32
+        dims: [ 1 ]
+    output:
+      - name: output
+        data_type: TYPE_FP32
+        dims: [10, 10]
+    preprocessors:
+      - kind: "custom"
+        name: "dummy-preprocessor"
+        input: ["images"]
+        output: ["images"]
+        config:
+          network_size: [3, 768, 768]
+      - kind: "custom"
+        name: "dummy-tokenizer"
+        input: ["text"]
+        output: ["input_ids", "input_lengths"]
+
+routes: {
+  ':["images", "text"]': 'dummy',
+  ':["image_assets", "text"]': 'dummy:["images", "text"]',
+  ':["video_assets", "text"]': 'dummy:["images", "text"]',
+  'dummy:["output"]': ':'
+}
+

@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Pipeline config for deepstream_python_probe.py (config mode).
+#
+# The Python probe is declared as a node with type "python.sample_video_probe"
+# and listed in the edges section of its target element (infer) so that
+# DeepStream attaches it as a probe on that element's src pad.
+
+deepstream:
+  nodes:
+  - type: filesrc
+    name: filesrc
+    properties:
+      location: /opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264
+  - type: h264parse
+    name: h264parse
+  - type: nvv4l2decoder
+    name: nvv4l2decoder
+  - type: nvstreammux
+    name: nvstreammux
+    properties:
+      batch-size: 1
+      width: 1280
+      height: 720
+  - type: nvinfer
+    name: infer
+    properties:
+      config-file-path: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test1/dstest1_pgie_config.yml
+  - type: nvvideoconvert
+    name: nvvideoconvert
+  - type: nvdsosd
+    name: nvdsosd
+  - type: nveglglessink
+    name: sink
+  # Python probe node — type prefix "python." tells DeepStream to look up
+  # the probe in CommonFactory using the Python probe registry.
+  # The probe module is imported in the app at startup which registers it.
+  - type: python.sample_video_probe
+    name: svp
+    properties:
+      font-size: 18
+  edges:
+    filesrc: h264parse
+    h264parse: nvv4l2decoder
+    nvv4l2decoder: nvstreammux
+    nvstreammux: infer
+    infer:
+    - nvvideoconvert
+    - svp
+    nvvideoconvert: nvdsosd
+    nvdsosd: sink

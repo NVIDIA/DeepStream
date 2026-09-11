@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,14 @@ nvds_rest_app_instance_parse (const Json::Value & in,
     NvDsServerAppInstanceInfo * appinstance_info)
 {
   if (appinstance_info->uri.find ("/api/v1/") != std::string::npos) {
+    if (!in.isObject ()) {
+      appinstance_info->app_log =
+          "APP_INSTANCE_FAIL, request body must be a JSON object";
+      appinstance_info->status = QUIT_FAIL;
+      appinstance_info->err_info.code = StatusBadRequest;
+      return false;
+    }
+    try {
     for (Json::ValueConstIterator it = in.begin (); it != in.end (); ++it) {
 
       std::string root_val = it.key ().asString ().c_str ();
@@ -40,6 +48,12 @@ nvds_rest_app_instance_parse (const Json::Value & in,
             return false;
         }
       }
+    }
+    } catch (const std::exception& e) {
+      appinstance_info->app_log = "APP_INSTANCE_FAIL, error: " + std::string(e.what());
+      appinstance_info->status = QUIT_FAIL;
+      appinstance_info->err_info.code = StatusBadRequest;
+      return false;
     }
   } else {
     g_print ("Unsupported REST API version\n");

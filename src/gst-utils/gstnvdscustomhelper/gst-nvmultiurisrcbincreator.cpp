@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +42,11 @@ typedef struct
   gulong newPadAddedHandler;
   gulong elemRemovedHandler;
   gboolean is_removing;  /* Flag to indicate source is being removed, prevents race conditions in callbacks */
+  /* VIA-S-5: per-source IPC decoded-frame publisher branch (tee + convert + nvunixfdsink) */
+  GstElement *ipc_tee;
+  GstElement *ipc_conv;
+  GstElement *ipc_sink;
+  gboolean eos_removal_pending;  /* TRUE only when removal was triggered by RTSP EOS/BYE */
 } NvDsUriSourceInfo;
 
 typedef struct
@@ -76,6 +81,11 @@ typedef struct
   gboolean uribin_removal_thread_stop;
   GMutex uribin_removal_lock;
   guint base_index;
+
+  /* VIA-S-5: FIFO queue of GstDsNvUriSrcConfig* for stream/add requests that
+   * arrived while the batch was full. Drained max-batch-size at a time as
+   * sources finish (EOS) and free slots. Protected by 'lock'. */
+  GQueue *pendingQueue;
 
 } NvMultiUriSrcBinCreator;
 
@@ -142,7 +152,19 @@ static gboolean
 s_nvmultiurisrcbincreator_remove_source_impl (NvDst_Handle_NvMultiUriSrcCreator
     apiHandle, guint sourceId, gboolean forceSourceStateChange);
 
+static gpointer s_uribin_set_null_thread (gpointer data);
+static void s_nvmultiurisrcbincreator_set_uribin_null_async
+    (GstElement * uribin);
+static void s_nvmultiurisrcbincreator_release_mux_sink_pad
+    (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator,
+    NvDsUriSourceInfo * sourceInfo);
 static gpointer s_uribin_removal_thread (gpointer data);
+/* VIA-S-5: drain the pending stream/add queue while batch slots are free */
+static void s_nvmultiurisrcbincreator_admit_pending (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator);
+/* VIA-S-5: print a one-line snapshot of active slots + waiting queue */
+static void s_nvmultiurisrcbincreator_log_state (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator, const char * event, const char * who);
 
 gint s_get_source_id (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator, GstDsNvUriSrcConfig * sourceConfig);
 
@@ -674,6 +696,7 @@ gst_nvmultiurisrcbincreator_init (gchar * binName, NvDsMultiUriMode mode,
       nvmultiurisrcbinCreator->streammux, "src", s_nvmultiurisrcbincreator_probe_func_add_sensorInfo,
       GST_PAD_PROBE_TYPE_BUFFER, nvmultiurisrcbinCreator);
   nvmultiurisrcbinCreator->remove_uribin_queue = g_queue_new ();
+  nvmultiurisrcbinCreator->pendingQueue = g_queue_new ();
 
   g_cond_init (&nvmultiurisrcbinCreator->remove_uribin_cond);
   nvmultiurisrcbinCreator->uribin_removal_thread_stop = FALSE;
@@ -738,10 +761,74 @@ gst_nvmultiurisrcbincreator_deinit (NvDst_Handle_NvMultiUriSrcCreator apiHandle)
 
   g_cond_clear (&nvmultiurisrcbinCreator->remove_uribin_cond);
   g_queue_free (nvmultiurisrcbinCreator->remove_uribin_queue);
+  /* drop any still-queued (never-admitted) pending source configs */
+  if (nvmultiurisrcbinCreator->pendingQueue) {
+    GstDsNvUriSrcConfig *cfg;
+    while ((cfg = (GstDsNvUriSrcConfig *)
+            g_queue_pop_head (nvmultiurisrcbinCreator->pendingQueue)))
+      gst_nvmultiurisrcbincreator_src_config_free (cfg);
+    g_queue_free (nvmultiurisrcbinCreator->pendingQueue);
+    nvmultiurisrcbinCreator->pendingQueue = NULL;
+  }
   g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
   g_mutex_clear (&nvmultiurisrcbinCreator->lock);
   g_mutex_clear (&nvmultiurisrcbinCreator->uribin_removal_lock);
   g_free (nvmultiurisrcbinCreator);
+}
+
+static gpointer
+s_uribin_set_null_thread (gpointer data)
+{
+  GstElement *uribin = GST_ELEMENT (data);
+  GstStateChangeReturn state_return =
+      gst_element_set_state (uribin, GST_STATE_NULL);
+
+  if (state_return == GST_STATE_CHANGE_ASYNC) {
+    gst_element_get_state (uribin, NULL, NULL, 3 * GST_SECOND);
+  }
+
+  gst_object_unref (uribin);
+  return NULL;
+}
+
+static void
+s_nvmultiurisrcbincreator_set_uribin_null_async (GstElement * uribin)
+{
+  GThread *null_thread =
+      g_thread_new ("src-null", s_uribin_set_null_thread, uribin);
+  g_thread_unref (null_thread);
+}
+
+static void
+s_nvmultiurisrcbincreator_release_mux_sink_pad (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator, NvDsUriSourceInfo * sourceInfo)
+{
+  if (!sourceInfo->muxSinkPad || !GST_IS_PAD (sourceInfo->muxSinkPad)) {
+    return;
+  }
+
+  gst_pad_send_event (sourceInfo->muxSinkPad,
+      gst_event_new_flush_start ());
+  gst_pad_send_event (sourceInfo->muxSinkPad,
+      gst_event_new_flush_stop (FALSE));
+
+  if (gst_pad_is_linked (sourceInfo->muxSinkPad)) {
+    GstPad *peer_pad = gst_pad_get_peer (sourceInfo->muxSinkPad);
+    if (peer_pad) {
+      if (GST_PAD_IS_SINK (sourceInfo->muxSinkPad)
+          && GST_PAD_IS_SRC (peer_pad)) {
+        gst_pad_unlink (peer_pad, sourceInfo->muxSinkPad);
+      } else {
+        g_warning ("Cannot unlink pads: pad direction mismatch");
+      }
+      gst_object_unref (peer_pad);
+    }
+  }
+
+  gst_element_release_request_pad (nvmultiurisrcbinCreator->streammux,
+      sourceInfo->muxSinkPad);
+  gst_object_unref (sourceInfo->muxSinkPad);
+  sourceInfo->muxSinkPad = NULL;
 }
 
 static gpointer
@@ -765,34 +852,25 @@ s_uribin_removal_thread (gpointer data)
           (NvDsUriSourceInfo *) g_queue_pop_head (nvmultiurisrcbinCreator->
           remove_uribin_queue);
       g_mutex_unlock (&nvmultiurisrcbinCreator->uribin_removal_lock);
+      guint sourceId = sourceInfo->config->source_id;
 
-      if (GST_IS_PAD (sourceInfo->muxSinkPad)) {
-        gst_pad_send_event (sourceInfo->muxSinkPad,
-            gst_event_new_flush_stop (FALSE));
-        gst_element_release_request_pad (nvmultiurisrcbinCreator->streammux,
-            sourceInfo->muxSinkPad);
-        gst_object_unref (sourceInfo->muxSinkPad);
-      }
+      s_nvmultiurisrcbincreator_remove_source_info_handlers (sourceInfo);
 
       GstElement *uribin = sourceInfo->uribin;
       g_object_ref (uribin);
+      gst_element_set_locked_state (uribin, TRUE);
       if ((!gst_bin_remove (GST_BIN (nvmultiurisrcbinCreator->nvmultiurisrcbin),
                   uribin))) {
         GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
-            "Failed to set remove source-id:%u", sourceInfo->config->source_id);
-        return NULL;
+            "Failed to remove EOS source-id:%u from bin", sourceId);
+        gst_element_set_locked_state (uribin, FALSE);
+        gst_object_unref (uribin);
+        g_mutex_lock (&nvmultiurisrcbinCreator->uribin_removal_lock);
+        continue;
       }
 
-      GstStateChangeReturn state_return = GST_STATE_CHANGE_FAILURE;
-      if (GST_IS_BIN (uribin)
-          && (state_return =
-              gst_element_set_state (GST_ELEMENT (uribin),
-                  GST_STATE_NULL)) == GST_STATE_CHANGE_FAILURE) {
-        GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
-            "Failed to set stop source-id:%u", sourceInfo->config->source_id);
-        return FALSE;
-      }
-      gst_object_unref (uribin);
+      s_nvmultiurisrcbincreator_release_mux_sink_pad (nvmultiurisrcbinCreator,
+          sourceInfo);
 
       /* Remove sourceInfo from the hash map and the list, free sourceInfo.
          This ensure the sourceInfo is removed from the list and the hash map for EOS usecases.
@@ -800,8 +878,25 @@ s_uribin_removal_thread (gpointer data)
         implementation, it will be updated correctly
       */
       g_mutex_lock (&nvmultiurisrcbinCreator->lock);
+      /* VIA-S-5: capture id + whether anything is waiting BEFORE sourceInfo is
+       * freed, for the DONE log below. */
+      gchar *doneId = g_strdup ((sourceInfo->config
+              && sourceInfo->config->sensorId) ?
+          sourceInfo->config->sensorId : "?");
+      gboolean hadQueue = (nvmultiurisrcbinCreator->pendingQueue
+          && !g_queue_is_empty (nvmultiurisrcbinCreator->pendingQueue));
       s_nvmultiurisrcbincreator_remove_source_info (nvmultiurisrcbinCreator, sourceInfo);
       g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+
+      /* VIA-S-5: a batch slot just freed -> admit the next queued stream(s) so
+       * >max-batch-size concurrent adds drain in waves. Runs on this removal
+       * worker thread (no creator->lock held here); admit_pending re-takes it. */
+      if (hadQueue)
+        s_nvmultiurisrcbincreator_log_state (nvmultiurisrcbinCreator, "DONE",
+            doneId);
+      g_free (doneId);
+      s_nvmultiurisrcbincreator_admit_pending (nvmultiurisrcbinCreator);
+      s_nvmultiurisrcbincreator_set_uribin_null_async (uribin);
 
       g_mutex_lock (&nvmultiurisrcbinCreator->uribin_removal_lock);
     }
@@ -835,6 +930,7 @@ s_nvmultiurisrcbincreator_probe_func_eos_handling (GstPad * pad,
 
       /* Set flag BEFORE queuing to prevent other callbacks from accessing */
       sourceInfo->is_removing = TRUE;
+      sourceInfo->eos_removal_pending = TRUE;
       g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
 
       g_mutex_lock (&nvmultiurisrcbinCreator->uribin_removal_lock);
@@ -872,7 +968,7 @@ s_nvmultiurisrcbincreator_probe_func_add_sensorInfo (GstPad * pad,
       (NvDsUriSourceInfo *) g_hash_table_lookup (nvmultiurisrcbinCreator->sourceInfoHash, frame_meta->source_id + (gchar *) NULL);
 
     /* Skip if source not found, being removed, or pads not properly linked */
-    if (srcInfo == NULL || srcInfo->is_removing || !gst_pad_is_linked(srcInfo->uribin_src_pad) || !srcInfo->muxSinkPad || !srcInfo->uribin_src_pad || !srcInfo->uribin)  {
+    if (srcInfo == NULL || srcInfo->is_removing || !srcInfo->uribin || !srcInfo->uribin_src_pad || !srcInfo->muxSinkPad || !gst_pad_is_linked(srcInfo->uribin_src_pad))  {
         continue;
     }
 
@@ -931,8 +1027,11 @@ s_nvmultiurisrcbincreator_cb_newpad (GstElement * decodebin, GstPad * pad,
       || (nvmultiurisrcbinCreator->mode == NVDS_MULTIURISRCBIN_MODE_AUDIO
           && !strncmp (GST_PAD_NAME (pad), "asrc_", 5))) {
     //Get sink_%d pad from nvstreammux and link to it
-    s_nvmultiurisrcbincreator_link_element_to_streammux_sink_pad (sourceInfo,
-        nvmultiurisrcbinCreator->streammux, pad, sourceInfo->config->source_id);
+    if (!s_nvmultiurisrcbincreator_link_element_to_streammux_sink_pad (sourceInfo,
+      nvmultiurisrcbinCreator->streammux, pad, sourceInfo->config->source_id)) {
+      gst_caps_unref (caps);
+      return;
+    }
     //Attach a probe for EOS handling
     sourceInfo->uribin_src_pad = pad;
 
@@ -991,6 +1090,7 @@ s_nvmultiurisrcbincreator_cb_newpad (GstElement * decodebin, GstPad * pad,
     gst_element_sync_state_with_parent (fakesink);
   }
 #endif
+  gst_caps_unref (caps);
   gst_nvmultiurisrcbincreator_sync_children_states (sourceInfo->apiHandle);
 }
 
@@ -1024,10 +1124,12 @@ s_nvmultiurisrcbincreator_cb_removeelem (GstElement * decodebin,
     sourceInfo->is_removing = TRUE;
 
     //remove handlers to ensure no more callbacks to handle remove stream
-    s_nvmultiurisrcbincreator_remove_source_info_handlers (sourceInfo);
-    s_nvmultiurisrcbincreator_remove_source_info (nvmultiurisrcbinCreator,
-        sourceInfo);
     g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+
+    g_mutex_lock (&nvmultiurisrcbinCreator->uribin_removal_lock);
+    g_queue_push_tail (nvmultiurisrcbinCreator->remove_uribin_queue, sourceInfo);
+    g_cond_broadcast (&nvmultiurisrcbinCreator->remove_uribin_cond);
+    g_mutex_unlock (&nvmultiurisrcbinCreator->uribin_removal_lock);
   }
 }
 
@@ -1043,6 +1145,8 @@ gst_nvmultiurisrcbincreator_src_config_dup (GstDsNvUriSrcConfig * sourceConfig)
       sourceConfig->sensorId ? g_strdup (sourceConfig->sensorId) : NULL;
   config->sensorName =
       sourceConfig->sensorName ? g_strdup (sourceConfig->sensorName) : NULL;
+  config->sensorMetadata =
+      sourceConfig->sensorMetadata ? g_strdup (sourceConfig->sensorMetadata) : NULL;
   config->smart_rec_dir_path = g_strdup (sourceConfig->smart_rec_dir_path);
   config->smart_rec_file_prefix =
       g_strdup (sourceConfig->smart_rec_file_prefix);
@@ -1060,6 +1164,9 @@ gst_nvmultiurisrcbincreator_src_config_free (GstDsNvUriSrcConfig * config)
   }
   if (config->sensorName) {
     g_free (config->sensorName);
+  }
+  if (config->sensorMetadata) {
+    g_free (config->sensorMetadata);
   }
   if (config->smart_rec_dir_path) {
     g_free (config->smart_rec_dir_path);
@@ -1086,12 +1193,17 @@ s_nvmultiurisrcbincreator_create_source_info (GstDsNvUriSrcConfig *
 
   sourceInfo->apiHandle = apiHandle;
   sourceInfo->is_removing = FALSE;  /* Initialize removal flag */
+  sourceInfo->eos_removal_pending = FALSE;
   return sourceInfo;
 }
 
 static void
 s_nvmultiurisrcbincreator_destroy_source_info (NvDsUriSourceInfo * sourceInfo)
 {
+  if (sourceInfo->uribin) {
+    gst_object_unref (sourceInfo->uribin);
+    sourceInfo->uribin = NULL;
+  }
   gst_nvmultiurisrcbincreator_src_config_free (sourceInfo->config);
   g_free (sourceInfo);
 }
@@ -1127,6 +1239,21 @@ extract_pad_index(const gchar *str) {
     return atoi(str);
 }
 
+/* VIA-S-5: is this source_id already claimed by a source currently in the list?
+ * Called under nvmultiurisrcbinCreator->lock so the list is stable. Used by
+ * s_get_source_id to reserve a slot before the (async) mux sink pad is created,
+ * closing a race under concurrent adds where two sources get the same id. */
+static gboolean
+s_source_id_in_use (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator, guint sid)
+{
+  for (GList * l = nvmultiurisrcbinCreator->sourceInfoList; l; l = l->next) {
+    NvDsUriSourceInfo *si = (NvDsUriSourceInfo *) l->data;
+    if (si && si->config && (guint) si->config->source_id == sid)
+      return TRUE;
+  }
+  return FALSE;
+}
+
 gint
 s_get_source_id (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator, GstDsNvUriSrcConfig * sourceConfig)
 {
@@ -1142,6 +1269,7 @@ s_get_source_id (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator, GstDsNvUriSr
   if(sourceConfig->sensorIdToPadIdMapping == TRUE)
   {
     pad_indx = extract_pad_index(sourceConfig->sensorId);
+    g_snprintf (pad_name, sizeof (pad_name), "sink_%u", pad_indx);
     GstPad *test_pad =
     gst_element_get_static_pad (nvmultiurisrcbinCreator->streammux, pad_name);
     if (!test_pad) {
@@ -1157,35 +1285,61 @@ s_get_source_id (NvMultiUriSrcBinCreator * nvmultiurisrcbinCreator, GstDsNvUriSr
       GstPad *test_pad =
         gst_element_get_static_pad (nvmultiurisrcbinCreator->streammux,
         pad_name);
-      if (!test_pad) {
+      /* A slot is free only if the streammux pad does not exist AND no
+       * already-added source has claimed this source_id yet. The mux sink pad is
+       * created asynchronously (on the source's pad-added), so checking pad
+       * existence alone races under concurrent adds (parallel downloads): two
+       * sources would both get the same source_id and then both request the same
+       * sink_%u pad ("already has a pad named sink_N" -> not-linked stream error).
+       * Also check the sourceInfoList (updated under this same lock) to reserve
+       * the slot atomically. */
+      gboolean occupied = (test_pad != NULL)
+          || s_source_id_in_use (nvmultiurisrcbinCreator, pad_indx);
+      if (test_pad)
+        gst_object_unref (test_pad);
+      if (!occupied) {
         nvmultiurisrcbinCreator->base_index = pad_indx + 1;
         return pad_indx;
       }
-      gst_object_unref (test_pad);
     }
   }
   return -1;
 }
 
-gboolean
-gst_nvmultiurisrcbincreator_add_source (NvDst_Handle_NvMultiUriSrcCreator
-    apiHandle, GstDsNvUriSrcConfig * sourceConfig)
+/* VIA-S-5: actually admit one source into the pipeline. A batch slot is assumed
+ * to be free. Caller MUST hold nvmultiurisrcbinCreator->lock. Returns FALSE on
+ * element-create failure or (safety net) if no slot turned out to be free. */
+static gboolean
+s_nvmultiurisrcbincreator_do_add_source_locked (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator, GstDsNvUriSrcConfig * sourceConfig)
 {
-  NvMultiUriSrcBinCreator *nvmultiurisrcbinCreator =
-      (NvMultiUriSrcBinCreator *) apiHandle;
-  g_mutex_lock (&nvmultiurisrcbinCreator->lock);
   GstElement *uribin = gst_element_factory_make ("nvurisrcbin", NULL);
   if (!uribin) {
     GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
         "Could not create element 'nvurisrcbin'");
-    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
     return FALSE;
   }
 
   NvDsUriSourceInfo *sourceInfo =
-      s_nvmultiurisrcbincreator_create_source_info (sourceConfig, apiHandle);
+      s_nvmultiurisrcbincreator_create_source_info (sourceConfig,
+      (NvDst_Handle_NvMultiUriSrcCreator) nvmultiurisrcbinCreator);
   sourceInfo->uribin = (GstElement *) gst_object_ref (uribin);
   sourceConfig->source_id = s_get_source_id (nvmultiurisrcbinCreator,sourceConfig);
+  if (sourceConfig->source_id < 0) {
+    /* Safety net: batch full. Callers check capacity before admitting, so this
+     * should not trigger, but keep the clean reject so we never insert a source
+     * or post a stream-add message with source_id = (guint)-1 = 4294967295
+     * (which crashes apps indexing per-source arrays by source_id). */
+    GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+        "do_add_source: no free batch slot for sensor '%s' "
+        "(max-batch-size=%d)",
+        sourceConfig->sensorId ? sourceConfig->sensorId : "?",
+        nvmultiurisrcbinCreator->muxConfig ?
+        (gint) nvmultiurisrcbinCreator->muxConfig->maxBatchSize : -1);
+    s_nvmultiurisrcbincreator_destroy_source_info (sourceInfo);
+    gst_object_unref (uribin);
+    return FALSE;
+  }
   sourceInfo->config->source_id = sourceConfig->source_id;
   //set nvurisrcbin properties
   s_nvmultiurisrcbincreator_set_properties_nvuribin (GST_ELEMENT (uribin),
@@ -1212,6 +1366,7 @@ gst_nvmultiurisrcbincreator_add_source (NvDst_Handle_NvMultiUriSrcCreator
     sensorInfo.sensor_id = sourceConfig->sensorId;
     sensorInfo.sensor_name = sourceConfig->sensorName;
     sensorInfo.uri = sourceConfig->uri;
+    sensorInfo.sensor_metadata = sourceConfig->sensorMetadata;
     GstBus *bus =
         s_nvmultiurisrcbincreator_get_bus_from_parent (nvmultiurisrcbinCreator);
     if (bus) {
@@ -1222,9 +1377,164 @@ gst_nvmultiurisrcbincreator_add_source (NvDst_Handle_NvMultiUriSrcCreator
     }
   }
 
+  return TRUE;
+}
+
+/* VIA-S-5: print a one-line snapshot of the batch: which sensors occupy the
+ * active slots and which are waiting in the queue. Acquires 'lock' internally,
+ * so callers must NOT hold it. 'event' e.g. "QUEUED"/"DONE"/"ADMIT", 'who' is
+ * the sensor that triggered it. */
+static void
+s_nvmultiurisrcbincreator_log_state (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator, const char * event, const char * who)
+{
+  guint maxBatch = nvmultiurisrcbinCreator->muxConfig ?
+      nvmultiurisrcbinCreator->muxConfig->maxBatchSize : 0;
+  GString *active = g_string_new (NULL);
+  GString *waiting = g_string_new (NULL);
+  guint na = 0, nq = 0;
+
+  g_mutex_lock (&nvmultiurisrcbinCreator->lock);
+  for (GList * l = nvmultiurisrcbinCreator->sourceInfoList; l; l = l->next) {
+    NvDsUriSourceInfo *si = (NvDsUriSourceInfo *) l->data;
+    if (!si || !si->config)
+      continue;
+    g_string_append_printf (active, "%s%s", na ? "," : "",
+        si->config->sensorId ? si->config->sensorId : "?");
+    na++;
+  }
+  for (GList * l = (nvmultiurisrcbinCreator->pendingQueue ?
+              nvmultiurisrcbinCreator->pendingQueue->head : NULL); l;
+      l = l->next) {
+    GstDsNvUriSrcConfig *c = (GstDsNvUriSrcConfig *) l->data;
+    g_string_append_printf (waiting, "%s%s", nq ? "," : "",
+        (c && c->sensorId) ? c->sensorId : "?");
+    nq++;
+  }
   g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
 
-  return TRUE;
+  g_print ("[nvmultiurisrcbin] %-6s %-14s | active %2u/%-2u [%s] | queue %2u [%s]\n",
+      event ? event : "", who ? who : "", na, maxBatch, active->str, nq,
+      waiting->str);
+  g_string_free (active, TRUE);
+  g_string_free (waiting, TRUE);
+}
+
+/* VIA-S-5: admit queued (waiting) sources while batch slots are free, in FIFO
+ * order. Acquires 'lock' internally, so callers must NOT hold it. Invoked after
+ * a source finishes (EOS -> slot freed) and after a new request is queued while
+ * a slot happened to be free. */
+static void
+s_nvmultiurisrcbincreator_admit_pending (NvMultiUriSrcBinCreator *
+    nvmultiurisrcbinCreator)
+{
+  guint maxBatch = nvmultiurisrcbinCreator->muxConfig ?
+      nvmultiurisrcbinCreator->muxConfig->maxBatchSize : 0;
+  for (;;) {
+    g_mutex_lock (&nvmultiurisrcbinCreator->lock);
+    if (!nvmultiurisrcbinCreator->pendingQueue
+        || g_queue_is_empty (nvmultiurisrcbinCreator->pendingQueue)
+        || (guint) nvmultiurisrcbinCreator->numOfActiveSources >= maxBatch) {
+      g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+      break;
+    }
+    GstDsNvUriSrcConfig *cfg = (GstDsNvUriSrcConfig *)
+        g_queue_pop_head (nvmultiurisrcbinCreator->pendingQueue);
+    guint waiting = g_queue_get_length (nvmultiurisrcbinCreator->pendingQueue);
+    gboolean ok =
+        s_nvmultiurisrcbincreator_do_add_source_locked (nvmultiurisrcbinCreator,
+        cfg);
+    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+    GST_INFO_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+        "admitted queued sensor '%s' (%s); %u still waiting",
+        cfg->sensorId ? cfg->sensorId : "?", ok ? "ok" : "FAILED", waiting);
+    if (ok)
+      s_nvmultiurisrcbincreator_log_state (nvmultiurisrcbinCreator, "ADMIT",
+          cfg->sensorId ? cfg->sensorId : "?");
+    gst_nvmultiurisrcbincreator_src_config_free (cfg);
+    /* bring the freshly-added source up to the pipeline state */
+    gst_nvmultiurisrcbincreator_sync_children_states (
+        (NvDst_Handle_NvMultiUriSrcCreator) nvmultiurisrcbinCreator);
+  }
+}
+
+static void
+s_admit_pending_cb (GstElement * elem, gpointer user_data)
+{
+  (void) elem;
+  s_nvmultiurisrcbincreator_admit_pending ((NvMultiUriSrcBinCreator *)
+      user_data);
+}
+
+gboolean
+gst_nvmultiurisrcbincreator_add_source (NvDst_Handle_NvMultiUriSrcCreator
+    apiHandle, GstDsNvUriSrcConfig * sourceConfig)
+{
+  NvMultiUriSrcBinCreator *nvmultiurisrcbinCreator =
+      (NvMultiUriSrcBinCreator *) apiHandle;
+  guint maxBatch = nvmultiurisrcbinCreator->muxConfig ?
+      nvmultiurisrcbinCreator->muxConfig->maxBatchSize : 0;
+  /* VIA-S-5: only file/HTTP sources are queued on overflow. RTSP is a live
+   * source that never self-EOS's, so a queued RTSP stream would wait forever
+   * (a slot only frees on another source's EOS). Keep the original fail-fast
+   * reject for RTSP over capacity. */
+  gboolean isRtsp = (sourceConfig->src_type == SOURCE_TYPE_RTSP)
+      || (sourceConfig->uri
+          && (g_str_has_prefix (sourceConfig->uri, "rtsp://")
+              || g_str_has_prefix (sourceConfig->uri, "rtsps://")));
+
+  g_mutex_lock (&nvmultiurisrcbinCreator->lock);
+
+  if (isRtsp) {
+    /* RTSP over capacity -> reject (unchanged behavior). */
+    if ((guint) nvmultiurisrcbinCreator->numOfActiveSources >= maxBatch) {
+      GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+          "RTSP add rejected for sensor '%s': no free batch slot "
+          "(max-batch-size=%u reached)",
+          sourceConfig->sensorId ? sourceConfig->sensorId : "?", maxBatch);
+      g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+      return FALSE;
+    }
+    gboolean ret =
+        s_nvmultiurisrcbincreator_do_add_source_locked (nvmultiurisrcbinCreator,
+        sourceConfig);
+    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+    return ret;
+  }
+
+  /* File/HTTP: if the batch is full (or requests are already waiting, to keep
+   * FIFO), queue this request instead of rejecting it. It is admitted later as
+   * running sources finish (EOS) and free slots, so N concurrent stream/add
+   * requests are processed in waves of max-batch-size. The caller (REST
+   * stream/add) gets success == accepted-and-queued. */
+  if ((guint) nvmultiurisrcbinCreator->numOfActiveSources >= maxBatch
+      || (nvmultiurisrcbinCreator->pendingQueue
+          && !g_queue_is_empty (nvmultiurisrcbinCreator->pendingQueue))) {
+    g_queue_push_tail (nvmultiurisrcbinCreator->pendingQueue,
+        gst_nvmultiurisrcbincreator_src_config_dup (sourceConfig));
+    gboolean slotFree =
+        ((guint) nvmultiurisrcbinCreator->numOfActiveSources < maxBatch);
+    GST_INFO_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+        "batch full (max-batch-size=%u, active=%u): queued sensor '%s' "
+        "(%u waiting)", maxBatch,
+        nvmultiurisrcbinCreator->numOfActiveSources,
+        sourceConfig->sensorId ? sourceConfig->sensorId : "?",
+        g_queue_get_length (nvmultiurisrcbinCreator->pendingQueue));
+    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+    s_nvmultiurisrcbincreator_log_state (nvmultiurisrcbinCreator, "QUEUED",
+        sourceConfig->sensorId ? sourceConfig->sensorId : "?");
+    /* rare: queued while a slot was actually free -> drain off-thread */
+    if (slotFree)
+      gst_element_call_async (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+          s_admit_pending_cb, nvmultiurisrcbinCreator, NULL);
+    return TRUE;
+  }
+
+  gboolean ret =
+      s_nvmultiurisrcbincreator_do_add_source_locked (nvmultiurisrcbinCreator,
+      sourceConfig);
+  g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+  return ret;
 }
 
 gboolean
@@ -1261,6 +1571,7 @@ s_nvmultiurisrcbincreator_remove_source_info (NvMultiUriSrcBinCreator *
   sensorInfoM.sensor_id = sourceInfo->config->sensorId;
   sensorInfoM.sensor_name = sourceInfo->config->sensorName;
   sensorInfoM.uri = sourceInfo->config->uri;
+  sensorInfoM.sensor_metadata = sourceInfo->config->sensorMetadata;
 
   /** POST nvmessage stream removed on the bus */
   if (GST_IS_BIN (nvmultiurisrcbinCreator->nvmultiurisrcbin)) {
@@ -1281,6 +1592,15 @@ s_nvmultiurisrcbincreator_remove_source_info (NvMultiUriSrcBinCreator *
       sourceInfo->config->source_id + (gchar *) NULL);
   nvmultiurisrcbinCreator->sourceInfoList =
       g_list_remove (nvmultiurisrcbinCreator->sourceInfoList, sourceInfo);
+  /* VIA-S-5: tear down this source's IPC publisher branch (tee + convert + nvunixfdsink) */
+  if (sourceInfo->ipc_sink) {
+    gst_element_set_state (sourceInfo->ipc_tee, GST_STATE_NULL);
+    gst_element_set_state (sourceInfo->ipc_conv, GST_STATE_NULL);
+    gst_element_set_state (sourceInfo->ipc_sink, GST_STATE_NULL);
+    gst_bin_remove_many (GST_BIN (nvmultiurisrcbinCreator->nvmultiurisrcbin),
+        sourceInfo->ipc_tee, sourceInfo->ipc_conv, sourceInfo->ipc_sink, NULL);
+    sourceInfo->ipc_tee = sourceInfo->ipc_conv = sourceInfo->ipc_sink = NULL;
+  }
   //free sourceInfo
   s_nvmultiurisrcbincreator_destroy_source_info (sourceInfo);
   nvmultiurisrcbinCreator->numOfActiveSources--;
@@ -1358,6 +1678,10 @@ s_nvmultiurisrcbincreator_remove_source_impl (NvDst_Handle_NvMultiUriSrcCreator
   if (sourceInfo->is_removing) {
     GST_INFO_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
         "API removal: source %d already being removed, skipping", sourceId);
+    if (sourceInfo->eos_removal_pending) {
+      g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+      return TRUE;
+    }
     g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
     return FALSE;
   }
@@ -1387,6 +1711,37 @@ s_nvmultiurisrcbincreator_remove_source_impl (NvDst_Handle_NvMultiUriSrcCreator
      * You need to let the parent manage the object instead of unreffing
      * the object directly.
      */
+  }
+
+  gboolean isRtsp = sourceInfo->config && sourceInfo->config->uri
+      && (g_str_has_prefix (sourceInfo->config->uri, "rtsp://")
+          || g_str_has_prefix (sourceInfo->config->uri, "rtsps://"));
+
+  if (forceSourceStateChange && isRtsp) {
+    GstElement *uribin = sourceInfo->uribin;
+    g_object_ref (uribin);
+    gst_element_set_locked_state (uribin, TRUE);
+    if ((!gst_bin_remove (GST_BIN (nvmultiurisrcbinCreator->nvmultiurisrcbin),
+            uribin))) {
+      GST_WARNING_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
+          "Failed to set remove source-id:%u", sourceInfo->config->source_id);
+      gst_element_set_locked_state (uribin, FALSE);
+      gst_object_unref (uribin);
+      g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+      return FALSE;
+    }
+
+    s_nvmultiurisrcbincreator_release_mux_sink_pad (nvmultiurisrcbinCreator,
+        sourceInfo);
+
+    s_nvmultiurisrcbincreator_remove_source_info (nvmultiurisrcbinCreator,
+        sourceInfo);
+    LOGD ("removed source %d\n", sourceId);
+    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+
+    s_nvmultiurisrcbincreator_set_uribin_null_async (uribin);
+
+    return TRUE;
   }
 
   if (forceSourceStateChange) {
@@ -1464,6 +1819,33 @@ s_nvmultiurisrcbincreator_remove_source_impl (NvDst_Handle_NvMultiUriSrcCreator
   return TRUE;
 }
 
+#ifdef ENABLE_GST_NVDSHELPER_MULTIURISRCBIN_UNIT_TESTS
+extern "C" gboolean
+gst_nvmultiurisrcbincreator_test_set_removal_flags
+    (NvDst_Handle_NvMultiUriSrcCreator apiHandle, guint sourceId,
+    gboolean isRemoving, gboolean eosRemovalPending)
+{
+  NvMultiUriSrcBinCreator *nvmultiurisrcbinCreator =
+      (NvMultiUriSrcBinCreator *) apiHandle;
+
+  g_mutex_lock (&nvmultiurisrcbinCreator->lock);
+  NvDsUriSourceInfo *sourceInfo =
+      (NvDsUriSourceInfo *)
+      g_hash_table_lookup (nvmultiurisrcbinCreator->sourceInfoHash,
+      sourceId + (gchar *) NULL);
+
+  if (!sourceInfo) {
+    g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+    return FALSE;
+  }
+
+  sourceInfo->is_removing = isRemoving;
+  sourceInfo->eos_removal_pending = eosRemovalPending;
+  g_mutex_unlock (&nvmultiurisrcbinCreator->lock);
+  return TRUE;
+}
+#endif
+
 GstPad *
 gst_nvmultiurisrcbincreator_get_source_pad (NvDst_Handle_NvMultiUriSrcCreator
     apiHandle)
@@ -1509,9 +1891,84 @@ s_nvmultiurisrcbincreator_link_element_to_streammux_sink_pad (NvDsUriSourceInfo
     return FALSE;
   }
 
+  /* VIA-S-5: when ipc_frame_copy is enabled, tap this source's DECODED frames
+   * (src_pad) over IPC BEFORE the mux:  src_pad -> tee -> [mux] + [nvvideoconvert -> nvunixfdsink].
+   * Per-source socket: /tmp/nvds_ipc_<sensorId|source_id>.sock. Uses stock nvunixfdsink
+   * with buffer-copy=true (single-stream => per-consumer isolation). */
+  NvMultiUriSrcBinCreator *creator =
+      (NvMultiUriSrcBinCreator *) sourceInfo->apiHandle;
+  if (creator && creator->muxConfig && creator->muxConfig->ipc_frame_copy) {
+    GstElement *tee = gst_element_factory_make ("tee", NULL);
+    GstElement *conv = gst_element_factory_make ("nvvideoconvert", NULL);
+    GstElement *sink = gst_element_factory_make ("nvunixfdsink", NULL);
+    if (tee && conv && sink) {
+      gchar idbuf[256];
+      const gchar *sid = (sourceInfo->config->sensorId
+          && sourceInfo->config->sensorId[0]) ? sourceInfo->config->sensorId : NULL;
+      if (sid) {
+        g_strlcpy (idbuf, sid, sizeof (idbuf));
+        for (gchar * p = idbuf; *p; p++)
+          if (*p == '/' || *p == ' ')
+            *p = '_';                 /* filesystem-safe socket name */
+      } else {
+        g_snprintf (idbuf, sizeof (idbuf), "%u", sourceInfo->config->source_id);
+      }
+      gchar *spath = g_strdup_printf ("/tmp/nvds_ipc_%s.sock", idbuf);
+      /* publish from the mux/source GPU; cross-GPU consumers move frames via nvdsxfer */
+      g_object_set (G_OBJECT (sink), "socket-path", spath, "buffer-copy", TRUE,
+          "buffer-timestamp-copy", TRUE, "sync", FALSE, "async", FALSE,
+          "gpu-id", creator->muxConfig->gpu_id, NULL);
+      g_object_set (G_OBJECT (conv), "gpu-id", creator->muxConfig->gpu_id, NULL);
+
+      gst_bin_add_many (GST_BIN (creator->nvmultiurisrcbin), tee, conv, sink, NULL);
+      gst_element_link (conv, sink);
+      gst_element_sync_state_with_parent (tee);
+      gst_element_sync_state_with_parent (conv);
+      gst_element_sync_state_with_parent (sink);
+
+      GstPad *teesink = gst_element_get_static_pad (tee, "sink");
+      GstPad *tee2mux = gst_element_request_pad_simple (tee, "src_%u");
+      GstPad *tee2pub = gst_element_request_pad_simple (tee, "src_%u");
+      GstPad *convsink = gst_element_get_static_pad (conv, "sink");
+      gboolean ok = (gst_pad_link (src_pad, teesink) == GST_PAD_LINK_OK)
+          && (gst_pad_link (tee2mux, sourceInfo->muxSinkPad) == GST_PAD_LINK_OK)
+          && (gst_pad_link (tee2pub, convsink) == GST_PAD_LINK_OK);
+      gst_object_unref (teesink);
+      gst_object_unref (tee2mux);
+      gst_object_unref (tee2pub);
+      gst_object_unref (convsink);
+      if (ok) {
+        sourceInfo->ipc_tee = tee;
+        sourceInfo->ipc_conv = conv;
+        sourceInfo->ipc_sink = sink;
+        g_print
+            ("[nvmultiurisrcbin ipc-frame-copy] source %u publishing decoded frames at %s\n",
+            sourceInfo->config->source_id, spath);
+        g_free (spath);
+        return TRUE;
+      }
+      GST_WARNING ("ipc-frame-copy: failed to link tee branch for source %u\n",
+          sourceInfo->config->source_id);
+      g_free (spath);
+      return FALSE;
+    }
+    GST_WARNING
+        ("ipc-frame-copy: element create failed (nvunixfdsink installed?); using direct link\n");
+    if (tee)
+      gst_object_unref (tee);
+    if (conv)
+      gst_object_unref (conv);
+    if (sink)
+      gst_object_unref (sink);
+    /* fall through to direct link */
+  }
+
   if (gst_pad_link (src_pad, sourceInfo->muxSinkPad) != GST_PAD_LINK_OK) {
     GST_WARNING ("Failed to link '%s' -> '%s'\n",
         GST_PAD_NAME (src_pad), GST_ELEMENT_NAME (streammux));
+    gst_element_release_request_pad (streammux, sourceInfo->muxSinkPad);
+    gst_object_unref (sourceInfo->muxSinkPad);
+    sourceInfo->muxSinkPad = NULL;
     return FALSE;
   }
 
@@ -1673,6 +2130,9 @@ gst_nvmultiurisrcbincreator_get_source_info_list
       sensorInfo->sensor_id = sourceInfo->config->sensorId;
       sensorInfo->sensor_name = g_strdup (sourceInfo->config->sensorName);
       sensorInfo->uri = g_strdup (sourceInfo->config->uri);
+      sensorInfo->sensor_metadata =
+          sourceInfo->config->sensorMetadata ?
+          g_strdup (sourceInfo->config->sensorMetadata) : NULL;
 
       *stream_info_list = g_list_append (*stream_info_list, sensorInfo);
     }

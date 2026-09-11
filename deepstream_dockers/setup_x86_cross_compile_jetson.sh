@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# SPDX-FileCopyrightText: Copyright (c) 2022-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,17 @@ sudo docker --version
 sudo apt-get install qemu binfmt-support qemu-user-static
 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 # Verify everything works.
-sudo systemctl restart docker
+# sudo systemctl restart docker
+# handle special case if working on shared systems
+# On a shared development or CI system this terminates ALL running docker containers without warning, potentially destroying other users' work or in-flight CI jobs
+# Fix: Check whether aarch64 binfmt is already registered before restarting
+ls /proc/sys/fs/binfmt_misc/qemu-aarch64 &>/dev/null || sudo systemctl restart docker
 # docker run --rm -t arm64v8/ubuntu uname -m
 # Use Docker buildx
 # Create builder for building on x86
-sudo docker buildx create --name myjetbuilder
+# sudo docker buildx create --name myjetbuilder
+# handle case if this is run a second time and this will not cause an error
+sudo docker buildx ls | grep -q myjetbuilder || docker buildx create --name myjetbuilder
 # Create a new builder instance with support for multiple architectures
 sudo docker buildx use myjetbuilder
 # Inspect available platforms and enable ARM64

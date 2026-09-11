@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +37,10 @@ parse_source_yaml (NvDsSourceConfig *config, std::vector<std::string> headers,
   config->latency = 100;
   config->num_decode_surfaces = N_DECODE_SURFACES;
   config->num_extra_surfaces = N_EXTRA_SURFACES;
+  /* Match nvmultiurisrcbin's property defaults (seconds) */
+  config->http_download_timeout = 300;
+  config->http_connect_timeout = 30;
+  config->http_max_concurrent_downloads = 0;   /* 0 = unlimited */
 
   for(unsigned int i = 0; i < headers.size(); i++)
   {
@@ -62,6 +66,12 @@ parse_source_yaml (NvDsSourceConfig *config, std::vector<std::string> headers,
           std::stoi(source_values[i]);;
     } else if (paramKey == "udp-buffer-size") {
       config->udp_buffer_size = std::stoi(source_values[i]);
+    } else if (paramKey == "http-download-timeout") {
+      config->http_download_timeout = std::stoul(source_values[i]);
+    } else if (paramKey == "http-connect-timeout") {
+      config->http_connect_timeout = std::stoul(source_values[i]);
+    } else if (paramKey == "http-max-concurrent-downloads") {
+      config->http_max_concurrent_downloads = std::stoul(source_values[i]);
     } else if (paramKey == "alsa-device") {
       std::string temp = source_values[i];
       config->alsa_device = (char*) malloc(sizeof(char) * 1024);
@@ -121,6 +131,8 @@ parse_source_yaml (NvDsSourceConfig *config, std::vector<std::string> headers,
           std::stoul(source_values[i]);
     } else if (paramKey == "source-id") {
       config->source_id = std::stoul(source_values[i]);
+    } else if (paramKey == "ipc-frame-copy") {
+      config->ipc_frame_copy = std::stoul(source_values[i]);
     } else if (paramKey == "smart-record") {
       config->smart_record = std::stoul(source_values[i]);
     } else if (paramKey == "smart-rec-dir-path") {

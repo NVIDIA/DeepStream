@@ -25,7 +25,7 @@ LIB:=libnvdsgst_tracker.so
 
 NVDS_VERSION:=9.1
 
-CFLAGS+= -fPIC -std=c++17 -DDS_VERSION=\"9.1.0\" \
+CFLAGS+= -fPIC -std=c++17 -DDS_VERSION=\"9.1.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../includes \
      -I ../gst-nvdspreprocess \

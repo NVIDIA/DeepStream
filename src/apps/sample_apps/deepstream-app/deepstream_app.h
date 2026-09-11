@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,6 +39,7 @@
 #include "deepstream_text_embedder.h"
 #include "deepstream_visionencoder.h"
 #include "deepstream_replay.h"
+#include "deepstream_config_file_parser.h"
 #include "deepstream_secondary_gie.h"
 #include "deepstream_secondary_preprocess.h"
 #include "deepstream_c2d_msg.h"
@@ -74,6 +75,7 @@ typedef struct
   NvDsSecondaryGieBin secondary_gie_bin;
   NvDsSecondaryPreProcessBin secondary_preprocess_bin;
   NvDsTrackerBin tracker_bin;
+  GstElement *infer_eval;
   GstElement *text_embedder;
   NvDsVisionEncoderBin visionencoder_bin;
   NvDsReplayBin replay_bin;
@@ -137,6 +139,7 @@ typedef struct
   NvDsPreProcessConfig secondary_preprocess_sub_bin_config[MAX_SECONDARY_PREPROCESS_BINS];
   NvDsGieConfig primary_gie_config;
   NvDsTrackerConfig tracker_config;
+  NvDsInferEvalConfig infer_eval_config;
   NvDsTextEmbedderConfig text_embedder_config;
   NvDsVisionEncoderConfig visionencoder_config;
   NvDsReplayConfig replay_config;
@@ -168,6 +171,9 @@ typedef struct
    * This will be used in case gpu_id prop is not set for a component
    * if gpu_id prop is set for a component, global_gpu_id will be overridden by it */
   gint global_gpu_id;
+
+  /** Path of the config file used to initialize this application. */
+  gchar *cfg_file_path;
 } NvDsConfig;
 
 typedef struct

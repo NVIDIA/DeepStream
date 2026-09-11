@@ -1,0 +1,160 @@
+################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+services:
+  ms-nvclip:
+    build:
+      context: nvclip
+      target: builder_base
+      dockerfile: Dockerfile
+    image: ms-nvclip
+    volumes:
+      - '~/.cache/model-repo/:/workspace/model-repo'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              #count: 1
+              device_ids: ['0']
+              capabilities: [gpu]
+    environment:
+      NGC_API_KEY: ""
+#      DEBUG: 1
+  ms-changenet:
+    build:
+      context: changenet
+      target: builder_base
+      dockerfile: Dockerfile
+    image: ms-changenet
+    volumes:
+      - '~/.cache/model-repo/visual_changenet:/workspace/model_repo/visual_changenet/1'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              #count: 1
+              device_ids: ['0']
+              capabilities: [gpu]
+    environment:
+      HTTP_PORT: 8003
+      DEBUG: 0
+  tao-cv:
+    user: nvs:1000
+    build:
+      context: tao
+      target: cv_tao_base
+      dockerfile: Dockerfile
+    image: tao-cv
+    # entrypoint: ["/bin/bash"]
+    # # Keep container running
+    # command: ["-c", "sleep infinity"]
+    volumes:
+      - '~/.cache/model-repo/:/workspace/.cache/model-repo'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              #count: 1
+              device_ids: ['0']
+              capabilities: [gpu]
+    environment:
+      DEBUG: 0
+      TAO_MODEL_NAME: rtdetr
+  dry-run:
+    user: nvs:1000
+    build:
+      context: dummy
+      target: inference_base
+      dockerfile: Dockerfile
+    image: dry-run
+    volumes:
+      - '~/.cache:/workspace/.cache'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              #count: 1
+              device_ids: ['0']
+              capabilities: [gpu]
+    environment:
+      DEBUG: 1
+  ms-qwen:
+    build:
+      context: qwen
+      target: inference_base
+      dockerfile: Dockerfile
+    image: ms-qwen
+    volumes:
+      - '~/.cache/model-repo:/workspace/model-repo'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              #count: 1
+              device_ids: ['0']
+              capabilities: [gpu]
+    environment:
+      DEBUG: 0
+  ms-vllm:
+    build:
+      context: vllm
+      target: inference_base
+      dockerfile: Dockerfile
+    image: ms-vllm
+    volumes:
+      - '~/.cache/model-repo:/workspace/model-repo'
+    ipc: host
+    # init: true
+    ports:
+      - "8800-8803:8000-8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              #count: 1
+              capabilities: [gpu]
+    environment:
+      DEBUG: 0
+      # number of codec instances based on the hardware specification
+      N_CODEC_INSTANCES: 7

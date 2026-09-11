@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@
 #include "gst-nvevent.h"
 #include "gst-nvmessage.h"
 #include "gst-nvdscustommessage.h"
+#include "gst-nvdscustomevent.h"
 #include "gst-nvcustomevent.h"
 #include "nvds_rest_metrics.h"
 #include "nvds_msgapi.h"
@@ -46,7 +47,19 @@
 #include "nvds_utils.h"
 #include <curl/curl.h>
 
+#include <string>
+
 #define HTTP_DOWNLOAD_DIR "/opt/nvidia/deepstream/deepstream/samples/streams/"
+
+/* HTTP(S) file-download (curl) timeouts, in seconds. Exposed as the
+ * "http-download-timeout" / "http-connect-timeout" properties; the defaults
+ * preserve the previous hardcoded behavior. A value of 0 means "no limit". */
+#define DEFAULT_HTTP_DOWNLOAD_TIMEOUT  300
+#define DEFAULT_HTTP_CONNECT_TIMEOUT    30
+/* Max concurrent HTTP(S) file downloads. 0 = use max-batch-size; any value is
+ * clamped to max-batch-size (never fetch more files at once than the pipeline
+ * can hold as active sources). */
+#define DEFAULT_HTTP_MAX_CONCURRENT_DOWNLOADS 0
 
 //Default prop values
 #define DEFAULT_HTTP_IP "localhost"
@@ -571,6 +584,35 @@ gst_ds_nvmultiurisrc_bin_class_init (GstDsNvMultiUriBinClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
 
+  g_object_class_install_property (gobject_class,
+      MULTIURIBIN_PROP_HTTP_DOWNLOAD_TIMEOUT,
+      g_param_spec_uint ("http-download-timeout", "HTTP Download Timeout",
+          "Maximum time in seconds for the whole HTTP(S) file download "
+          "(curl CURLOPT_TIMEOUT). 0 means no limit.",
+          0, G_MAXUINT, DEFAULT_HTTP_DOWNLOAD_TIMEOUT,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+
+  g_object_class_install_property (gobject_class,
+      MULTIURIBIN_PROP_HTTP_CONNECT_TIMEOUT,
+      g_param_spec_uint ("http-connect-timeout", "HTTP Connect Timeout",
+          "Maximum time in seconds for the HTTP(S) connect phase "
+          "(curl CURLOPT_CONNECTTIMEOUT). 0 means no limit.",
+          0, G_MAXUINT, DEFAULT_HTTP_CONNECT_TIMEOUT,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+
+  g_object_class_install_property (gobject_class,
+      MULTIURIBIN_PROP_HTTP_MAX_CONCURRENT_DOWNLOADS,
+      g_param_spec_uint ("http-max-concurrent-downloads",
+          "HTTP Max Concurrent Downloads",
+          "Maximum number of HTTP(S) source-file downloads that may run at "
+          "once across concurrent stream/add requests. 0 = use max-batch-size; "
+          "any value is clamped to max-batch-size.",
+          0, G_MAXUINT, DEFAULT_HTTP_MAX_CONCURRENT_DOWNLOADS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+
   g_object_class_install_property (gobject_class, MULTIURIBIN_PROP_SEI_UUID,
       g_param_spec_string ("sei-uuid",
           "Set sei uuid",
@@ -860,6 +902,15 @@ gst_ds_nvmultiurisrc_bin_class_init (GstDsNvMultiUriBinClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
 
+  g_object_class_install_property (gobject_class, MULTIURIBIN_PROP_IPC_FRAME_COPY,
+      g_param_spec_boolean ("ipc-frame-copy",
+          "IPC decoder frame copy",
+          "Publish each source's DECODED frames over IPC (per-source nvunixfdsink, "
+          "tapped right after the decoder). Socket: /tmp/nvds_ipc_<sensorId|source-id>.sock",
+          FALSE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+
   /** @} For nvurisrcbin */
 
   /** @{ For nvstreammux */
@@ -1101,6 +1152,15 @@ gst_ds_nvmultiurisrc_bin_set_property (GObject * object, guint prop_id,
       }
       nvmultiurisrcbin->httpPort = g_value_dup_string (value);
       break;
+    case MULTIURIBIN_PROP_HTTP_DOWNLOAD_TIMEOUT:
+      nvmultiurisrcbin->httpDownloadTimeout = g_value_get_uint (value);
+      break;
+    case MULTIURIBIN_PROP_HTTP_CONNECT_TIMEOUT:
+      nvmultiurisrcbin->httpConnectTimeout = g_value_get_uint (value);
+      break;
+    case MULTIURIBIN_PROP_HTTP_MAX_CONCURRENT_DOWNLOADS:
+      nvmultiurisrcbin->httpMaxConcurrentDownloads = g_value_get_uint (value);
+      break;
     case MULTIURIBIN_PROP_MAX_BATCH_SIZE:
       muxConfig->maxBatchSize = g_value_get_uint (value);
       break;
@@ -1226,6 +1286,9 @@ gst_ds_nvmultiurisrc_bin_set_property (GObject * object, guint prop_id,
       break;
     case MULTIURIBIN_PROP_SIMULATE_FPS_INTERVAL_MS:
       config->simulate_fps_interval_ms = g_value_get_uint (value);
+      break;
+    case MULTIURIBIN_PROP_IPC_FRAME_COPY:
+      muxConfig->ipc_frame_copy = g_value_get_boolean (value);
       break;
     case PROP_BATCH_SIZE:
       muxConfig->batch_size = g_value_get_uint (value);
@@ -1354,6 +1417,15 @@ gst_ds_nvmultiurisrc_bin_get_property (GObject * object, guint prop_id,
     case MULTIURIBIN_PROP_HTTP_PORT:
       g_value_set_string (value, nvmultiurisrcbin->httpPort);
       break;
+    case MULTIURIBIN_PROP_HTTP_DOWNLOAD_TIMEOUT:
+      g_value_set_uint (value, nvmultiurisrcbin->httpDownloadTimeout);
+      break;
+    case MULTIURIBIN_PROP_HTTP_CONNECT_TIMEOUT:
+      g_value_set_uint (value, nvmultiurisrcbin->httpConnectTimeout);
+      break;
+    case MULTIURIBIN_PROP_HTTP_MAX_CONCURRENT_DOWNLOADS:
+      g_value_set_uint (value, nvmultiurisrcbin->httpMaxConcurrentDownloads);
+      break;
     case MULTIURIBIN_PROP_MAX_BATCH_SIZE:
       g_value_set_uint (value, muxConfig->maxBatchSize);
       break;
@@ -1472,6 +1544,9 @@ gst_ds_nvmultiurisrc_bin_get_property (GObject * object, guint prop_id,
       break;
     case MULTIURIBIN_PROP_SIMULATE_FPS_INTERVAL_MS:
       g_value_set_uint (value, config->simulate_fps_interval_ms);
+      break;
+    case MULTIURIBIN_PROP_IPC_FRAME_COPY:
+      g_value_set_boolean (value, muxConfig->ipc_frame_copy);
       break;
     case PROP_BATCH_SIZE:
       g_value_set_uint (value, muxConfig->batch_size);
@@ -1602,6 +1677,11 @@ gst_ds_nvmultiurisrc_bin_init (GstDsNvMultiUriBin * nvmultiurisrcbin)
   nvmultiurisrcbin->config->max_size_buffers = DEFAULT_MAX_SIZE_BUFFERS;
   nvmultiurisrcbin->config->extract_sei_type5_data = DEFAULT_SEI_EXTRACT_DATA;
   nvmultiurisrcbin->config->low_latency_mode = DEFAULT_LOW_LATENCY_MODE;
+  nvmultiurisrcbin->httpDownloadTimeout = DEFAULT_HTTP_DOWNLOAD_TIMEOUT;
+  nvmultiurisrcbin->httpConnectTimeout = DEFAULT_HTTP_CONNECT_TIMEOUT;
+  nvmultiurisrcbin->httpMaxConcurrentDownloads =
+      DEFAULT_HTTP_MAX_CONCURRENT_DOWNLOADS;
+  nvmultiurisrcbin->httpActiveDownloads = 0;
   nvmultiurisrcbin->muxConfig->extract_sei_type5_data = DEFAULT_NO_PIPELINE_EOS;
   nvmultiurisrcbin->muxConfig->extract_sei_sim_time = DEFAULT_SEI_EXTRACT_SIM_TIME;
   nvmultiurisrcbin->muxConfig->align_first_buffer = DEFAULT_ALIGN_FIRST_BATCH;
@@ -1647,9 +1727,12 @@ gst_ds_nvmultiurisrc_bin_init (GstDsNvMultiUriBin * nvmultiurisrcbin)
   gst_element_add_pad (GST_ELEMENT (nvmultiurisrcbin),
       nvmultiurisrcbin->bin_src_pad);
   nvmultiurisrcbin->restServer = NULL;
+  nvmultiurisrcbin->staticBindsEmitted = FALSE;
   nvmultiurisrcbin->httpIp = g_strdup (DEFAULT_HTTP_IP);
   nvmultiurisrcbin->httpPort = g_strdup (DEFAULT_HTTP_PORT);
   g_mutex_init (&nvmultiurisrcbin->bin_lock);
+  g_mutex_init (&nvmultiurisrcbin->httpDlLock);
+  g_cond_init (&nvmultiurisrcbin->httpDlCond);
   g_mutex_init(&g_shared_comp_latency_data.mutex);
 
   GST_OBJECT_FLAG_SET (nvmultiurisrcbin, GST_ELEMENT_FLAG_SOURCE);
@@ -1665,6 +1748,8 @@ gst_ds_nvmultiurisrc_bin_finalize (GObject * object)
     nvmultiurisrcbin->config->ipc_socket_path = NULL;
   }
   g_free (nvmultiurisrcbin->config);
+  g_mutex_clear (&nvmultiurisrcbin->httpDlLock);
+  g_cond_clear (&nvmultiurisrcbin->httpDlCond);
 
   if (nvmultiurisrcbin->uriList) {
     g_free (nvmultiurisrcbin->uriList);
@@ -1706,6 +1791,64 @@ gst_ds_nvmultiurisrc_bin_finalize (GObject * object)
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/* For sources added STATICALLY via uri-list/sensor-id-list, forward each
+ * source's per-stream model binding (camera_id + camera_name) downstream as a
+ * serialized nv-stream-model-bind event -- exactly what the REST stream/add
+ * path does (see s_stream_api_impl). Without this a downstream model element
+ * (e.g. nvmodelmux) only ever sees GST_NVEVENT_PAD_ADDED, which carries the
+ * numeric source_id but NOT the camera_id, so it cannot apply per-sensor
+ * [stream-model-<id>] selection and every static source falls back to the
+ * default model.
+ *
+ * Emitted ONCE, after the pipeline reaches PLAYING: by then the bin src pad is
+ * linked + flowing, so the event actually propagates (pushing it at
+ * NULL_TO_READY, before the downstream link exists, would just be dropped). The
+ * downstream element treats a bind that arrives after PAD_ADDED as a reconcile
+ * and reroutes that one stream zero-drop, so ordering vs PAD_ADDED is safe. */
+static void
+gst_ds_nvmultiurisrc_bin_forward_static_binds (GstDsNvMultiUriBin *
+    nvmultiurisrcbin)
+{
+  guint i, sensorIdListVLen, sensorNameListVLen;
+
+  if (!nvmultiurisrcbin->sensorIdListV
+      || !nvmultiurisrcbin->nvmultiurisrcbinCreator
+      || !nvmultiurisrcbin->bin_src_pad)
+    return;                       /* nothing bound statically -> no-op */
+
+  sensorIdListVLen = g_strv_length (nvmultiurisrcbin->sensorIdListV);
+  sensorNameListVLen = nvmultiurisrcbin->sensorNameListV
+      ? g_strv_length (nvmultiurisrcbin->sensorNameListV) : 0;
+
+  for (i = 0; i < sensorIdListVLen; i++) {
+    const gchar *sid = nvmultiurisrcbin->sensorIdListV[i];
+    const gchar *snm = (i < sensorNameListVLen)
+        ? nvmultiurisrcbin->sensorNameListV[i] : NULL;
+    GstDsNvUriSrcConfig *sc;
+    GstEvent *bev;
+
+    if (!sid || !*sid)            /* skip empty entries (e.g. a trailing ';') */
+      continue;
+
+    /* resolve the ACTUAL assigned source_id for this camera (same lookup the
+     * REST path uses); if the sensor was not actually added, skip it. */
+    sc = gst_nvmultiurisrcbincreator_get_source_config_by_sensorid
+        (nvmultiurisrcbin->nvmultiurisrcbinCreator, sid);
+    if (!sc)
+      continue;
+
+    bev = gst_nvevent_new_stream_model_bind (sc->source_id, sid,
+        (snm && *snm) ? snm : sid, NULL);
+    if (bev) {
+      GST_DEBUG_OBJECT (nvmultiurisrcbin,
+          "forwarding static stream-model-bind: source_id=%u camera_id=%s",
+          sc->source_id, sid);
+      gst_pad_push_event ((GstPad *) (nvmultiurisrcbin->bin_src_pad), bev);
+    }
+    gst_nvmultiurisrcbincreator_src_config_free (sc);
+  }
 }
 
 static GstStateChangeReturn
@@ -1868,8 +2011,20 @@ gst_ds_nvmultiurisrc_bin_change_state (GstElement * element,
     if (nvmultiurisrcbin->config->enable_error_propagation) {
       msgapi_cleanup();
     }
+    /* allow the static binds to be re-forwarded on a subsequent restart */
+    nvmultiurisrcbin->staticBindsEmitted = FALSE;
   }
   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+  /* Once the pipeline is PLAYING (bin src pad linked + flowing), forward the
+   * per-sensor model bindings for statically added (uri-list) sources -- once.
+   * Done AFTER the parent transition so the downstream link is fully active. */
+  if (transition == GST_STATE_CHANGE_PAUSED_TO_PLAYING
+      && ret != GST_STATE_CHANGE_FAILURE
+      && !nvmultiurisrcbin->staticBindsEmitted) {
+    gst_ds_nvmultiurisrc_bin_forward_static_binds (nvmultiurisrcbin);
+    nvmultiurisrcbin->staticBindsEmitted = TRUE;
+  }
   return ret;
 }
 
@@ -1898,6 +2053,18 @@ GThreadFuncRemoveSource (gpointer data)
 }
 
 static void
+gst_ds_nvmultiurisrc_bin_set_init_reconnect_interval (GstDsNvUriSrcBin *
+    nvurisrcbin)
+{
+  if (nvurisrcbin && nvurisrcbin->config &&
+      nvurisrcbin->config->init_rtsp_reconnect_interval_sec > 0) {
+    // Use the faster initial reconnect timeout only when explicitly configured.
+    nvurisrcbin->config->rtsp_reconnect_interval_sec =
+        nvurisrcbin->config->init_rtsp_reconnect_interval_sec;
+  }
+}
+
+static void
 gst_ds_nvmultiurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
 {
   GstDsNvMultiUriBin *ubin = (GstDsNvMultiUriBin *) bin;
@@ -1911,10 +2078,7 @@ gst_ds_nvmultiurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
           || g_strcmp0 (GST_OBJECT_NAME (message->src), "src") == 0) {
       nvurisrcbin = (GstDsNvUriSrcBin *) message->src->parent;
     }
-    if (nvurisrcbin){
-      //In case of error from source set the rtsp reconnect interval value to init-reconnect-interval-sec value (available via config)
-      nvurisrcbin->config->rtsp_reconnect_interval_sec = nvurisrcbin->config->init_rtsp_reconnect_interval_sec;
-    }
+    gst_ds_nvmultiurisrc_bin_set_init_reconnect_interval (nvurisrcbin);
   }
   if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
     gchar *debug = NULL;
@@ -1961,10 +2125,7 @@ gst_ds_nvmultiurisrc_bin_handle_message (GstBin * bin, GstMessage * message)
         nvurisrcbin = (GstDsNvUriSrcBin *) message->src->parent;
       }
 
-      if (nvurisrcbin) {
-        //In case of error from source set the rtsp reconnect interval value to init-reconnect-interval-sec value (available via config)
-        nvurisrcbin->config->rtsp_reconnect_interval_sec = nvurisrcbin->config->init_rtsp_reconnect_interval_sec;
-      }
+      gst_ds_nvmultiurisrc_bin_set_init_reconnect_interval (nvurisrcbin);
       // Remove the stream
       if (nvurisrcbin != NULL && nvurisrcbin->config) {
         g_mutex_lock (&ubin->bin_lock);
@@ -2184,8 +2345,15 @@ download_http_file (GstDsNvMultiUriBin *nvmultiurisrcbin, const gchar *url,
   curl_easy_setopt (curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt (curl, CURLOPT_SSL_VERIFYPEER, 0L);
   curl_easy_setopt (curl, CURLOPT_SSL_VERIFYHOST, 0L);
-  curl_easy_setopt (curl, CURLOPT_TIMEOUT, 300L);
-  curl_easy_setopt (curl, CURLOPT_CONNECTTIMEOUT, 30L);
+  /* Timeouts (seconds) are configurable via the "http-download-timeout" and
+   * "http-connect-timeout" properties; a value of 0 means "no limit". */
+  long http_timeout = (long) nvmultiurisrcbin->httpDownloadTimeout;
+  long connect_timeout = (long) nvmultiurisrcbin->httpConnectTimeout;
+  curl_easy_setopt (curl, CURLOPT_TIMEOUT, http_timeout);
+  curl_easy_setopt (curl, CURLOPT_CONNECTTIMEOUT, connect_timeout);
+  GST_DEBUG_OBJECT (nvmultiurisrcbin,
+      "HTTP download timeouts: total=%lds connect=%lds",
+      http_timeout, connect_timeout);
 
   res = curl_easy_perform (curl);
 
@@ -2220,6 +2388,234 @@ download_http_file (GstDsNvMultiUriBin *nvmultiurisrcbin, const gchar *url,
   return TRUE;
 }
 
+/* Effective concurrent-download limit. Defaults to (0) and is always clamped to
+ * max-batch-size: there is no point fetching more files at once than the
+ * pipeline can ever hold as active sources. Returns 0 only if max-batch-size is
+ * itself 0 (treated as unlimited). */
+static guint
+nv_http_download_limit (GstDsNvMultiUriBin * self)
+{
+  guint batch = self->muxConfig->maxBatchSize;
+  guint lim = self->httpMaxConcurrentDownloads;
+  if (lim == 0 || (batch > 0 && lim > batch))
+    lim = batch;
+  return lim;
+}
+
+/* Counting semaphore bounding concurrent HTTP(S) downloads to
+ * nv_http_download_limit(). acquire() blocks the calling REST worker thread
+ * while the limit is reached, WITHOUT holding bin_lock, so other adds proceed
+ * and downloads run in parallel up to the cap. */
+static void
+nv_http_download_acquire_slot (GstDsNvMultiUriBin * self)
+{
+  guint lim = nv_http_download_limit (self);
+  if (lim == 0)
+    return;
+  g_mutex_lock (&self->httpDlLock);
+  while (self->httpActiveDownloads >= lim)
+    g_cond_wait (&self->httpDlCond, &self->httpDlLock);
+  self->httpActiveDownloads++;
+  g_mutex_unlock (&self->httpDlLock);
+}
+
+static void
+nv_http_download_release_slot (GstDsNvMultiUriBin * self)
+{
+  if (nv_http_download_limit (self) == 0)
+    return;
+  g_mutex_lock (&self->httpDlLock);
+  if (self->httpActiveDownloads > 0)
+    self->httpActiveDownloads--;
+  g_cond_signal (&self->httpDlCond);
+  g_mutex_unlock (&self->httpDlLock);
+}
+
+/* Native REST model-plane handler (/api/v1/model/load|unload|update): forward
+ * the request's "value" object VERBATIM (JSON) in-band as a serialized
+ * downstream event on the bin src pad -- the same data-plane path the
+ * enc/dec/roi REST APIs use, so it reaches the downstream model-managing
+ * element in ANY host app, independent of who owns the pipeline bus.
+ * nvmultiurisrcbin owns no model bins and adds nothing here: model-plane
+ * requests carry no stream scope by design (routing is s_route_api_impl). */
+/* Map a nvmodelmux control-query verdict onto the REST response. Shared by every
+ * model-plane op (load / unload / update): the element answers {http, err_code,
+ * reason, hint} -- 202 => accepted (may still warm asynchronously), anything else
+ * => rejected, and we surface the element's OWN reason to the caller verbatim.
+ *   @answered  did a downstream element actually handle the query?
+ *   @ok/@fail  the op's success/failure status enums (for the async ledger). */
+/* Write the REST response from a nvmodelmux control-query verdict. Shared by every
+ * model-plane op (load / unload / update): the element answers {http_code,
+ * err_code, reason, hint} -- 202 => accepted (may still warm asynchronously),
+ * anything else => rejected, and we surface the element's OWN reason to the caller
+ * verbatim.
+ *   @element_answered  did a downstream element actually handle the query?
+ *   @success_status / @failure_status  the op's status enums (async ledger). */
+static void
+s_set_response_from_verdict (NvDsServerModelInfo * model_info, GstQuery * query,
+    bool element_answered, NvDsServerModelStatus success_status,
+    NvDsServerModelStatus failure_status, const char *op_name)
+{
+  gint http_code = 0;
+  const gchar *err_code = NULL, *reason = NULL, *hint = NULL;
+
+  if (element_answered
+      && gst_nvquery_control_parse_response (query, &http_code, &err_code, &reason,
+          &hint)) {
+    if (http_code == 202) {                   /* admitted */
+      model_info->status = success_status;
+      model_info->err_info.code = StatusAccepted;
+      model_info->model_log = (reason && *reason) ? reason : "request accepted";
+    } else {                                  /* rejected -- element's own reason */
+      model_info->status = failure_status;
+      model_info->err_info.code = StatusBadRequest;
+      model_info->err_info.err_code =
+          (err_code && *err_code) ? err_code : "REQUEST_REJECTED";
+      model_info->model_log = (reason && *reason) ? reason : "request rejected";
+      if (hint && *hint)
+        model_info->err_info.hint = hint;
+    }
+  } else {                                    /* nothing downstream answered */
+    model_info->status = failure_status;
+    model_info->err_info.code = StatusInternalServerError;
+    model_info->err_info.err_code = "REQUEST_FAILED";
+    model_info->model_log = std::string (op_name) + ": no model element answered "
+        "(is nvmodelmux present and the pipeline PLAYING?)";
+    model_info->err_info.hint =
+        "ensure nvmodelmux is downstream and the pipeline is PLAYING";
+  }
+}
+
+/* Native REST /api/v1/model/{load,unload,update}: forward the request to the
+ * model element as a SYNCHRONOUS control query and return the element's real
+ * verdict (accept + context, or reject + a specific reason) -- not a blind 202.
+ * The element decides admission on the spot; any slow work (engine warm, TRT
+ * teardown, OTA swap) still runs asynchronously inside the element. */
+static void
+s_model_api_impl (NvDsServerModelInfo * model_info, void *ctx)
+{
+  GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
+  GstPad *src_pad = (GstPad *) (nvmultiurisrcbin->bin_src_pad);
+  bool is_load = model_info->uri.find ("/model/load") != std::string::npos;
+  bool is_update = model_info->uri.find ("/model/update") != std::string::npos;
+
+  const char *op_name = is_load ? "model/load"
+      : is_update ? "model/update" : "model/unload";
+  NvDsServerModelStatus success_status = is_load ? MODEL_LOAD_SUCCESS
+      : is_update ? MODEL_UPDATE_SUCCESS : MODEL_UNLOAD_SUCCESS;
+  NvDsServerModelStatus failure_status = is_load ? MODEL_LOAD_FAIL
+      : is_update ? MODEL_UPDATE_FAIL : MODEL_UNLOAD_FAIL;
+
+  GstQuery *query = gst_nvquery_control_new (op_name, model_info->value_json.c_str ());
+  bool element_answered = src_pad && gst_pad_peer_query (src_pad, query);
+  s_set_response_from_verdict (model_info, query, element_answered,
+      success_status, failure_status, op_name);
+  gst_query_unref (query);
+}
+
+/* Native REST /api/v1/stream/route handler (the declarative stream-routing
+ * request). nvmultiurisrcbin owns the camera_id -> source_id map, so ATOMIC
+ * ADMISSION for stream existence happens here: every camera_id in every route
+ * must resolve to a live source or the WHOLE request is rejected (an invalid
+ * request must never partially apply). Each route entry is AUGMENTED with the
+ * resolved "source_ids" array, then the request is forwarded in-band. Routes
+ * with "streams": "all" are forwarded unresolved (the consuming element owns
+ * the set of ATTACHED streams, which is the correct meaning of "all"). */
+static void
+s_route_api_impl (NvDsServerRouteInfo * route_info, void *ctx)
+{
+  GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
+  Json::Value value;
+  Json::CharReaderBuilder rbuilder;
+  std::string errs;
+  std::unique_ptr < Json::CharReader > reader (rbuilder.newCharReader ());
+
+  if (!reader->parse (route_info->value_json.c_str (),
+          route_info->value_json.c_str () + route_info->value_json.size (),
+          &value, &errs)) {
+    route_info->status = STREAM_ROUTE_FAIL;
+    route_info->route_log = "STREAM_ROUTE_FAIL, internal payload re-parse error";
+    route_info->err_info.code = StatusInternalServerError;
+    route_info->err_info.err_code = "REQUEST_FAILED";
+    return;
+  }
+
+  /* resolve camera_ids -> source_ids per route, under the bin lock */
+  g_mutex_lock (&nvmultiurisrcbin->bin_lock);
+  for (size_t r = 0; r < route_info->routes.size (); ++r) {
+    const NvDsServerRouteEntry & entry = route_info->routes[r];
+    if (entry.all_streams)
+      continue;
+    Json::Value resolved (Json::arrayValue);
+    for (size_t i = 0; i < entry.camera_ids.size (); ++i) {
+      GstDsNvUriSrcConfig *sc =
+          gst_nvmultiurisrcbincreator_get_source_config_by_sensorid
+          (nvmultiurisrcbin->nvmultiurisrcbinCreator,
+          entry.camera_ids[i].c_str ());
+      if (!sc) {
+        /* ATOMIC ADMISSION: one unknown camera_id rejects the whole request */
+        g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
+        route_info->status = STREAM_ROUTE_FAIL;
+        route_info->route_log = "STREAM_ROUTE_FAIL, unknown stream '" +
+            entry.camera_ids[i] + "' (no live source with that camera_id)";
+        route_info->err_info.code = StatusBadRequest;
+        route_info->err_info.err_code = "STREAM_UNKNOWN";
+        /* point at stream/route's GET, not model/status: model/status reports the
+         * element's DISPLAY name under its camera_id key, which this API will not
+         * route by. stream/route's read returns the routable camera_ids. */
+        route_info->err_info.hint = "add the stream first (stream/add), or "
+            "check GET /api/v1/stream/route for the routable camera ids "
+            "(model/status reports the display name, which is not routable)";
+        return;
+      }
+      resolved.append (sc->source_id);
+      gst_nvmultiurisrcbincreator_src_config_free (sc);
+    }
+    value["routes"][(Json::ArrayIndex) r]["source_ids"] = resolved;
+  }
+  g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
+
+  Json::StreamWriterBuilder wbuilder;
+  wbuilder["indentation"] = "";
+  std::string augmented = Json::writeString (wbuilder, value);
+
+  /* SYNCHRONOUS admission: ask the model element to validate the route NOW and
+   * return its real verdict (unknown model ref? if_revision conflict? bad
+   * scope?) instead of a blind 202. The actual reroute still settles async. The
+   * stream-existence check (STREAM_UNKNOWN) above stays here -- only nvmultiuri
+   * owns the camera_id -> source_id map. */
+  GstQuery *query = gst_nvquery_control_new ("stream/route", augmented.c_str ());
+  GstPad *src_pad = (GstPad *) (nvmultiurisrcbin->bin_src_pad);
+  gint http_code = 0;
+  const gchar *err_code = NULL, *reason = NULL, *hint = NULL;
+  bool answered = src_pad && gst_pad_peer_query (src_pad, query)
+      && gst_nvquery_control_parse_response (query, &http_code, &err_code, &reason,
+          &hint);
+
+  if (answered && http_code == 202) {           /* admitted */
+    route_info->status = STREAM_ROUTE_SUCCESS;
+    route_info->err_info.code = StatusAccepted;
+    route_info->route_log = (reason && *reason) ? reason : "stream/route accepted";
+  } else if (answered) {                        /* rejected -- element's reason */
+    route_info->status = STREAM_ROUTE_FAIL;
+    route_info->err_info.code = StatusBadRequest;
+    route_info->err_info.err_code =
+        (err_code && *err_code) ? err_code : "STREAM_ROUTE_REJECTED";
+    route_info->route_log = (reason && *reason) ? reason : "stream/route rejected";
+    if (hint && *hint)
+      route_info->err_info.hint = hint;
+  } else {                                      /* nothing downstream answered */
+    route_info->status = STREAM_ROUTE_FAIL;
+    route_info->err_info.code = StatusInternalServerError;
+    route_info->err_info.err_code = "REQUEST_FAILED";
+    route_info->route_log = "stream/route: no model element answered "
+        "(is nvmodelmux present and the pipeline PLAYING?)";
+    route_info->err_info.hint =
+        "ensure nvmodelmux is downstream and the pipeline is PLAYING";
+  }
+  gst_query_unref (query);
+}
+
 static void
 s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
 {
@@ -2242,18 +2638,28 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
         gst_nvmultiurisrcbincreator_src_config_list_free (nvmultiurisrcbin->
             nvmultiurisrcbinCreator, numSourceConfigs, sourceConfigs);
         if (numSourceConfigs >= nvmultiurisrcbin->muxConfig->maxBatchSize) {
-          GST_WARNING_OBJECT (nvmultiurisrcbin, "Failed to add sensor id=[%s]; "
-              "We have [%d] active sources and max-batch-size is configured to [%d]\n",
-              stream_info->value_camera_id.c_str (),
-              numSourceConfigs, nvmultiurisrcbin->muxConfig->maxBatchSize);
-          stream_info->status = STREAM_ADD_FAIL;
-          stream_info->stream_log = "STREAM_ADD_FAIL, Active sources exceded max-batch-size of nvstreammux";
-          stream_info->err_info.code = StatusInternalServerError;
-          if (nvmultiurisrcbin->config->enable_error_propagation) {
-            msgapi_send_message(nvmultiurisrcbin, stream_info->value_camera_id.c_str(), "N/A", stream_info->stream_log.c_str(),FALSE);
+          /* VIA-S-5: batch full. RTSP is a live source that never self-EOS's, so
+           * keep the fail-fast reject for it. File/HTTP overflow is instead
+           * queued by the creator's add_source and admitted in waves as running
+           * sources finish (EOS) and free slots -- so let it fall through to the
+           * add path below. */
+          gboolean isRtspOverflow =
+              g_str_has_prefix (stream_info->value_camera_url.c_str (), "rtsp://")
+              || g_str_has_prefix (stream_info->value_camera_url.c_str (), "rtsps://");
+          if (isRtspOverflow) {
+            GST_WARNING_OBJECT (nvmultiurisrcbin, "Failed to add sensor id=[%s]; "
+                "We have [%d] active sources and max-batch-size is configured to [%d]\n",
+                stream_info->value_camera_id.c_str (),
+                numSourceConfigs, nvmultiurisrcbin->muxConfig->maxBatchSize);
+            stream_info->status = STREAM_ADD_FAIL;
+            stream_info->stream_log = "STREAM_ADD_FAIL, Active sources exceded max-batch-size of nvstreammux";
+            stream_info->err_info.code = StatusInternalServerError;
+            if (nvmultiurisrcbin->config->enable_error_propagation) {
+              msgapi_send_message(nvmultiurisrcbin, stream_info->value_camera_id.c_str(), "N/A", stream_info->stream_log.c_str(),FALSE);
+            }
+            g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
+            return;
           }
-          g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
-          return;
         }
       }
 
@@ -2285,8 +2691,17 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
       gboolean is_downloadable = is_downloadable_http_url (stream_info->value_camera_url.c_str ());
       if (is_http_url && is_downloadable) {
         gchar *local_file_uri = NULL;
-        if (download_http_file (nvmultiurisrcbin, stream_info->value_camera_url.c_str (),
-                stream_info->value_camera_id.c_str (), &local_file_uri)) {
+        /* Download WITHOUT holding bin_lock so concurrent stream/add requests
+         * fetch their files in parallel (bounded by http-max-concurrent-
+         * downloads); re-acquire the lock for the actual pipeline add. */
+        g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
+        nv_http_download_acquire_slot (nvmultiurisrcbin);
+        gboolean dl_ok = download_http_file (nvmultiurisrcbin,
+            stream_info->value_camera_url.c_str (),
+            stream_info->value_camera_id.c_str (), &local_file_uri);
+        nv_http_download_release_slot (nvmultiurisrcbin);
+        g_mutex_lock (&nvmultiurisrcbin->bin_lock);
+        if (dl_ok) {
           actual_uri = local_file_uri;
           GST_DEBUG_OBJECT (nvmultiurisrcbin,
               "HTTP/HTTPS file downloaded, using local file: %s\n", actual_uri);
@@ -2317,6 +2732,12 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
           (gchar *) stream_info->value_camera_id.c_str ();
       nvmultiurisrcbin->config->sensorName =
           (gchar *) stream_info->value_camera_name.c_str ();
+      /* Forward the full per-stream metadata (raw JSON) so it reaches the app via
+       * the stream-add bus message (NvDsSensorInfo.sensor_metadata) and downstream.
+       * Borrowed pointer here; the creator deep-copies it into the source config. */
+      nvmultiurisrcbin->config->sensorMetadata =
+          stream_info->metadata_json.empty ()? NULL :
+          (gchar *) stream_info->metadata_json.c_str ();
       nvmultiurisrcbin->config->source_id = 0;
 
       /* Parse and set creation_time if provided */
@@ -2351,6 +2772,27 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
         stream_info->status = STREAM_ADD_SUCCESS;
         stream_info->stream_log = "STREAM_ADD_SUCCESS";
         stream_info->err_info.code = StatusOk;
+
+        /* Forward the per-stream model binding IN-BAND as a serialized
+         * downstream event (same data-plane path as the model load/unload/
+         * update events), so a model element can apply per-stream selection even
+         * when the host owns the bus (the stream-add bus message never reaches
+         * it then; PAD_ADDED carries only source_id). Keyed by the assigned
+         * source_id so the element correlates it with PAD_ADDED. */
+        GstDsNvUriSrcConfig *sc =
+            gst_nvmultiurisrcbincreator_get_source_config_by_sensorid
+            (nvmultiurisrcbin->nvmultiurisrcbinCreator,
+            stream_info->value_camera_id.c_str ());
+        if (sc) {
+          GstEvent *bev = gst_nvevent_new_stream_model_bind (sc->source_id,
+              stream_info->value_camera_id.c_str (),
+              stream_info->value_camera_name.c_str (),
+              stream_info->metadata_json.empty ()? NULL :
+              stream_info->metadata_json.c_str ());
+          if (bev)
+            gst_pad_push_event ((GstPad *) (nvmultiurisrcbin->bin_src_pad), bev);
+          gst_nvmultiurisrcbincreator_src_config_free (sc);
+        }
       }
       gst_nvmultiurisrcbincreator_sync_children_states (nvmultiurisrcbin->
           nvmultiurisrcbinCreator);
@@ -2360,15 +2802,28 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
       g_free (actual_uri);
       nvmultiurisrcbin->config->uri = NULL;
       nvmultiurisrcbin->config->sensorId = NULL;
-    } else if (g_strrstr (stream_info->value_change.c_str (), "remove")) {
-      /** Remove the source */
-      /** First, find the GstDsNvUriSrcConfig object from nvmultiurisrcbinCreator
-       * for the provided sensorId and uri */
-      GstDsNvUriSrcConfig const *sourceConfig =
-          gst_nvmultiurisrcbincreator_get_source_config (nvmultiurisrcbin->
-          nvmultiurisrcbinCreator,
-          stream_info->value_camera_url.c_str (),
-          stream_info->value_camera_id.c_str ());
+    } else if (g_strrstr (stream_info->value_change.c_str (), "remove")
+        || stream_info->uri.find ("/stream/remove") != std::string::npos) {
+      /** Remove lookup with guarded fallback:
+       * 1) Prefer legacy URL+camera_id when camera_url is present (normal
+       *    RTSP/file flows where add/remove URLs match).
+       * 2) Fall back to camera_id-only when URL is empty (VST camera_remove)
+       *    or when HTTP/HTTPS download rewrote the stored URI to file:// so
+       *    the original request URL no longer matches. */
+      GstDsNvUriSrcConfig const *sourceConfig = NULL;
+      if (!stream_info->value_camera_url.empty ()) {
+        sourceConfig =
+            gst_nvmultiurisrcbincreator_get_source_config (nvmultiurisrcbin->
+            nvmultiurisrcbinCreator,
+            stream_info->value_camera_url.c_str (),
+            stream_info->value_camera_id.c_str ());
+      }
+      if (!sourceConfig) {
+        sourceConfig =
+            gst_nvmultiurisrcbincreator_get_source_config_by_sensorid
+            (nvmultiurisrcbin->nvmultiurisrcbinCreator,
+            stream_info->value_camera_id.c_str ());
+      }
       if (sourceConfig) {
         gboolean ret =
             gst_nvmultiurisrcbincreator_remove_source (nvmultiurisrcbin->
@@ -2396,10 +2851,8 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
         }
       } else {
         GST_WARNING_OBJECT (nvmultiurisrcbin,
-            "No record found; Failed to remove sensor id=[%s] uri=[%s]\n",
-            stream_info->value_camera_id.c_str (),
-            stream_info->value_camera_url.c_str ()
-            );
+            "No record found; Failed to remove sensor id=[%s]\n",
+            stream_info->value_camera_id.c_str ());
         stream_info->status = STREAM_REMOVE_FAIL;
         stream_info->stream_log = "STREAM_REMOVE_FAIL, No record found. Failed to remove source stream";
         stream_info->err_info.code = StatusInternalServerError;
@@ -2418,6 +2871,7 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
     }
   } else {
     g_print ("Unsupported REST API version \n");
+    stream_info->err_info.code = StatusBadRequest;
   }
   g_mutex_unlock (&nvmultiurisrcbin->bin_lock);
   return;
@@ -2501,6 +2955,7 @@ s_roi_api_impl (NvDsServerRoiInfo * roi_info, void *ctx)
         (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print ("Unsupported REST API version \n");
+    roi_info->err_info.code = StatusBadRequest;
   }
 
 }
@@ -2513,6 +2968,9 @@ s_dec_api_impl (NvDsServerDecInfo * dec_info, void *ctx)
   (void) nvmultiurisrcbin;
   guint sourceId = std::stoi (dec_info->stream_id);
   gchar* sensorId = gst_nvmultiurisrcbincreator_get_sensor_id_from_source_id(nvmultiurisrcbin->nvmultiurisrcbinCreator,sourceId);
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown decoder flag. */
+  dec_info->err_info.code = StatusInternalServerError;
   if (dec_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!set_nvuribin_dec_prop (nvmultiurisrcbin->nvmultiurisrcbinCreator,
             sourceId, dec_info)) {
@@ -2608,6 +3066,7 @@ s_dec_api_impl (NvDsServerDecInfo * dec_info, void *ctx)
         (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print ("Unsupported REST API version\n");
+    dec_info->err_info.code = StatusBadRequest;
   }
 
 }
@@ -2665,6 +3124,7 @@ s_infer_api_impl (NvDsServerInferInfo * infer_info, void *ctx)
       (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print ("Unsupported REST API version\n");
+    infer_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -2675,6 +3135,9 @@ s_inferserver_api_impl (NvDsServerInferServerInfo * inferserver_info, void *ctx)
   GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
   (void) nvmultiurisrcbin;
   guint sourceId = std::stoi (inferserver_info->stream_id);
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown inferserver flag. */
+  inferserver_info->err_info.code = StatusInternalServerError;
 
   if (inferserver_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!find_source (nvmultiurisrcbin->nvmultiurisrcbinCreator, sourceId)) {
@@ -2724,6 +3187,7 @@ s_inferserver_api_impl (NvDsServerInferServerInfo * inferserver_info, void *ctx)
       (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print("Unsupported REST API version\n");
+    inferserver_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -2733,6 +3197,9 @@ s_nvtracker_api_impl( NvDsServerNvTrackerInfo* nvtracker_info,  void *ctx)
   GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
   (void) nvmultiurisrcbin;
   guint sourceId = std::stoi (nvtracker_info->stream_id);
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown nvtracker flag. */
+  nvtracker_info->err_info.code = StatusInternalServerError;
 
   if (nvtracker_info->uri.find ("/api/v1/") != std::string::npos)
   {
@@ -2794,6 +3261,7 @@ s_nvtracker_api_impl( NvDsServerNvTrackerInfo* nvtracker_info,  void *ctx)
   else
   {
     g_print("Unsupported REST API version\n");
+    nvtracker_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -2805,6 +3273,9 @@ s_conv_api_impl (NvDsServerConvInfo * conv_info, void *ctx)
   (void) nvmultiurisrcbin;
   guint sourceId = std::stoi (conv_info->stream_id);
   gchar* sensorId = gst_nvmultiurisrcbincreator_get_sensor_id_from_source_id(nvmultiurisrcbin->nvmultiurisrcbinCreator,sourceId);
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown converter flag. */
+  conv_info->err_info.code = StatusInternalServerError;
 
   if (conv_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!set_nvuribin_conv_prop (nvmultiurisrcbin->nvmultiurisrcbinCreator,
@@ -2926,6 +3397,7 @@ s_conv_api_impl (NvDsServerConvInfo * conv_info, void *ctx)
       (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print("Unsupported REST API version\n");
+    conv_info->err_info.code = StatusBadRequest;
   }
 
 }
@@ -2936,6 +3408,9 @@ s_mux_api_impl (NvDsServerMuxInfo * mux_info, void *ctx)
 
   GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
   (void) nvmultiurisrcbin;
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown mux flag. */
+  mux_info->err_info.code = StatusInternalServerError;
 
   if (mux_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!set_nvuribin_mux_prop (nvmultiurisrcbin->nvmultiurisrcbinCreator,
@@ -3007,6 +3482,7 @@ s_mux_api_impl (NvDsServerMuxInfo * mux_info, void *ctx)
       (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print ("Unsupported REST API version\n");
+    mux_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3018,6 +3494,9 @@ s_enc_api_impl (NvDsServerEncInfo * enc_info, void *ctx)
   (void) nvmultiurisrcbin;
   guint sourceId = std::stoi (enc_info->stream_id);
   GstEvent *nvevent = NULL;
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown encoder flag. */
+  enc_info->err_info.code = StatusInternalServerError;
 
   if (enc_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!find_source (nvmultiurisrcbin->nvmultiurisrcbinCreator, sourceId)) {
@@ -3158,6 +3637,7 @@ s_enc_api_impl (NvDsServerEncInfo * enc_info, void *ctx)
       (GstElementCallAsyncFunc) gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print("Unsupported REST API version\n");
+    enc_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3169,6 +3649,9 @@ s_osd_api_impl (NvDsServerOsdInfo * osd_info, void *ctx)
   (void) nvmultiurisrcbin;
 
   guint sourceId = std::stoi (osd_info->stream_id);
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown osd flag. */
+  osd_info->err_info.code = StatusInternalServerError;
 
   if (osd_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!find_source (nvmultiurisrcbin->nvmultiurisrcbinCreator, sourceId)) {
@@ -3213,6 +3696,7 @@ s_osd_api_impl (NvDsServerOsdInfo * osd_info, void *ctx)
     }
   } else {
     g_print ("Unsupported REST API version\n");
+    osd_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3251,6 +3735,7 @@ s_analytics_api_impl(NvDsServerAnalyticsInfo* analytics_info, void* ctx) {
         (GstElementCallAsyncFunc)gst_bin_sync_children_states, NULL, NULL);
   } else {
     g_print("Unsupported REST API version\n");
+    analytics_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3396,6 +3881,9 @@ s_appinstance_api_impl (NvDsServerAppInstanceInfo * appinstance_info, void *ctx)
 
   GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
   (void) nvmultiurisrcbin;
+  /* Default to 500 until a branch sets the real status; prevents a silent
+   * 200 OK on an unhandled/unknown appinstance flag. */
+  appinstance_info->err_info.code = StatusInternalServerError;
 
   if (appinstance_info->uri.find ("/api/v1/") != std::string::npos) {
     if (!s_force_eos_handle (nvmultiurisrcbin->nvmultiurisrcbinCreator,
@@ -3419,6 +3907,7 @@ s_appinstance_api_impl (NvDsServerAppInstanceInfo * appinstance_info, void *ctx)
     }
   } else {
     g_print ("Unsupported REST API version\n");
+    appinstance_info->err_info.code = StatusBadRequest;
   }
 }
 
@@ -3427,15 +3916,240 @@ void free_sensor_info(gpointer data) {
     if (sensorInfo) {
         g_free((char*)sensorInfo->sensor_name);
         g_free((char*)sensorInfo->uri);
+        g_free((char*)sensorInfo->sensor_metadata);
         g_free(sensorInfo);
     }
 }
+
+/* Read one key from a URI query-string ("...?a=1&b=2"); "" if absent. Values are taken
+ * verbatim (our status filter keys -- model/version/stream/source_id -- carry no
+ * percent-encoded characters). */
+static std::string
+s_uri_query_get (const std::string & uri, const char *key)
+{
+  size_t qpos = uri.find ('?');
+  if (qpos == std::string::npos)
+    return "";
+  std::string qs = uri.substr (qpos + 1);
+  std::string k = std::string (key) + "=";
+  size_t p = 0;
+  while (p <= qs.size ()) {
+    size_t amp = qs.find ('&', p);
+    size_t len = (amp == std::string::npos) ? std::string::npos : (amp - p);
+    std::string tok = qs.substr (p, len);
+    if (tok.compare (0, k.size (), k) == 0)
+      return tok.substr (k.size ());
+    if (amp == std::string::npos)
+      break;
+    p = amp + 1;
+  }
+  return "";
+}
+
+/* TRUE when the query string contains the key at all, regardless of its value.
+ *
+ * s_uri_query_get returns "" for BOTH "key absent" and "key present but empty",
+ * so it cannot distinguish `?` from `?stream=`. Treating the latter as "no
+ * filter" makes an empty filter FAIL OPEN and return every route. This lets the
+ * caller tell the two apart and fail closed. */
+static gboolean
+s_uri_query_has (const std::string & uri, const char *key)
+{
+  size_t qpos = uri.find ('?');
+  if (qpos == std::string::npos)
+    return FALSE;
+  std::string qs = uri.substr (qpos + 1);
+  std::string k = std::string (key) + "=";
+  size_t p = 0;
+  while (p <= qs.size ()) {
+    size_t amp = qs.find ('&', p);
+    size_t len = (amp == std::string::npos) ? std::string::npos : (amp - p);
+    /* "stream=..." OR a bare "stream" with no '=' at all -- both are the key
+     * being PRESENT. Matching only the "key=" form would let `?stream` fall
+     * through as "no filter" and return every route. */
+    if (qs.compare (p, k.size (), k) == 0 || qs.substr (p, len) == key)
+      return TRUE;
+    if (amp == std::string::npos)
+      break;
+    p = amp + 1;
+  }
+  return FALSE;
+}
+
+/* Percent-decode one query-string value (also '+' -> space).
+ *
+ * s_uri_query_get takes values verbatim -- fine for model/status, whose filter
+ * keys (model / version / source_id) never carry reserved characters. But
+ * stream/add accepts ANY non-empty camera_id, so a route lookup for an id
+ * containing a space, '&', '=' or '%' could not round-trip without decoding.
+ * Applied ONLY to stream/route's ?stream=; model/status's parsing is untouched. */
+static std::string
+s_uri_unescape (const std::string & in)
+{
+  std::string out;
+  out.reserve (in.size ());
+  for (size_t i = 0; i < in.size (); i++) {
+    if (in[i] == '+') {
+      out += ' ';
+    } else if (in[i] == '%' && i + 2 < in.size ()
+        && g_ascii_isxdigit (in[i + 1]) && g_ascii_isxdigit (in[i + 2])) {
+      out += (char) ((g_ascii_xdigit_value (in[i + 1]) << 4)
+          | g_ascii_xdigit_value (in[i + 2]));
+      i += 2;
+    } else {
+      out += in[i];
+    }
+  }
+  return out;
+}
+
+/* Ask the downstream app for a model-status snapshot. Used by the model/status
+ * GET only -- stream/route is a SEPARATE protocol: it builds its own
+ * stream-route query and the element answers that plane whole, so there is no
+ * shared projection step to factor out here. Returns FALSE if nothing answered
+ * or the answer was not parseable. */
+static gboolean
+s_query_model_status (GstDsNvMultiUriBin * nvmultiurisrcbin,
+    const gchar * f_model, const gchar * f_ver, const gchar * f_stream,
+    gint sid, Json::Value * out, gboolean * parse_failed)
+{
+  GstQuery *query = gst_nvquery_model_status_new_filtered (f_model, f_ver, f_stream, sid);
+  const gchar *json = NULL;
+  GstPad *srcpad = (GstPad *) nvmultiurisrcbin->bin_src_pad;
+  gboolean ok = FALSE;
+
+  *parse_failed = FALSE;
+  if (srcpad && gst_pad_peer_query (srcpad, query)
+      && gst_nvquery_model_status_parse_response (query, &json) && json && *json) {
+    Json::Reader reader;
+    if (reader.parse (std::string (json), *out))
+      ok = TRUE;
+    else
+      *parse_failed = TRUE;
+  }
+  gst_query_unref (query);
+  return ok;
+}
+
 
 static void
 s_get_request_api_impl (NvDsServerGetRequestInfo * get_request_info, void *ctx)
 {
   GstDsNvMultiUriBin *nvmultiurisrcbin = (GstDsNvMultiUriBin *) ctx;
   (void) nvmultiurisrcbin;
+
+  /* stream/route (GET): the ROUTING plane. Answered whole by the model-managing
+   * element downstream -- it owns both the routing state and, since it records
+   * the routable camera_id per stream, the identifiers the response is keyed by.
+   * Nothing is projected or joined here; this forwards the body, exactly as the
+   * model/status branch below does. Fails safe (FAIL) if no handler answers. */
+  if (get_request_info->get_request_flag == GET_STREAM_ROUTE_INFO) {
+    /* ?stream=<camera_id> -- percent-decoded, and PRESENCE-checked so that a
+     * present-but-empty `?stream=` is a filter matching nothing rather than an
+     * absent filter matching everything. An embedded NUL is rejected for the
+     * same reason: c_str() would hand the element "" and it would answer with
+     * every route. Both are passed down as a value no stream can hold. */
+    const std::string raw = s_uri_query_get (get_request_info->uri, "stream");
+    std::string f_stream = s_uri_unescape (raw);
+    gboolean has_stream_filter = s_uri_query_has (get_request_info->uri, "stream");
+    GstQuery *query;
+    const gchar *json = NULL;
+    GstPad *srcpad = (GstPad *) nvmultiurisrcbin->bin_src_pad;
+    gboolean ok = FALSE, parse_failed = FALSE;
+    Json::Value root;
+
+    /* An unusable value stays a PRESENT filter carrying "", which the element
+     * treats as matching nothing. Truncating at an embedded NUL is what must be
+     * avoided: c_str() would hand it a shorter string that might match a real
+     * camera. */
+    if (has_stream_filter && f_stream.find ('\0') != std::string::npos)
+      f_stream.clear ();
+
+    query = gst_nvquery_stream_route_new_filtered (has_stream_filter ? f_stream.c_str () : NULL);
+    if (srcpad && gst_pad_peer_query (srcpad, query)
+        && gst_nvquery_stream_route_parse_response (query, &json) && json && *json) {
+      Json::Reader reader;
+      /* Parseable is not the same as VALID. A downstream element that answered
+       * with {}, null, "ok", or a version-skewed body is a failure, not an empty
+       * routing plane -- forwarding it as 200 would tell a reconciler the fleet
+       * has no routes and invite it to erase desired state. Require the shape
+       * this endpoint promises: an object carrying a routes[] array. */
+      if (reader.parse (std::string (json), root)) {
+        if (root.isObject () && root.isMember ("routes")
+            && root["routes"].isArray ())
+          ok = TRUE;
+        else
+          parse_failed = TRUE;
+      } else {
+        parse_failed = TRUE;
+      }
+    }
+    gst_query_unref (query);
+
+    if (ok) {
+      get_request_info->stream_info = root;
+      get_request_info->status = GET_STREAM_ROUTE_INFO_SUCCESS;
+      get_request_info->err_info.code = StatusOk;
+      get_request_info->get_request_log = "GET_STREAM_ROUTE_INFO_SUCCESS";
+    } else {
+      /* Machine-readable identity alongside the prose: the POST on this uri
+       * already answers failures as {code,message,hint}, so the GET carries the
+       * same vocabulary and one client-side parser covers both verbs. The two
+       * failures are distinguishable -- a malformed body is the element's bug,
+       * an unanswered query means nothing downstream handles the plane. */
+      get_request_info->status = GET_STREAM_ROUTE_INFO_FAIL;
+      get_request_info->err_info.code = StatusInternalServerError;
+      get_request_info->err_info.err_code = parse_failed
+          ? "ROUTE_SNAPSHOT_MALFORMED" : "ROUTE_SNAPSHOT_UNAVAILABLE";
+      get_request_info->err_info.hint = parse_failed
+          ? "the model-managing element returned a body that is not valid JSON"
+          : "no downstream element answered the stream-route query -- is nvmodelmux in the pipeline?";
+      get_request_info->get_request_log = parse_failed
+          ? "GET_STREAM_ROUTE_INFO_FAIL, malformed route json"
+          : "GET_STREAM_ROUTE_INFO_FAIL, application did not answer (no downstream handler?)";
+    }
+    return;
+  }
+
+  /* model/status: the model pool lives in the downstream app, not here. Ask it
+   * synchronously via a custom query sent downstream from our src pad; the app
+   * answers (JSON) at its bin boundary. Fails safe (FAIL) if no handler answers.
+   * Optional GET filters (v1 vocabulary -- flat projections of the {name,
+   * version} ref, since query strings cannot nest):
+   *   ?model=X[&version=N] -> that model (join semantics downstream);
+   *   ?stream=Y | ?source_id=N -> that stream. */
+  if (get_request_info->get_request_flag == GET_MODEL_STATUS_INFO) {
+    std::string f_model  = s_uri_query_get (get_request_info->uri, "model");
+    std::string f_ver    = s_uri_query_get (get_request_info->uri, "version");
+    std::string f_stream = s_uri_query_get (get_request_info->uri, "stream");
+    std::string f_sid    = s_uri_query_get (get_request_info->uri, "source_id");
+    gint sid = f_sid.empty () ? -1 : atoi (f_sid.c_str ());
+    Json::Value root;
+    gboolean parse_failed = FALSE;
+
+    /* version is a refinement of model (separate params, never combined).
+     * The query/peer_query/parse sequence is shared with stream/route's GET
+     * (s_query_model_status) -- same construction, same lifetime, same
+     * success/failure classification as before, just factored out so the two
+     * readers cannot drift apart. */
+    if (s_query_model_status (nvmultiurisrcbin,
+            f_model.empty ()  ? NULL : f_model.c_str (),
+            f_ver.empty ()    ? NULL : f_ver.c_str (),
+            f_stream.empty () ? NULL : f_stream.c_str (), sid, &root,
+            &parse_failed)) {
+      get_request_info->stream_info = root;
+      get_request_info->status = GET_MODEL_STATUS_INFO_SUCCESS;
+      get_request_info->err_info.code = StatusOk;
+      get_request_info->get_request_log = "GET_MODEL_STATUS_INFO_SUCCESS";
+    } else {
+      get_request_info->status = GET_MODEL_STATUS_INFO_FAIL;
+      get_request_info->err_info.code = StatusInternalServerError;
+      get_request_info->get_request_log = parse_failed
+          ? "GET_MODEL_STATUS_INFO_FAIL, malformed status json"
+          : "GET_MODEL_STATUS_INFO_FAIL, application did not answer (no downstream handler?)";
+    }
+    return;
+  }
 
   if (get_request_info->uri.find ("/api/v1/") != std::string::npos) {
     GList *stream_info_list = NULL;
@@ -3659,6 +4373,34 @@ s_get_request_api_impl (NvDsServerGetRequestInfo * get_request_info, void *ctx)
           get_request_info->err_info.code = StatusInternalServerError;
           get_request_info->get_request_log = "Unable to fetch the data";
       }
+      /* Release the list fetched at the top of this block: every branch above is
+       * done with it, and GET_METRICS_INFO frees only its OWN inner list, which
+       * shadows this one -- so without this it leaked on every GET. */
+      if (stream_info_list) {
+        g_list_free_full (stream_info_list, (GDestroyNotify) free_sensor_info);
+        stream_info_list = NULL;
+      }
+    } else {
+      /* Failed to fetch the source info list -> report 500 instead of
+       * silently defaulting to 200 OK. */
+      switch (get_request_info->get_request_flag) {
+        case GET_LIVE_STREAM_INFO:
+          get_request_info->status = GET_LIVE_STREAM_INFO_FAIL;
+          break;
+        case GET_READY_INFO:
+          get_request_info->status = GET_READY_INFO_FAIL;
+          break;
+        case GET_METRICS_INFO:
+          get_request_info->status = GET_METRICS_INFO_FAIL;
+          break;
+        case GET_METADATA_INFO:
+          get_request_info->status = GET_METADATA_INFO_FAIL;
+          break;
+        default:
+          break;
+      }
+      get_request_info->err_info.code = StatusInternalServerError;
+      get_request_info->get_request_log = "Unable to fetch the source info list";
     }
   }
   if (get_request_info->uri.find ("/ready") != std::string::npos ||
@@ -3673,31 +4415,42 @@ s_get_request_api_impl (NvDsServerGetRequestInfo * get_request_info, void *ctx)
     if(get_request_info->get_request_flag == GET_READY_INFO) {
       if ((!g_strcmp0 (state_name, "PLAYING")) || (!g_strcmp0 (state_name, "PAUSED"))){
         get_request_info->stream_info["ds-ready"]="YES";
+        get_request_info->err_info.code = StatusOk;
       } else {
         get_request_info->stream_info["ds-ready"]="NO";
+        /* Not ready (pipeline not PLAYING/PAUSED) -> 503 so a readiness httpGet
+         * probe withholds traffic from the pod until it is ready. */
+        get_request_info->err_info.code = StatusServiceUnavailable;
       }
       get_request_info->status = GET_READY_INFO_SUCCESS;
-      get_request_info->err_info.code = StatusOk;
       get_request_info->get_request_log = "GET_READY_INFO_SUCCESS";
 
     } else if (get_request_info->get_request_flag == GET_LIVE_INFO) {
       if ( (!g_strcmp0 (state_name, "PLAYING")) ){
         get_request_info->stream_info["ds-liveness"]="YES";
+        get_request_info->err_info.code = StatusOk;
       } else {
         get_request_info->stream_info["ds-liveness"]="NO";
+        /* Pipeline not PLAYING -> report 503 so an httpGet probe detects "not
+         * live" from the status code, not just the body. NOTE: pair /live with a
+         * Kubernetes startupProbe (e.g. /startup) so this does not restart the
+         * pod during the normal NULL->READY->PAUSED->PLAYING startup. */
+        get_request_info->err_info.code = StatusServiceUnavailable;
       }
       get_request_info->status = GET_LIVE_INFO_SUCCESS;
-      get_request_info->err_info.code = StatusOk;
       get_request_info->get_request_log = "GET_LIVE_INFO_SUCCESS";
 
     } else if (get_request_info->get_request_flag == GET_STARTUP_INFO) {
       if ((!g_strcmp0 (state_name, "PLAYING")) || (!g_strcmp0 (state_name, "PAUSED"))){
         get_request_info->stream_info["ds-startup"]="YES";
+        get_request_info->err_info.code = StatusOk;
       } else {
         get_request_info->stream_info["ds-startup"]="NO";
+        /* Not started yet -> 503 so a startupProbe keeps waiting (and gates
+         * liveness/readiness) until the pipeline reaches PLAYING/PAUSED. */
+        get_request_info->err_info.code = StatusServiceUnavailable;
       }
       get_request_info->status = GET_STARTUP_INFO_SUCCESS;
-      get_request_info->err_info.code = StatusOk;
       get_request_info->get_request_log = "GET_STARTUP_INFO_SUCCESS";
 
     } else {
@@ -3718,6 +4471,16 @@ s_get_request_api_impl (NvDsServerGetRequestInfo * get_request_info, void *ctx)
         get_request_info->get_request_log = "Unable to fetch the data";
     }
   }
+  /* URI matched neither a /api/v1/ request nor a /ready|/live|/startup probe
+   * -> unsupported endpoint; report 400 instead of defaulting to 200 OK. */
+  if (get_request_info->uri.find ("/api/v1/") == std::string::npos &&
+      get_request_info->uri.find ("/ready") == std::string::npos &&
+      get_request_info->uri.find ("/live") == std::string::npos &&
+      get_request_info->uri.find ("/startup") == std::string::npos) {
+    g_print ("Unsupported REST API version \n");
+    get_request_info->err_info.code = StatusBadRequest;
+    get_request_info->get_request_log = "Unsupported REST API version";
+  }
 }
 
 static void
@@ -3728,6 +4491,14 @@ rest_api_server_start (GstDsNvMultiUriBin * nvmultiurisrcbin)
   server_cb.stream_cb =
       [nvmultiurisrcbin] (NvDsServerStreamInfo * stream_info, void *ctx) {
     s_stream_api_impl (stream_info, (void *) nvmultiurisrcbin);
+  };
+  server_cb.model_cb =
+      [nvmultiurisrcbin] (NvDsServerModelInfo * model_info, void *ctx) {
+    s_model_api_impl (model_info, (void *) nvmultiurisrcbin);
+  };
+  server_cb.route_cb =
+      [nvmultiurisrcbin] (NvDsServerRouteInfo * route_info, void *ctx) {
+    s_route_api_impl (route_info, (void *) nvmultiurisrcbin);
   };
   server_cb.roi_cb =[nvmultiurisrcbin] (NvDsServerRoiInfo * roi_info, void *ctx) {
     s_roi_api_impl (roi_info, (void *) nvmultiurisrcbin);

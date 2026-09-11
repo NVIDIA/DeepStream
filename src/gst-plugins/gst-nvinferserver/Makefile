@@ -48,7 +48,7 @@ CFLAGS+= \
     -DNDEBUG \
     -fPIC \
     -std=c++17 \
-    -DDS_VERSION=\"9.1.0\" \
+    -DDS_VERSION=\"9.1.1\" \
     -DFOR_PRIVATE \
     $(NULL)
 
