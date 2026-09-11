@@ -49,9 +49,16 @@
 
 set -e
 
-# GitHub Release tag the proprietary-libs / sample-data assets are published
-# under. Hardcoded (not derived from NVDS_VERSION) — bump by hand once a
-# newer patch release's assets are live on GitHub.
+# GitHub Release *tag* the proprietary-libs / sample-data assets are attached to.
+# Hardcoded (not derived from NVDS_VERSION) — this is the release page's tag name,
+# which does not necessarily match the assets' own filename version (see
+# GITHUB_ASSET_VERSION below): new patch-release assets are uploaded onto the
+# existing tag rather than cutting a new tag each patch, so older branches whose
+# build.sh still points at this same tag keep resolving.
+GITHUB_RELEASE_TAG="9.1.0"
+
+# Version embedded in the release asset filenames themselves (deepstream-binaries-*,
+# deepstream-sample-data_*, …). Bump by hand once newer-patch assets are uploaded.
 GITHUB_ASSET_VERSION="9.1.1"
 
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
@@ -98,7 +105,7 @@ fi
 
 # Tarball names mirror the .deb names (minus the arch/_all suffix).
 PROPRIETARY_TAR_NAME="deepstream-binaries-${PLATFORM}_${GITHUB_ASSET_VERSION}.tar.gz"
-GITHUB_RELEASE_URL="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_ASSET_VERSION}/${PROPRIETARY_TAR_NAME}"
+GITHUB_RELEASE_URL="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}/${PROPRIETARY_TAR_NAME}"
 
 # Debian package name globs (version/arch are baked in at build time).
 PROPRIETARY_DEB_GLOB="deepstream-binaries-${PLATFORM}_*.deb"
@@ -113,7 +120,7 @@ case "$PLATFORM" in
 esac
 PROPRIETARY_DEB_NAME="deepstream-binaries-${PLATFORM}_${GITHUB_ASSET_VERSION}_${DEB_ARCH}.deb"
 SAMPLE_DEB_NAME="deepstream-sample-data_${GITHUB_ASSET_VERSION}.deb"
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_ASSET_VERSION}"
+GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}"
 GITHUB_RELEASE_DEB_URL="${GITHUB_RELEASE_BASE}/${PROPRIETARY_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_DEB_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_TAR_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_TAR_NAME}"

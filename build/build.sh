@@ -457,13 +457,20 @@ stage_had_failures() {
   [[ "${#FAILED_BUILDS[@]}" -gt "$before" ]]
 }
 
-# GitHub Release tag the proprietary-libs / sample-data assets are published
-# under. Hardcoded (not derived from NVDS_VERSION) — bump by hand once a
-# newer patch release's assets are live on GitHub.
+# GitHub Release *tag* the proprietary-libs / sample-data assets are attached to.
+# Hardcoded (not derived from NVDS_VERSION) — this is the release page's tag name,
+# which does not necessarily match the assets' own filename version (see
+# GITHUB_ASSET_VERSION below): new patch-release assets are uploaded onto the
+# existing tag rather than cutting a new tag each patch, so older branches whose
+# build.sh still points at this same tag keep resolving.
+GITHUB_RELEASE_TAG="9.1.0"
+
+# Version embedded in the release asset filenames themselves (deepstream-binaries-*,
+# deepstream-sample-data_*, …). Bump by hand once newer-patch assets are uploaded.
 GITHUB_ASSET_VERSION="9.1.1"
 
 # Release assets are fetched from the DeepStream GitHub release into ARTIFACTS_DIR.
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_ASSET_VERSION}"
+GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}"
 # Track what we downloaded so it can be cleaned up after a successful build.
 DOWNLOADED_ASSETS=()
 ARTIFACTS_DIR_CREATED=0
@@ -600,7 +607,7 @@ if [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
   fi
 else
   echo "==> Artifact install method: $INSTALL_METHOD (override with --install-method=deb|tar)"
-  echo "==> Artifact version pinned to $GITHUB_ASSET_VERSION"
+  echo "==> Artifact version pinned to $GITHUB_ASSET_VERSION (release tag: v$GITHUB_RELEASE_TAG)"
 fi
 if [[ "$RESUME" -eq 1 ]]; then
   echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
