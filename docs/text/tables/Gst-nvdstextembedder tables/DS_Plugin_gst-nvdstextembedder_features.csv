@@ -1,0 +1,4 @@
+﻿Feature,Description,Release
+Text-to-embedding encoding,"Generates text embedding vectors using SigLIP2 Giant (1536-dim, default) or DFN5B-CLIP (1024-dim) models",DS 9.2
+On-demand embedding query,Supports a custom GstQuery for synchronous on-demand text encoding without changing element properties,DS 9.2
+Vision-encoder pairing,"Designed to work alongside Gst-nvdsvisionencoder-c so text and image embeddings share a common vector space",DS 9.2

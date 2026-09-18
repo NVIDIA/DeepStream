@@ -1,0 +1,21 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the message converter.,Boolean,enable=1,"dGPU, Jetson"
+msg-conv-config,Pathname of the configuration file for the Gst-nvmsgconv element.,String,msg-conv-config=dstest5_msgconv_sample_config.txt,"dGPU, Jetson"
+msg-conv-payload-type,"Type of payload.
+
+0, PAYLOAD_DEEPSTREAM: Deepstream schema payload.
+
+1, PAYLOAD_DEEPSTREAM_MINIMAL: Deepstream schema payload minimal.
+
+256, PAYLOAD_RESERVED: Reserved type.
+
+257, PAYLOAD_CUSTOM: Custom schema payload.","Integer
+0, 1, 256, or 257",msg-conv-payload-type=0,"dGPU, Jetson"
+msg-conv-msg2p-lib,Absolute pathname of an optional custom payload generation library. This library implements the API defined by sources/libs/nvmsgconv/nvmsgconv.h.,String,msg-conv-msg2p-lib=/opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_msgconv.so,"dGPU, Jetson"
+msg-conv-comp-id,"comp-id Gst property of the gst-nvmsgconv element.
+This is the Id of the component that attaches the NvDsEventMsgMeta which must be processed by gst-nvmsgconv element.","Integer, >=0",msg-conv-comp-id=1,"dGPU, Jetson"
+debug-payload-dir,Directory to dump payload,String,"debug-payload-dir=<absolute path> Default is NULL","dGPU Jetson"
+multiple-payloads,Generate multiple message payloads,Boolean,"multiple-payloads=1 Default is 0", "dGPU Jetson"
+msg-conv-msg2p-new-api,Generate payloads using Gst buffer frame/object metadata,Boolean,"msg-conv-msg2p-new-api=1 Default is 0", "dGPU Jetson"
+msg-conv-frame-interval,Frame interval at which payload is generated,"Integer, 1 to  4,294,967,295","msg-conv-frame-interval=25 Default is 30","dGPU Jetson"
+msg-conv-dummy-payload,By default payload is generated if NVDS_EVENT_MSG_META is attached to buffer. With this dummy payload can be generated if there is no  NVDS_EVENT_MSG_META attached to buffer,boolean,msg-conv-dummy-payload=true Default is false,"dGPU Jetson"

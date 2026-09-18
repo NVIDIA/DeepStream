@@ -1,0 +1,7 @@
+Property,Meaning,Type and Range,Example
+type,Specify type ds3d::userapp,Component type for user debug,Must be type: ds3d::userapp
+name,Indicate user-defined component name,String,name: debugdump
+enable_debug,Indicate whether enable debug log,Boolean,enable_debug: False
+dump_depth,Indicate file location to dump depth raw data,String,dump_depth: depth_uint16_640x480.bin
+dump_color,Indicate file location to dump color raw data,String,dump_color: color_rgba_1920x1080.bin
+dump_points,Indicate file location to dump 3D points raw data. datatype is Float and XYZ packed,String,dump_points: pointxyz.bin

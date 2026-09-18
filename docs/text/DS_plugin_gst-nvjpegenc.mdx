@@ -1,0 +1,51 @@
+---
+title: "Gst-nvjpegenc"
+---
+
+The Gst-nvjpegenc plugin encodes images on both dGPU and Jetson platforms. It is the preferred method for encoding JPEG images.
+On the dGPU platform this plugin is based on the `libnvjpeg` library, part of the CUDA toolkit. On Jetson it uses a platform-specific hardware accelerator.
+The plugin accepts I420, RGB input on dGPU platform and I420, NV12 input on Jetson platform and produces JPEG encoded bitstream.
+On Jetson platform `nvjpegenc` can also accept SW RAW buffers in I420, YV12, GRAY8 formats.
+This plugin is not available on (ARM + dGPU) platforms like arm-sbsa. Use nvimageenc plugin instead.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Gst Buffer in I420, RGB format (dGPU)
+  *	Gst Buffer in I420, NV12 format (Jetson)
+  *	Gst SW Buffer in I420, YV12, GRAY8 format (Jetson)
+
+* Control parameters
+
+  *	Enableperf (Jetson Only)
+  *	idct-method (Jetson Only)
+  *	quality (Both Jetson and dGPU)
+  *	OutputGray (dGPU only)
+
+* Output
+
+  *	Gst Buffer with encoded output in JPEG format
+
+## Features
+
+The following table summarizes the features of the Gst-nvjpegenc plugin.
+
+**Gst-nvjpegenc plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports JPEG Encode | — | DS 6.3 |
+
+## Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvjpegenc plugin.
+
+**Gst-nvjpegenc plugin gst properties**
+
+| Property | Meaning | Type and Range | Example and Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| quality | quality value for encoding | Integer, 0 to 100 | Quality=90 | dGPU, Jetson |
+| Enableperf | Enable encode time measurement | Boolean | Enableperf=1 | Jetson |
+| Idct-method | IDCT algorithm to use | Enum<br />0: iSlow<br />1: iFast<br />2: Float | Idct-method=2 | Jetson |
+| OutputGray | Output JPEG image in GRAYSCALE, needs I420 INPUT | Boolean | OutputGray=1 | dGPU |

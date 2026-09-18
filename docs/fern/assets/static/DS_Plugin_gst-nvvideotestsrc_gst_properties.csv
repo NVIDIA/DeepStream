@@ -1,0 +1,33 @@
+Property,Meaning,Type and Range,Example notes
+animation-mode,"For animating patterns, the counter that controls the animation.","Enum ""GstNvVideoTestSrcAnimationMode"" Default: 0, ""frames""
+
+(0): frames           - Frame count
+
+(1): wall-time        - Wall clock time
+
+(2): running-time     - Running time",animation-mode=0
+blocksize,Size in bytes to read per buffer (-1 = default),Unsigned Integer. Range: 0 - 4294967295 Default: 4096,blocksize=4096
+gpu-id,ID of the GPU where the buffers are allocated,Unsigned Integer. Range: 0 - 2147483647 Default: 0,gpu-id=0
+num-buffers,Number of buffers to output before sending EOS (-1 = unlimited),Integer. Range: -1 - 2147483647 Default: -1,num-buffers=300
+pattern,Type of test pattern to generate,"Enum ""GstNvVideoTestSrcPattern"" Default: 0, ""smpte""
+
+(0): smpte            - SMPTE color bars
+
+(1): mandelbrot       - Mandelbrot set
+
+(2): gradient         - Gradient",pattern=1
+memtype,Type of the memory used for the allocated buffers,"Enum ""NvBufSurfaceMemType"" Default: 2, ""Device CUDA memory""
+
+(1): Host/Pinned CUDA memory - host
+
+(2): Device CUDA memory - device
+
+(3): Unified CUDA memory - unified",memtype=2
+do-timestamp,Apply current stream time to buffers,Boolean. Default: false,do-timestamp=true
+is-live,Whether to act as a live source. Introduces latency based on FPS setting on src caps,Boolean. Default: false,is-live=true
+location,"File location for raw video file input. When file location is not specified, 
+pattern gets used.", String. Default: NULL, location=test.rgba
+file-loop,Loop through the input file until num-buffers (if specified) or infinitely,Boolean. Default: false, file-loop=true
+max-jitter,Maximum jitter (in milliseconds) that can be applied to each buffer. Only applicable when is-live=true. A random jitter ranging up to "max-jitter" gets applied to each buffer.,"Integer, ≥0 Default: 0",max-jitter=100
+fixed-jitter,List of fixed jitter values (in milliseconds). The list will be looped through for the entire sequence. Only applicable when is-live=true. If "fixed-jitter" is specified "max-jitter"(if specified) is ignored. , Semicolon delimited integer array. all values ≥0. Default: "", fixed-jitter=30;40;100;0;0
+horizontal-speed,Horizontal speed of the SMPTE pattern in pixels per frame. Positive values move to the left; negative to the right,Integer. Default: 0,horizontal-speed=1

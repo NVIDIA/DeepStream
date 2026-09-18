@@ -1,0 +1,104 @@
+---
+title: "DeepStream Reference Application - deepstream-test5 app"
+---
+
+Test5 application, in addition to regular inference pipeline, supports the following features:
+
+* Sending the messages to back end server.
+* Working as consumer to receive messages from the back-end server.
+* Triggering event-based recording based on the messages received from the server.
+* OTA model update.
+* Sensor Provisioning Support over REST API
+
+## IoT Protocols supported and cloud configuration
+
+Details on the IoT Protocols (like KAFKA, Azure, AMQP, etc.,) supported by `nvmsgbroker` plugin is listed in the DeepStream Plugin guide.
+DeepStream Public documentation may be referred to setup IoT hubs/servers/brokers specific to the protocol in use.
+[sink] group keys associated with `type=6` for `nvmsgconv` and `nvmsgbroker` configuration are discussed in the [Configuration Groups](/text/DS_ref_app_deepstream#configuration-groups).
+
+## Message consumer
+
+`deepstream-test5-app` can be configured to work as message consumer for cloud messages. After parsing the received message, based on the content of the message specific action(s) can be triggered.
+For example, `NvDsSrcParentBin*`, which holds the smart record context, is passed as an argument in `start_cloud_to_device_messaging()` which is used to trigger start/stop of smart record.
+By default, event-based recording has been implemented to demonstrate the usage of message consumer. User need to implement the custom logic to work on other types of received messages.
+See `deepstream_c2d_msg*` files for more details about implementation.
+To subscribe to cloud messages, configure the `[message-consumer]` group(s) accordingly.
+
+## Smart Record - Event based recording
+
+Test5 application can be configured to record the original video feed based on the event received from the server. In this way, instead of saving data all the time, this feature allows to record only event of interests.
+Refer to the DeepStream plugin manual and `gst-nvdssr.h `header file for more details about smart record.
+Event based recording can be enabled by setting `smart-record` under `[sourceX]` group. Currently test5 app only supports source type = 4 (RTSP). Similar approach can be used for other types of sources as well.
+There are two ways in which smart record events can be triggered:
+
+1. Through cloud messages.
+
+ To trigger smart record through cloud messages, Test5 app should be configured to work as a message consumer. This can be done by configuring [message-consumerX] group(s) accordingly.
+  After configuring the message consumer, smart record should be enabled on the source(s) on which event-based recording is desired. This can be done as follows:
+
+ `smart-record=1`
+
+ Following minimum Json message is expected to trigger the start / stop of smart record.
+
+```
+{
+  command: string   // <start-recording / stop-recording>
+  start: string     // "2020-05-18T20:02:00.051Z"
+  end: string       // "2020-05-18T20:02:02.851Z",
+  sensor: {
+  id: string
+  }
+ }
+```
+
+2. Through local events.
+
+ Set `smart-record=2`, this will enable smart record through cloud messages as well as local events.
+ To demonstrate the event-based recording through local events, application by default triggers start / stop events every ten seconds. This interval and other parameters are configurable.
+
+## OTA model update
+
+Test5 app can update the models in the running pipeline on-the-fly. For this, the app provides the command line option `-o`. If test5 app is launched with `-o` (ota_override_file) option, any change to that file is monitored and based on the change in that file, running pipeline is updated with the new models on-the-fly.
+
+### Using the OTA functionality
+
+Perform the following to use the OTA functionality:
+
+1. Run `deepstream-test5-app` with `-o <ota_override_file>` option
+2. While DS application is running, update the `<ota_override_file>` with new model details and save it
+3. File content changes gets detected by `deepstream-test5-app` and then it starts model-update process. Currently only model-update feature is supported as a part of OTA functionality.
+
+**Assumption for On-The-Fly model updates**:
+
+1. New model must have same network parameter configuration as of previous model (e.g. network resolution, network architecture, number of classes)
+2. Engine file or cache file of new model to be provided by developer
+3. Updated values for other `primary gie` configuration parameters like `group-threshold`, `bbox color`, `gpu-id`, `nvbuf-memory-type`, etc., if provided in the override file, will not have any effect after model switch.
+4. `Secondary gie` model-update is not validated, only primary model-update is validated.
+5. No frame drop / frames without inference should be observed during on-the-fly model update process
+6. In case of model update failure, error message will be printed on the console and pipeline should continue to run with older model configuration
+7. `config-file` parameter is needed to suppress the config file parsing error prints, values from this config file are not used during model switch process
+
+## Sensor Provisioning Support over REST API (Runtime sensor add/remove capability)
+
+By enabling the use of nvmultiurisrcbin, deepstream-(test5-)app can support runtime sensor ADD/REMOVE capability.
+
+More information on nvmultiurisrcbin can be found [here](/text/DS_plugin_gst-nvmultiurisrcbin).
+
+Sample command to run deepstream-test5-app with nvmultiurisrcbin:
+
+```
+cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs
+deepstream-test5-app -c test5_config_file_nvmultiurisrcbin_src_list_attr_all.txt
+```
+
+The config file passed in the above command uses [source-list] config group with config key use-nvmultiurisrcbin=1 to employ nvmultiurisrcbin.
+
+a) App starts with 2 X sources
+
+b) Able to add/remove streams using the curl command REST API commands documented in Section [REST API payload definitions and sample curl commands for reference](/text/DS_plugin_gst-nvmultiurisrcbin#rest-api-payload-definitions-and-sample-curl-commands-for-reference).
+
+c) By default the nvstreammux config key drop-pipeline-eos is set, allowing the app to always be alive. This means the application will not quit even after the last stream EOS. This allows the running REST Server to provision additional sensors.
+
+d) By default stream name is not observed in FPS logs. In source-list group, set stream-name-display=1 to view stream names along with source-id.
+
+e) By default on stream addition the tiler will not reutilize the empty tiles. Set square-seq-grid=1 to always follow a square grid and empty tiles will be reused if a new source is added.

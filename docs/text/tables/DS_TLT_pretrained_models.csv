@@ -1,0 +1,19 @@
+Model Name,Description,NGC Instance,TAO Finetuning
+TrafficCamNet,"4 class object detection network to detect cars in an image.",`nvidia/tao/trafficcamnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:trafficcamnet>`_,Yes
+PeopleNet,"3 class object detection network to detect people in an image.",`nvidia/tao/peoplenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_,Yes
+VehicleMakeNet,"Resnet18 model to classify a car crop into 1 out 20 car brands.",`nvidia/tao/vehiclemakenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehiclemakenet>`_,Yes
+VehicleTypeNet,"Resnet18 model to classify a car crop into 1 out 6 car types.",`nvidia/tao/vehicletypenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehicletypenet>`_,Yes
+License Plate Detection,"Object Detection network to detect license plates in an image of a car.",`nvidia/tao/lpdnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:lpdnet>`_,Yes
+License Plate Recognition,"Model to recognize characters from the image crop of a License Plate.",`nvidia/tao/lprnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:lprnet>`_,Yes
+PeopleSemSegNet,"Semantic segmentation of persons in an image.",`nvidia/tao/peoplesemsegnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplesemsegnet>`_,Yes
+CitySemSegFormer,"Semantic segmentation of persons in an image.",`nvidia/tao/citysemsegformer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/citysemsegformer>`_,Yes
+Optical Character Detection,"Network to detect characters in an image.",`nvidia/tao/ocdnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocdnet>`_,Yes
+Optical Character Recognition,"Model to recognise characters from a preceding OCDNet model.",`nvidia/tao/ocrnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocrnet>`_,Yes
+Retail Object Detection,"DINO (DETR with Improved DeNoising Anchor Boxes) based object detection network to detect retail objects on a checkout counter.",`nvidia/tao/retail_object_detection <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_detection>`_,Yes
+Retail Object Recognition,"Embedding generator model to recognize objects on a checkout counter.",`nvidia/tao/retail_object_recognition <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_recognition>`_,Yes
+ReIdentificationNet,"Re-Identification network to generate embeddings for identifying persons in different scenes.",`nvidia/tao/reidentificationnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet>`_,Yes
+Pose Classification,"Pose classification network to classify poses of people from their skeletons.",`nvidia/tao/poseclassificationnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/poseclassificationnet>`_,Yes
+PeopleNet Transformer,"3 class object detection network to detect people in an image.",`nvidia/tao/peoplenet_transformer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer>`_,Yes
+BodyPose3DNet,"3D human pose estimation network to predict 34 keypoints in 3D of a person in an image.",`nvidia/tao/bodypose3dnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/bodypose3dnet>`_,Yes
+PointPillarNet,"Objects detection from a LIDAR point cloud file.",`nvidia/tao/pointpillarnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet>`_,Yes
+Mask2Former,"Instance segmentation network to predict pixel-accurate masks for detected objects in an image.",`nvidia/tao/mask2former <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/mask2former>`_,Yes

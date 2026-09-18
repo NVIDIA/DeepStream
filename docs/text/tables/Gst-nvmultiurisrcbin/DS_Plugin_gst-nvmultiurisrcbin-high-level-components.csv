@@ -1,0 +1,7 @@
+Component Name, Source path in DeepStreamSDK Package for more info
+(1) REST API Server; nvds_rest_server, `/opt/nvidia/deepstream/deepstream/sources/libs/nvds_rest_server/`
+(2) Bin Manipulation API Library, `/opt/nvidia/deepstream/deepstream/sources/libs/gstnvdscustomhelper/`
+(3) nvmultiurisrcbin, `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvmultiurisrcbin/`
+(4) deepstream-test5-app Demonstrating usage of nvmultiurisrcbin with nvmsgconv and nvmsgbroker, `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/`
+(5) nvurisrcbin, `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvurisrcbin/`
+(6) nvstreammux, Source not available. For more info please run `gst-inspect-1.0 nvstreammux`

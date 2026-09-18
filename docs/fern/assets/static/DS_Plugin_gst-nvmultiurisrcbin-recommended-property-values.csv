@@ -1,0 +1,13 @@
+SL, Expected Behavior and Recommendation
+1,"nvstreammux, live-source property.
+live-source=1
+live-source need to be turned ON to allow batching of available buffers when number of sources is < max-batch-size configuration."
+2,"REST API stream/add or stream/remove payload value of the change key must contain substring add or remove respectively.
+Expected Behavior: If 'add' is in the change field value, the sensorId and uri will be used to create a new stream.
+If 'remove' is in the change field value, the sensorId and uri will be used to find and remove the matching running stream."
+3,"Boolean property to inform muxer to skip sending EOS downstream is recommended to be set to 1.
+When using nvmultiurisrcbin drop-pipeline-eos=1 is preferred default to allow pipeline to stay alive for new sensor add requests after the last added sensor EOS.
+drop-pipeline-eos=1"
+4,"nvstreammux, max-batch-size property.
+The value set signgifies the maximum number of streams that can be added at a given instance.
+Once the streams are removed or EOS is reached, the pad id would be reused"

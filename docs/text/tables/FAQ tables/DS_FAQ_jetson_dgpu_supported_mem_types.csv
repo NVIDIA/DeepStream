@@ -1,0 +1,9 @@
+Memory Type,Jetson,dGPU or X86_64
+``NVBUF_MEM_DEFAULT``,Memory of type Surface Array which is 2D pitched allocated by default: Used by all hardware accelerator on the platform. Accessible by CPU using ``NvBufSurfaceMap`` and ``NvBufSurfaceSyncForCpu`` or ``NvBufSurfaceSyncForDevice`` based on read write usage. GPU Access using ``EGLImageCreate`` and Map APIs,"Memory of type Cuda Device is allocated by default, accessible only by GPU. User might need to have custom Cuda kernels to access or modify memory. Or ``NvBufSurfaceCopy`` to copy content into CPU accessible memory"
+``NVBUF_MEM_CUDA_PINNED``,"Page Locked Memory allocated using ``cudaMallocHost ()``, accessible by CPU and GPU",Page Locked Memory allocated using ``cudaMallocHost ()`` accessible by CPU and GPU.
+``NVBUF_MEM_CUDA_DEVICE``,"Memory of type Cuda Device is allocated, accessible only by GPU. User might need to have custom Cuda kernels to access or modify memory. ``NvBufSurfaceCopy`` is not supported for Cuda memory on Jetson","Memory of type Cuda Device is allocated, accessible only by GPU. User might need to have custom Cuda kernels to access or modify memory. Or ``NvBufSurfaceCopy`` to copy content into CPU accessible memory"
+``NVBUF_MEM_CUDA_UNIFIED``,Unsupported,Unified Virtual Memory allocated using ``cudaMallocManaged ()`` accessible by CPU and multiple GPU
+``NVBUF_MEM_SURFACE_ARRAY``,"Memory of type Surface Array which is 2D pitched allocated by default; used by all hardware accelerator on the platform; accessible by CPU using ``NvBufSurfaceMap ()`` and  ``NvBufSurfaceSyncForCpu ()`` or ``NvBufSurfaceSyncForDevice ()`` based on usage read write usage.
+GPU Access using ``EGLImageCreate`` and Map APIs",Unsupported
+``NVBUF_MEM_HANDLE``,Used internally for Jetson,Unsupported
+``NVBUF_MEM_SYSTEM``,Allocated using ``malloc``,Allocated using ``malloc ()``

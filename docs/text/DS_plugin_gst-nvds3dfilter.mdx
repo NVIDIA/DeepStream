@@ -1,0 +1,161 @@
+---
+title: "Gst-nvds3dfilter"
+---
+
+The Gst-nvds3dfilter plugin is a customizable plugin which provides a custom library interface to load component `ds3d::datafilter`.
+
+The Plugin is fully configured through YAML format content or file. `sink_caps` and `src_caps` is also configurable.
+
+![Gst-nvds3dfilter](/assets/images/content/DS_plugin_gst-nvds3dfilter.png)
+
+## Custom library Interfaces
+
+The plugin parse the config file or content and set SinkCaps and SrcCaps. load a custom `ds3d::datafilter` from `custom_lib_path`. Create this datafilter by `custom_create_function`.
+
+See more details of `ds3d::datafilter` in DS3D Manual [`ds3d::datafilter`-  DS3D Custom DataFilter](/text/DS_3D_Custom_Manual#ds3d-datafilter-ds3d-custom-datafilter).
+
+## Inputs and Outputs
+
+* Inputs
+
+   * NvDs3DBuffer or
+   * Metadata (NvDsBatchMeta) which has user meta NVDS_3D_DATAMAP_META_TYPE
+
+* Control parameters
+
+  *	config-file
+  *	config-content
+
+* Output
+
+  * NvDs3DBuffer or
+  * Metadata (NvDsBatchMeta) which has user meta NVDS_3D_DATAMAP_META_TYPE
+
+* sink_caps
+
+  * parsed from filed of `in_caps: ds3d/datamap` or any user specified `in_caps:`.
+
+* src_caps
+
+  * parsed from filed of `out_caps: ds3d/datamap` or any user specified `out_caps:`.
+
+## Configuration file
+
+Example:
+```
+name: multimodal_triton_infer
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+config_body:
+  in_streams: [color, depth]
+```
+
+## Gst-nvds3dfilter properties Specifications
+
+**Gst-nvds3dfilter Properties.**
+
+| Properties | Description | Release |
+| --- | --- | --- |
+| config-content | yaml config content | DS 6.1 |
+| config-file | yaml config file path | DS 6.1 |
+
+## Supported DS3D filter custom libs
+
+These custom libs are part of DeepStream release package.
+
+| DS3D Data filter | Data filter custom library | Creating Instance Function | Description |
+| --- | --- | --- | --- |
+| Multi-Modal-triton-infer | `libnvds_tritoninferfilter.so` | `createLidarInferenceFilter` | Multi-modal sensor data inference library, see details in [libnvds_tritoninferfilter Configuration Specifications](/text/DS_3D_Custom_Manual#libnvds-tritoninferfilter-configuration-specifications) |
+| Data-alignment | `libnvds_3d_alignment_datafilter.so` | `createLidarAlignmentFilter` | lidar/camera Sensor Intrinsic and Extrinsic parameters and alignment |
+| Depth-2-point-cloud | `libnvds_3d_depth2point_datafilter.so` | `createDepth2PointFilter` | Convert Image Depth data into 3D Point Cloud data, see details in [Custom datafilter libnvds_3d_depth2point_datafilter Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datafilter-libnvds-3d-depth2point-datafilter-configuration-specifications) |
+
+Custom `ds3d::datafilter` library: `libnvds_3d_alignment_datafilter.so`
+
+## Custom `ds3d::datafilter` library: `libnvds_3d_alignment_datafilter.so`
+
+The input `kLidarXYZI` from `ds3d/datamap` buffer is converted into `kLidarXYZIAligned`.
+This is done by a series of transformations.
+
+[Transformations](https://learnopengl.com/Getting-started/Transformations) done inside the alignment filter are described below with the help of KITTI Data format and calibration data references.
+
+| Transform ID | Details |
+| --- | --- |
+| AL_TR_1 | [Euclidean transformation](https://en.wikipedia.org/wiki/Rigid_transformation) from lidar to reference camera. Velodyne points convert to reference camera (cam0) coordinate. Output = matrixmultiply([Tr_velo_to_cam](https://github.com/lkk688/3DDepth/blob/main/README.md#calibration), input_lidar_point) |
+| AL_TR_2 | Note: AL_TR_2 is done on top of AL_TR_1. Alignment filter expect users to set `lidar_to_cam_extrisic` with both [Tr_velo_to_cam](https://github.com/lkk688/3DDepth/blob/main/README.md#calibration) and [R0_rect](https://github.com/lkk688/3DDepth/blob/main/README.md#calibration). [Rotation](https://learnopengl.com/Getting-started/Transformations) to account for [rectification for points in the reference camera](https://en.wikipedia.org/wiki/Rectification_(geometry)). Output = matrixmultiply(matmul(R0_rect, Tr_velo_to_cam), input_lidar_point) |
+| AL_TR_3 | [Optional and is configured to ON/OFF with config: `align_to_intrinsic`] Projective transformation from rectified reference camera frame (AL_TR2) to cam[2]. Note: Alignment filter expect users to set `cam_intrinsic` with [P_rect[2]](https://github.com/lkk688/3DDepth/blob/main/README.md#calibration). Output = matrixmultiply(matmul(P_rect[2], R0_rect, Tr_velo_to_cam), input_lidar_point). Note: P_rect[2], R0_rect, Tr_velo_to_cam are all converted to 4X4 matrices. |
+
+In DeepStream world:
+
+| cam_intrinsic | [P0 OR P_rect[0]](https://github.com/lkk688/3DDepth/blob/main/README.md#calibration) |
+| --- | --- |
+| lidar_to_cam_extrisic | is a 3X4 matrix = matrix_multiply(R0_rect, Tr_velo_to_cam) |
+
+More info here: [Alignment configuration Options](/text/DS_plugin_gst-nvds3dfilter#configuration-options).
+
+### Inputs and Outputs
+
+* Inputs
+
+   * ds3d/datamap
+
+* Control parameters
+
+  *	config-file
+  *	config-content
+
+* Output
+
+  * ds3d/datamap
+
+### Configuration file
+
+Example:
+```
+name: lidar_alignment_filter
+type: ds3d::datafilter
+link_to: ds3d_aligned_render
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_alignment_datafilter.so
+custom_create_function: createLidarAlignmentFilter
+config_body:
+  cam_width: 1242
+  cam_height: 375
+  cam_intrinsic: [7.215377000000e+02, 0.000000000000e+00, 0.000000000000e+00, 0.000000000000e+00, 7.215377000000e+02, 0.000000000000e+00, 6.095593000000e+02, 1.728540000000e+02, 1.000000000000e+00, 4.485728000000e+01, 2.163791000000e-01, 2.745884000000e-03]
+  #lidar_to_cam_extrisic is a 3X4 matrix = matrix_multiply(R0_rect, Tr_velo_to_cam);
+  #lidar_to_cam_extrisic is in column major order
+  #For more details on R0_rect and Tr_velo_to_cam, please check: https://github.com/lkk688/3DDepth/blob/main/README.md
+  lidar_to_cam_extrisic: [2.34773698e-04, 1.04494074e-02, 9.99945389e-01, -9.99944155e-01, 1.05653536e-02, 1.24365378e-04, -1.05634778e-02, -9.99889574e-01, 1.04513030e-02, -2.79681694e-03, -7.51087914e-02, -2.72132796e-01]
+  #cam input keys to ratain in the output datamap
+  cam_input_keys: [DS3D::ColorFrame+1]
+  #lidar input and output/aligned keys to retain in the output datamap
+  #note: lidar_input_keys and lidar_aligned_keys map the same sensor data
+  lidar_input_keys: [DS3D::LidarXYZI+0]
+  lidar_aligned_keys: [DS3D::LidarAlignedXYZIKey]
+  max_points: 2073600
+  mem_pool_size: 32
+  align_to_intrinsic: false
+  lidar_element_size: 4
+```
+
+### Configuration options
+
+| config-key | Description | Example value |
+| --- | --- | --- |
+| cam_width | The width of camera image used for video input. | 1242 |
+| cam_height | The height of camera image used for video input. | 375 |
+| cam_intrinsic | Is a 3X4 matrix in column major. Projective transformation from rectified reference camera frame to cam in use for video input. More info [here](https://github.com/lkk688/3DDepth/blob/main/README.md) (see documentation for P_rect[i]; Note: we use P_rect[2] for the default config in ds3d_lidar_video_alignment_render.yaml). | [3X4] matrix in column major. |
+| lidar_to_cam_extrisic | is a 3X4 matrix = matrix_multiply(R0_rect, Tr_velo_to_cam); lidar_to_cam_extrisic is in column major order For more details on R0_rect and Tr_velo_to_cam, please check: https://github.com/lkk688/3DDepth/blob/main/README.md | [3X4] matrix in column major. |
+| lidar_input_key | The keyname to use for lidar input from the input datamap buffer. | DS3D::LidarXYZI+0 |
+| lidar_aligned_key | The keyname to use for lidar output newly added by alignment filter into the output datamap buffer. | DS3D::LidarAlignedXYZIKey |
+| max_points | Maximum number of Lidar points in the input datamap at: \{lidar_input_key: points\}. | 2048000 |
+| mem_pool_size | Alignment filter maintains an internal pool. This is the pool size the user want to allocate. | 4 |
+| align_to_intrinsic | If true: AL_TR_3 is done. If false: AL_TR_2 is done. | True |
+| lidar_element_size | The size of output aligned lidar data points. = 3 means XYZ = 4 means XYZI (I is the intensity) More details [here](https://github.com/lkk688/3DDepth/blob/main/README.md#kitti-data-format). | 4 |
+
+Custom `ds3d::datafilter` library: `libnvds_3d_depth2point_datafilter.so`
+
+## Custom `ds3d::datafilter` library: `libnvds_3d_depth2point_datafilter.so`

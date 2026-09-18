@@ -1,0 +1,13 @@
+﻿Feature,Description,Release
+Configurable batch size,—,DS 2.0
+Configurable batching timeout,—,DS 2.0
+Allows multiple input streams with different resolutions,—,DS 2.0
+Allows multiple input streams with different frame rates,—,DS 2.0
+Scales to user-determined resolution in muxer,—,DS 2.0
+Scales while maintaining aspect ratio with padding,—,DS 2.0
+Multi-GPU support,—,DS 2.0
+Input stream DRC support,—,DS 3.0
+User-configurable CUDA memory type (Pinned/Device/Unified) for output buffers,—,DS 3.0
+Custom message to inform application of EOS from individual sources,—,DS 3.0
+Supports adding and deleting run time sinkpads (input sources) and sending custom events to notify downstream components,—,DS 3.0
+Supports RGBA data handling at output,—,DS 3.0

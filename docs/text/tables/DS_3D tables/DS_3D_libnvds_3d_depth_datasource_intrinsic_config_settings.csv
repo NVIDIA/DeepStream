@@ -1,0 +1,7 @@
+Property,Meaning,Type and Range,Example
+width,Specify sensor width in pixels,Uint32,width: 848
+height,Specify sensor height in pixels,Uint32,height: 480
+centerX,Specify coordinate axis position in pixels in horizontal direction,Float,centerX: 424.06
+centerY,Specify coordinate axis position in pixels in vertical direction,Float,centerY: 533.28
+fx,Specify focal length in pixels in X direction,Float,fx: 1358.21
+fy,Specify focal length in pixels in Y direction,Float,fy: 1358.25

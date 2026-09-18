@@ -1,0 +1,263 @@
+---
+title: "Gst-nvmultiurisrcbin"
+---
+
+<Note>
+The DeepStream 6.2 onwards support nvmultiurisrcbin with REST API support for dynamic sensor add/remove capability.
+</Note>
+
+This bin integrates three major DeepStream components viz. [nvds_rest_server](/text/DS_RestServer#nvds-rest-server), nvurisrcbin, and nvstreammux (**\DS_plugin_gst-nvstreammux**) into a single GstBin.
+For more details on `nvurisrcbin`, please run `gst-inspect-1.0 nvurisrcbin` on a machine/docker container with DeepStream installed.
+
+The bin allows users to create simple gstreamer pipelines for AI multimedia analytics.
+Users can add or remove sensors over REST API calls made to a HTTP endpoint.
+A sensor is defined as a streaming entity with a valid unique Sensor ID, and URI.
+
+The below High Level Overview diagram and table illustrate how nvmultiurisrcbin integrates nvds_rest_server, nvurisrcbin, and nvstreammux.
+
+![Gst-nvmultiurisrcbin High Level Overview](/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_high_level_overview.png)
+
+**Gst-nvmultiurisrcbin High Level Overview of integrated components**
+
+| Component Name | Source path in DeepStreamSDK Package for more info |
+| --- | --- |
+| (1) REST API Server; nvds_rest_server | `/opt/nvidia/deepstream/deepstream/sources/libs/nvds_rest_server/` |
+| (2) Bin Manipulation API Library | `/opt/nvidia/deepstream/deepstream/sources/libs/gstnvdscustomhelper/` |
+| (3) nvmultiurisrcbin | `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvmultiurisrcbin/` |
+| (4) deepstream-test5-app Demonstrating usage of nvmultiurisrcbin with nvmsgconv and nvmsgbroker | `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/` |
+| (5) nvurisrcbin | `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvurisrcbin/` |
+| (6) nvstreammux | Source not available. For more info please run `gst-inspect-1.0 nvstreammux` |
+
+## 1. Introduction
+
+This GstBin is a GStreamer source bin. The bin exposes only one source pad that provide batched buffers from an nvstreammux instance.
+
+Users can add/remove streams to the bin for batching over the REST APIs defined in the Section [REST API Payload definitions](/text/DS_plugin_gst-nvmultiurisrcbin#rest-api-payload-definitions-and-sample-curl-commands-for-reference).
+
+Users can also provide a static list of streams and their sensor IDs to start the pipeline with. This can be done using the Gst properties uri-list and sensor-id-list described below.
+
+The nvmultiurisrcbin component output batched buffers from an nvstreammux instance.
+
+## 2. Features
+
+The following table summarizes the features of the bin.
+
+**Gst-nvmultiurisrcbin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| nvmultiurisrcbin integrating REST API Server, nvurisrcbin, and nvstreammux | Introducing nvmultiurisrcbin | DS 6.2 |
+| REST API to add and remove sensors runtime | Dynamically add/remove sensors | DS 6.2 |
+| Stream specific | Stream addition and removal | DS 6.2 |
+| nvdspreprocess | Update ROI for preprocess | DS 6.4 |
+| nvv4l2decoder | drop-frame-interval" and "skip-frame" property update | DS 6.4 |
+| nvdsinfer | interval" property update | DS 6.4 |
+| nvdsinferserver | interval" property update | DS 6.4 |
+| nvv4l2encoder | force-idr", "force-intra",  “iframeinterval” and "bitrate" property update | DS 6.4 |
+| nvstreammux | batched-push-timeout" property update | DS 6.4 |
+| nvvideoconvert | src-crop", "dest-crop", "flip-method" and "interpolation-method" property update | DS 6.4 |
+| nvdsosd | process-mode" property update | DS 6.4 |
+| Application specific | Application quit | DS 6.4 |
+| GET requests | Get the stream-info | DS 7.0 |
+| GET requests | Get the  DeepStream readiness info | DS 8.0 |
+| nvdsanalytics | config-file" Reload config file | DS 8.0 |
+| nvdstracker | config-file" Update configurable parameters of tracker using config file | DS 8.0 |
+
+## 3. How to use nvmultiurisrcbin in a pipeline
+
+Below pipeline is a sample gstreamer pipeline which is configured to accept upto 10 input sources and the pipeline starts up with two sources:
+
+```
+gst-launch-1.0 nvmultiurisrcbin \
+port=9000 ip-address=localhost \
+batched-push-timeout=33333 max-batch-size=10 \
+drop-pipeline-eos=1 live-source=1 \
+uri-list=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4,file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 width=1920 height=1080 \
+! nvmultistreamtiler ! nveglglessink
+```
+
+Below diagram illustrates a similar pipeline (with different plugins like nvinfer, nvmsgconv, and nvmsgbroker downstream).
+
+![Gst-nvmultiurisrcbin sample video pipeline](/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_sample_video_pipeline.png)
+
+### REST API payload definitions and sample curl commands for reference
+
+Note:
+
+Currently only few fields from the JSON schema described below are used/mandatory.
+The remaining fields are optional and ignored.
+
+List of mandatory (and used) fields are:
+
+- value/camera_id
+
+- value/camera_url
+
+- value/change
+
+#### ADD a new stream to a DeepStream pipeline
+
+<Note>
+DS-7.1 onwards supports REST API version `/api/v1`. Refer below schema details.
+</Note>
+
+Payload definition and the sample curl command:
+
+ ```text
+ 1.curl -XPOST 'http://localhost:9000/api/v1/stream/add' -d '{
+   "key": "sensor",
+   "value": {
+      "camera_id": "uniqueSensorID1",
+      "camera_name": "front_door",
+      "camera_url": "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4",
+      "change": "camera_add",
+      "metadata": {
+          "resolution": "1920 x1080",
+          "codec": "h264",
+          "framerate": 30
+      }
+  },
+  "headers": {
+      "source": "vst",
+      "created_at": "2021-06-01T14:34:13.417Z"
+  }
+ }'
+ 
+ 2.curl -XPOST 'http://localhost:9000/api/v1/stream/add' -d '{
+  "key": "sensor",
+  "event": {
+      "camera_id": "uniqueSensorID1",
+      "camera_name": "front_door",
+      "camera_url": "rtsp://xyz.mp4",
+      "change": "camera_streaming",
+      "metadata": {
+          "resolution": "1920 x1080",
+          "codec": "h264",
+          "framerate": 30
+      }
+  },
+  "headers": {
+      "source": "vst",
+      "created_at": "2021-06-01T14:34:13.417Z"
+  }
+ }'
+ ```
+
+#### REMOVE a new stream to a DeepStream pipeline
+
+Payload definition and the sample curl command:
+
+```text
+curl -XPOST 'http://localhost:9000/api/v1/stream/remove' -d '{
+    "key": "sensor",
+    "value": {
+        "camera_id": "uniqueSensorID1",
+        "camera_name": "front_door",
+        "camera_url": "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4",
+        "change": "camera_remove",
+        "metadata": {
+            "resolution": "1920 x1080",
+            "codec": "h264",
+            "framerate": 30
+        }
+    },
+    "headers": {
+        "source": "vst",
+        "created_at": "2021-06-01T14:34:13.417Z"
+    }
+}'
+```
+
+## 4. Gst Properties
+
+### Gst Properties directly configuring nvmultiurisrcbin
+
+**Gst-nvmultiurisrcbin gstreamer properties directly configuring the bin**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| uri-list | comma separated URI list of sources; URI of the file or rtsp source | string | uri-list=file:///opt/file.mp4,file:///opt/file.mp4 |
+| sensor-id-list | comma separated list of unique source sensor IDs; this vector is one to one mapped with the uri-list | string | sensor-id-list=uniqueSensorID1,uniqueSensorID2 |
+| sensor-name-list | OPTIONAL comma separated list of source sensor names; this vector is one to one mapped with the uri-list | string | sensor-name-list=SensorName1,SensorName2 |
+| mode | Video-only or Audio-only modes available | 0: for video-only<br />1: for audio-only | mode=0 (default) |
+| ip-address | Set REST API HTTP IP Address | string | ip-address=localhost (default) |
+| port | Set REST API HTTP Port number; Note: User may pass 0 to disable REST API Server | string | port=9000 (default) |
+| max-batch-size | Set the maximum batch size to be used for nvstreammux; Maximum number of sources to be supported with this instance of nvmultiurisrcbin | Integer,<br />1 to 4,294,967,295 | max-batch-size=30 (default) |
+| http-download-timeout | Maximum time in seconds for the whole HTTP(S) file download (curl CURLOPT_TIMEOUT); 0 means no limit | Integer,<br />0 to 4,294,967,295 | http-download-timeout=0 |
+| http-connect-timeout | Maximum time in seconds for the HTTP(S) connect phase (curl CURLOPT_CONNECTTIMEOUT); 0 means no limit | Integer,<br />0 to 4,294,967,295 | http-connect-timeout=0 |
+| http-max-concurrent-downloads | Maximum number of HTTP(S) source-file downloads that may run at once across concurrent stream/add requests; 0 uses max-batch-size, any other value is clamped to max-batch-size | Integer,<br />0 to 4,294,967,295 | http-max-concurrent-downloads=0 |
+| ipc-frame-copy | Publishes each source's decoded frames over IPC (per-source nvunixfdsink, tapped right after the decoder). Socket: /tmp/nvds_ipc_&lt;sensorId\|source-id>.sock | Boolean | ipc-frame-copy=0 |
+| drop-pipeline-eos | (Forwarded to the internal nvstreammux) EOS is not propagated downstream when all source pads are at EOS when set | Boolean | drop-pipeline-eos=0 |
+
+### Gst Properties to configure each instance of nvurisrcbin created inside this bin
+
+**Gst-nvmultiurisrcbin nvurisrcbin specific properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| num-extra-surfaces | Set extra decoder surfaces; Number of surfaces in addition to minimum decode surfaces given by the decoder | Integer,<br />1 to 4,294,967,295 | num-extra-surfaces=1 (default) |
+| gpu-id | Set GPU Device ID used by nvurisrcbin components like decoder (nvv4l2decoder) and nvvideoconvert | Integer,<br />1 to 4,294,967,295 | gpu-id=0 (default) |
+| cudadec-memtype | Memory type for cuda decoder buffers,<br />Memory type for CUDA decoder buffers. Represented internally by enum CudaDecMemType.<br />0 (memtype_device): Device<br />1 (memtype_pinned): Host Pinned<br />2 (memtype_unified): Unified | Integer,<br />0, 1, or 2 | cudadec-memtype=0 (default) |
+| drop-frame-interval | Interval to drop the frames, e.g. a value of 5 means the decoder outputs every fifth frame, and others are dropped. | Integer,<br />1 to 30 | Default: 0, dGPU / Jetson |
+| dec-skip-frames | Type of frames to skip during decoding. Represented internally by enum SkipFrame. 0 (decode_all): decode all frames<br />1 (decode_non_ref): skips non-ref frames (Applicable only on Jetson platform)<br />2 (decode_key): decode key frames | Integer,<br />0, 1, or 2 | skip-frames=0 Default: 0 ,dGPU / Jetson |
+| select-rtp-protocol | Transport Protocol to use for RTP | Enum RtpProtocol Default: 0, rtp-multi<br />(0): rtp-multi - UDP + UDP Multicast + TCP<br />(4): rtp-tcp - TCP Only | select-rtp-protocol=0 (default) |
+| file-loop | Loop file sources after EOS. Src type must be source-type-uri and uri starting with 'file:/' | boolean | file-loop=false (default) |
+| rtsp-reconnect-interval | Timeout in seconds to wait since last data was received from an RTSP source before forcing a reconnection. 0=disable timeout | Integer,<br />0 to 4,294,967,295 | rtsp-reconnect-interval=10 |
+| init-rtsp-reconnect-interval | Timeout in seconds to wait before forcing a reconnection when error received from rtsp source. 0=disable timeout | Integer,<br />0 to 4,294,967,295 | init-rtsp-reconnect-interval=5 |
+| rtsp-reconnect-attempts | Maximum number of times a reconnection is attempted. Setting it to -1 means reconnection will be attempted infinitely. Valid when type of source is 4 and rtsp-reconnect-interval-sec is a non-zero positive value. | Integer, >=-1 | rtsp-reconnect-attempts=4 |
+| latency | Jitterbuffer size in milliseconds; applicable only for RTSP streams. | Integer,<br />1 to 4,294,967,295 | latency=100 (default) |
+| udp-buffer-size | UDP Buffer Size in bytes; applicable only for RTSP streams. | Integer,<br />1 to 4,294,967,295 | udp-buffer-size=524288 (default) |
+| smart-record | Enable Smart Record and choose the type of events to respond to. Sources must be of type source-type-rtsp | (0):smart-rec-disable - Disable Smart Record<br />(1):smart-rec-cloud  - Trigger Smart Record through cloud messages only<br />(2):smart-rec-multi  - Trigger Smart Record through cloud and local events | smart-record=0 (default) |
+| smart-rec-dir-path | Path of directory to save the recorded file. | string | Absolute or relative path |
+| smart-rec-file-prefix | By default, Smart_Record is the prefix. For unique file names every source must be provided with a unique prefix | string | Absolute or relative path |
+| smart-rec-video-cache | Size of video cache in seconds. DEPRECATED: Use 'smart-rec-cache' instead | Integer,<br />1 to 4,294,967,295 | smart-rec-video-cache=0 (default) |
+| smart-rec-cache | Size of cache in seconds, applies to both audio and video cache | Integer,<br />1 to 4,294,967,295 | smart-rec-cache=0 (default) |
+| smart-rec-container | Container format of recorded video. MP4 and MKV containers are supported. Sources must be of type source-type-rtsp | (0): smart-rec-mp4 - MP4 container<br />(1): smart-rec-mkv - MKV container | smart-rec-container=0 (default) |
+| smart-rec-mode | Smart record mode | (0):smart-rec-mode-av - Record audio and video if available<br />(1):smart-rec-mode-video - Record video only if available<br />(2):smart-rec-mode-audio - Record audio only if available | smart-rec-mode=0 (default) |
+| smart-rec-default-duration | In case a Stop event is not generated. This parameter will ensure the recording is stopped after a predefined default duration. | Integer,<br />1 to 4,294,967,295 | smart-rec-default-duration=20 (default) |
+| disable-passthrough | To disable the passhthrough mode of nvvideoconvert used inside the nvurisrcbin | boolean | disable-passthrough=false(default) |
+| drop-on-latency | Tells the jitterbuffer to never exceed the given latency in size; applicable only for RTSP streams | boolean | drop-on-latency=false(default) |
+| async-handling | Boolean property so that will handle Asynchronous state changes | boolean | async-handling=true(default) |
+| disable-audio | Disable audio path mode at init time | boolean | disable-audio=true(default) |
+| ipc-buffer-timestamp-copy | Copy buffer timestamp for nvunixfdsrc plugin | boolean | ipc-buffer-timestamp-copy=false(default) |
+| ipc-connection-attempts | Max number of attempts for connection (-1 = unlimited) | Integer. Range: -1 - 2147483647 Default: -1 | ipc-connection-attempts=-1(default) |
+| ipc-connection-interval | connection interval between connection attempts in micro seconds | Unsigned Integer64. Range: 0 - 18446744073709551615 | ipc-connection-interval=1000000(default) |
+| ipc-socket-path | The path to the control socket used to control the shared memory transport. This may be modified during the NULL->READY transition | String | ipc-socket-path=null(default) |
+| low-latency-mode | Set low latency mode for bitstreams having I and IPPP frames on decoder | boolean | low-latency-mode=false(default) |
+| message-forward | Forwards all children messages | boolean | message-forward=false(default) |
+| uri | URI of the file or RTSP source | String | uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 |
+| type | Type of source. Use type=2 (rtsp) to enable smart record features | Enum,<br />0 (auto): select source type based on URI scheme<br />1 (uri): any URI supported by GStreamer<br />2 (rtsp): RTSP, supports smart recording | type=2 |
+| buffer-mode | Controls the buffering algorithm in use | Enum,<br />0 (unknown): only use RTP timestamps<br />1 (slave): slave receiver to sender clock<br />2 (buffer): low/high watermark buffering<br />3 (auto): choose mode depending on whether the stream is live<br />4 (synced): synchronized sender and receiver clocks | buffer-mode=0 |
+| leaky | Where the internal queue leaks, if at all | Enum,<br />0 (no-leak)<br />1 (upstream-leak)<br />2 (downstream-leak) | leaky=0 |
+| max-size-buffers | Maximum number of buffers in the internal queue | Integer,<br />0 to 4,294,967,295 | max-size-buffers=0 |
+| smart-rec-status (read-only) | Boolean indicating whether Smart Record is currently active | Boolean |  |
+| source-id | Unique ID for the input source | Integer,<br />-1 to 2,147,483,647 | source-id=0 |
+| extract-sei-type5-data | Extracts and attaches SEI type5 unregistered data on the output buffer when set | Boolean | extract-sei-type5-data=0 |
+| sei-uuid | Sets the SEI UUID on the decoder | String |  |
+| simulate-fps-interval-ms | Frame interval in milliseconds used to simulate FPS (e.g., 33 for 30 FPS); 0 disables simulation | Integer,<br />0 to 1000 | simulate-fps-interval-ms=0 |
+| ipc-frame-copy | Publishes this source's decoded frames over IPC (nvunixfdsink), tapped right after the decoder. Socket: /tmp/nvds_ipc_&lt;source-id>.sock | Boolean | ipc-frame-copy=0 |
+
+### Gst Properties to configure the instance of nvstreammux created inside this bin
+
+All properties except “batch-size” can be configured using the same property names as defined for [nvstreammux here](/text/DS_plugin_gst-nvstreammux#gst-properties).
+
+## 5. Important Notes
+
+### nvmultiurisrcbin config recommendations and notes on expected behavior
+
+**Gst-nvmultiurisrcbin recommendations**
+
+| SL | Expected Behavior and Recommendation |
+| --- | --- |
+| 1 | nvstreammux, live-source property.<br />live-source=1<br />live-source need to be turned ON to allow batching of available buffers when number of sources is &lt; max-batch-size configuration. |
+| 2 | REST API stream/add or stream/remove payload value of the change key must contain substring add or remove respectively.<br />Expected Behavior: If 'add' is in the change field value, the sensorId and uri will be used to create a new stream.<br />If 'remove' is in the change field value, the sensorId and uri will be used to find and remove the matching running stream. |
+| 3 | Boolean property to inform muxer to skip sending EOS downstream is recommended to be set to 1.<br />When using nvmultiurisrcbin drop-pipeline-eos=1 is preferred default to allow pipeline to stay alive for new sensor add requests after the last added sensor EOS.<br />drop-pipeline-eos=1 |
+| 4 | nvstreammux, max-batch-size property.<br />The value set signgifies the maximum number of streams that can be added at a given instance.<br />Once the streams are removed or EOS is reached, the pad id would be reused |
+
+## 6. Limitations
+
+**Gst-nvmultiurisrcbin known issues**
+
+| SL | Limitations |
+| --- | --- |
+| 1 | Usage of new nvstreammux for video and audio usecases are not supported at this time and might not work. |

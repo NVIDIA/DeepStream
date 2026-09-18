@@ -1,0 +1,230 @@
+---
+title: "Accuracy Tuning Tools"
+---
+
+A typical DeepStream perception pipeline includes a detector and the multi-object tracker, and each module has a number of parameters listed in the detector (PGIE) and tracker configuration files. For example, the clustering thresholds for detection post-processing, the Kalman filter parameters in tracker, etc. When users deploy such data processing pipelines in diverse applications, such as traffic, retail, warehouse etc., a pain point is how to find the optimal parameters with the highest accuracy KPI for each use case. Manual parameter tuning requires in-depth knowledge on the algorithm and how each parameter would
+affect the functionality. Given the large number of parameters, the complexity of such process would increase exponentially.
+
+Starting from DeepStream 7.0, a new tool **PipeTuner** is released for automatic accuracy tuning. It efficiently explores the (potentially very high-dimensional) parameter space and automatically finds the optimal parameters for the pipelines, which yields the highest
+KPI on the dataset. The difference between automatic and traditional manual tuning can be summarized as follows:
+
+| Approach | Workflow | Pros/Cons | Requirements |
+| --- | --- | --- | --- |
+| Automatic tuning using PipeTuner | * Download PipeTuner, and prepare a dataset for the target use case. * Define a DeepStream pipeline with required models to be used and initial parameters in the config files. And then register a set of parameters to be tuned with a search range for each parameter. * Launch PipeTuner and it will automatically search the parameters with the highest accuracy KPI. | * Users are not required to have technical knowledge on the pipeline and its parameters. * The automatic tuning algorithm find the best parameter set within the search range that would yield the highest accuracy KPI. | * Users need to provide a dataset, which includes a few video streams with the resolution same as the one that will be used in the actual deployments, and ground truth (i.e. bounding box and object IDs). The videos should have the same resolution, represent the typical use case, and not be too long, otherwise the tuning turn-around time may take too long; we recommend 1-2 min in length. * The pipeline tuning would be carried out through a number of iterations of DeepStream pipeline execution, which may take several hours depending on various factors, such as the number of iterations (similar to epochs), the size of the dataset and the HW capabilities. |
+| Manual tuning | * Read the technical documentation to understand how each parameter affects the accuracy. * Perform heuristic or random search for the parameters and check the result quality. * Manually run DeepStream pipeline multiple times to compare which parameters work the best. | * If a user is very experienced/skilled in DeepStream tuning, then it could be quick fix. * Quick fix on some parameters for a corner case may lead to a regression on other cases. * Any manual tuning would be sub-optimal as exploring the high-dimensional parameter space manual is not tractable. | * Users need special technical knowledge on the pipeline and its parameters, and need to go through a trial-and-error process. |
+
+For more detailed tutorials, please check out [PipeTuner User Guide](https://catalog.ngc.nvidia.com/orgs/nvidia/resources/pipetuner-data) from NGC for step-to-step setup instructions and all the technical details.
+In case manual tuning is still needed, we also provide in the following sections the functionality of some of the configuration parameters to give a better understanding on their potential impacts on both performance and accuracy on multi-object tracking operations.
+
+## PipeTuner for Automatic Tuning (Developer Preview)
+
+### Download
+
+PipeTuner is hosted on NGC. Users need to download the following resources to start.
+
+* [PipeTuner Collection](https://catalog.ngc.nvidia.com/orgs/nvidia/collections/pipetuner): The collection of all Pipetuner resources, including introduction, user guide and setup instructions;
+* [PipeTuner Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pipetuner): PipeTuner docker container;
+* [PipeTuner User Guide and Sample Data](https://catalog.ngc.nvidia.com/orgs/nvidia/resources/pipetuner-data): PipeTuner user guide and the sample data to run as an example, including a sample dataset for people tracking, configuration files for tuning, and scripts to launch the pipeline.
+
+### Features and Requirements
+
+Here is a summary of PipeTuner's functionalities and requirements:
+
+| Dataset | Users need to provide the typical dataset for their use case. It should include a few sample videos, with bounding box and object ID ground truth annotated |
+| --- | --- |
+| Models | Users need to provide the required models, including the object detection model (for PGIE) and Re-ID models (Re-ID only required when using NvDCF_accuracy or NvDeepSORT tracker). They can be NVIDIA TAO models in DeepStream container, NGC, or customized pre-trained ONNX models |
+| Container | Users need to download PipeTuner and DeepStream container from NGC |
+| Accuracy KPI | Users select one of the multi-object tracking KPIs: [HOTA](https://link.springer.com/article/10.1007/s11263-020-01375-2), [MOTA](https://link.springer.com/article/10.1155/2008/246309) or [IDF1](https://arxiv.org/abs/1609.01775) |
+
+### Setup
+
+Overall steps to setup PipeTuner are as below.
+
+* **Download Container**: Pull PipeTuner and DeepStream perception container from NGC repository;
+* **Download Sample Data**: Download and extract sample data from NGC resource;
+* **Data Preparation**: Users create their own dataset with the same format as sample data, and update configuration files to match their use case;
+* **Launch Tuning**: Launch the tuning pipeline using the desired configuration and data;
+* **Retrieve Results**: Retrieve the optimal parameters and visualize the tuning results;
+* **Deploy**: Deploy the optimal parameters into the desired use case.
+
+PipeTuner searches the optimal parameters by iterating the following three steps until the
+accuracy KPI converges or up to the max number of iterations (i.e., epochs) specified:
+
+* **ParamSearch**: Given the accuracy KPI score in the previous iteration, make an educated guess on the set of parameters that would yield a higher accuracy KPI. For the very first iteration, a random sampling in the parameter space would be conducted;
+* **PipeExec**: Given the sampled/guessed parameter set, execute the pipeline with the params and generates metadata to allow accuracy evaluation;
+* **PipeEval**: Given the metadata outputs from the pipeline and the dataset, perform the accuracy evaluation based on the accuracy metric and generates accuracy KPI score.
+
+## Multi-Object Tracking Parameter Functionalities for Manual Tuning
+
+This section describes the configuration parameters in each module of the detector and tracker, and their potential impacts on both performance and accuracy. A general introduction to `NvMultiObjectTracker` tracker library can be found in DeepStream SDK Plugin Manual.
+
+### Accuracy-Performance Tradeoffs
+
+The visual feature size, detection interval and input frame size have impact on both accuracy and performance. They should be properly set for a good accuracy-performance tradeoff.
+
+#### Visual Feature Types and Feature Sizes
+
+**Related Parameters**
+
+* Visual feature types
+
+   * `useColorNames`
+   * `useHog`
+
+* Feature sizes
+
+   * `featureImgSizeLevel`
+   * `searchRegionPaddingScale`
+
+NvDCF tracker can use multiple types of visual features such as Histogram of Oriented Gradient (HOG) and ColorNames. If both features are used (by setting `useColorNames: 1` and `useHog: 1`), then the total number of channels would be 28. The more channels of visual features are used, the more accurately the algorithm would track but would  increase the computational complexity and reduce performance.
+
+In addition to the types of the visual features, we can configure the number of pixels used to represent an object for each feature channel. The corresponding parameter is `featureImgSizeLevel`, and its range is from 1 to 5. Each level between 1 and 5 corresponds to 12x12, 18x18, 24x24, 36x36, and 48x48, respectively, for each feature channel. Therefore, if one uses both HOG and ColorNames with `featureImgSizeLevel: 5`, then the dimension of visual features that represents an object would be 28x48x48.
+
+One thing to note is that the visual features for an object are extracted from a region whose size is a bit larger than the object region in order to make sure that the object in the next frame appears within the region even when there is a movement by the object between frames. This region is referred to as `the search region`, whose size is defined by adding a degree of padding to the object `bbox`. More details can be found in the section for NvDCF tracker in DeepStream Plugin Manual.
+
+Increasing the search region size lowers the probability of missing the object in the next frame; however, given a fixed feature size (i.e., `featureImgSizeLevel`), if we increase `searchRegionPaddingScale`, it would effectively decrease the number of pixels belonging to the object, resulting in lower resolution in terms of object representation in visual features. This may result in lower accuracy in tracking; however, if the degree of movement of an object between two consecutive frames is expected to be small, the object would be highly likely to appear in the search region in the next frame even with a smaller search region size. It would especially be the case if a state estimator is enabled and the prediction by the state estimator is reasonably accurate, because the search region would be defined at the predicted location in the next frame.
+
+#### Detection Interval
+
+**Related Parameters**
+
+* Detection interval
+
+   * `interval`
+
+Instead of reducing the visual feature types and sizes, users can explore increasing the detection interval instead (i.e., `interval` in PGIE config). Thanks to the enhanced accuracy and robustness, the NvDCF tracker allows users to increase the detection interval without sacrificing the accuracy too much. Especially when a heavier neural net model is used for the object detection, the performance gain by increasing the detection interval will be higher. Thus, users may consider increasing the detection interval instead of lowering the accuracy setting for NvDCF tracker.
+
+#### Video Frame Size for Tracker
+
+**Related Parameters**
+
+* Video frame size for tracker
+
+   * `tracker-width`
+   * `tracker-height`
+
+The video frame size configured in tracker plugin has some impact on the performance, as a higher resolution video frame would take longer time to transfer between memories. If one sets the frame resolution lower, hoping to achieve a higher performance, however, its negative impact on the accuracy may outweigh the performance gain. Therefore, it is recommended to use at least 960x544 resolution (for 1080p source resolution) to minimize the accuracy degradation.
+
+### Robustness
+
+To deal with false positives and false negatives from the detector, the `NvMultiObjectTracker` library utilizes two strategies called `Late Activation` and `Shadow Tracking` (more details can be found in DeepStream SDK Plugin Manual). In addition to the config parameters related to those strategies, there are a few config parameters that affect when a tracker for a new object is created and terminated.
+
+#### Target Creation Policy
+
+**Related Parameters**
+
+* Target Candidacy
+
+  * `minDetectorConfidence`
+  * `minIouDiff4NewTarget`
+
+* Late Activation
+
+  * `probationAge`
+  * `earlyTerminationAge`
+
+If an object detected by a detector meets the minimum qualifications (i.e., target candidacy) specified by the following, a new tracker is instantiated for the object:
+
+* `minDetectorConfidence`
+* `minIouDiff4NewTarget`
+
+If spurious false detections are observed with lower detector confidence values, one can increase the minimum detector confidence (i.e., `minDetectorConfidence`) to filter them out. If the maximum IOU score of a newly detected object to any of the existing targets is lower than `minIouDiff4NewTarget`, a new target tracker would be created to track the object. Thus, if one wishes to further suppress the creation of duplicate bboxes on the same target that may have a bit different bbox sizes, `minIouDiff4NewTarget` can be set lower.
+
+Once a tracker is instantiated for a new object, it initially starts tracking the object in a temporary mode (i.e., `Tentative` mode) until further criteria are met during a period specified by `probationAge` in terms of the number of frames. During this probationary period, whenever the tracker bbox is not matched with detector bbox or the tracker confidence gets lower than `minTrackerConfidence`, the shadow tracking age (which is an internal variable) is incremented. If the shadow tracking age reaches a predefined threshold (i.e., `earlyTerminationAge`), then the tracker will be terminated prematurely, effectively eliminating the false positives.
+
+If a higher rate of false detections is expected, then one may consider to increase the `probationAge` and/or decrease `earlyTerminationAge` for stricter creation policy. If the expected detector confidence for the false detections is low while that of the true positives is high, one can set `minDetectorConfidence` accordingly to filter out false detections.
+
+#### Target Termination Policy
+
+**Related Parameters**
+
+* Shadow Tracking
+
+  * `minTrackerConfidence`
+  * `maxShadowTrackingAge`
+
+In addition to the aforementioned early termination policy during the probationary period, there are certain criteria to be met when a tracker is terminated. Once a tracker starts tracking in `Active` mode, its status changes to `Inactive` mode if:
+
+1. The tracker confidence is lower than `minTrackerConfidence` or
+2. It is not matched with a detector bbox during data association.
+
+The shadow tracking age is incremented every frame when a target is not associated with a detector object. If the tracker gets matched again with a detector bbox, then the shadow tracking age is reset to zero, and the tracker’s mode changes to `Active` mode again if it was in `Inactive` mode (meaning that the tracker outputs will be reported to the downstream). However, if the shadow tracking age exceeds a predefined threshold (i.e., `maxShadowTrackingAge`), the tracker will be terminated.
+
+For more robust tracking, one may increase the value for `maxShadowTrackingAge` because it will allow an object to be re-associated even after missed detections over multiple consecutive frames. However, in case that the visual appearance of the object undergoes a significant change during the missed detections (e.g., prolonged occlusions), the learned correlation filter may not yield a high correlation response when the object reappears. In addition, increasing `maxShadowTrackingAge` would allow a tracker to live longer (i.e., more delayed termination), resulting in an increased number of trackers present at the memory at a given time, which would in turn increase the computational load.
+
+#### State Estimation
+
+An object tracker in `NvMultiObjectTracker` library maintains a set of states for a target like below:
+
+* Target location (in 2D camera coordinates)
+
+  * Location
+  * Location velocity
+
+* Target Bbox
+
+  * Size
+  * Size velocity
+
+#### Kalman Filter
+
+**Related Parameters**
+
+* `processNoiseVar4Loc`
+* `processNoiseVar4Size`
+* `processNoiseVar4Vel`
+* `measurementNoiseVar4Detector`
+* `measurementNoiseVar4Tracker`
+
+The Kalman Filter (KF) implementation in `NvMultiObjectTracker` library mostly follows a standard 2D KF approach where the user needs to define the process noise and measurement noise based on the expected uncertainty level. If the object has relatively simple and linear motion, one may set the process noise lower than the measurement noise, effectively putting more trust on the prediction. If the object is expected to have more dynamic motions or abrupt changes of states, it would be more advised to set the measurement noise lower; otherwise, there could be some lagging if the prediction is not correct.
+
+One additional consideration that is put in is to allow users to set different measurement noise for detector `bbox` and tracker `bbox` for the case where a visual tracker module is enabled (i.e., NvDCF). There is always a possibility of false negatives by the detector or there could be video frames where the inference for object detection is skipped. For such cases, each object tracker makes its own localization using the learned correlation filter, and the results are used to update the Kalman filter. Thus, from KF’s point of view, the measurements are from two different sources: one from the detector and the other from the tracker. In cases that the measurements are expected from multiple sources, such measurements are expected to be fused to estimate the target states properly with appropriate measurement models (i.e., uncertainty modeling for the measurements).
+
+Depending on the accuracy characteristics of the detector and the tracker, the measurement noises should be configured accordingly. When a very high accuracy model is used for object detection, one may set `measurementNoiseVar4Detector` value lower than `measurementNoiseVar4Tracker`, effectively putting more trust on the detector's measurement than the tracker's prediction/localization.
+
+### Data Association
+
+**Related Parameters**
+
+* Matching Candidacy
+
+  * `minMatchingScore4Overall`
+  * `minMatchingScore4SizeSimilarity`
+  * `minMatchingScore4Iou`
+  * `minMatchingScore4VisualSimilarity`
+
+* Matching Score Weights
+
+  * `matchingScoreWeight4VisualSimilarity`
+  * `matchingScoreWeight4SizeSimilarity`
+  * `matchingScoreWeight4Iou`
+
+In the video frames where the detector performs inference (referred to as the inference frames), the NvDCF tracker performs the data association to match a set of detector objects to a set of existing targets. To reduce the computational cost for matching, it is essential to define a small set of good candidates for each object tracker. That is where the criteria for matching candidacy comes in. For each tracker `bbox`, only the detector `bboxes` that are qualified in terms of the minimum size similarity, IOU, and the visual similarity are marked as candidates for matching. The visual similarity is computed based on the correlation response of the tracker at the detector `bbox` location. If one wants to consider only the detector `bboxes` that have at least some overlap with the tracker `bbox`, for example, then `minMatchingScore4Iou` would need to be set with a non-zero value. One can tune the other parameters in a similar manner.
+
+Given a set of candidate detector `bboxes` for each tracker, the data association matrix is constructed between the detector `bbox` set and the tracker set with the matching scores as the value for the elements in the matrix. The matching score for each element is computed as a weighted sum of:
+
+ (1) The visual similarity
+ (2) The size similarity, and
+ (3) IOU score with the corresponding weights in `matchingScoreWeight4VisualSimilarity`, `matchingScoreWeight4SizeSimilarity`, and `matchingScoreWeight4Iou`, respectively.
+
+The resulting matching score is put into the data association matrix only if the score exceeds a predefined threshold (i.e., `minMatchingScore4Overall`)
+
+### DCF Core Parameters
+
+Apart from the types and sizes of the visual features employed, there are parameters related to how to learn and update the classifier for each object in DCF frameworks, which would affect the accuracy.
+
+#### DCF Filter Learning
+
+**Related Parameters**
+
+* `filterLr`
+* `filterChannelWeightsLr`
+* `gaussianSigma`
+
+DCF-based trackers learn a classifier (i.e., discriminative correlation filter) for each object with implicit positive and negative samples. Such learned classifiers are updated on-the-fly for temporal consistency with a predefined learning rate (i.e., `filterLr`). If the visual appearance of the target objects is expected to vary quickly over time, one may employ a high learning rate for better adaptation of the correlation filter to the changing appearance. However, there is a risk of learning the background quickly as well, resulting in potentially more frequent track drift.
+
+As NvDCF tracker utilizes multi-channel visual features, it is of concern on how to merge those channels for the final correlation response. NvDCF employs an adaptive channel weight approach where the importance of each channel is examined on-the-fly, and the corresponding channel weights are updated over time with a pre-defined learning rate (i.e., `filterChannelWeightsLr`). The tuning strategy for this learning rate would be similar to the case of `filterLr` as described before.
+
+When a correlation filter is learned, `gaussianSigma` determines how tight we want to fit the resulting filter to the positive sample. A lower value means the tighter fit, but it may result in overfitting. On the other hand, a higher value may result in lower discriminative power in the learned filter.
+
+See also the [Troubleshooting in gst-nvtracker Setup and Parameter Tuning](/text/DS_troubleshooting#troubleshooting-in-gst-nvtracker-setup-and-parameter-tuning) section for solutions to common problems in tracker behavior and tuning.

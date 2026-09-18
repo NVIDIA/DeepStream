@@ -1,0 +1,73 @@
+---
+title: "TAO Toolkit Integration with DeepStream"
+---
+
+NVIDIA [TAO toolkit](https://developer.nvidia.com/tao-toolkit) is a simple, easy-to-use training toolkit that requires minimal coding to create vision AI models using the user's own data. Using TAO toolkit, users can transfer learn from NVIDIA pre-trained models to create their own model. Users can add new classes to an existing pre-trained model, or they can re-train the model to adapt to their use case. Users can use model pruning capability to reduce the overall size of the model.
+
+## Pre-trained models
+
+There are 2 types of pre-trained models that users can start with - purpose-built pre-trained models and meta-architecture vision models. Purpose-built pre-trained models are highly accurate models that are trained on millions of objects for a specific task. The pre-trained weights for meta-architecture vision models merely act as a starting point to build more complex models. These pre-trained weights are trained on Open image dataset and they provide a much better starting point for training versus starting from scratch or starting from random weights. With the latter choice, users can choose from 100+ permutations of model architecture and backbone. See the illustration below.
+
+  ![TAO toolkit Pretrained Models](/assets/images/content/tlt_models2_updated.png)
+
+**TAO toolkit pretrained models - use cases**
+
+| Model Name | Description | NGC Instance | TAO Finetuning |
+| --- | --- | --- | --- |
+| TrafficCamNet | 4 class object detection network to detect cars in an image. | `nvidia/tao/trafficcamnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:trafficcamnet>`_ | Yes |
+| PeopleNet | 3 class object detection network to detect people in an image. | `nvidia/tao/peoplenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_ | Yes |
+| VehicleMakeNet | Resnet18 model to classify a car crop into 1 out 20 car brands. | `nvidia/tao/vehiclemakenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehiclemakenet>`_ | Yes |
+| VehicleTypeNet | Resnet18 model to classify a car crop into 1 out 6 car types. | `nvidia/tao/vehicletypenet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehicletypenet>`_ | Yes |
+| License Plate Detection | Object Detection network to detect license plates in an image of a car. | `nvidia/tao/lpdnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:lpdnet>`_ | Yes |
+| License Plate Recognition | Model to recognize characters from the image crop of a License Plate. | `nvidia/tao/lprnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:lprnet>`_ | Yes |
+| PeopleSemSegNet | Semantic segmentation of persons in an image. | `nvidia/tao/peoplesemsegnet <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplesemsegnet>`_ | Yes |
+| CitySemSegFormer | Semantic segmentation of persons in an image. | `nvidia/tao/citysemsegformer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/citysemsegformer>`_ | Yes |
+| Optical Character Detection | Network to detect characters in an image. | `nvidia/tao/ocdnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocdnet>`_ | Yes |
+| Optical Character Recognition | Model to recognise characters from a preceding OCDNet model. | `nvidia/tao/ocrnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocrnet>`_ | Yes |
+| Retail Object Detection | DINO (DETR with Improved DeNoising Anchor Boxes) based object detection network to detect retail objects on a checkout counter. | `nvidia/tao/retail_object_detection <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_detection>`_ | Yes |
+| Retail Object Recognition | Embedding generator model to recognize objects on a checkout counter. | `nvidia/tao/retail_object_recognition <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_recognition>`_ | Yes |
+| ReIdentificationNet | Re-Identification network to generate embeddings for identifying persons in different scenes. | `nvidia/tao/reidentificationnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet>`_ | Yes |
+| Pose Classification | Pose classification network to classify poses of people from their skeletons. | `nvidia/tao/poseclassificationnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/poseclassificationnet>`_ | Yes |
+| PeopleNet Transformer | 3 class object detection network to detect people in an image. | `nvidia/tao/peoplenet_transformer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer>`_ | Yes |
+| BodyPose3DNet | 3D human pose estimation network to predict 34 keypoints in 3D of a person in an image. | `nvidia/tao/bodypose3dnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/bodypose3dnet>`_ | Yes |
+| PointPillarNet | Objects detection from a LIDAR point cloud file. | `nvidia/tao/pointpillarnet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet>`_ | Yes |
+| Mask2Former | Instance segmentation network to predict pixel-accurate masks for detected objects in an image. | `nvidia/tao/mask2former <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/mask2former>`_ | Yes |
+
+Most models trained with TAO toolkit are natively integrated for inference with DeepStream. If the model is integrated, it is supported by the reference `deepstream-app`. If the model is not natively integrated in the SDK, you can find a reference application on the GitHub repo. See the table below for information on the models supported. For models integrated into `deepstream-app`, we have provided sample config files for each of the networks. The sample config files are available in the [deepstream_tao_apps_configs](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/deepstream_app_tao_configs) folder. The table below also lists config files for each model.
+
+<Note title="Refer README in package `/opt/nvidia/deepstream/deepstream/samples/configs/tao_pretrained_models/README.md` to obtain TAO toolkit config files and models mentioned in following table.">
+
+</Note>
+
+The TAO toolkit pre-trained models table shows the deployment information of purpose-built pre-trained models.
+
+**TAO toolkit pre-trained models in DeepStream**
+
+| Pre-Trained model | DeepStream reference app | Config files | DLA supported |
+| --- | --- | --- | --- |
+| `TrafficCamNet <https://ngc.nvidia.com/catalog/models/nvidia:tao:trafficcamnet>`_ | deepstream-app | `deepstream_app_source1_trafficcamnet.txt`, `config_infer_primary_trafficcamnet.txt`, `labels_trafficnet.txt` | Yes |
+| `PeopleNet <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_ | deepstream-app | `deepstream_app_source1_peoplenet.txt`, `config_infer_primary_peoplenet.txt`, `labels_peoplenet.txt` | Yes |
+| `PointPillarNet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet>`_ | deepstream-lidar-inference-app | `config_lidar_triton_infer.yaml` | No |
+| `VehicleMakeNet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehiclemakenet>`_ | deepstream-app | `deepstream_app_source1_dashcamnet_vehiclemakenet_vehicletypenet.txt`, `config_infer_secondary_vehiclemakenet.txt`, `labels_vehiclemakenet.txt` | Yes |
+| `VehicleTypeNet <https://ngc.nvidia.com/catalog/models/nvidia:tao:vehicletypenet>`_ | deepstream-app | `deepstream_app_source1_dashcamnet_vehiclemakenet_vehicletypenet.txt`, `config_infer_secondary_vehicletypenet.txt`, `labels_vehicletypenet.txt` | Yes |
+| `CitySemSegFormer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/citysemsegformer>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_segmentation>`_ | `seg_app_unet.yml`, `pgie_citysemsegformer_tao_config.txt` | Yes |
+| `License Plate Detection <https://ngc.nvidia.com/catalog/models/nvidia:tao:lpdnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `License Plate Recognition <https://ngc.nvidia.com/catalog/models/nvidia:tao:lprnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `PoseClassificationNet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/poseclassificationnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `BodyPose3DNet <https://registry.ngc.nvidia.com/orgs/nvstaging/teams/tao/models/bodypose3dnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `Retail Object Recognition <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_recognition>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `Retail Object Detection <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/retail_object_detection>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `PeopleNet Transformer Model <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `ReIdentificationNet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `Optical Character Detection <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocdnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `Optical Character Recognition <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/ocrnet>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_others>`__ |  | No |
+| `PeopleNet Transformer <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_detection>`__ | `det_app_frcnn.yml`, `pgie_peoplenet_transformer_tao_config.yml` | No |
+| `Mask2Former <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/mask2former>`_ | `deepstream_tao_apps <https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps/apps/tao_detection>`__ | `ins_seg_app.yml`, `pgie_mask2former_tao_config.yml` | No |
+
+The TAO toolkit models can be deployed with DeepStream sample applications.
+
+     Learn more about running the TAO models here: [deepstream tao apps](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps)
+
+For more information about TAO and how to deploy TAO models, refer to [Integrating TAO Models into DeepStream](https://docs.nvidia.com/tao/tao-toolkit/text/ds_tao/deepstream_tao_integration.html) chapter of [TAO toolkit user guide](https://docs.nvidia.com/tao/tao-toolkit/index.html).
+
+For more information about deployment of architecture specific models with DeepStream, refer to [deepstream tao apps Github repo](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps).

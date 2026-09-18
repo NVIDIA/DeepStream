@@ -1,0 +1,128 @@
+Module,Property,Meaning,Type and Range,Default value, Support Dynamic Updates
+Base Config,minDetectorConfidence,Minimum detector confidence for a valid object,"Float,
+-inf to inf",minDetectorConfidence: 0.0, True
+,checkClassMatch,"If enabled, only same-class objects are associated in DataAssociator, TrajectoryManagement re-association, and MultiViewAssociator","Boolean, [0, 1]",checkClassMatch: 1, False
+,useBatchNumForFrameId,"Frame ID source: per-source nvstreammux frame number (0) or tracker batch counter shared by all streams in a batch (1)","Boolean, [0, 1]",useBatchNumForFrameId: 0, False
+Control, tracker-reset, soft reset the tracker removing all tracks and track history, Boolean, tracker-reset:0, True
+Target Management,preserveStreamUpdateOrder,Whether to ensure target ID update order the same as input stream ID order,Boolean,preserveStreamUpdateOrder: 0, False
+,maxTargetsPerStream,Max number of targets to track per stream,"Integer, 0 to 65535",maxTargetsPerStream: 30, False
+,minIouDiff4NewTarget,Min IOU to existing targets for discarding new target,"Float,
+0 to 1",minIouDiff4NewTarget: 0.5, True
+,enableBboxUnClipping,Enable bounding-box unclipping,Boolean,enableBboxUnClipping: 0, True
+,probationAge,Length of probationary period in #of frames,"Integer, ≥0",probationAge: 5, True
+,maxShadowTrackingAge,Maximum length of shadow tracking,"Integer, ≥0",maxShadowTrackingAge: 38, True
+,earlyTerminationAge,Early termination age,"Integer, ≥0",earlyTerminationAge: 2, True
+,outputTerminatedTracks,"Output total frame history for terminated tracks to the tracker plugin for downstream usage",Boolean, outputTerminatedTracks: 0, False
+,outputShadowTracks,"Output shadow track state information to the tracker plugin for downstream usage",Boolean, outputShadowTracks: 0, False
+,outputVisibility,"Output object visibility ratio to object user meta and file dumps",Boolean,outputVisibility: 0, False
+,terminatedTrackFilename,"File name prefix to save terminated tracks",String,"terminatedTrackFilename: """"", False
+Trajectory Management,useUniqueID,Enable unique ID generation scheme,Boolean,useUniqueID: 0, False
+,enableReAssoc,Enable motion-based target re-association,Boolean,enableReAssoc: 0, False
+,minMatchingScore4Overall,Min total score for re-association,"Float,
+0.0 to 1.0",minMatchingScore4Overall: 0.4, True
+,minTrackletMatchingScore,Min tracklet similarity score for matching in terms of average IOU between tracklets,"Float,
+0.0 to 1.0",minTrackletMatchingScore: 0.4, False
+,minMatchingScore4ReidSimilarity,Min ReID score for re-association,"Float,
+0.0 to 1.0",minMatchingScore4ReidSimilarity: 0.8, True
+,matchingScoreWeight4TrackletSimilarity,Weight for tracklet similarity term in re-assoc cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4TrackletSimilarity: 1.0, True
+,matchingScoreWeight4ReidSimilarity,Weight for ReID similarity term in re-assoc cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4ReidSimilarity: 0.0, True
+,minTrajectoryLength4Projection,"Min tracklet length of a target (i.e., age) to perform trajectory projection [frames]","Integer, >=0",minTrajectoryLength4Projection: 20, True
+,prepLength4TrajectoryProjection,Length of the trajectory during which the state estimator is updated to make projections [frames],"Integer, >=0",prepLength4TrajectoryProjection: 10, True
+,trajectoryProjectionLength,Length of the projected trajectory [frames],"Integer, >=0",trajectoryProjectionLength: 90, True
+,maxAngle4TrackletMatching,Max angle difference for tracklet matching [degree],"Integer, [0, 180]",maxAngle4TrackletMatching: 40, True
+,minSpeedSimilarity4TrackletMatching,Min speed similarity for tracklet matching,"Float,
+0.0 to 1.0",minSpeedSimilarity4TrackletMatching: 0.3, True
+,minBboxSizeSimilarity4TrackletMatching,Min bbox size similarity for tracklet matching,"Float,
+0.0 to 1.0",minBboxSizeSimilarity4TrackletMatching: 0.6, True
+,maxTrackletMatchingTimeSearchRange,Search space in time for max tracklet similarity,"Integer, >=0",maxTrackletMatchingTimeSearchRange: 20, True
+,trajectoryProjectionProcessNoiseScale,Trajectory state estimator's process noise scale,"Float,
+0.0 to inf",trajectoryProjectionProcessNoiseScale: 1.0, True
+,trajectoryProjectionMeasurement NoiseScale,Trajectory state estimator's measurement noise scale,"Float,
+0.0 to inf",trajectoryProjectionMeasurement NoiseScale: 1.0, True
+,trackletSpacialSearchRegionScale,Re-association peer tracklet search region scale,"Float,
+0.0 to inf",trackletSpacialSearchRegionScale: 0.0, True
+,reidExtractionInterval,Frame interval to extract ReID features per target for re-association; -1 means only extracting the beginning frame per target,"Integer, ≥-1",reidExtractionInterval: 0, True
+Data Associator,dataAssociatorType,Type of data associator { DEFAULT=0 },"Integer, [0]",dataAssociatorType: 0, False
+,associationMatcherType,"Type of matching algorithm { GREEDY=0, CASCADED=1 }","Integer, [0, 1]",associationMatcherType: 0, False
+,minMatchingScore4Overall,Min total score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4Overall: 0.0, True
+,minMatchingScore4SizeSimilarity,Min bbox size similarity score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4SizeSimilarity: 0.0, True
+,minMatchingScore4Iou,Min IOU score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4Iou: 0.0, True
+,matchingScoreWeight4SizeSimilarity,Weight for size similarity term in matching cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4SizeSimilarity: 0.0, True
+,matchingScoreWeight4Iou,Weight for IOU term in matching cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4Iou: 1.0, True
+,tentativeDetectorConfidence,"If a detection's confidence is lower than this but higher than minDetectorConfidence, then it's considered as a tentative detection","Float,
+0.0 to 1.0",tentativeDetectorConfidence: 0.5, True
+,minMatchingScore4TentativeIou,Min iou threshold to match targets and tentative detection,"Float,
+0.0 to 1.0",minMatchingScore4TentativeIou: 0.0, True
+State Estimator,stateEstimatorType,"Type of state estimator among { DUMMY=0, SIMPLE=1, REGULAR=2, SIMPLE_LOC=3 }","Integer, [0,3]",stateEstimatorType: 0, False
+,processNoiseVar4Loc,Process noise variance for bbox center,"Float,
+0.0 to inf",processNoiseVar4Loc: 2.0, False
+,processNoiseVar4Size,Process noise variance for bbox size,"Float,
+0.0 to inf",processNoiseVar4Size: 1.0, False
+,processNoiseVar4Vel,Process noise variance for velocity,"Float,
+0.0 to inf",processNoiseVar4Vel: 0.1, False
+,measurementNoiseVar4Detector,Measurement noise variance for detector's detection,"Float,
+0.0 to inf",measurementNoiseVar4Detector: 4.0, False
+,measurementNoiseVar4Tracker,Measurement noise variance for tracker's localization,"Float,
+0.0 to inf",measurementNoiseVar4Tracker: 16.0, False
+,noiseWeightVar4Loc,"Noise covariance weight for bbox location; if set, location noise will be proportional to box height","Float,
+>0.0 considered as set",noiseWeightVar4Loc: -0.1, False
+,noiseWeightVar4Vel,"Noise covariance weight for bbox velocity; if set, location noise will be proportional to box height","Float,
+>0.0 considered as set",noiseWeightVar4Vel: -0.1, False
+,useAspectRatio,Use aspect ratio in Kalman Filter's states,Boolean,useAspectRatio: 0, False
+Object Re-ID,"[All the parameters in
+""Model Inference"" module]","This network's input is each target's cropped image. It uses ""Model Inference"" parameters to define the network input format and TensorRT inference properties.","[Refer to ""Model
+Inference"" module","[Refer to ""Model Inference"" module]", False
+,reidType,"The type of Re-ID network among { DUMMY=0, NvDEEPSORT=1, Reid based reassoc=2, both NvDEEPSORT and reid based reassoc=3 }","Integer,
+[0, 3]",reidType: 0, False
+,reidFeatureSize,"Size of Re-ID feature","Integer,
+>0",reidFeatureSize: 128, False
+,reidHistorySize,"Size of feature gallery, i.e. max number of Re-ID features kept for one tracker","Integer,
+>0",reidHistorySize: 100, False
+,addFeatureNormalization,"If Re-ID network's output Re-ID feature vector is not l2 normalized, explicitly performs l2 normalization",Boolean,addFeatureNormalization: 0, False
+,keepAspc,"Whether to keep aspcect ratio when resizing input objects to Re-ID network",Boolean,keepAspc: 1, False
+,outputReidTensor,"Output Re-ID features to user meta for downstream usage",Boolean, outputReidTensor: 0, False
+Object Model Projection,cameraModelFilepath,"Camera info file path(s) for SV3DT; ordered list per stream index or map keyed by sensor name","String","cameraModelFilepath: """"", False
+,waistHeightRatio,The ratio of human upper body with regarding to the whole body. This value is assumed to be the same for all the people.,"Float, (0, 1)",waistHeightRatio: 0.5,
+,outputFootLocation,"Output object (especially for human) foot location to object meta and file dump",Boolean,outputFootLocation: 0, False
+,outputConvexHull,"Output projected object convex hull (especially cylinder for human) to object meta and file dump",Boolean,outputConvexHull: 1, False
+,maxConvexHullSize,"Maximum number of points to consist an object convex hull","Integer,
+>0",maxConvexHullSize: 15, False
+,minPoseConfidence,"Minimum pose keypoints confidence to be used in human height estimation","Float,
+0.0 to 1.0",minPoseConfidence: 0.5, False
+Pose Estimation,"[All the parameters in
+""Model Inference"" module]","This network's input is each target's cropped image. It uses ""Model Inference"" parameters to define the network input format and TensorRT inference properties.","[Refer to ""Model
+Inference"" module]","[Refer to ""Model Inference"" module]",
+,poseEstimatorType,"The type of pose estimation network among { DUMMY=0, enable pose estimation=1 }","Integer,
+[0, 1]",poseEstimatorType: 0, False
+,poseInferenceInterval,"Pose inference frame interval. -1 means only for the first frame of each target and use it to determine the target height. 0 means for every frame. Positive integers mean inference with a strided frame interval. Target height will be updated after each inference.","Integer,
+>=-1",poseInferenceInterval: -1, False
+,operateOnClassIds,"Class IDs on which pose estimation operates. When class IDs are specified (e.g., [0,1]), only image patches for those classes are sent to pose inference. If not specified or empty, operates on all classes.","List of integers,
+>=0","operateOnClassIds: []", False
+Model Inference,batchSize,Batch size of network,"Integer,
+>0",batchSize: 1, False
+,workspaceSize,"Workspace size to be used by TensorRT engine, in MB","Integer,
+>0",workspaceSize: 20, False
+,inferDims,Network input dimension CHW or HWC based on inputOrder,"Integer,
+>0","inferDims: [128, 64, 3]", False
+,inputOrder,"Network input order {NCHW=0, NHWC=1}","Integer,
+[0, 1]",inputOrder: 1, False
+,colorFormat,"Network input color format among {RGB=0, BGR=1 }","Integer,
+[0, 1]",colorFormat: 0, False
+,networkMode,"Network inference precision mode among {FP32=0, FP16=1, INT8=2 }","Integer,
+[0, 1, 2]",networkMode: 0, False
+,offsets,"Array of values to be subtracted from each input channel, with length equal to number of channels",Comma delimited float array,"offsets: [0.0, 0.0, 0.0]", False
+,netScaleFactor,Scaling factor for network input after subtracting offsets,"Float,
+>0",netScaleFactor: 1.0, False
+,tltEncodedModel,Absolute path of the TAO toolkit encoded model,String,"tltEncodedModel: """"", False
+,tltModelKey,Key for the TAO toolkit encoded model,String,"tltModelKey: """"", False
+,onnxFile,Absolute path of the ONNX model file,String,"onnxFile: """"", False
+,modelEngineFile,Absolute path to TensorRT engine file,String,"modelEngineFile:""""", False
+,calibrationTableFile,"Absolute path to calibration table, required by INT8 only",String,"calibrationTableFile:""""", False
+,useVPICropScaler,Use NVIDIA's `VPI™ <https://docs.nvidia.com/vpi/index.html>`_ Crop Scaler algorithm instead of built in implementation,Boolean, useVPICropScaler: 0, False

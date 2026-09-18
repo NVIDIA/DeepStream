@@ -1,0 +1,50 @@
+---
+title: "Gst-nvblender"
+---
+
+The Gst-nvblender plugin is a GPU accelerated video compositor. It accepts multiple input streams on its request sink pads and blends them into a single output stream, with per-pad control over position, size, alpha and crossfade ratio. Sink pads are composited in the order they are linked, so a pad linked later is drawn on top of (obscures) pads linked earlier.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Multiple GStreamer buffers containing NV12/RGBA frame(s), one per request sink pad
+
+* Control parameters
+
+  *	gpu-id, selects the GPU ID used for compositing
+  *	Per-pad xpos, ypos, width, height, alpha, crossfade-ratio
+
+* Output
+
+  *	Single GStreamer buffer containing the composited NV12/RGBA frame
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvblender plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| GPU-accelerated multi-stream blending | Composites multiple input streams into a single output stream on the GPU | DS 9.2 |
+| Per-pad position and size control | Sets X/Y position and width/height independently for each input pad | DS 9.2 |
+| Per-pad alpha and crossfade control | Sets per-pad alpha blending and crossfade ratio | DS 9.2 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvblender plugin.
+
+**Gst-nvblender plugin gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU used for compositing (dGPU only) | Integer,<br />0 to 256 | gpu-id=0 |
+| background | Background type used to fill areas not covered by any input pad | Enum | background=1 |
+| batched-background | Whether the background is batched | Boolean | batched-background=1 |
+| xpos (per-pad) | X position of the pad's picture in the composited output | Integer | xpos=0 |
+| ypos (per-pad) | Y position of the pad's picture in the composited output | Integer | ypos=0 |
+| width (per-pad) | Width of the pad's picture in the composited output | Integer | width=1280 |
+| height (per-pad) | Height of the pad's picture in the composited output | Integer | height=720 |
+| alpha (per-pad) | Alpha blending value of the pad's picture | Double,<br />0.0 to 1.0 | alpha=1.0 |
+| crossfade-ratio (per-pad) | Crossfade ratio to use while crossfading with the following pad; a value below 0 means no crossfading | Double,<br />-1.0 to 1.0 | crossfade-ratio=-1.0 |

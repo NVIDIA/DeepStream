@@ -1,0 +1,9 @@
+﻿Feature,Description,Release
+Payload in JSON format,Accepts message payload in JSON format,DS 3.0
+Kafka protocol support,Kafka protocol adapter implementation,DS 3.0
+Azure IOT support,Integration with Azure IOT framework,DS 4.0
+AMQP support,AMQP 0-9-1 protocol adapter implementation,DS 4.0
+REDIS support, Redis protocol adapter using Redis Streams, DS 5.1
+MQTT support, MQTT protocol adapter using Eclipse mosquitto, DS 6.3
+Custom protocol support,Provision to support custom protocol through a custom implementation of the adapter interface,DS 3.0
+Configurable parameters,Protocol specific options through configuration file,DS 3.0

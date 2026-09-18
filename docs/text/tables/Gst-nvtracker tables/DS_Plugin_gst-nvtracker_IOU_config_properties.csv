@@ -1,0 +1,22 @@
+﻿Module,Property,Meaning,Type and Range,Default value
+Base Config,minDetectorConfidence,Minimum detector confidence for a valid object,"Float,
+-inf to inf",minDetectorConfidence: 0.0
+,checkClassMatch,"If enabled, only objects of the same class ID are associated. Set under BaseConfig. The deprecated DataAssociator:checkClassMatch key is ignored with a warning.","Boolean, [0, 1]",checkClassMatch: 1
+Target Management,maxTargetsPerStream,Max number of targets to track per stream,"Integer, 0 to 65535",maxTargetsPerStream: 30
+,minIouDiff4NewTarget,Min IOU to existing targets for discarding new target,"Float,
+0 to 1",minIouDiff4NewTarget: 0.5
+,probationAge,Length of probationary period in #of frames,"Integer, ≥0",probationAge: 5
+,maxShadowTrackingAge,Maximum length of shadow tracking,"Integer, ≥0",maxShadowTrackingAge: 38
+,earlyTerminationAge,Early termination age,"Integer, ≥0",earlyTerminationAge: 2
+Trajectory Management,useUniqueID,Enable unique ID generation scheme,"Integer, [0, 1]",useUniqueID: 0
+Data Associator,associationMatcherType,"Type of matching algorithm { GREEDY=0, GLOBAL=1 }","Integer, [0, 1]",associationMatcherType: 0
+,minMatchingScore4Overall,Min total score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4Overall: 0.0
+,minMatchingScore4SizeSimilarity,Min bbox size similarity score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4SizeSimilarity: 0.0
+,minMatchingScore4Iou,Min IOU score for valid matching,"Float,
+0.0 to 1.0",minMatchingScore4Iou: 0.0
+,matchingScoreWeight4SizeSimilarity,Weight for size similarity term in matching cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4SizeSimilarity: 0.0
+,matchingScoreWeight4Iou,Weight for IOU term in matching cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4Iou: 1.0

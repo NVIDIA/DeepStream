@@ -1,0 +1,36 @@
+﻿Property,Meaning,Type and Range,Example Notes
+enable,Enables vision encoding,Boolean,enable=1
+backend,Inference backend to use (triton or tensorrt),String,backend=triton
+triton-url,Triton Inference Server URL,String,triton-url=localhost:8001
+triton-model,Triton model name,String,triton-model=radio_clip_trt
+model-variant,Model variant (for compatibility),String,model-variant=default
+tensorrt-engine,"Path to a TensorRT engine (.plan) file; settable while PLAYING to reload a prebuilt engine on the fly, but the new engine must match the live one's input resolution, embedding dimension, and batch capacity",String,tensorrt-engine=/path/to/model.plan
+onnx-model,"Path to an ONNX model file used to build the engine if it is not found; cold-start configuration only (setting it on a running element stores it for the next start rather than loading it -- use tensorrt-engine for a runtime update)",String,onnx-model=/path/to/model.onnx
+batch-size,TensorRT batch size for engine building/inference,"Integer,
+1 to 4,294,967,295",batch-size=16
+min-crop-size,Minimum crop size (width or height) below which an object is skipped,"Integer,
+8 to 512",min-crop-size=32
+verbose,Enables verbose logging,Boolean,verbose=0
+gpu-id,GPU device ID,"Integer,
+0 to 7",gpu-id=0
+device,Device type used for inference (cuda or cpu),String,device=cuda
+skip-interval,"Frame skip interval (0 = none, 1 = every other frame, 2 = every 3rd frame, etc.)","Integer,
+0 to 100",skip-interval=0
+embedding-classes,Semicolon-separated list of classes to generate embeddings for; empty means all classes,String,embedding-classes=Person;Vehicle
+query-only,Initializes the model for REST API query handling only and skips per-frame pipeline inference,Boolean,query-only=0
+smart-infer,Skips inference for tracked objects whose embedding is already cached,Boolean,smart-infer=0
+cache-refresh-interval,Re-infers cached objects every N frames; 0 means never re-infer while tracked,"Integer,
+0 to 10,000",cache-refresh-interval=0
+cache-max-size,Maximum number of object embeddings to cache; oldest entries are evicted first,"Integer,
+10 to 100,000",cache-max-size=10000
+ofa-predict,Uses hardware optical flow motion vectors to predict embedding staleness and transform cached embeddings instead of re-inferring,Boolean,ofa-predict=0
+ofa-motion-threshold,"Per-object average motion magnitude, in flow-vector units (~pixels/frame), below which the cached embedding is trusted","Float,
+0.0 to 100.0",ofa-motion-threshold=5.0
+ofa-high-motion-threshold,Per-object motion magnitude above which full re-inference is forced because the object's appearance likely changed significantly,"Float,
+0.0 to 500.0",ofa-high-motion-threshold=20.0
+dla-validator,Enables a lightweight appearance-change detector on DLA (Jetson) or GPU fallback to gate full vision-encoder inference,Boolean,dla-validator=0
+dla-validator-engine,Path to the TensorRT engine for the lightweight appearance-change detector,String,dla-validator-engine=/path/to/validator.plan
+dla-core,DLA core to use for the validator; -1 uses GPU fallback,"Integer,
+-1 to 7",dla-core=-1
+dla-change-threshold,Probability threshold above which the validator considers the object's appearance changed,"Float,
+0.0 to 1.0",dla-change-threshold=0.5

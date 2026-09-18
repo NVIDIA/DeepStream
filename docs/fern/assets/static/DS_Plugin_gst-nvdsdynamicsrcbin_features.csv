@@ -1,0 +1,11 @@
+Feature,Description,Benefit
+Single Active Decoder,Maintains one decoder instance for multiple sources,Eliminates decoder initialization overhead
+Dynamic Source Management,Add/remove video sources via signals without pipeline reconstruction,Enables real-time source switching
+Hardware Decoding,Uses nvv4l2decoder for GPU-accelerated video decoding,Improved performance and throughput
+Thread-safe Operations,Protected source operations with mutexes,Concurrent signal handling support
+Custom Metadata,Attaches source ID and frame ID to each buffer,Enables source tracking and identification
+Custom Events,Stream start and EOS events with source identification,Provides source change notifications
+Internal Queue Management,Maintains queues for active and pending sources,Seamless source switching
+Application Messages,Posts messages for source change notifications,Enables application-level monitoring
+Format Detection,Automatic media format detection via parsebin,Supports various video formats
+Performance Optimization,Keeps decoder warm and ready for rapid switching,Reduced latency between streams

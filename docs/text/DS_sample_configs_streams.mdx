@@ -1,0 +1,159 @@
+---
+title: "Sample Configurations and Streams"
+---
+
+## Contents of the package
+
+This section provides information about included sample configs and streams.
+
+* samples: Directory containing sample configuration files, streams, and models to run the sample applications.
+
+**samples/configs/deepstream-app: Configuration files for the reference application**
+
+The following table provides information about configuration files for the reference application in `samples/configs/deepstream-app` directory.
+
+**Sample configs for the reference application in samples/configs/deepstream-app**
+
+| Configuration File | Description | Platform |
+| --- | --- | --- |
+| source30_1080p_dec_infer-resnet_tiled_display.txt | Demonstrates 30 stream decodes with primary inferencing | For all platforms. |
+| source30_1080p_dec_infer-resnet_tiled_display.yml | YAML based config file to demonstrate 30 stream decode with primary inference for dGPU and Jetson AGX Orin platforms only. | For all platforms. |
+| source4_1080p_dec_infer-resnet_tiled_display.txt | Demonstrates four stream decodes with primary inferencing, object tracking, and two different secondary classifiers | For all platforms. |
+| source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.yml | YAML based config file to demonstrate four stream decode with primary inferencing, object tracking, and two different secondary classifiers | For all platforms. |
+| source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display_gpu1.txt | Demonstrates four stream decodes with primary inferencing, object tracking, and two different secondary classifiers on GPU 1 (for systems that have multiple GPU cards) | For x86 platforms only |
+| config_infer_primary.txt | Configures a nvinfer element as primary detector | For all platforms. |
+| config_infer_primary.yml | YAML based config file to configure a nvinfer element as primary detector | For all platforms. |
+| config_infer_secondary_vehiclemake.txt, config_infer_secondary_vehicletypes.txt | Configure a nvinfer element as secondary classifier | For all platforms. |
+| config_infer_secondary_vehiclemake.yml, config_infer_secondary_vehicletypes.yml | YAML based config file to configure a nvinfer element as secondary classifier | For all platforms. |
+| config_tracker_IOU.yml | Config file for IOU tracker | For all platforms. |
+| config_tracker_NvSORT.yml | Config file for NvSORT tracker | For all platforms. |
+| config_tracker_NvDeepSORT.yml | Config file for NvDeepSORT tracker | For all platforms. |
+| config_tracker_NvDCF_accuracy.yml | Config file for NvDCF tracker for higher accuracy | For all platforms. |
+| config_tracker_NvDCF_max_perf.yml | Config file for NvDCF tracker for max perf mode | For all platforms. |
+| config_tracker_NvDCF_perf.yml | Config file for NvDCF tracker for perf mode | For all platforms. |
+| config_preprocess.txt | Config file for using preprocess in PGIE mode | For all platforms. |
+| config_preprocess_sgie.txt | Config file for using preprocess in SGIE mode | For all platforms. |
+| source4_1080p_dec_preprocess_infer-resnet_preprocess_sgie_tiled_display.txt | Demonstrates four stream decodes with preprocess plugin in PGIE mode followed by primary inferencing, preprocess plugin in SGIE mode, and two different secondary classifiers | For all platforms. |
+| source30_1080p_dec_preprocess_infer-resnet_tiled_display.txt | Demonstrates 30 stream decodes with preprocess plugin in PGIE mode followed by primary inferencing | For all platforms. |
+| sources_30.csv | CSV file for 30 sources required in source30_1080p_dec_infer-resnet_tiled_display.yml | For all platforms. |
+| sources_4.csv | CSV file for 30 sources required in source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.yml | For all platforms. |
+| source1_usb_dec_infer_resnet.txt | Demonstrates one USB camera as input | For all platforms. |
+| source1_csi_dec_infer_resnet.txt | Demonstrates one CSI camera as input | For Jetson only |
+| source2_csi_usb_dec_infer_resnet.txt | Demonstrates one CSI camera and one USB camera as inputs | For Jetson only |
+| source6_csi_dec_infer_resnet.txt | Demonstrates six CSI cameras as inputs | For Jetson only |
+| source2_1080p_dec_infer-resnet_demux.txt | Demonstrates demux mode for two sources | For all platforms. |
+| config_mux_source4.txt, config_mux_source30.txt | Sample nvstreammux (new) config files. For more details see [Section Mux Config Properties](/DS_plugin_gst_nvstreammux2_config_file_properties) | For all platforms. |
+
+**samples/configs/deepstream-app-triton: Configuration files for the reference application for inferencing using Triton Inference Server.**
+
+The following table provides information about configuration files for the reference application in `samples/configs/deepstream-app-triton` directory.
+
+**Sample configs for the reference application for inferencing using Triton Inference Server in samples/configs/deepstream-app-triton**
+
+| Configuration File | Description |
+| --- | --- |
+| source30_1080p_dec_infer-resnet_tiled_display.txt | 30 Decode + Infer |
+| source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.txt | 4 Decode + Infer + SGIE + Tracker |
+| source1_primary_classifier.txt | Single source + full frame classification |
+| source1_1080p_dec_infer_peoplesemsegnet_shuffle.txt | Single source + semantic segmentation |
+| source1_primary_detector_peoplenet_transformer.txt | Single source + full frame classification |
+| source1_primary_detector.txt | Single source + object detection using ssd |
+
+<Note>
+Other classification models can be used by changing the ds-triton `nvinferserver` config file in the `[*-gie]` group of application config file.
+</Note>
+
+* Configuration files for ds-triton `nvinferserver` element in `configs/deepstream-app-triton/`. The following table provides information about configuration files for the reference application in `samples/configs/deepstream-app-triton` directory.
+
+**Sample configs for ds-triton `nvinferserver` element in samples/configs/deepstream-app-triton**
+
+| Configuration File | Description |
+| --- | --- |
+| config_infer_plan_engine_primary.txt | Primary Object Detector |
+| config_infer_secondary_plan_engine_vehiclemake.txt | Secondary Vehicle Make Classifier |
+| config_infer_secondary_plan_engine_vehicletypes.txt | Secondary Vehicle Type Classifier |
+
+**samples/configs/deepstream-app-triton-grpc: Configuration files for the reference application for inferencing using Triton Inference Server gRPC**
+
+The following table provides information about configuration files for the reference application using Triton Inference Server `gRPC` in `samples/configs/deepstream-app-triton-grpc` directory.
+
+**Sample configs for inferencing using Triton Inference Server `gRPC` in samples/configs/deepstream-app-triton-grpc**
+
+| Configuration File | Description |
+| --- | --- |
+| config_infer_plan_engine_primary.txt | Primary Object Detector |
+| config_infer_secondary_plan_engine_vehiclemake.txt | Secondary Vehicle Make Classifier |
+| config_infer_secondary_plan_engine_vehicletypes.txt | Secondary Vehicle Type Classifier |
+
+* Configuration files for ds-triton `nvinferserver` element in `configs/deepstream-app-triton-grpc/`. The following table provides information about configuration files for the reference application using Triton Inference Server `nvinferserver` in `samples/configs/deepstream-app-triton-grpc` directory.
+
+**Sample configs for inferencing using Triton Inference Server `gRPC` in samples/configs/deepstream-app-triton-grpc**
+
+| Configuration File | Description |
+| --- | --- |
+| config_infer_plan_engine_primary.txt | Primary Object Detector |
+| config_infer_secondary_plan_engine_vehiclemake.txt | Secondary Vehicle Make Classifier |
+| config_infer_secondary_plan_engine_vehicletypes.txt | Secondary Vehicle Type Classifier |
+
+* NVIDIA TAO Toolkit pretrained Models:
+
+   - samples/configs/tao_pretrained_models: Contains README.md to obtain configs and models for TAO toolkit.
+
+* samples: Directory containing sample configuration files, models, and streams to run the sample applications.
+* samples/streams: The following streams are provided with the DeepStream SDK:
+
+   =======================   ===================================================
+    Streams                    Type of Stream
+   =======================   ===================================================
+    sample_1080p_h264.mp4	    H264 containerized stream
+    sample_1080p_h265.mp4	    H265 containerized stream
+    sample_720p.h264	        H264 elementary stream
+    sample_720p.jpg	          JPEG image
+    sample_720p_mjpeg.mp4	    MJPEG containerized stream
+    sample_720p.mp4           Containerized stream
+    sample_cam5.mp4           H264 containerized stream (360D camera stream)
+    sample_cam6.mp4	          H264 containerized stream (360D camera stream)
+    sample_industrial.jpg	    JPEG image
+    yoga.jpg	                Image for perspective projection in Dewarper
+    yoga.mp4                  Containerized stream
+    sample_qHD.mp4 	          Used for MaskRCNN
+    sample_qHD.h264           H264 elementary stream
+    sample_push.mov           H264 containerized stream
+    sample_ride_bike.mov      H264 containerized stream
+    sample_run.mov            H264 containerized stream
+    sample_walk.mov           H264 containerized stream
+    fisheye_dist.mp4          Containerized stream
+    sonyc_mixed_audio.wav     Audio bitstream
+    sample_office.mp4         Containerized stream
+    pointcloud                Contains input files for lidar application
+   =======================   ===================================================
+
+* samples/models: The following sample models are provided with the SDK:
+
+**DeepStream Reference application**
+
+| Model | Model Type | No. of Classes | Resolution |
+| --- | --- | --- | --- |
+| Primary Detector | Resnet18 | 4 | 960 × 544 |
+| Secondary Vehicle Make Classifier | Resnet18 | 20 | 224 × 224 |
+| Secondary Vehicle Type Classifier | Resnet18 | 6 | 224 × 224 |
+
+### Scripts included along with package
+
+<Note>
+* The script `prepare_classification_test_video.sh` mentioned below requires `ffmpeg` to be installed. Some of the low level codec libraries need to be re-installed along with ffmpeg.
+* Use the following command to install/re-install  ffmpeg: `apt-get install --reinstall libflac8 libmp3lame0 libxvidcore4 ffmpeg`
+</Note>
+
+The following scripts are included along with the sample applications package:
+
+* samples/ prepare_classification_test_video.sh: Downloads Imagenet test images and creates a video out of it to test with Classification models.
+* samples/ prepare_ds_triton_model_repo.sh: Prepare the Model repository for Triton Inference Server
+
+  1. Creates engine files for ONNX based models provided as part of SDK.
+
+* samples/ prepare_ds_triton_tao_model_repo.sh: Prepare the Model repository for Triton Tao Inference Server
+
+  1. Downloads Model files for Peoplenet Transformer, Peoplesemsegnet Shuffle.
+  2. Create engine files for downloaded models.
+* uninstall.sh: Used to clean up previous DS installation.

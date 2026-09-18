@@ -1,0 +1,3 @@
+Configuration File,Description
+source30_1080p_dec_infer-resnet_tiled_display.txt,30 Decode + Infer
+source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.txt,4 Decode + Infer + SGIE + Tracker

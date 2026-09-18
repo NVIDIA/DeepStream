@@ -1,0 +1,16 @@
+﻿Group,Configuration Group
+`Application Group`_,Application configurations that are not related to a specific component.
+`Tiled-display Group`_,Tiled display in the application.
+`Source Group`_,"Source properties. There can be multiple sources. The groups must be named as: [source0], [source1] …"
+`Source-list and source-attr-all Groups`_,"Source URI provided as a list. There can be multiple sources. The groups must be named as: [source-list] and [source-attr-all]"
+`Streammux Group`_,Specify properties and modify behavior of the streammux component.
+`Preprocess Group`_,"Specify properties and modify behavior of the preprocess component."
+`Primary GIE and Secondary GIE Group`_,"Specify properties and modify behavior of the primary GIE.
+Specify properties and modify behavior of the secondary GIE. The groups must be named as: [secondary-gie0], [secondary-gie1] …"
+`Tracker Group`_,Specify properties and modify behavior of the object tracker.
+`Message Converter Group`_,Specify properties and modify behavior of the message converter component.
+`Message Consumer Group`_,"Specify properties and modify behavior of message consumer components. The pipeline can contain multiple message consumer components. Groups must be named as [message-consumer0], [message-consumer1] …"
+`OSD Group`_,Specify properties and modify the on-screen display (OSD) component that overlays text and rectangles on the frame.
+`Sink Group`_,"Specify properties and modify behavior of sink components that represent outputs such as displays and files for rendering, encoding, and file saving. The pipeline can contain multiple sinks. Groups must be named as: [sink0], [sink1] …"
+`Tests Group`_,Diagnostics and debugging. This group is experimental.
+`NvDs-analytics Group`_,"Specify nvdsanalytics plugin configuration file, and to add the plugin in the application"

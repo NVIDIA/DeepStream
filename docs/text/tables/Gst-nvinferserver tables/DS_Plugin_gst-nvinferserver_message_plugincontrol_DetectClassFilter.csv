@@ -1,0 +1,25 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+bbox_filter,detection bounding box filter, PluginControl::BBoxFilter,"bbox_filter {
+min_width: 64
+min_height: 64
+}","| Detection
+| Both"
+roi_top_offset,Offset of the RoI from the top of the frame. Only objects within the RoI are output.,uint32,roi_top_offset: 128,"| Detection
+| Both"
+roi_bottom_offset,Offset of the RoI from the bottom of the frame. Only objects within the RoI are output.,uint32,roi_bottom_offset: ,"| Detection
+| Both"
+border_color,specify border color for detection bounding boxes,PluginControl::Color,"border_color { 
+r: 1.0
+g: 0.0
+b: 0.0
+a: 1.0
+}","| Detection
+| Both"
+bg_color,specify background color for detection bounding boxes,PluginControl::Color,"border_color { 
+r: 0.0
+g: 1.0
+b: 0.0
+a: 0.5
+}","| Detection
+| Both"

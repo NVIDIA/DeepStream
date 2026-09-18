@@ -1,0 +1,3 @@
+Property,Meaning,Type and Range,Example
+streams,Specify which streams to enable,"List[String],  select from [color, depth]","streams: [color, depth]"
+aligned_image_to_depth,Indicate whether color image is aligned to depth,Boolean,aligned_image_to_depth: False

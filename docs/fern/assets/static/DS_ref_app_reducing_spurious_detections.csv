@@ -1,0 +1,11 @@
+﻿Configuration Parameter,Description,Use Case
+threshold,"Per-class-threshold of primary detector.
+Increasing the threshold restricts output to objects with higher detection confidence.",—
+"roi-top-offset
+roi-bottom-offset","Per-class top/bottom region of interest (roi) offset.
+Restricts output to objects in a specified region of the frame.",To reduce spurious detections seen on the dashboard of dashcams
+"detected-min-w
+detected-min-h
+detected-max-w
+detected-max-h","Per-class min/max object width/height for primary-detector
+Restricts output to objects of specified size.","To reduce false detections, for example, a tree being detected as a person"

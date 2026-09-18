@@ -1,0 +1,91 @@
+---
+title: "DeepStream OpenTelemetry Support"
+---
+
+DeepStream provides OpenTelemetry support via nvmultiurisrcbin, enabling the export of pipeline performance metrics to observability platforms like Prometheus and Grafana.
+
+OpenTelemetry support is available for both x86 (DeepStream 9.0 onwards) and Jetson platforms. The **Gst-nvdslogger** plugin collects performance data (FPS, latency, frame numbers) from the GStreamer pipeline. This data is stored in shared memory structures managed by the **nvds_rest_metrics** library and exported to OpenTelemetry collectors using OTLP/HTTP.
+
+<Note>
+OpenTelemetry is supported through nvmultiurisrcbin. To activate it, incorporate nvmultiurisrcbin into your pipeline.
+</Note>
+
+## Configuration
+
+Configure OpenTelemetry using environment variables:
+
+| Environment Variable | Description |
+| --- | --- |
+| `OTEL_SDK_DISABLED` | Set to `"true"` to disable all telemetry (default: `"false"`) |
+| `OTEL_SERVICE_NAME` | Service identifier (e.g., `"rtvi-cv"`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector base URL (e.g., `"http://otel-collector:4318"`) |
+| `OTEL_METRIC_EXPORT_INTERVAL` | Metric export interval in milliseconds (default: `60000`) |
+| `OTEL_METRICS_EXPORTER` | Export destination: `"console"`, `"otlp"`, or `"none"` (default: `"otlp"`) |
+
+Set the following parameters in the deepstream-test5 application configuration file (/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/test5_config_file_nvmultiurisrcbin_src_list_attr_all.txt):
+
+```text
+[tiled-display]
+enable=3
+
+[sinkN]
+nvdslogger=1
+```
+
+## Supported Prometheus Metrics
+
+### Stream Performance Metrics
+
+| Metric Name | Description | Typical Value |
+| --- | --- | --- |
+| `stream_fps` | Frames per second processed for each stream | 25-30 (depends on source) |
+| `stream_latency_milliseconds` | End-to-end pipeline latency in milliseconds | 30-100ms (lower is better) |
+| `stream_frame_number` | Current frame number being processed for each stream | Monotonically increasing |
+| `stream_count` | Total number of active streams being processed | Based on configuration |
+
+### System Resource Metrics
+
+| Metric Name | Description |
+| --- | --- |
+| `cpu_utilization` | CPU utilization percentage across all cores |
+| `gpu_utilization` | GPU compute utilization percentage |
+| `ram_memory_gb` | System RAM memory usage in gigabytes |
+| `gpu_memory_gb` | GPU memory usage in gigabytes |
+
+<Note>
+`gpu_memory_gb` is not applicable on aarch64 devices (e.g., Jetson Thor) as they use unified memory, so it returns `-1`.
+</Note>
+
+## OpenTelemetry Collector Configuration
+
+To filter out inactive stream metrics, add the following processor to your collector configuration:
+
+```yaml
+processors:
+  filter/drop_inactive_streams:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - 'metric.name == "stream_fps" and value_double == -1.0'
+        - 'metric.name == "stream_latency" and value_double == -1.0'
+        - 'metric.name == "stream_frame_number" and value_int == -1'
+```
+
+If exporting to Prometheus, set `metric_expiration` >= `otlp-interval` to drop stale metrics:
+
+```yaml
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    metric_expiration: 4s
+```
+
+For steps to set up and run the OpenTelemetry Collector, refer to the [DeepStream OpenTelemetry Collector README](https://github.com/NVIDIA/DeepStream/blob/main/tools/deepstream-otelcol/README.md).
+
+## References
+
+For more information about OpenTelemetry, refer to the following resources:
+
+* [OTLP/HTTP Specification](https://opentelemetry.io/docs/specs/otlp/#otlphttp) - OpenTelemetry Protocol specification for HTTP transport
+* [OpenTelemetry Documentation](https://opentelemetry.io/docs/) - Official OpenTelemetry documentation
+* [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) - OpenTelemetry Collector documentation

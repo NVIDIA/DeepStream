@@ -1,0 +1,44 @@
+---
+title: "Gst-nvdslogger"
+---
+
+The Gst-nvdslogger plugin is a pass-through element that logs performance and metadata information for the buffers flowing through it, without modifying the data. It is typically inserted into a pipeline to measure per-stream FPS and frame-level latency, and to dump inference metadata for debugging. The performance data collected by this plugin is also used by the `nvds_rest_metrics` library to export pipeline metrics to OpenTelemetry collectors; see [DS_OpenTelemetry](DS_OpenTelemetry) for details.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	GStreamer buffer containing NvDsBatchMeta and any format
+
+* Control parameters
+
+  *	gpu-id is not applicable; the plugin does not process buffer content, only metadata
+
+* Output
+
+  *	GStreamer buffer, unmodified, passed through to the next element
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdslogger plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Per-stream FPS measurement | Measures and prints per-stream frames-per-second at a configurable interval | DS 9.2 |
+| Frame-level latency measurement | Measures and prints per-frame latency when latency tracking is enabled on the pipeline | DS 9.2 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdslogger plugin.
+
+**Gst-nvdslogger plugin gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| silent | Suppresses console output when set | Boolean | silent=0 |
+| fps_measurement_interval_sec | Interval in seconds over which buffers are counted for FPS calculation | Integer,<br />0 to 4,294,967,295 | fps_measurement_interval_sec=5 |
+| show-fps | Enables or disables FPS display prints | Boolean | show-fps=1 |
+| show-latency | Enables or disables frame-level latency display prints | Boolean | show-latency=1 |
+| latency | Microseconds to delay the initial packet | Integer,<br />0 to 4,294,967,295 | latency=0 |

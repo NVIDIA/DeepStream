@@ -1,0 +1,8 @@
+Feature,Description,Release
+Supports MOT detection format,Loads pre-generated detection metadata in MOT challenge format (CSV) to replay inference functionality.,DS 9.0
+External metadata ingestion,Efficiently injects externally-generated metadata into DeepStream pipelines and functions as a drop-in replacement for primary inference engine (PGIE),DS 9.0
+Supports multiple streams,Can load detection labels from multiple files corresponding to different source streams in a batch.,DS 9.0
+Coordinate scaling,Automatically scales bounding box coordinates from label space to actual frame resolution.,DS 9.0
+Flexible file organization,Supports both flat and nested directory structures for label files.,DS 9.0
+Frame interval control,"Supports skipping batches when loading labels, similar to inference interval in nvinfer.",DS 9.0
+Max frame number control,Supports limiting or specifying maximum frame numbers per stream with automatic wrapping.,DS 9.0

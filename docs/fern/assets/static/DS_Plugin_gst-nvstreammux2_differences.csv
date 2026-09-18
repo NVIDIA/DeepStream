@@ -1,0 +1,19 @@
+Default nvstreammux Properties,New nvstreammux Properties
+batch-size,batch-size
+num-surfaces-per-frame,num-surfaces-per-frame
+batched-push-timeout,batched-push-timeout
+width,"N/A;
+Scaling and color conversion support Deprecated."
+height,"N/A;
+Scaling and color conversion support Deprecated."
+enable-padding,"N/A;
+Scaling and color conversion support Deprecated."
+gpu-id,"N/A;
+Accelerated Scaling and color conversion support Deprecated."
+live-source,Deprecated
+nvbuf-memory-type,N/A
+buffer-pool-size,N/A
+attach-sys-ts,attach-sys-ts
+N/A,config-file-path
+sync-inputs,sync-inputs
+max-latency,max-latency

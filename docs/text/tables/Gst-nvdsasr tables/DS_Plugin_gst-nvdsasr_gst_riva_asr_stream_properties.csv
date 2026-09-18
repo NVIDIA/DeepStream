@@ -1,0 +1,8 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,Must be name: riva_asr_stream
+detail,Node for Riva ASR Steam setting details,Node,detail: encoding: LINEAR_PCM  …
+encoding,Part of detail node. Specify Input data format Only Value LINEAR_PCM is supported,String,encoding: LINEAR_PCM
+sample_rate_hertz,Part of detail node. Input audio sample rate Only Value 16000 is supported,Integer & >0, sample_rate_hertz: 16000
+language_code,Part of detail node. Specify which language is used for recognition Only Value en-US is supported,String,language_code: en-US
+max_alternatives,Part of detail node. Max alternatives selected by top confidence Only 1 is supported at present,Integer & >0, max_alternatives: 1
+enable_automatic_punctuation,Part of detail node. Enable automatic punctuation or not,Boolean,enable_automatic_punctuation: false

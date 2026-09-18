@@ -1,0 +1,85 @@
+---
+title: "Gst-nvdsmetamux"
+---
+
+The Gst-nvdsmetamux plugin is a `NvDsBatchMeta` utils plugin which forms new `NvDsBatchMeta` from multiple input branches. When connecting a branch to nvdsmetamux, a new pad must be requested from the muxer using `gst_element_get_request_pad` and the pad template `sink_%u`.
+Application needs select one active sink pad which gstbuffer will be passed to src pad. The default active sink pad is the sink pad 0. `nvdsmetamux` will find the nearest video frame meta based on the active sink pad video frame PTS and merge the meta data into output buffer `NvDsBatchMeta`. Application can set the PTS tolerance threshold, if the difference of frame PTS for the same source id is bigger than the threshold, The meta data merge will be skipped. The default of the PTS match threshold is 60 ms.
+Input buffer will be return if all video frame PTS are less than current selected PTS for all source id in the batch. Application can filter meta data based on source id and model unique id.
+
+![Gst-nvdsmetamux](/assets/images/content/DS_plugin_gst-nvdsmetamux.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  * Gst Buffer (batched)
+  * NvDsBatchMeta
+
+* Control parameters
+
+  *	active-pad
+  *	pts-tolerance
+  *	config-file
+
+* Output
+
+  * Gst Buffer (batched)
+  *	NvDsBatchMeta merged NvDsBatchMeta from all sink pads
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvsmetamux features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports merging NvDsBatchMeta | Merges NvDsBatchMeta from all sink pads to one NvDsBatchMeta. | DS 8.0 |
+| Supports syncing video frame | Syncs video frame based on the frame PTS in NvDsBatchMeta. | DS 8.0 |
+| Supports selecting active sink pad | The video buffer of active sink pad will be sent to the src pad of nvdsmetamux. | DS 8.0 |
+| Supports filting meta data | Filts meta data based on source id and model id. | DS 8.0 |
+
+### Gst-nvdsmetamux File Configuration Specifications
+
+The Gst-nvdsmetamux configuration file uses a “Key File” format.
+The `[property]` group configures the general behavior of the plugin. It is the only mandatory group.
+The following table describe the keys supported for `[property]` groups.
+
+**Gst-nvdsmetamux Property Group Supported Keys**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| active-pad | Active sink pad which video buffer will be send to src pad | String | active-pad=sink_0 |
+| pts-toleranc | If the diff of frame PTS for the same source id is bigger than the threshold, The meta data merge will be skipped | Integer | pts-tolerance=60000 |
+| src-ids-model | Source IDs which need to be merge | String | src-ids-model-1=0 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdsmetamux plugin.
+
+**Gst-nvsmetamux gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| config-file | Absolute pathname of configuration file for the Gst-nvdsmetamux element | String | config-file-path=­metamux_config.txt |
+| active-pad | Active sink pad whose buffer will be transferred to the src pad | String | active-pad=sink_0 |
+| pts-tolerance | Time-diff tolerance in microseconds used when searching for the same frame of the same source ID across sink pads | Integer (signed 64-bit) | pts-tolerance=0 |
+
+## Sample pipelines
+
+Given below are some sample pipelines to demonstrate metamux plugin’s usage, please set the appropriate configuration file and library paths.
+
+**Merging metadata from two inputs:**
+
+```
+gst-launch-1.0 uridecodebin uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 \
+! streammux.sink_0 nvstreammux name=streammux width=1920 height=1080 batch-size=1 ! \
+nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.yml \
+unique-id=1 ! tee name=t t.src_0 ! queue ! nvvideoconvert disable-passthrough=1 ! queue ! \
+nvtracker ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so \
+ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_max_perf.yml \
+! mux.sink_0 nvdsmetamux name=mux config-file=./metamux_config.txt ! nvmultistreamtiler columns=1 rows=1 \
+width=1920 height=1080 ! nvdsosd ! nveglglessink t.src_1 ! queue ! \
+nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_secondary_vehiclemake.yml \
+unique-id=2 infer-on-gie-id=1 ! mux.sink_1
+```

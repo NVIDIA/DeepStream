@@ -1,0 +1,40 @@
+Property,Meaning,Type and Range,Example / Notes,Platforms
+config,"Absolute pathname of a configuration file that defines static properties of various sensors, places, and modules.",String,"config=msgconv_config.txt 
+or
+config=msgconv_config.csv","dGPU
+Jetson"
+msg2p-lib,Absolute pathname of the library containing a custom implementation of the nvds_msg2p_* interface for custom payload generation.,String,msg2p-lib=libnvds_msgconv_custom.so,"dGPU
+Jetson"
+payload-type,"Type of schema payload to be generated. Possible values are:
+
+PAYLOAD_DEEPSTREAM: Payload using DeepStream schema.
+
+PAYLOAD_DEEPSTREAM_MINIMAL: Payload using minimal DeepStream schema.
+
+PAYLOAD_CUSTOM: Payload using custom schemas.","Integer,
+0 to 4,294,967,295","payload-type=0
+or
+payload-type=257","dGPU
+Jetson"
+comp-id,Component ID of the plugin from which metadata is to be processed.,"Integer,
+0 to 4,294,967,295","comp-id=2
+Default is NvDsEventMsgMeta","dGPU
+Jetson"
+debug-payload-dir,Directory to dump payload,String,"debug-payload-dir=<absolute path>
+Default is NULL","dGPU
+Jetson"
+multiple-payloads,Generate multiple message payloads,Boolean,"multiple-payloads=1
+Default is 0","dGPU
+Jetson"
+msg2p-newapi,Generate payloads using Gst buffer frame/object metadata,Boolean,"msg2p-newapi=1
+Default is 0","dGPU
+Jetson"
+frame-interval,Frame interval at which payload is generated,"Integer,
+1 to  4,294,967,295","frame-interval=25
+Default is 30","dGPU
+Jetson"
+dummy-payload,By default payload is generated if NVDS_EVENT_MSG_META is attached to buffer. With this dummy payload can be generated if there is no NVDS_EVENT_MSG_META attached to buffer,Boolean,"dummy-payload=true
+Default is false","dGPU
+Jetson"
+embedding-filter,Comma-separated list of datatype strings for which embeddings should be posted,String,"embedding-filter=vehicle,person","dGPU
+Jetson"

@@ -1,0 +1,513 @@
+---
+title: "Troubleshooting"
+---
+
+{/` include: <isonum.txt> `/}
+
+If you run into to trouble while using DeepStream, consider the following solutions. if you don't find answers below, post your questions on [DeepStream developer forum](https://devtalk.nvidia.com/default/board/209/deepstream-sdk/).
+
+## You are migrating from DeepStream 9.1 to DeepStream 9.2
+
+**Solution:**
+
+You must clean up the DeepStream 9.0 libraries and binaries. Use one of these commands to clean up:
+
+* For dGPU:
+
+  For example to remove DeepStream 9.0 :
+
+  1. Open the `uninstall.sh` file in `/opt/nvidia/deepstream/deepstream/`
+  2. Set `PREV_DS_VER` as `9.0`
+  3. Run the script as sudo `./uninstall.sh`
+
+* For Jetson: Flash the target device with the latest release of JetPack.
+
+## Inference
+
+### Application fails to run when the neural network is changed
+
+**Solution:**
+
+Make sure that the network parameters are updated for the corresponding [GIE] group in the configuration file (e.g. `source30_720p_dec_infer-resnet_tiled_display.txt`). Also make sure that the Gst-nvinfer plugin’s configuration file is updated accordingly.
+When the model is changed, make sure that the application is not using old engine files.
+
+## Performance
+
+### The DeepStream application is running slowly (Jetson only)
+
+**Solution:**
+
+Ensure that Jetson clocks are set high. Run these commands to set Jetson clocks high.
+
+```
+$ sudo nvpmodel -m 0
+$ sudo jetson_clocks
+```
+
+<Note>
+For **Jetson Orin Nano** modules, use `sudo nvpmodel -m 2` to enable MAXN SUPER mode.
+For all other Jetson Orin modules (including Orin NX), use `-m 0`.
+</Note>
+
+### The DeepStream application is running slowly
+
+**Solution 1:**
+
+One of the plugins in the pipeline may be running slowly.
+You can measure the latency of each plugin in the pipeline to determine if one of them is slow.
+
+* To enable frame latency measurement, run this command on the console:
+
+```
+$ export NVDS_ENABLE_LATENCY_MEASUREMENT=1
+```
+
+* To enable latency for all plugins, run this command on the console:
+
+```
+$ export NVDS_ENABLE_COMPONENT_LATENCY_MEASUREMENT=1
+```
+
+**Solution 2: (dGPU only)**
+
+Ensure that your GPU card is in the PCI slot with the highest bus width.
+
+**Solution 3:**
+
+In the configuration file’s `[streammux]` group, set `batched-push-timeout` to `1/max_fps`.
+
+**Solution 4:**
+
+In the configuration file’s `[streammux]` group, set width and height to the stream’s resolution.
+
+**Solution 5:**
+
+For RTSP streaming input, in the configuration file’s `[streammux]` group, set `live-source=1`. Also make sure that all [sink#] groups have the sync property set to 0.
+
+**Solution 6:**
+
+If secondary inferencing is enabled, try to increase batch-size in the the configuration file’s `[secondary-gie#]` group in case the number of objects to be inferred is greater than the batch-size setting.
+
+**Solution 7:**
+
+On Jetson, use `Gst-nvdrmvideosink` instead of `Gst-nv3dsink` as `nv3dsink` requires GPU utilization.
+
+**Solution 8:**
+
+If the GPU is the performance bottleneck, try increasing the interval at which the primary detector infers on input frames. You can do this by modifying the interval property of `[primary-gie]` group in the application configuration, or the interval property of the Gst-nvinfer configuration file.
+
+**Solution 9:**
+
+If the elements in the pipeline are getting starved for buffers (you can check if CPU/GPU utilization is low), increase the number of buffers allocated by the decoder by setting the `num-extra-surfaces` property of the [source#] group in the application or the `num-extra-surfaces` property of `Gst-nvv4l2decoder` element.
+
+**Solution 10:**
+
+If you are running the application inside docker/on-console and it delivers low FPS, set `qos=0` in the configuration file’s [sink0] group.
+The issue is caused by initial load. With `qos` set to 1 as the property’s default value in the [sink0] group, `decodebin` starts dropping frames.
+
+**Solution 11:**
+
+For RTSP streaming input, if the input has high jitter the GStreamer `rtpjitterbuffer` element might drop packets which are late. Increase the latency property of `rtspsrc`, for `deepstream-app` set `latency` in [source*] group. Alternatively, if using RTSP type source (type=4) with `deepstream-app`, turn off `drop-on-latency` in `deepstream_source_bin.c`. These steps may add cumulative delay in frames reaching the renderer and memory accumulation in the `rtpjitterbuffer` if the pipeline is not fast enough.
+
+**Solution 12:**
+
+On Jetson in the configuration file of gst-nvinfer set `scaling-compute-hw = 1` if gpu usage is not 100%.
+
+**Solution 13:**
+
+On dgpu set `cudadec-memtype=0` property on  Gst-nvv4l2decoder plugin to select device memory output.
+
+## Triton
+
+### Errors occur when deepstream-app fails to load plugin Gst-nvinferserver
+
+`For example: (deepstream-app:16632): GStreamer-WARNING **: 13:13:31.201: Failed to load plugin '/usr/lib/x86_64-linux-gnu/gstreamer-1.0/deepstream/libnvdsgst_inferserver.so':`
+`libtrtserver.so: cannot open shared object file: No such file or directory.`
+
+This is a harmless warning indicating that the DeepStream's `nvinferserver` plugin cannot be used since "Triton Inference Server" is not installed.
+
+**Solution 1:**
+
+Ignore this message if users do not need Triton support. Otherwise see Solution 2, 3.
+
+**Solution 2:**
+
+Pull `deepstream-triton` docker image and start the container. Retry `deepstream-app` to launch triton models.
+
+**Solution 3:**
+
+* For dGPU: Build Triton server library from source (https://github.com/triton-inference-server/server/releases/tag/v2.67.0) and fix dynamic link problem manually.
+
+* For Jetson: Refer `/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app-triton/README` for steps to install Triton on Jetson.
+
+## Troubleshooting in gst-nvtracker Setup and Parameter Tuning
+
+### Flickering Bbox
+
+In case the PGIE detection interval is set to zero (i.e., `interval=0` in the ds-app config file), the bbox flickering may occur in the video output if the value for `minTrackerConfidence` is set too low. Try increasing the value for this parameter to mitigate the issue.
+
+In case the PGIE detection interval is set to be a non-zero value (i.e., `interval` > 0 in the ds-app config file), it is expected that the tracker outputs are not reported on the uninferenced frames, although all the targets are being tracked in the background. Thus, it is an expected behavior that the real-time video display from OSD has the bbox flickering.
+
+To mitigate this issue, users can first enable the past-frame data configuration to retrieve the missed outputs and then add a custom module to combine the real-time metadata with the past-frame data. By doing so, users can combine the data in a proper order and can opt to visualize the combined data on the display with no flickering bbox issue.
+
+### Frequent tracking ID changes although no nearby objects
+
+This may occur because the tracker cannot detect the target from the correlation response map. It is recommended to start with lower minimum qualification for the target. First, set `minTrackerConfidence` with a relatively low value like `0.5`. Also, in case the state estimator is enabled, the prediction may not be accurate enough. Users may tune the state estimator parameters based on the expected motion dynamics, or disable during debugging.
+
+### Frequent tracking ID switches to the nearby objects
+
+Make the data association policy stricter by increasing the minimum qualifications such as:
+
+* `minMatchingScore4SizeSimilarity`
+* `minMatchingScore4Iou`
+* `minMatchingScore4VisualSimilarity`
+
+### Setup Re-ID model
+
+Error "!![ERROR] TAO model file does not exist" when using `config_tracker_NvDCF_accuracy.yml` or `config_tracker_NvDeepSORT.yml`.
+`tltEncodedModel: "/opt/nvidia/deepstream/deepstream/samples/models/Tracker/resnet50_market1501.etlt""` does not exist.
+
+**Solution:**
+
+You need a Re-ID model to use these trackers. Follow steps in `sources/tracker_ReID/README` to setup the Re-ID model.
+
+### Error while running ONNX / Explicit batch dimension networks
+
+After upgrading TensorRT on Jetson, running with ONNX / Explicit batch dimension networks fails with the error "Network has dynamic or shape inputs, but no optimization profile has been defined."
+
+Due to an ABI break in TensorRT 7.1.3.0 (part of Jetpack 4.4 - Jetpack 4.6), when moving to newer TensorRT versions, `libnvds_infer.so` needs to be recompiled from sources provided in the SDK. The sources along with the compilation instructions can be found in  `/opt/nvidia/deepstream/deepstream-6.4/sources/libs/nvdsinfer`.
+
+Warning message `gstnvtracker: Unable to acquire a user meta buffer`
+
+### Warning message `gstnvtracker: Unable to acquire a user meta buffer`
+
+Tracker uses a buffer pool for miscellaneous data memory management, whose size can be set with `user-meta-pool-size`. When the latency for downstream plugins to release the buffers is too long, the buffer pool may be empty so tracker will skip reporting the miscellaneous data for next batch and print this message. Users can increase the pool size from default 32 to larger values like 64.
+
+Error message `VPI_ERROR_INVALID_ARGUMENT Input maxFrames must be <= 128`
+
+### Error message `VPI_ERROR_INVALID_ARGUMENT Input maxFrames must be <= 128`
+
+Each VPI™ backend low-level tracker library supports at most 128 streams.
+If an application using the same NvDCF configuration file has more than 128 streams (130 streams for example), tracker section can be set to `ll-config-file=config_tracker_NvDCF_accuracy.yml;config_tracker_NvDCF_accuracy.yml`, `sub-batches=65:65`.
+
+## Miscellaneous
+
+### GPUassert_VPI error with deepstream-triton on Jetson Orin
+
+When nvtracker uses preprocessed RGBA buffers with the VPI VisualTracker backend,
+deepstream-triton can fail with GPUassert_VPI. Use the default gst-nvtracker NV12
+transform, or set `VisualTracker: 1` to use the old NvDCF tracker.
+
+### “NvDsBatchMeta not found for input buffer” error while running DeepStream pipeline
+
+**Solution:**
+
+The Gst-nvstreammux plugin is not in the pipeline. Starting with DeepStream 4.0, Gst-nvstreammux is a required plugin.
+This is an example pipeline:
+
+```text
+Gst nvv4l2decoder --> Gst nvstreammux --> Gst nvinfer --> Gst nvtracker --> Gst nvmultistreamtiler --> Gst nvvideoconvert --> Gst nvosd --> Gst nveglglessink
+```
+
+### The DeepStream reference application fails to launch, or any plugin fails to load
+
+**Solution:**
+
+Try clearing the GStreamer cache by running the command:
+
+    `$ rm -rf ${HOME}/.cache/gstreamer-1.0`
+
+Also run this command if there is an issue with loading any of the plugins. Warnings or errors for failing plugins are displayed on the terminal.
+
+    `$ gst-inspect-1.0`
+
+Then run this command to find missing dependencies:
+
+    `$ ldd <plugin>.so`
+
+where `<plugin>` is the name of the plugin that failed to load.
+
+### Errors occur when deepstream-app is run with a number of streams greater than 100
+
+`For example: (deepstream-app:15751): GStreamer-CRITICAL **: 19:25:29.810: gst_poll_write_control: assertion 'set != NULL' failed.`
+
+**Solution:**
+
+Run this command on the console:
+
+    ulimit -Sn 4096
+
+Then run the `deepstream-app` again.
+
+### After removing all the sources from the pipeline crash is seen if muxer and tiler are present in the pipeline
+
+This happens when muxer generates an empty batched buffer to clear the tiler output. To address this issue, install a probe on sink pad of tiler. Drop the buffer if batch_meta->num_frames_in_batch = 0, code snippet for reference below:
+
+```text
+static GstPadProbeReturn drop_empty_buffer (GstPad * pad,
+                                      GstPadProbeInfo * info,
+                                      gpointer user_data) {
+    NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta(GST_BUFFER(info->data));
+    if (batch_meta && batch_meta->num_frames_in_batch == 0)
+      return GST_PAD_PROBE_DROP;
+    return GST_PAD_PROBE_OK;
+  }
+
+  GstPad *sinkpad = gst_element_get_static_pad(tiler, "sink");
+  gst_pad_add_probe(sinkpad, GST_PAD_PROBE_TYPE_BUFFER, drop_empty_buffer,
+                    NULL, NULL);
+  gst_object_unref(sinkpad)
+```
+
+### Some RGB video format pipelines worked before DeepStream 6.1 onwards on Jetson but don't work now
+
+The below pipeline used to work in previous releases before DeepStream 6.1  onwards and also works on dGPU, but fails on Jetson:
+
+```text
+gst-launch-1.0 -v videotestsrc ! 'video/x-raw,format=RGB' ! videoconvert ! \
+nvvideoconvert nvbuf-memory-type=0 name=converter1 ! 'video/x-raw(memory:NVMM),format=(string)NV12' ! \
+nvvideoconvert ! 'video/x-raw' ! nveglglessink
+Setting pipeline to PAUSED ...
+
+Using winsys: x11
+Pipeline is PREROLLING ...
+Got context from element 'eglglessink0': gst.egl.EGLDisplay=context, display=(GstEGLDisplay)NULL;
+/GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstVideoConvert:videoconvert0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/Gstnvvideoconvert:converter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstEglGlesSink:eglglessink0.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:converter1.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstVideoConvert:videoconvert0.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+0:00:00.282672495 716265 0xaaab033c7400 ERROR         nvvideoconvert gstnvvideoconvert.c:3750:``gst_nvvideoconvert_transform: buffer transform failed``
+ERROR: from element /GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0: Internal data stream error.
+Additional debug info:
+gstbasesrc.c(3072): gst_base_src_loop (): /GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0:
+streaming stopped, reason error (-5)
+ERROR: pipeline doesn't want to preroll.
+Setting pipeline to NULL ...
+Freeing pipeline ...
+```
+
+The support for RGB/BGR video formats was added in nvvideoconvert in DeepStream 6.1.
+Earlier RGB/BGR input wasn't accepted by nvvideoconvert, hence for above pipeline the (OSS) videoconvert converts RGB to a format which can be accepted by nvvideoconvert
+and hence it used to work. Now, post DeepStream 6.1 the (OSS) videoconvert plugin goes in passthrough mode, and the default compute hardware for Jetson is VIC which doesn't support RGB input.
+To allow RGB input and output to work with nvvideoconvert set `compute-hw=GPU` property on the plugin as given below.
+
+```text
+gst-launch-1.0 -v videotestsrc ! 'video/x-raw,format=RGB' ! videoconvert ! \
+nvvideoconvert compute-hw=GPU nvbuf-memory-type=0 name=converter1 ! 'video/x-raw(memory:NVMM),format=(string)NV12' ! \
+nvvideoconvert ! 'video/x-raw' ! nveglglessink
+Setting pipeline to PAUSED ...
+
+Using winsys: x11
+Pipeline is PREROLLING ...
+Got context from element 'eglglessink0': gst.egl.EGLDisplay=context, display=(GstEGLDisplay)NULL;
+/GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstVideoConvert:videoconvert0.GstPad:src: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/Gstnvvideoconvert:converter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:src: caps = video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter2.GstPad:src: caps = video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstEglGlesSink:eglglessink0.GstPad:sink: caps = video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter2.GstPad:sink: caps = video/x-raw, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)NV12, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:converter1.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstVideoConvert:videoconvert0.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:sink: caps = video/x-raw, format=(string)RGB, width=(int)320, height=(int)240, framerate=(fraction)30/1, multiview-mode=(string)mono, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+Pipeline is PREROLLED ...
+Setting pipeline to PLAYING ...
+New clock: GstSystemClock
+```
+
+### UYVP video format pipeline doesn't work on Jetson
+
+The below pipeline for UYVP video format doesn't work for Jetson:
+
+```text
+gst-launch-1.0 videotestsrc ! 'video/x-raw,format=UYVP,width=1920,height=1080,depth=10,framerate=(fraction)50/1' ! nvvideoconvert ! \
+ 'video/x-raw(memory:NVMM),width=960,height=540,format=UYVP' ! nvvideoconvert ! nv3dsink  -v
+Setting pipeline to PAUSED ...
+
+Using winsys: x11
+Pipeline is PREROLLING ...;
+/GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)I420, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstNv3dSink:nv3dsink0.GstPad:src: caps = video/x-raw, width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)RGBA, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0.GstPad:sink: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:sink: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+nvbufsurface: invalid colorFormat 69
+nvbufsurface: Error in allocating buffer
+Error(-1) in buffer allocation
+
+** (gst-launch-1.0:723645): CRITICAL **: 17:18:46.766: gst_nvds_buffer_pool_alloc_buffer: assertion 'mem' failed
+ERROR: from element /GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0: failed to activate bufferpool
+Additional debug info:
+gstbasetransform.c(1678): default_prepare_output_buffer (): /GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0:
+failed to activate bufferpool
+ERROR: pipeline doesn't want to preroll.
+Setting pipeline to NULL ...
+Freeing pipeline ...
+```
+
+The default memory allocator `(nvbuf-mem-surface-array)` on Jetson doesn't support allocation for UYVP, so currently the allocation is only supported through
+`nvbuf-mem-cuda-device` on Jetson. As VIC doesn't support transformation on Cuda memory hence, GPU can be used to do the required transformation.
+So, the above pipeline can be modified to run on Jetson.
+
+```text
+gst-launch-1.0 videotestsrc ! 'video/x-raw,format=UYVP,width=1920,height=1080,depth=10,framerate=(fraction)50/1' ! \
+nvvideoconvert nvbuf-memory-type=nvbuf-mem-cuda-device compute-hw=GPU ! \
+'video/x-raw(memory:NVMM),width=960,height=540,format=UYVP' ! nvvideoconvert compute-hw=GPU ! nv3dsink  -v
+Setting pipeline to PAUSED ...
+
+Using winsys: x11
+Pipeline is PREROLLING ...
+/GstPipeline:pipeline0/GstVideoTestSrc:videotestsrc0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstQueue:queue0.GstPad:sink: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstQueue:queue0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/GstQueue:queue0.GstPad:src: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)I420, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstQueue:queue1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)I420, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstQueue:queue1.GstPad:src: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)I420, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstNv3dSink:nv3dsink0.GstPad:sink: caps = video/x-raw, width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)RGBA, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/GstCapsFilter:capsfilter1.GstPad:sink: caps = video/x-raw(memory:NVMM), width=(int)960, height=(int)540, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, format=(string)UYVP, block-linear=(boolean)false
+/GstPipeline:pipeline0/Gstnvvideoconvert:nvvideoconvert0.GstPad:sink: caps = video/x-raw, format=(string)UYVP, width=(int)1920, height=(int)1080, framerate=(fraction)50/1, multiview-mode=(string)mono, depth=(int)10, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive
+Pipeline is PREROLLED ...
+Setting pipeline to PLAYING ...
+New clock: GstSystemClock
+```
+
+<Note>
+The original pipeline would work as is on dGPU, but need to modify it to remove nvegltransform element.
+</Note>
+
+### Stale frames observed on RTSP output
+
+If stale frames are observed on the RTSP output, then update rtsp-port and udp-port parameter( at RTSP sink) inside the config file which is being used to run deepstream applications.
+
+Update rtsp-port to other port number. For ex: `rtsp-port=8660`
+
+Update udp-port to other port number. For ex: `udp-port=5500`
+
+### Seeing gitches / choppy video due to potential packet drops over remote viewing of RTSP output (using VLC)
+
+VLC use UDP by default to stream the RTSP URL.
+UDP is lossy and cause quality issues on the rendered video.
+
+When viewing DeepStream RTSP sink output remotely, please force usage of TCP to avoid unnecessary packet drops.
+
+Example command to force TCP when using VLC:
+
+    `$ vlc --rtsp-tcp rtsp://path/to/stream`
+
+### DeepStream plugins failing to load without DISPLAY variable set when launching DS dockers
+
+**Solution:**
+
+The error "No EGL Display; nvbufsurftransform: Could not get EGL display connection" will be resolved if the user ensure to meet either of the below requirements.
+The below requirements shall be met before starting the docker using `docker run` command.
+
+1. When user expect to use Display window
+
+ 1. Set appropriate value for the `DISPLAY` variable and
+ 2. Execute the command: `xhost +` from the host terminal, to allow the docker to launch a display window.
+
+Example:
+
+ ```text
+ $ export DISPLAY=:0
+ $ xhost +
+ ```
+
+1. When user expect to not use a Display window
+
+a. unset the `DISPLAY` variable or
+
+b. launch the docker without exporting `DISPLAY` variable to its environment.
+
+### Nvidia driver installation issues
+
+Error:
+"An NVIDIA kernel module 'nvidia-drm' appears to already be loaded in your kernel.  ********"
+
+**Solution:**
+
+The Error suggest another version of NVIDIA driver is loaded.
+You may refer to the links below to uninstall previous driver versions.
+Uninstallation method differs based on the installation method (runfile or debian).
+
+Quick Links:
+
+[1.  Handle Conflicting Installation Methods.](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#handle-uninstallation)
+
+[2. Pre Installation Actions](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#pre-installation-actions)
+
+### On Jetson, observing error : gstnvarguscamerasrc.cpp, execute:751 No cameras available
+
+In order to access CSI camera, you can use Jetson-IO tool to enable CSI camera sensor.
+
+For example on AGX, navigate to  `/opt/nvidia/jetson-io/`:
+
+        -> Run sudo python jetson-io.py and follow Wizard
+        -> Configure Jetson AGX Xavier CSI Connector
+        -> Configure for compatible hardware.
+        -> Choose the CSI camera module e.g. "Jetson Camera E3333 module"
+        -> Save pin changes
+        -> Save and reboot to reconfigure pins
+
+For more details, refer to https://docs.nvidia.com/jetson/l4t/#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/hw_setup_jetson_io.html
+and section 2.3 and 3.0 of https://developer.nvidia.com/sites/default/files/akamai/embedded/jetson-linux-release-notes-r341-dp.pdf
+
+### On Jetson, observing error : "nvbufsurftransform_copy.cpp: Failed in mem copy" or "cuGraphicsEGLRegisterImage failed : 700"
+
+To avoid this error we can set "copy-hw" property as "VIC" for nvvideoconvert while using ""nvbuf-mem-surface-array" as memory type.
+
+Example pipeline to set "copy-hw" property of nvvideoconvert to "VIC":
+
+    `$ gst-launch-1.0 filesrc location=test_I420.yuv ! videoparse width=1280 height=720 format=2 framerate=30/1 ! nvvideoconvert copy-hw=2 ! 'video/x-raw(memory:NVMM), format=(string)I420' ! nv3dsink sync=0 -e`
+
+Refer to "deepstream-appsrc-test" app available in Deepstream SDK, for usage of "copy-hw" property from application.
+
+## Inference Builder
+
+`typed-ast` fails to build when installing Inference Builder Python dependencies
+
+### `typed-ast` fails to build when installing Inference Builder Python dependencies
+
+Running `pip3 install -r requirements.txt` fails with:
+
+```text
+ERROR: Failed building wheel for typed-ast
+  error: command '/usr/bin/x86_64-linux-gnu-gcc' failed with exit code 1
+Failed to build typed-ast
+ERROR: Failed to build installable wheels for some pyproject.toml based projects (typed-ast)
+```
+
+**Solution:**
+
+Python 3.12 is a hard dependency for Inference Builder. Install Python 3.12 and retry. For complete setup instructions, see the [Inference Builder setup](/text/DS_Inference_Builder#inference-builder-setup).
+
+```bash
+sudo apt update
+sudo apt install -y python3.12-dev python3.12-venv
+```
+
+<Note>
+For more FAQs and troubleshooting, see https://forums.developer.nvidia.com/t/deepstream-sdk-faq/
+</Note>

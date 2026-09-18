@@ -1,0 +1,7 @@
+﻿Feature,Description,Release
+Composites a 2D tile of input buffers,—,DS 2.0
+Scales bounding box with metadata coordinates according to scaling and position in tile,—,DS 2.0
+Multi-GPU support,—,DS 2.0
+Shows expanded preview for a single source,—,DS 2.0
+User configurable CUDA memory type (Pinned/Device/Unified) for output buffers,—,DS 3.0
+Reconfigures 2D tile for new sources added at runtime,—,DS 3.0

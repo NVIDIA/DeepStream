@@ -1,0 +1,10 @@
+﻿Name,Description,Type and Range,Example Notes,"   | Network Types /
+   | Applicable to GIEs (Primary/Secondary)"
+url,Triton server name and port ,string, url: “localhost:8001”,"   | All
+   | Both"
+enable_cuda_buffer_sharing," ""Enable sharing of CUDA buffers with local Triton server for input tensors.",,,
+If enabled, the input CUDA buffers are shared with the Triton server to improve performance.,,,
+This feature should be enabled only when the Triton server is on the same machine.,,,,
+Applicable for x86 dGPU platform, not supported on Jetson devices.,,,
+"By default disabled i.e. CUDA buffers are copied to system memory while creating the inference request.""",Bool,enable_cuda_buffer_sharing: true, ,"  | All
+  | Both"

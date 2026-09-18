@@ -1,0 +1,5 @@
+﻿Property,Meaning,Type and Range,Example Notes
+unique-id,Unique identification unsigned integer value for element to identify the output attached by the element,"Integer,
+0 to 4,294,967,295",unique-id=17
+enable,"True Enables the plugin, False sets it in pass-through mode",Boolean,enable=1
+config-file,Configuration file which consist of the analytics rules,String,config-file=config_nvdsanalytics.txt

@@ -1,0 +1,9 @@
+﻿Application Configuration,Specification
+N×1080p 30 fps streams,"| ``sample_1080p_h265.mp4`` (provided with the SDK) N = 9
+| ``sample_1080p_h264.mp4`` (provided with the SDK) N = 8"
+Primary GIE,"* Resnet10 (960x544)
+* Batch Size = N
+* Interval = 5"
+Tracker,"Enabled; processing at 480×288 resolution, NvDCF tracker enabled"
+OSD/tiled display,Disabled
+Renderer,Disabled

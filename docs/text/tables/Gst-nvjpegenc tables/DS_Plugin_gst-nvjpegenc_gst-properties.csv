@@ -1,0 +1,9 @@
+Property,Meaning,Type and Range,Example and Notes,Platforms
+quality,quality value for encoding,"Integer, 0 to 100
+",Quality=90,"dGPU, Jetson"
+Enableperf,Enable encode time measurement,Boolean,Enableperf=1 ,Jetson
+Idct-method,IDCT algorithm to use,"Enum 
+0: iSlow
+1: iFast
+2: Float ",Idct-method=2,Jetson
+OutputGray,"Output JPEG image in GRAYSCALE, needs I420 INPUT",Boolean,OutputGray=1 ,dGPU

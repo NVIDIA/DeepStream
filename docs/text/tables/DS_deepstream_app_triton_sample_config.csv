@@ -1,0 +1,7 @@
+Configuration File,Description
+source30_1080p_dec_infer-resnet_tiled_display.txt,30 Decode + Infer
+source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.txt,4 Decode + Infer + SGIE + Tracker
+source1_primary_classifier.txt,Single source + full frame classification
+source1_1080p_dec_infer_peoplesemsegnet_shuffle.txt,Single source + semantic segmentation
+source1_primary_detector_peoplenet_transformer.txt,Single source + full frame classification
+source1_primary_detector.txt,Single source + object detection using ssd

@@ -1,0 +1,45 @@
+---
+title: "Inference Builder MCP"
+---
+
+The [Inference Builder](/text/DS_Inference_Builder) provides a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects AI coding agents — including Cursor, Claude Code, and Codex — directly to the Inference Builder tool. Through natural-language prompts, the agent can generate inference pipeline configurations, build Docker images, explore sample configurations, and run smoke tests, all without leaving the IDE conversation.
+
+The MCP server runs on the same machine as your Inference Builder installation and exposes the tool's capabilities as MCP tools that the agent calls autonomously as part of its workflow.
+
+## Prerequisites
+
+- [Inference Builder](/text/DS_Inference_Builder) installed and configured on your development machine (Ubuntu 24.04, Python 3.12, and an NVIDIA Ada, Hopper, or Blackwell GPU required to run generated pipelines; no GPU needed if you only generate configurations)
+- An AI coding assistant that supports MCP (Cursor, Claude Code, or Codex)
+
+## Connecting Your Coding Agent
+
+The Inference Builder MCP integration works as an HTTP server. The general workflow is:
+
+1. **Start the MCP server** — Run the MCP server startup command from the Inference Builder root directory (see the [Inference Builder GitHub repository](https://github.com/NVIDIA-AI-IOT/inference_builder) for the exact command). By default it listens at `http://<host>:8000/mcp`. Replace `<host>` with `localhost` if the Inference Builder is running on the same machine as your coding assistant.
+
+2. **Register the server with your coding assistant** — Each tool has its own registration command (Cursor uses a JSON config file, Claude Code uses `claude mcp add`, Codex uses `codex mcp add`). Exact commands for each tool are documented in the [Inference Builder GitHub repository](https://github.com/NVIDIA-AI-IOT/inference_builder).
+
+3. **Verify the connection** — After registration, confirm the server is connected:
+
+   - **Cursor** — Navigate to **File > Preferences > Cursor Settings > MCP** and confirm a green status icon next to `deepstream-inference-builder`.
+   - **Claude Code** — Run `/mcp` in the Claude Code console and confirm you see `deepstream-inference-builder · ✔ connected`.
+   - **Codex** — Run `codex mcp list` and confirm `deepstream-inference-builder` appears in the output.
+
+## Example Prompts
+
+Once the MCP server is connected, describe the pipeline you want to build in plain language:
+
+```text
+Generate a DeepStream object detection pipeline using PeopleNet Transformer from NGC and verify it with a smoke test.
+```
+
+```text
+Create a multi-stream pipeline with 4 video inputs, NVDCF tracker, and a Docker image. Run a smoke test once done.
+```
+
+The agent retrieves configuration options from the Inference Builder, drafts a plan, generates the required files, and iterates through build and runtime errors automatically.
+
+## Further Reading
+
+- [Inference Builder documentation](/text/DS_Inference_Builder) — prerequisites, installation, architecture, and full usage guide
+- [Inference Builder GitHub repository](https://github.com/NVIDIA-AI-IOT/inference_builder) — source code, per-tool MCP setup instructions, and additional sample prompts

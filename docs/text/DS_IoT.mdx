@@ -1,0 +1,177 @@
+---
+title: "IoT"
+---
+
+## Secure Edge-to-Cloud Messaging
+
+Starting with DeepStream 5.0, the Kafka adaptor supports secure communication. Security includes:
+
+  - **Authentication**: Kafka brokers can restrict clients (producers and consumers) connecting to a cluster based on credentials. DeepStream applications, starting with the 5.0 release, can authenticate themselves to brokers using TLS mutual authentication & SASL/Plain mechanisms to send (and receive) messages to such clusters. This is particularly important for clusters executing outside of company networks, and thereby having data travel over public networks during communication.
+  - **Encryption**: Encryption ensures that confidentiality is maintained from third parties for messages sent by DeepStream applications to Kafka brokers.
+  - **Tampering**: The added security support prevents messages between application and broker from being tampered in flight.
+  - **Authorization**: Limit the operations allowed for a client connecting to the broker. Identity of the client (the DeepStream application in this case) is established during the authentication step.
+
+### 2-way TLS Authentication
+
+DeepStream (5.0 onwards) supports Kafka security based on the 2-way TLS (Transport Layer Security) Authentication mechanism. TLS is a successor to SSL, but the two terms are still used interchangeably in literature. TLS/SSL is used commonly for secure communication while connecting to servers (e.g. HTTPS) is used for secure communication on the web. 2-way communication ensures that both clients and servers can authenticate each other, while also supporting other aspects of security like encryption, enabling tamper proof communication, and supporting client authorization.
+
+#### Overview of Steps
+
+This section provides high level guidance and considerations while enabling 2-way TLS security for Kafka.
+For detailed setup instructions regarding setting up SSL security, please refer to the `Secure_Setup.md` document in the DeepStream 5.0+ SDK in `sources/libs/kafka_protocol_adaptor/` folder.
+Follow the steps below to enable 2-way TLS authentication for DeepStream apps with Kafka:
+
+  1. Setup Kafka broker with TLS authentication enabled
+  2. Create and deploy certificates for broker and DeepStream application
+  3. Copy CA certificates to the broker and client Truststores
+  4. Configure TLS options in Kafka config file (see proto-cfg param above)
+
+#### TLS Version
+
+As part of the initial TLS handshake, clients like DeepStream applications and servers agree on the TLS protocol to use. The recommendation is to use `TLSv1.2` or later in production. You can verify which version of TLS your broker supports by connecting to the broker using the OpenSSL utility. The OpenSSL utility can be deployed by installing the openssl package, available for Ubuntu and other Linux distributions. Run the following command:
+
+```
+openssl s_client -connect <broker address>:<broker port> -tls1_2
+```
+
+This operation connects to the broker using the `openssl_s` client while using `TLSv1.2`. In case of error, review logs for issues during handshake indicating that `TLSv1.2` is not supported.
+
+#### Key generation
+
+The security setup document describes use of the keytool utility to generate a key pair. The user has an option of specifying the algorithm used to generate the key pair. RSA is a popular algorithm, offering 2048-bit key option for increased security. Others include DSA and ECDSA with varying speeds in signing and verifying as described here: https://wiki.mozilla.org/Security/Server_Side_TLS.
+
+#### Certificate Signing
+
+While the security setup document provides instructions to create a token certificate authority (CA) to sign the client certificate, in production, the user would create certificates signed by third party CAs. These are created using a certificate signing request (CSR). See https://en.wikipedia.org/wiki/Certificate_signing_request for more information.
+Client requesting a certificate creates a key pair, but only includes the public key with other information, notably the “common name”, which is the fully qualified domain name (FQDN) of the machine for which the certificate is being requested. This information is signed by the user using the private key, which must be confidential.
+
+#### Choice of Cipher
+
+As part of TLS configuration option while deploying the DeepStream application, the user can specify the cipher suite to be used. The cipher suite defines a collection of underlying algorithms used through the lifetime of the TLS connection. These algorithms address:
+
+  * Key exchange (during initial handshake)
+  * Digital signature (during initial handshake)
+  * Bulk encryption (confidentiality during data communication)
+  * Message authentication (tamper prevention during data communication). Numerous ciphers exist that are supported by OpenSSL (and in turn librdkafka and the Kafka adaptor in DeepStream).
+
+Recommendations for above algorithms as described below:
+
+  * ECDHE as the key exchange algorithm; it is based on Elliptic Key crypto cryptography while using ephemeral keys, thereby offering forward secrecy.
+  * ECDSA or RSA for digital signature
+  * AES for bulk encryption. AES offers both 128- and 256-bit key sizes. Tradeoff is between computational overhead and additional protection.
+  * It is also suggested to use bulk encryption algorithms that support authenticated encryption, which uses a tag in addition to the ciphertext. Use of tags enables detection of improperly constructed ciphertexts, which could for instance be specially chosen for attack. AES_GCM and AES_CBC are examples of block cipher that support authentication encryption.
+
+In summary, examples of `TLSv1.2` ciphers that conform to these recommendations include:
+
+```
+TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384
+TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384
+TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+```
+
+#### Configure TLS options in Kafka config file for DeepStream
+
+Configuration options provided by the Kafka message adaptor to the `librdkafka` library needs to be modified for SSL. The DeepStream documentation in the Kafka adaptor section describes various mechanisms to provide these config options, but this section addresses these steps based on using a dedicated config file.
+A list of parameters must be defined within the config file using the `proto-cfg` entry within the message-broker section as shown in the example below.
+
+```
+[message-broker]
+proto-cfg = "security.protocol=ssl;ssl.ca.location=<path to your ca>/ca-client-cert;ssl.certificate.location=<path to your certificate >/client1_cert.pem;ssl.key.location=<path to your private key>/client1_private_key.pem;ssl.key.password=test1234;ssl.key. password=abcdefgh;
+ssl.cipher.suites=ECDHE-RSA-AES256-GCM-SHA384; debug=broker,security"
+```
+
+The various options specified in the config file are described below:
+
+  •	`security.protocol.ssl`: use SSL as the authentication protocol
+  •	`ssl.ca.location`: path where your client CA certificate is stored
+  •	`ssl.certificate.location`: path where your client certificate is stored
+  •	`ssl.key.location`: path where your protected private key is stored
+  •	`ssl.cipher.suites=ECDHE-RSA-AES256-GCM-SHA384`
+  •	`ssl.key.password`: password for your private key provided while extracting it from the p12 file
+
+The `ssl.cipher.suites` option allows the user to pick the cipher to be used for connecting to the broker. Given that the underlying `librdkafka` library uses OpenSSL, the list of supported ciphers can be identified from the OpenSSL documentation: https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
+`librdkafka` supports several other security related options that can be enabled as part of the Kafka adapter config file. Refer to the `librdkafka` configuration page for a complete list of options:
+https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
+
+### SASL/Plain
+
+DeepStream (5.0 onwards) enables SASL/Plain based authentication mechanism for Kafka. SASL/Plain enables a username/password form of authentication. It is typically used with TLS  to enable end to end encryption, thereby ensuring that both the username password credentials, and subsequent data transfer is confidential, which is especially important when the communication between DeepStream applications and the Kafka broker occurs over public networks.
+
+#### Overview of Steps
+
+This section provides high level guidance and considerations while enabling SASL/Plain authentication for Kafka.
+For detailed setup instructions regarding setting up SSL security, please refer to the `Secure_Setup.md` document in the DeepStream 5.0+ SDK in `sources/libs/kafka_protocol_adaptor/` folder.
+Follow the steps below to enable SASL/Plain authentication for DeepStream apps with Kafka:
+
+  1. Configure Kafka broker to use SASL/Plain authentication to use SASL authentication along with SSL for encryption
+  2. Configure desired username and password with the Kafka broker
+  3. Create and deploy certificates for broker
+  4. Copy CA certificates to the broker and client TrustStores
+  5. Configure DeepStream application with username and password within the Kafka config file (see `proto-cfg` parameter above)
+
+#### TLS Configuration
+
+Note that unlike with 2-way TLS authentication, client certificates are not required for SASL/Plain. Instead, only certificates of the broker are required, and used by the DeepStream application to ensure authenticity of the broker. To that end, the various aspects of TLS described in the 2-way TLS section including TLS version to use, generation of keys and choice of cipher are applicable.
+
+#### Credential Storage
+
+Standard guidelines for creating and sharing passwords applies to SASL/Plain credentials. Options to keep Kafka SASL/Plain credentials confidential include using filesystem-based access control. The Kafka configuration file which stores the credentials can be kept encrypted on disk and decrypted on the fly and stored in clear text for a limited period.
+
+#### Choosing Between 2-way TLS and SASL/Plain
+
+SASL/Plain offers the familiar username and password authentication metaphor to be used with Kafka. It can also be easier to setup as client-side certificates do not have to be created.
+But 2-way TLS offers several advantages, including enabling CA based list of allowed clients, which means new clients from a same organization using the shared CA can be automatically authenticated without reconfiguring the broker. Unlike passwords, private key used with 2-way TLS authentication can leverage key storage hardware such as HSM and TPM that perform cryptographic operations using the keys without revealing the keys themselves. Certificates can have a limited expiry time, and so credentials by design must be renewed periodically thereby protecting against duplication or theft.
+
+### Impact on performance
+
+Enabling TLS-based security will incur a computational overhead on the processor in your system. Several aspects influence the overhead, including message size, frame rate and choice of cipher suite. While the key exchange algorithms in the cipher suite incur a one-time overhead during the initial connection establishment, the bulk encryption and message authentication algorithms are run during data transfer, and hence need to be considered for performance. For instance, AES offers two variants, based on 128- and 256-bit keys. While the latter is more secure, it incurs a larger performance overhead. Ensure that your processor supports AES instructions; most modern Xeon processors do, as do Jetson’s processors. See https://developer.nvidia.com/embedded/develop/hardware for more information on Jetson processors.
+
+## Bidirectional Messaging
+
+DeepStream (5.0 onwards) now supports bi-directional communication to send and receive cloud-to-device messages along with publishing device-to-cloud messages. This is particularly important for various use cases, such as triggering the application to record an important event, changing operating parameters and app configurations, over-the-air (OTA) updates, or requesting system logs and other vital information.
+DeepStream (5.0 onwards) supports several other IoT features that can be used in conjunction with bi-directional messaging. DeepStream now offers an API to do a smart record based on an anomaly or could-to-device message. In addition, DeepStream also supports OTA updates of AI models while the application is running. The figure below shows the bi-directional messaging architecture:
+
+   ![Bi-Directional Messaging Architecture](/assets/images/content/DS_Bidirectional_messaging.png)
+
+  [message-consumerX]
+  enable=1
+  proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+  conn-str= &lt;connection string as host;port >
+  config-file=../cfg_kafka.txt
+  subscribe-topic-list=`<topic1>`;`<topic2>`;`<topicN>`
+
+Here X should be replaced with integer value e.g., 0,1,2 etc.
+
+### Edge-to-Cloud
+
+Device-to-cloud messaging currently happens through the `Gst-nvmsgbroker` (MSGBROKER) plugin. The `Gstnvmsgbroker` plugin by default calls the lower-level adapter library with the appropriate protocol API’s. You can choose between Kafka, AMQP, Azure IoT, Redis or you can even create a custom adapter. DeepStream 5.0 introduces a new low-level `nvmsgbroker` library to present a unified interface for bi-directional messaging across the various protocols. The `Gst-nvmsgbroker` plugin has the option of interfacing with this new library instead of directly calling the protocol adaptor libraries, as controlled via a configuration option.
+For detailed information on Gst-nvmsgbroker plugin, please refer to the DeepStream Plugins Development Guide.
+
+### Cloud-to-Edge
+
+DeepStream applications can subscribe to Apache Kafka topics or Redis streams to receive the messages from the cloud. DeepStream 5.0 introduces a new low-level `nvmsgbroker` library. The Cloud-to-device messaging currently happens through this library. The `nvmsgbroker` library calls into the lower-level adapter library with the appropriate protocol API’s. You can choose between Kafka, Redis, or you can even create a custom adapter.
+Implementation of the receiving and processing of cloud messages can be found in the following files:
+
+```
+$DEEPSTREAM_DIR/sources/apps/apps-common/src/deepstream_c2d_msg.c
+$DEEPSTREAM_DIR/sources/apps/apps-common/src/deepstream_c2d_msg_util.c
+```
+
+### NvMsgbroker Library
+
+DeepStream (5.0 onwards) features a new `nvmsgbroker` library which can be used to make connections with multiple external brokers. This library acts as a wrapper around the message adapter libraries and provides APIs for making and closing connections as well as publishing/subscribing to messages.
+The `nvmsgbroker` library provides thread safety, enabling any number of components in the DeepStream application to use the same connection handle to publish/subscribe messages.
+`Gst-msgbroker` plugin has an option to directly call in to the adapter library API’s for connecting with external entity or use the `nvmsgbroker` library interface to have the ability to connect with multiple external entities at a time.
+
+## Autoreconnect feature
+
+DeepStream (6.0 onwards) features autoreconnect capability wherein if network connection with the endpoint is down, a periodic reconnect attempt is made with the external entity while the application is still running. This feature is made available within low-level `nvmsgbroker` library. Configurations applicable for autoreconnect feature introduced within low-level `nvmsgbroker` library are listed in cfg_nvmsgbroker.txt
+
+```
+$DEEPSTREAM_DIR/sources/libs/nvmsgbroker/cfg_nvmsgbroker.txt
+```

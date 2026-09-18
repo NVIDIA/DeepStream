@@ -1,0 +1,194 @@
+---
+title: "Implementing a Custom GStreamer Plugin with OpenCV Integration Example"
+---
+
+The DeepStream SDK supports a mechanism to add third party or custom algorithms within the reference application by modifying the example plugin (`gst-dsexample`). The sources for the plugin are in `sources/gst-plugins/gst-dsexample` directory in the SDK.
+This plugin was written for GStreamer 1.14.1 but is compatible with newer versions of GStreamer. This plugin derives from the `GstBaseTransform` class:
+https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-libs/html/GstBaseTransform.html
+
+<Note>
+To enable OpenCV functionalities, compile `dsexample` plugin with flag `WITH_OPENCV=1` in the plugin Makefile.
+</Note>
+
+<Note>
+A CUDA-accelerated build variant is available at `sources/gst-plugins/gst-dsexample-cuda`. It registers the same `dsexample` element with the same properties, replacing the CPU OpenCV operations with CUDA-accelerated ones. It requires an OpenCV build with CUDA support (`opencv_cudaimgproc` and `opencv_cudafilters` from `opencv_contrib`, built from source); see the plugin's README for build steps.
+</Note>
+
+## Description of the Sample Plugin: gst-dsexample
+
+The GStreamer example plugin (`gst-dsexample`) demonstrates the following:
+
+* Processing the entire frame, with downscaling / color conversion if required.
+* Processing objects detected by the Primary Detector, specifically, cropping these objects from the frame and then processing the crops.
+* In-place modification of the buffer frame contents using OpenCV
+* Two versions of the plugin are included. Refer to the plugin’s `Makefile` and README to switch between them
+
+  * Simple (gstdsexample.cpp) - Sequential pre-processing and processing
+  * Optimized (gstdsexample_optimized.cpp) - Parallel batch pre-processing and processing
+
+This release includes a simple static library `dsexample_lib` that demonstrates the interface between custom libraries and this `Gstreamer` plugin. The library generates simple labels of the form `Obj_label`. The library implements these functions:
+
+* DsExampleCtxInit — Initializes the custom library
+* DsExampleCtxDeinit — De-initializes the custom library
+* DsExampleProcess – Process on an input frame
+
+The GStreamer plugin itself is a standard in-place transform plugin. Because it does not generate new buffers but only adds / updates existing metadata, the plugin implements an in-place transform. Some of the code is standard GStreamer plugin boilerplate (e.g. `plugin_init`, `class_init`, `instance_init`). Other functions of interest are as follows:
+
+### GstBaseTransfrom Class Functions
+
+* start — Acquires resources, allocate memory, initialize example library.
+* stop — De-initializes the example library and frees up resources and memory.
+* set_caps — Gets the capabilities of the video (i.e. resolution, color format, framerate) that flow through this element. Allocations/initializations that depend on input video format can be done here.
+* transform_ip — Implemented in the simple version. Called when the plugin receives a buffer from upstream element.
+
+    * Finds the metadata of the primary detector.
+    * Use `get_converted_mat` to pre-process frame/object crop to get the required buffer for pushing to library. Push the data to the example library. Pop the example library output.
+    * Attach/update metadata using `attach_metadata_full_frame` or `attach_metadata_object`.
+    * Alternatively, modify frame contents in-place to blur objects using `blur_objects`.
+
+* submit_input_buffer — Implemented in the optimized version. Called when the plugin receives a buffer from upstream element. Works in parallel with `gst_dsexample_output_loop` to improve performance.
+
+    * Finds the metadata of the primary detector.
+    * Create a batch of frames/objects to pre-process. Pre-process the batches and push the pre-processed output to the processing thread.
+    * Pre-process on the next batch while the processing thread works on an older batch.
+
+### Other supporting functions
+
+* get_converted_mat — Scales, converts, or crops the input buffer, either the full frame or the object based on its coordinates in primary detector metadata.
+* attach_metadata_full_frame — Shows how the plugin can attach its own metadata for objects detected by the plugin.
+* attach_metadata_object — Shows how the plugin can update labels for objects detected by primary detector.
+* blur_objects — Modify buffer frame contents in-place to blur objects using OpenCV GaussianBlur. When running on dGPU make sure that input memory type to plugin is `NVBUF_MEM_CUDA_UNIFIED`.
+* gst_dsexample_output_loop — Works in parallel with `submit_input_buffer` to improve performance.
+
+     * Wait for pre-processing of a batch to finish
+     * Process on the batch using `dsexample_lib` APIs
+     * Attach the output using one of `attach_metadata\_*` functions
+
+<Note>
+On Jetson devices, custom GStreamer plugins must export the environment variable DS_NEW_BUFAPI and set its value to 1. See `gst_dsexample_class_init()` for an example in a plugin (`Gst-dsexample`).
+</Note>
+
+## Enabling and configuring the sample plugin
+
+The pre-compiled deepstream-app binary already has the functionality to parse the configuration and add the sample element to the pipeline.
+To enable and configure the plugin, add the following section to an existing configuration file (for example, `source4_720p_dec_infer-resnet_tracker_sgie_tiled_display.txt`):
+
+```
+[ds-example]
+enable=1
+processing-width=640
+processing-height=480
+full-frame=0
+blur-objects=0
+unique-id=15
+```
+
+## Using the sample plugin in a custom application/pipeline
+
+The sample plugin can be used in a `gst-launch` pipeline. The pipeline can also be constructed in a custom application.
+
+**To construct a pipeline for running the plugin in full frame mode**
+Construct a pipeline for running the plugin in full frame mode with the following command.
+
+* For Jetson:
+
+```
+$ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvvideoconvert ! dsexample full-frame=1 <other-properties> ! nvdsosd ! nv3dsink
+```
+
+* For Tesla:
+
+```
+$ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvvideoconvert ! dsexample full-frame=1 <other-properties> ! nvdsosd ! nveglglessink
+```
+
+**To construct a pipeline for running the plugin to process on objects detected by the primary model**
+Construct a pipeline for running the plugin to process on objects detected by the primary model with the following command.
+
+* For Jetson:
+
+```
+$ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvinfer config-file-path= <primary-detector-config> ! nvvideoconvert ! dsexample full-frame=0 <other-properties> ! nvdsosd ! nv3dsink
+```
+
+* For Tesla:
+
+```
+$ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvinfer config-file-path= <primary-detector-config> ! nvvideoconvert ! dsexample full-frame=0 <other-properties> ! nvdsosd ! nveglglessink
+```
+
+**To construct a pipeline for running the plugin to blur objects detected by the primary model**
+Construct a pipeline for running the plugin to blur objects detected by the primary model with the following command:
+
+* For Jetson:
+
+   ```text
+   $ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvinfer config-file-path= <primary-detector-config> ! nvvideoconvert ! 'video/x-raw(memory:NVMM), format=RGBA' ! dsexample full-frame=0 blur-objects=1 ! nvdsosd ! nv3dsink
+   ```
+
+* For Tesla:
+
+  ```text
+  $ gst-launch-1.0 filesrc location= <mp4-file> ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_0 nvstreammux name=m batch-size=1 width=1280 height=720 ! nvinfer config-file-path= <primary-detector-config> ! nvvideoconvert nvbuf-memory-type= nvbuf-mem-cuda-unified  ! 'video/x-raw(memory:NVMM), format=RGBA' ! dsexample full-frame=0 blur-objects=1 ! nvdsosd ! nveglglessink
+  ```
+
+## Implementing Custom Logic Within the Sample Plugin
+
+To implement custom logic within the plugin, replace the following function calls list below with corresponding functions of any other custom library.
+
+```
+DsExampleCtxInit
+DsExampleCtxDeinit
+DsExampleProcess
+blur_objects
+```
+
+Depending on the input requirements of the library, `get_converted_mat` may also require modification.
+
+## Adding NVTX APIs for sample plugin
+
+Like other DeepStreamSDK GStreamer plugins, NVTX APIs can be added in a custom plugin as well. More information on these APIs can be found in https://docs.nvidia.com/gameworks/content/gameworkslibrary/nvtx/nvidia_tools_extension_library_nvtx.htm. Follow the steps below to add NVTX APIs for custom plugin:
+
+1. Include `nvtx3/nvToolsExt.h` header in the source code of plugin.
+2. To measure range, two APIs are commonly used:
+
+   * `nvtxRangePushA (context)` - Point at which profiling starts for this component / plugin.
+   * `nvtxRangePop ()` - Point at which profiling stops for this component / plugin.
+
+3. Make sure the markers are placed such that the core functions of the plugin are performed between the above two APIs. This will give an accurate idea of latency.
+4. Run NSight for the custom plugin to obtain information for the tasks run between these two markers.
+
+## Accessing NvBufSurface memory in OpenCV
+
+CUDA and CPU memory in `NvBufSurface` can be accessed through `cv::cuda::GpuMat` and `cv::Mat` interface of OpenCV respectively. In that case, `NvBufSurface` can work with any computer vision algorithm implemented in OpenCV.
+Following code snippet shows how to access and use CUDA memory of `NvBufSurface` in OpenCV.
+
+```
+cv::cuda::GpuMat gpuMat;
+const int aDstOrder[] = {2,0,1,3};
+unsigned int index = 0;   // Index of the buffer in the batch.
+unsigned int width, height; // set width and height of buffer
+NvBufSurface *input_buf; // Pointer to input NvBufSurface
+
+gpuMat = cv::cuda::GpuMat(height, width, CV_8UC4,
+(void *)input_buf->surfaceList[index].dataPtr);
+```
+
+OR
+
+```
+  gpuMat = cv::cuda::GpuMat(height, width, CV_8UC4,
+(void *) input_buf->surfaceList[index].dataPtr,
+ input_buf->surfaceList[index].pitch);
+ cv::cuda::swapChannels(gpuMat, aDstOrder);
+```
+
+On Jetson platform, if memory of `NvBufSurface` is of type NVBUF_MEM_SURFACE_ARRAY you should convert it to CUDA through CUDA-EGL interop before accessing it in OpenCV.
+Refer to `sources/gst-plugins/gst-dsexample/gstdsexample.cpp` to access the `NvBufSurface` memory in OpenCV matrix (`cv::Mat`).
+Below steps are required:
+
+1. Create EGL image from NvBufSurface using NvBufSurfaceMapEglImage()
+2. Register EGL image in cuda using cuGraphicsEGLRegisterImage()
+3. Map EGL frame using cuGraphicsResourceGetMappedEglFrame() to get cuda pointer
+
+Refer to gst_nvinfer_allocator_alloc in file `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvinfer/gstnvinfer_allocator.cpp` for more details.

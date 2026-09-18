@@ -1,0 +1,7 @@
+﻿Property,Meaning,Type and Range,Example and Notes,Platforms
+gpu-id,Device ID of GPU to use for decoding.,"Integer,
+0 to 4,294,967,295 ",gpu-id=0,"dGPU,
+ARM+dGPU"
+needs-pool,Enabling / Disabling output buffer pool,"Boolean,
+0 or 1 ",needs-pool=1,"dGPU,
+ARM+dGPU"

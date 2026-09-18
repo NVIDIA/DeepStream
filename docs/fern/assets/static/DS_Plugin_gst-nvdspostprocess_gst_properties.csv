@@ -1,0 +1,5 @@
+Property,Meaning,Type and Range,Example notes
+gpu-id,Device ID of GPU to use for post-processing (dGPU only),"Integer,0-4,294,967,295",gpu-id=1
+postprocesslib-name,Low level Post process library to be used for output parsing,string,postprocesslib-name=./postprocesslib_impl/libpostprocess_impl.so 
+postprocesslib-config-file,Set postprocess yaml config file to be used,string,postprocesslib-config-file= config_detector.yml
+preprocessor-support,Enables postprocessor parsing support for custom preprocessor tensors,Boolean,preprocessor-support=0

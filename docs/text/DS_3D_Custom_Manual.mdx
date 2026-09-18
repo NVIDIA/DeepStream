@@ -1,0 +1,1296 @@
+---
+title: "DeepStream-3D Custom Apps and Libs Tutorials"
+---
+
+`ds3d` framework, interfaces and custom-libs are designed for DeepStream-3D processing. `ds3d` is agnostic from Gstreamer/Glib frameworks. These interfaces are capable of different types of data fusion. Developers can implement different types of custom libraries for `dataloader`, `datafilter` and `datarender`. The interface has ABI compatible layers and modern C++ interface. Developers only need to focus on the modern C++ interface for application or custom lib development.
+
+DS3D `dataloader` is loaded by `GstAppSrc`, enabling its utilization for depth cameras like stereo cameras and Time-of-Flight cameras to capture image/depth data or load data from the file system. Additionally, it can be employed for capturing lidar data from sensors or lidar data files.
+`datafilter` is loaded by the `nvds3dfilter` `Gst-plugin`. It could be used for 2D depth data processing , 3D point-cloud data extraction from depth,  other 2D-depth or 3D-points data filters and lidar or 3D data inference.
+`datarender` is loaded by `GstAppSink`. It could be used for 2D depth rendering and 3D point-cloud and lidar data rendering. It also could be used for file dump.
+
+## DS3D Application Examples
+
+* [DeepStream-3D Multi-Modal Lidar and Camera Sensor Fusion App ](DS_3D_MultiModal_Lidar_Sensor_Fusion) sample application showcases a multi-modal sensor fusion pipeline for LiDAR and camera data using the DS3D framework. There are 2 examples of multi-modal sensor fusion pipelines inside the samples. The sample app is located at `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion`.
+
+   * Refer to [DeepStream 3D Multi-Modal Lidar and Camera Sensor Fusion App ](DS_3D_MultiModal_Lidar_Sensor_Fusion) to see more details of `deepstream-3d-lidar-sensor-fusion`
+
+   * DS3D BEVFusion pipeline shows the overview of 6-camera plus 1-LiDAR data fusion inference and rendering pipeline through `deepstream-3d-lidar-sensor-fusion`.
+
+     ![DeepStream 3D Lidar BEVFusion pipeline overview](/assets/images/content/DS3D_lidar_sensor_fusion_bevfusion_pipeline.png)
+
+     ![DeepStream 3D Lidar V2XFusion pipeline overview](/assets/images/content/DS3D_lidar_sensor_fusion_v2xfusion_pipeline.png)
+
+ The image below shows the overview of lidar 3D data inference and rendering pipeline in `deepstream-lidar-inference`.
+
+  ![DeepStream Lidar point cloud inference and rendering overview](/assets/images/content/DS_3D_lidar_inference_pointcloud_render.png)
+
+* [deepstream-3d-depth-camera ](DS_3D_Depth_Camera) is another example for ds3d pipeline.
+
+ The image below shows the overview of depth to 3D point processing pipeline in `deepstream-3d-depth-camera`.
+
+  ![DeepStream Depth Camera for 3D point cloud processing overview](/assets/images/content/DS_3D_depth_camera_3d_points_process.png)
+
+All the components are configured in YAML format. They are loaded by `Gst-plugins`.There are 3 major components, they may all be loaded into the deepstream pipeline.
+
+DS3D data format `ds3d/datamap`
+
+## DS3D data format `ds3d/datamap`
+
+`ds3d/datamap` recognizes the data format used in DS3D framework. Data buffers flowing between GStreamer plugins will be of this data-type.
+`ds3d/datamap` are key-value pairs where key is a string and value, a pointer, structure or tensor frame to data.
+All of the operations on the buffer is managed by `GuardDataMap`.
+
+Examples:
+
+- Create GuardDataMap `datamap` and set scaler key-values.
+
+  ```cpp
+  #include <ds3d/common/hpp/datamap.hpp>
+  using namespace ds3d;
+  
+  GuardDataMap datamap(NvDs3d_CreateDataHashMap(), true); // creat a empty datamap
+  TimeStamp ts{0};
+  datamap.setData("DS3D::Timestamp", ts); // set timestamp
+  
+  float score = 0.1;
+  datamap.setData("DS3D::Score", score); // copy score into datamap
+  ```
+
+- User-defined structure added into ds3d `datamap`.
+
+   ds3d datamap requires each data type having a `typeid: uint64_t` before adding the data into datamap. This could prevent any wrong datatype casting in runtime. To achieve that, there are 2 ways to enable a typeid for a structure.
+
+   Example 1, use `REGISTER_TYPE_ID` directly in custom data structure definition. this is mostly used when users define a new structure.
+
+   ```cpp
+   #define DS3D_TYPEID_TIMESTAMP 0x20002
+   struct TimeStamp {
+     uint64_t t0 = 0;
+     uint64_t t1 = 0;
+     uint64_t t2 = 0;
+     REGISTER_TYPE_ID(DS3D_TYPEID_TIMESTAMP)
+   };
+   
+   // Add the shared_ptr into datamap
+   std::shared_ptr<TimeStamp> timePtr(new TimeStamp);
+   datamap.setPtrData("DS3D::Timestamp0", timePtr);
+   
+   // Add a copy of the TimeStamp into datamap
+   TimeStamp time1;
+   datamap.setData("DS3D::Timestamp1", time1);
+   ```
+
+   Example 2, Instantiate template `struct TpId<> { static constexpr TIdType __typeid(); }`, this is helpful when adding a 3rdparty data structure into datamap and not able to modify the 3rd-party existing DataStructure.
+
+   ```cpp
+   // this is the 3rd-party structure
+   struct Existing3rdpartData {
+     float v0;
+     int v1;
+   };
+   
+   // derive ds3d::__TypeID for any 3rdparty data structure.
+   #include "ds3d/common/type_trait.h"
+   #define DS3D_TYPEID_EXISTING_3RDPART_DATA 0x80001
+   namespace ds3d {
+   template <>
+   struct TpId<Existing3rdpartData>: __TypeID<DS3D_TYPEID_EXISTING_3RDPART_DATA> {};
+   }
+   
+   // Add the shared_ptr into datamap
+   std::shared_ptr<Existing3rdpartData> dataPtr(new Existing3rdpartData);
+   datamap.setPtrData("3rdpartyData0", dataPtr);
+   
+   // Add a copy of the Existing3rdpartData into datamap
+   Existing3rdpartData data3rdparty{0.0f, 0};
+   datamap.setData("3rdpartyData1", data3rdparty);
+   ```
+
+- Create LiDAR tensor frame and add into GuardDataMap `datamap`.
+
+  ```cpp
+  std::vector<vec4f> lidardata = {
+      {{-5.0f, -5.0f, -3.0f, 0.6f}}, {{-5.0f, -5.0f, -3.0f, 0.85f}},
+      {{1.0f, 0.5f, -1.0f, 0.82f}}, {{-5.0f, -5.0f, -3.0f, 0.8f}},
+  };
+  void* pointPtr = (void*)(&lidardata[0]);
+  uint32_t pointsN = lidardata.size();
+  FrameGuard lidarFrame = wrapLidarXYZIFrame<float>(
+      (void*)pointPtr, pointsN, MemType::kCpu, 0,
+  [holder = std::move(lidardata)](void*) {}); // lambda deleter
+  
+  const std::string keyName = "DS3D::LidarXYZI"; // user define a key name.
+  // setGuardData holds a reference_count on the lidarFrame without deep-copy
+  datamap.setGuardData(keyName, lidarFrame);
+  ```
+
+- Create 2D-Image tensor frame and add into GuardDataMap `datamap`.
+
+  ```cpp
+  std::vector<vec4b> imagedata = {
+      {{255, 0, 0, 255}}, {{0, 255, 0, 255}}, {{0, 255, 0, 255}},
+      {{0, 0, 255, 255}}, {{255, 255, 0, 255}}, {{0, 255, 0, 255}},
+  };
+  uint32_t width = 3, height = 2;
+  Frame2DPlane colorPlane = {width, height, (uint32_t)sizeof(vec4b) * width, sizeof(vec4b), 0};
+  void* colorPtr = (void*)(&imagedata[0]);
+  uint32_t bytes = colorPlane.pitchInBytes * colorPlane.height;
+  
+  Frame2DGuard imageFrame = impl::Wrap2DFrame<uint8_t, FrameType::kColorRGBA>(
+    colorPtr, {colorPlane}, bytes, MemType::kCpu, 0,
+    [holder = std::move(imagedata)](void*) {}); // lambda deleter
+  
+  const std::string keyName = "DS3D::ColorFrame"; // user define a key name.
+  // setGuardData holds a reference_count on the imageFrame without deep-copy
+  datamap.setGuardData(keyName, imageFrame);
+  ```
+
+- Create custom shaped tensor frame and add into GuardDataMap `datamap`.
+
+  ```cpp
+  std::vector<float> tensordata = {
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11.0f
+  };
+  void* tensorPtr = (void*)(&tensordata[0]);
+  Shape tensorShape{3, {1, 3, 4}}; // tensor shape (1, 3, 4)
+  uint32_t bytes = tensordata.size() * sizeof(tensordata[0]);
+  FrameGuard tensorFrame = impl::WrapFrame<float, FrameType::kCustom>(
+          tensorPtr, bytes, tensorShape, MemType::kCpu, 0,
+          [holder = std::move(imagedata)](void*) {}); // lambda deleter
+  
+  const std::string keyName = "DS3D::dataarray"; // user define a key name.
+  // setGuardData holds a reference_count on the tensorFrame without deep-copy
+  datamap.setGuardData(keyName, tensorFrame);
+  ```
+
+- Query data values from GuardDataMap `datamap`
+
+  `GuardDataMap::getGuardData`, return a safe reference counted guard data GuardDataT`<DataStructure>` e.g. Frame2DGuard, FrameGuard, GuardDataT`<TimeStamp>`
+  `GuardDataMap::getPtrData`, return a reference counted std::shared_ptr`<DataStructure>` e.g. std::shared_ptr`<TimeStamp>`
+  `GuardDataMap::getData`, return a copy of the DataStructure. e.g. TimeStamp
+
+  ```cpp
+  // example to use different ways to get timestamp.
+  std::string timeKey = "DS3D::Timestamp";
+  if (datamap.hasData(timeKey)) {
+      // get a COPY of Timestamp
+      TimeStamp t0;
+      DS_ASSERT(isGood(datamap.getData(timeKey, t0));
+  
+      // get a std::shared_ptr of Timestamp
+      std::shared_ptr<TimeStamp> tPtr;
+      DS_ASSERT(isGood(datamap.getPtrData(timeKey, tPtr));
+  
+      // get a reference-counted GuardDataT<Timestamp>
+      GuardDataT<TimeStamp> timeGuard;
+      DS_ASSERT(isGood(datamap.getPtrData(timeKey, timeGuard));
+  
+  // example to get a lidar tensor frame
+  FrameGuard pointFrame;
+  std::string lidarKey = "DS3D::LidarXYZI";
+  if (datamap.hasData(lidarKey)) { // get lidar tensor frame
+      // pointFrame holds a reference count
+      DS_ASSERT(isGood(dataMap.getGuardData(lidarKey, pointFrame)));
+      DataType dType = pointFrame->dataType();
+      FrameType frameType = pointFrame->frameType();
+      MemType memType = pointFrame->memType();
+      Shape pShape = pointFrame->shape();
+      void *dataPtr = pointFrame->base();
+      size_t dataBytes = pointFrame->bytes();
+  }
+  
+  // example to get a RGBA image tensor frame
+  Frame2DGuard rgbaImage;
+  std::string imageKey = "DS3D::ColorFrame";
+  if (datamap.hasData(imageKey)) { // get 2D image tensor frame
+      // rgbaImage holds a reference count
+      DS_ASSERT(isGood(dataMap.getGuardData(imageKey, rgbaImage)));
+      DataType dType = rgbaImage->dataType();
+      FrameType frameType = rgbaImage->frameType();
+      MemType memType = rgbaImage->memType();
+      Shape pShape = rgbaImage->shape();
+      void *dataPtr = rgbaImage->base();
+      size_t dataBytes = rgbaImage->bytes();
+      DS_ASSERT(rgbaImage->planes() == 1); // RGBA image has 1 plane.
+      Frame2DPlane plane = rgbaImage->getPlane(0);
+  }
+  
+  // example to get a custom shaped tensor frame, e.g. data_array
+  FrameGuard tensorFrame;
+  std::string tensorKey = "DS3D::dataarray";
+  if (datamap.hasData(tensorKey)) { // get any tensor frame
+      // tensorFrame holds a reference count
+      DS_ASSERT(isGood(dataMap.getGuardData(tensorKey, tensorFrame)));
+      DataType dType = tensorFrame->dataType();
+      FrameType frameType = tensorFrame->frameType();
+      MemType memType = tensorFrame->memType();
+      Shape pShape = tensorFrame->shape();
+      void *dataPtr = tensorFrame->base();
+      size_t dataBytes = tensorFrame->bytes();
+  }
+  ```
+
+### DS3D DataMap interoperate with GstBuffer
+
+DS3D DataMap has ABI-compatible class `ds3d::abiRefDataMap`. With that, `NvDs3DBuffer` is defined for storing DS3D datamap along with `GstBuffer`. Header file is `ds3d/gst/nvds3d_meta.h`.
+
+  ```text
+  struct NvDs3DBuffer {
+      uint32_t magicID;  // must be 'DS3D'
+      ds3d::abiRefDataMap* datamap;
+  };
+  ```
+
+<Warning>
+Do not use the `datamap` directly. The easy and safe way to access that is through `GuardDataMap`. see examples below
+</Warning>
+
+- Example to get datamap from `GstBuffer`
+
+ ```cpp
+ #include <ds3d/common/hpp/datamap.hpp>
+ #include <ds3d/common/hpp/frame.hpp>
+ using namespace ds3d;
+ 
+ GstBuffer *gstBuf = ; // get the gstBuf from probe function or Gstreamer plugins
+ if (NvDs3D_IsDs3DBuf(gstBuf)) {
+   const abiRefDataMap* refDataMap = nullptr;
+   ErrCode c = NvDs3D_Find1stDataMap(gstBuf, refDataMap);
+   if (refDataMap) {
+     GuardDataMap dataMap(*refDataMap);
+     FrameGuard lidarFrame;
+     c = dataMap.getGuardData("DS3D::LidarXYZI", pointFrame); // get lidar points reference.
+ 
+     FrameGuard uvCoord;
+     c = dataMap.getGuardData("DS3D::TextureCoordKey", uvCoord); // get 3D points UV coordinates reference.
+ 
+     Frame2DGuard depthFrame;
+     c = dataMap.getGuardData("DS3D::DepthFrame", depthFrame); // get depth frame reference.
+ 
+     DepthScale scale;
+     c = dataMap.getData("DS3D::DepthScaleUnit", scale); // copy depth scale
+   }
+ 
+ }
+ ```
+
+- Example to create a `ds3d::datamap` into a new `GstBuffer`
+
+  ```cpp
+  #include <ds3d/common/hpp/datamap.hpp>
+  #include <ds3d/common/hpp/frame.hpp>
+  #include <ds3d/common/impl/impl_frames.h>
+  GuardDataMap datamap(NvDs3d_CreateDataHashMap(), true); // set true to take the reference ownership.
+  
+  /* Create color image frame and store them into ds3d datamap. */
+  // Assume format is RGBA
+  {
+    Frame2DPlane colorPlane = {1920, 1080, 1920 * sizeof(uint8_t) , sizeof(uint8_t), 0};
+    uint32_t colorBytesPerFrame = colorPlane.pitchInBytes * colorPlane.height;
+    std::vector<uint8_t> data(colorBytesPerFrame); // Image data
+    void* dataPtr = &data[0];
+    // create color 2D frame
+    Frame2DGuard frame = Wrap2DFrame<uint8_t, FrameType::kColorRGBA>(
+          dataPtr, {_config.colorPlane}, bytesPerFrame, MemType::kCpu, 0,
+          [data = std::move(data)](void*) {});
+    c = datamap.setGuardData(kColorFrame, colorFrame); // store colorFrame reference into datamap.
+    ... // check error code
+  }
+  ```
+
+  Once `datamap` is ready, you can create a new GstBuffer with DS3D datamap.
+
+  ```cpp
+  // `GuardDataMap datamap` is ready
+  GstBuffer* gstBuf = nullptr;
+  ErrCode c = NvDs3D_CreateGstBuf(gstBuf, datamap.abiRef(), false); // set false to increase reference count.
+  ... // check error code
+  ```
+
+- Example to update an existing `DS3D` `GstBuffer` with a new `ds3d` `datamap`.
+
+  ```cpp
+  // Assume `GuardDataMap datamap` is ready
+  // Assume `GstBuffer* gstBuf` is created by another component
+  ErrCode c = NvDs3D_UpdateDataMap(gstBuf, datamap.abiRef(), false); // set false to increase reference count.
+    ... // check error code
+  ```
+
+`ds3d::dataloader` - Load Custom Lib for Data Capture
+
+## `ds3d::dataloader` - Load Custom Lib for Data Capture
+
+### Load and Manage DS3D Dataloader
+
+Examples:
+
+```text
+name: realsense_dataloader
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_dataloader_realsense.so
+custom_create_function: createRealsenseDataloader
+config_body:
+  streams: [color, depth]
+```
+
+A custom `dataloader` must have `type: ds3d::dataloader`. It is created by explicit call of `NvDs3D_CreateDataLoaderSrc(srcConfig, loaderSrc, start)` with the full component YAML content. During this call, the `custom_lib_path` is loaded and a specific data loader is created via `custom_create_function`. A `GstAppsrc` object is also created into `loaderSrc.gstElement`.
+
+`GstAppsrc` manages the `ds3d::dataloader` dataflows. This `ds3d::dataloader` component could be started automatically by `gst-pipeline` or manually by the application call.
+
+```cpp
+GuardDataLoader dataloader = loaderSrc.customProcessor;
+ErrCode c = dataloader.start();
+```
+
+To stop the `dataloader`, user can set `GstAppsrc` states to `GST_STATE_READY` or stop it manually.
+
+```cpp
+GuardDataLoader dataloader = loaderSrc.customProcessor;
+ErrCode c = dataloader.stop();
+```
+
+### DS3D Dataloader in DeepStream User Application
+
+DS3D Custom Dataloaders are agnostic from Gstreamer/Glib Framework. But it could be working with Gstramer as well. The `ds3d::dataloader` could interactively work with GstAppSrc together. They could be created by `NvDs3D_CreateDataLoaderSrc`.
+
+Examples:
+
+```cpp
+#include <ds3d/common/config.h>
+#include <ds3d/gst/nvds3d_gst_plugin.h>
+
+std::string yamlStr = R"(
+  name: ds3d_lidar_file_source
+  type: ds3d::dataloader
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_lidarfileread.so
+  custom_create_function: createLidarFileLoader
+  config_body:
+    data_config_file: lidar_data_list.yaml
+    points_num: 242180
+    mem_type: gpu # choose [cpu gpu]
+    gpu_id: 0
+    mem_pool_size: 6
+    element_size: 4
+    output_datamap_key: DS3D::LidarXYZI
+)";
+
+ErrCode c = ErrCode::kGood;
+ComponentConfig config;
+c = parseComponentConfig(yamlStr.c_str(), "./config_lidar_loader.yaml", config);
+DS_ASSERT(config.type == ComponentType::kDataLoader);
+DS_ASSERT(config.customLibPath == "libnvds_lidarfileread.so");
+DS_ASSERT(config.customCreateFunction == "createLidarFileLoader");
+
+gst::DataLoaderSrc appLoader;
+c = NvDs3D_CreateDataLoaderSrc(c, appLoader, true);
+// get DS3D custom dataloader.
+GuardDataLoader dataLoader = appLoader.customProcessor;
+// get GstAppSrc from this appLoader;
+GstElement* appsrc = appLoader.gstElement.get();
+
+// gstreamer pipeline setup and running.
+// during each read_data from GstAppSrc callback. it would simultaneously reading data from dataloader
+// GuardDataMap datamap;
+// dataloader.read_data(datamap);
+
+// DS3D dataloader would stop qutomatically when Gstpipeline is stopped.
+// But in the case if user want to stop it early or manually.
+// Obtain DS3D custom dataloader and stop manually.
+c = dataloader.flush();
+c = dataloader.stop();
+```
+
+`GuardDataLoader` provides safe access to `abiDataLoader`. Once it's created, it will maintain the reference pointer to the `dataloader`.
+
+### Implement a DS3D Custom Dataloader
+
+Examples:
+
+```cpp
+#include <ds3d/common/impl/impl_dataloader.h>
+class TestTimeDataLoader : public ds3d::impl::SyncImplDataLoader {
+public:
+    TestTimeDataLoader() = default;
+
+protected:
+    ErrCode startImpl(const std::string& content, const std::string& path) override
+    {
+        setOutputCaps("ds3d/datamap");
+        return ErrCode::kGood;
+    }
+    ErrCode readDataImpl(GuardDataMap& datamap) override
+    {
+        datamap.reset(NvDs3d_CreateDataHashMap());
+        static uint64_t iTime = 0;
+        TimeStamp t{iTime++, 0, 0};
+        datamap.setData("time", t);
+        emitError(ErrCode::kGood, "timestamp added");
+        return ErrCode::kGood;
+    }
+    ErrCode stopImpl() override { return ErrCode::kGood; }
+    ErrCode flushImpl() override { return ErrCode::kGood; }
+};
+
+DS3D_EXTERN_C_BEGIN
+DS3D_EXPORT_API abiRefDataLoader*
+createTestTimeDataloader()
+{
+    return NewAbiRef<abiDataLoader>(new TestTimeDataLoader);
+}
+DS3D_EXTERN_C_END
+```
+
+A shown in the example above, You'll need to derive `dataloader` from the `ds3d::impl::SyncImplDataLoader` class, and implement interfaces for the following:
+
+  ```cpp
+  ErrCode startImpl(const std::string& content, const std::string& path) override;
+  ErrCode readDataImpl(GuardDataMap& datamap) override;
+  ErrCode stopImpl() override;
+  ErrCode flushImpl() override;
+  ```
+
+`ds3d::databridge` - Loads Custom Lib for data conversion to and from DS3D.
+
+## `ds3d::databridge` - Loads Custom Lib for data conversion to and from DS3D.
+
+This plugin and custom lib helps convert data type to and from `ds3d/datamap`
+
+More details: [Gst-nvds3dbridge](/text/DS_plugin_gst-nvds3dbridge).
+
+`ds3d::datafilter`-  DS3D Custom DataFilter
+
+## `ds3d::datafilter`-  DS3D Custom DataFilter
+
+DS3D DataFilter is processing inputs from `ds3d::datamap` and producing outputs input new `ds3d::datamap`. Users can implement custom datafilter lib for their own use case.
+
+### Create And Manage DS3D Datafilter in DeepStream App
+
+Examples:
+
+```cpp
+#include <ds3d/common/config.h>
+#include <ds3d/gst/nvds3d_gst_ptr.h>
+#include <ds3d/gst/nvds3d_gst_plugin.h>
+
+std::string yamlStr = R"(
+  name: fusion_inference
+  type: ds3d::datafilter
+  in_caps: ds3d/datamap
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_tritoninferfilter.so
+  custom_create_function: createLidarInferenceFilter
+  config_body:
+    mem_pool_size: 2
+    model_inputs:
+    config_file: model_config_files/config_triton_bev_fusion_infer_grpc.pbtxt
+    - name: input_image_0
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_0+1
+      is_2d_frame: true
+    - name: input_lidar
+      datatype: FP32
+      shape: [242180, 4]
+      from: DS3D::LidarXYZI+0
+)";
+
+gst::ElePtr gstPlugin = gst::elementMake("nvds3dfilter", "ds3d-custom-filter");
+g_object_set(G_OBJECT(gstPlugin.get()), "config-content", yamlStr.c_str(), nullptr);
+GstElement* ele = gstPlugin.get();
+```
+
+A custom `datafilter` must have `type: ds3d::datafilter`. It is loaded through the `nvds3dfilter` `Gst-plugin`. It is started by `gst_element_set_state(GST_STATE_READY)`. During this call, the `custom_lib_path` is loaded and a specific data filter is created by `custom_create_function`. `nvds3dfilter` `Gst-plugin` has `config-content` and `config-file` properties. One of them must be set to create a `datafilter` object.
+
+### Implement a Custom DS3D Datafilter
+
+Examples:
+
+```cpp
+#include <ds3d/common/impl/impl_datafilter.h>
+class TestFakeDataFilter : public impl::BaseImplDataFilter {
+public:
+    TestFakeDataFilter() = default;
+
+protected:
+    ErrCode startImpl(const std::string& content, const std::string& path) override
+    {
+        setInputCaps(kFakeCapsMetaName);
+        setOutputCaps(kFakeCapsMetaName);
+        return ErrCode::kGood;
+    }
+    ErrCode processImpl(
+        GuardDataMap datamap, OnGuardDataCBImpl outputDataCb,
+        OnGuardDataCBImpl inputConsumedCb) override
+    {
+        DS_ASSERT(datamap);
+        TimeStamp t;
+        ErrCode c = datamap.getData("time", t);
+        if (!isGood(c)) {
+            return c;
+        }
+        t.t0 += 1;
+        inputConsumedCb(ErrCode::kGood, datamap);
+        c = datamap.setData("time", t);
+        if (!isGood(c)) {
+            return c;
+        }
+        outputDataCb(ErrCode::kGood, datamap);
+        return ErrCode::kGood;
+    }
+
+    ErrCode flushImpl() override { return ErrCode::kGood; }
+    ErrCode stopImpl() override { return ErrCode::kGood; }
+};
+
+DS3D_EXTERN_C_BEGIN
+DS3D_EXPORT_API abiRefdatafilter*
+createTestFakeDatafilter()
+{
+    return NewAbiRef<abidatafilter>(new TestFakeDataFilter);
+}
+DS3D_EXTERN_C_END
+```
+
+As shown in the example above, you'll need to derive the `datafilter` from the `ds3d::impl::BaseImplDataFilter` class, and implement interfaces for the following:
+
+```cpp
+ErrCode startImpl(const std::string& content, const std::string& path) override;
+ErrCode processImpl(
+        GuardDataMap datamap, OnGuardDataCBImpl outputDataCb,
+        OnGuardDataCBImpl inputConsumedCb) override;
+ErrCode stopImpl() override;
+ErrCode flushImpl() override;
+```
+
+To load this custom lib through `nvds3dfilter` `Gst-plugin`, you'll also need to export a specific symbol `createTestFakeDatafilter`.
+
+`ds3d::datarender` - Loads DS3D Custom DataRender
+
+## `ds3d::datarender` - Loads DS3D Custom DataRender
+
+DS3D Custom DataRenders are agnostic from Gstreamer/Glib Framework. But it could be working with Gstramer as well. The `ds3d::datarender` could interactively work with GstAppSink together. They could be created by `NvDs3D_CreateDataRenderSink`.
+
+Examples:
+
+### Load And Manage DS3D Datarender
+
+Examples:
+
+```cpp
+#include <ds3d/common/config.h>
+#include <ds3d/gst/nvds3d_gst_plugin.h>
+
+std::string yamlStr = R"(
+```
+
+		name: lidar_render
+		type: ds3d::datarender
+		in_caps: ds3d/datamap
+		custom_lib_path: libnvds_3d_gl_datarender.so
+		custom_create_function: createLidarDataRender
+		gst_properties:
+		  sync: True
+		  async: False
+		  drop: False
+		config_body:
+		  title: ds3d-lidar-render
+		  streams: [lidardata]
+		  width: 1280
+		  height: 720
+		  block: True
+		  view_position: [0, 0, 60]
+		  view_target: [0, 0, 0]
+		  view_up: [0, 1, 0]
+		  near: 0.3
+		  far: 100
+		  fov: 50
+		  lidar_color: [0, 255, 0]
+		  lidar_data_key: DS3D::LidarXYZI
+		  element_size: 4
+		  lidar_bbox_key: DS3D::Lidar3DBboxRawData
+		  enable_label: True
+    )";
+
+    ErrCode c = ErrCode::kGood;
+    ComponentConfig config;
+    c = parseComponentConfig(yamlStr.c_str(), "./config_lidar_loader.yaml", config);
+    DS_ASSERT(config.type == ComponentType::kDataRender);
+    DS_ASSERT(config.customLibPath == "libnvds_3d_gl_datarender.so");
+    DS_ASSERT(config.customCreateFunction == "createLidarDataRender");
+
+    gst::DataRenderSink appRender;
+    c = NvDs3D_CreateDataRenderSink(config, appRender, true);
+    // get DS3D custom datarender.
+    GuardDataRender datarender = appRender.customProcessor;
+    // get GstAppSink from this appRender;
+    GstElement* appsink = appRender.gstElement.get();
+
+    // gstreamer pipeline setup and running.
+    // during each render_data from GstAppSink callback. it would simultaneously reading data from datarender
+    // datarender.render(datamap, consumed_callback);
+
+    // DS3D datarender would stop qutomatically when Gstpipeline is stopped.
+    // But in the case if user want to stop it early or manually.
+    // Obtain DS3D custom datarender and stop manually.
+    c = datarender.stop();
+
+A custom `datarender` must have `type: ds3d::datarender`. It is created by explicit call of `NvDs3D_CreateDataRenderSink(sinkConfig, renderSink, start)` with the full component YAML content. During this call, the `custom_lib_path` is loaded and a specific data loader is created via `custom_create_function`. A `GstAppsink` object is also created into `renderSink.gstElement`.
+
+`GstAppsink` manages the `ds3d::datarender` dataflows. This `ds3d::datarender` component could be  automatically started by the `gst-pipeline`, or manually by the application call.
+
+  ```cpp
+  GuardDataRender datarender = renderSink.customProcessor;
+  ErrCode c = datarender.start();
+  ```
+
+To stop the `datarender`, you can set `GstAppsink` states to `GST_STATE_READY`, or stop manually.
+
+```text
+GuardDataRender datarender = renderSink.customProcessor;
+ErrCode c = datarender.stop();
+```
+
+`GuardDataRender` provides safe access to `abidatarender`. Once it's created, it will maintain the reference pointer to datarender. `preroll` is called only once to initialize some resources.
+
+### Implement a DS3D Custom Datarender
+
+Examples:
+
+  ```cpp
+  #include <ds3d/common/impl/impl_datarender.h>
+  class TestFakeDataRender : public impl::BaseImplDataRender {
+  public:
+      TestFakeDataRender() = default;
+  
+  protected:
+      ErrCode startImpl(const std::string& content, const std::string& path) override
+      {
+          setInputCaps("ds3d/datamap");
+          return ErrCode::kGood;
+      }
+      ErrCode prerollImpl(GuardDataMap datamap) override { return ErrCode::kGood; }
+      ErrCode renderImpl(GuardDataMap datamap, OnGuardDataCBImpl dataDoneCb) override
+      {
+          DS_ASSERT(datamap);
+          emitError(ErrCode::kGood, "data rendered");
+          dataDoneCb(ErrCode::kGood, datamap);
+          return ErrCode::kGood;
+      }
+      ErrCode flushImpl() override { return ErrCode::kGood; }
+      ErrCode stopImpl() override { return ErrCode::kGood; }
+  };
+  
+  DS3D_EXTERN_C_BEGIN
+  DS3D_EXPORT_API abiRefdatarender*
+  createTestFakedatarender()
+  {
+      return NewAbiRef<abiDataRender>(new TestFakeDataRender());
+  }
+  DS3D_EXTERN_C_END
+  ```
+
+As shown in the example above, you'll need to derive `datarender` from the `ds3d::impl::BaseImplDataRender` class, and implement interfaces for the following:
+
+  ```cpp
+  ErrCode startImpl(const std::string& content, const std::string& path) override;
+  ErrCode prerollImpl(GuardDataMap datamap) override;
+  ErrCode renderImpl(GuardDataMap datamap, OnGuardDataCBImpl dataDoneCb) override;
+  ErrCode stopImpl() override;
+  ErrCode flushImpl() override;
+  ```
+
+To load this custom lib through `NvDs3D_CreateDataRenderSink`, you'll also need to export a specific symbol `createTestFakedatarender`.
+
+## Custom Libs Configuration Specifications
+
+### Components Common Configuration Specifications
+
+**ds3d common configuration specifications**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| type | Custom processor type | String, [ds3d::dataloader, ds3d::datafilter, ds3d::datarender] | type: ds3d::dataloader |
+| name | Indicate user-defined component name | String | name: depthloader |
+| in_caps | Indicate Gst sink caps for the component | String | in_caps: ds3d/datamap |
+| out_caps | Indicate Gst sink caps for the component | String | out_caps: ds3d/datamap |
+| custom_lib_path | Indicate custom lib path | String | custom_lib_path: libnvds_3d_gl_datarender.so |
+| custom_create_function | Indicate custom function to create the specific ds3d processing component | String | custom_create_function: createPointCloudDataRender |
+| config_body | Indicate YAML specific content for the custom component | String | config_body:<br />in_streams: [color, depth]<br />max_points: 407040 |
+
+These custom libs are part of DeepStream release package.
+
+### Supported DS3D Custom Process libraries
+
+| DS3D Process Type | Functionality | DS3D custom library | DS3D Creating Instance Function | Description |
+| --- | --- | --- | --- | --- |
+| `dataloader` | lidar-file-reader | `libnvds_lidarfileread.so` | `createLidarFileLoader` | Lidar file data reader library, see details in [Custom Dataloader libnvds_lidarfileread Configuration Specifications](/text/DS_3D_Custom_Manual#custom-dataloader-libnvds-lidarfileread-configuration-specifications) |
+| `dataloader` | realsense camera depth/image capture | `libnvds_3d_dataloader_realsense.so` | `createRealsenseDataloader` | RealSense Camera capture dataloader library, see details in [Custom Dataloader libnvds_3d_dataloader_realsense Configuration Specifications](/text/DS_3D_Custom_Manual#custom-dataloader-libnvds-3d-dataloader-realsense-configuration-specifications) |
+| `datafilter` | multi sensor triton inference lib | `libnvds_tritoninferfilter.so` | `createLidarInferenceFilter` | Multi-modal sensor triton inference library, see details in [libnvds_tritoninferfilter Configuration Specifications](/text/DS_3D_Custom_Manual#libnvds-tritoninferfilter-configuration-specifications) |
+| `datafilter` | data_alignment | `libnvds_3d_alignment_datafilter.so` | `createLidarAlignmentFilter` | lidar/camera Sensor Intrinsic and Extrinsic parameters and alignment, see details in [Custom `ds3d::datafilter` library: `libnvds_3d_alignment_datafilter.so`](/text/DS_plugin_gst-nvds3dfilter#custom-ds3d-datafilter-library-libnvds-3d-alignment-datafilter-so) |
+| `datafilter` | lidar_data_preprocess | `libnvds_3d_lidar_preprocess_datafilter.so` | `createLidarPreprocessFilter` | lidar data voxel processing, see details in [Custom Datafilter libnvds_3d_lidar_preprocess_datafilter Specifications](/text/DS_3D_Custom_Manual#custom-datafilter-libnvds-3d-lidar-preprocess-datafilter-specifications) |
+| `datafilter` | depth-to-point-cound | `libnvds_3d_depth2point_datafilter.so` | `createDepth2PointFilter` | Convert Image Depth data into 3D Point Cloud data, see details in [Custom datafilter libnvds_3d_depth2point_datafilter Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datafilter-libnvds-3d-depth2point-datafilter-configuration-specifications) |
+| `databridge` | bridge 2D into DS3D | `libnvds_3d_video_databridge.so` | `createVideoBridge2d3d` | Convert DeepStream 2D batchmeta and surface into `ds3d::datamap`, see details in [Configuration file](/text/DS_plugin_gst-nvds3dbridge#configuration-file) |
+| `datamixer` | mixer for video and lidar/radar | `libnvds_3d_multisensor_mixer.so` | `createMultiSensorMixer` | Combines video data (2D) and LiDAR data (3D) into a single `ds3d::datamap`, see details in [Configuration file](/text/DS_plugin_gst-nvds3dmixer#configuration-file) |
+| `datarender` | 3D multiview scene render | `libnvds_3d_gles_ensemble_render.so` | `NvDs3D_CreateGlesEnsembleRender` | Renders a 3D multi-view scene using GLES with with various elements (textures, LiDAR points, bounding boxes) inside `ds3d::datamap`, see details in [Custom datarender libnvds_3d_gles_ensemble_render Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datarender-libnvds-3d-gles-ensemble-render-configuration-specifications) |
+| `datarender` | 3D point-cloud data render with texture | `libnvds_3d_gl_datarender.so` | `createPointCloudDataRender` | Renders 3D(Scene construction) PointCould(XYZ) data with RGBA color textures inside `ds3d::datamap`, see details in [Custom datarender libnvds_3d_gl_datarender Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datarender-libnvds-3d-gl-datarender-configuration-specifications) |
+| `datarender` | 3D lidar(XYZI/XYZ) data render | `libnvds_3d_gl_datarender.so` | `createLidarDataRender` | Renders 3D Lidar(XYZI/XYZ) data inside `ds3d::datamap`, see details in [Custom datarender libnvds_3d_gl_datarender Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datarender-libnvds-3d-gl-datarender-configuration-specifications) |
+| `datarender` | depth image 2D render | `libnvds_3d_gl_datarender.so` | `createDepthStreamDataRender` | Renders 2D depth and Camera RGBA data inside `ds3d::datamap`, see details in [Custom datarender libnvds_3d_gl_datarender Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datarender-libnvds-3d-gl-datarender-configuration-specifications) |
+
+### libnvds_tritoninferfilter Configuration Specifications
+
+Multi-modal tensors Triton inference with key-value pairs in `ds3d::datamap`, Supports user defined custom preprocess and postprocess.
+
+- Configuration for multi-modal triton inference Header:
+
+  ```text
+  name: multimodal_triton_infer
+  type: ds3d::datafilter
+  in_caps: ds3d/datamap
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_tritoninferfilter.so
+  custom_create_function: createLidarInferenceFilter
+  ```
+
+- Config body specifications
+
+**libnvds_tritoninferfilter `config_body` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| in_streams | which data type will be processed | List of String, Optional | in_streams: [lidar] |
+| gpu_id | GPU device ID | Integer, default value:０ | gpu_id: 0 |
+| config_file | nvinferserver(triton) low level lib config file, supports gRPC and CAPI,<br />see more details **DS_Plugin_gst_nvinferserver_low_level_spec** | String of Path | config_file: model_config_files/config_triton_bev_fusion_infer_grpc.pbtxt |
+| mem_pool_size | Size of the input tensor pool | Integer | mem_pool_size: 8 |
+| model_inputs | model 's input layers information, If there is no custom_preprocess defined, inferencefilter would forward the key-value frames from `ds3d::datamap` to triton's input tensor | List of Dict | - name: input_image_0<br />datatype: UINT8<br />shape: [1, 900, 1600, 4]<br />from: DS3D::ColorFrame_0+1<br />is_2d_frame: true |
+| input_tensor_mem_type | input tensor memory type after preprocess | String:[GpuCuda CpuCuda] | input_tensor_mem_type: GpuCuda |
+| custom_preprocess_lib_path | custom preprocessing library path | String | custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_lidar_custom_preprocess_impl.so |
+| custom_preprocess_func_name | customized preprocessing function name | String | custom_preprocess_func_name: CreateInferServerCustomPreprocess |
+| postprocess | User defined postprocessing information | Dict | postprocess:<br />score_threshold: 0.5 |
+| labels | User defined labels for custom postprocess | List of Dict | labels:<br />- car:<br />color: [255, 158, 0]<br />- truck:<br />color: [255, 99, 71] |
+
+`model_inputs` has all input layers information. If there is custom preprocess function/lib specified inside config body. The lib would search `from` keyname of the input `ds3d::datamap`, and forward the frame/tensor data into Triton server's input tensors. The `from` keyname must be a frame, 2D-frame or tensor inside the `ds3d::datamap`
+
+- Configuration Specifications of the `model_inputs`
+
+| Property | Description | Type and Range | Example |
+| --- | --- | --- | --- |
+| name | Model's input tensor name | String | name: input_image_0 |
+| datatype | Model's input data type | String values in [FP32, FP16, INT8, INT32, INT16, UINT8, UINT16, UINT32, FP64, INT64, UINT64, BYTES, BOOL] | datatype: FP32 |
+| shape | Model's input tensor shape | List of Integer | shape: [1, 900, 1600, 4] |
+| from | The keyname of the input `ds3d::datamap`, the value must be a frame/2D-frame/tensor. If custom_preprocess is not existing, the frame would be forwarded into Triton's input tensors directly. | String | from: DS3D::ColorFrame_5 |
+| is_2d_frame | Indicate the `from` inside of `ds3d::datamap` is a 2D frame. | Bool | is_2d_frame: true |
+
+- Custom preprocess before triton inference
+
+If `custom_preprocess_lib_path` and `custom_preprocess_func_name` are specified, Custom processing will be loaded and parse the config body and get all common and user defined information. then process each input `ds3d::datamap` and generate `batchArray` for triton inference inputs.
+
+Users can derive interface `IInferCustomPreprocessor` from `sources/includes/ds3d/common/hpp/lidar_custom_process.hpp`
+See examples in `sources/libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess/nvinferserver_custom_preprocess.cpp`
+
+```cpp
+#include <ds3d/common/hpp/datamap.hpp>
+#include <ds3d/common/hpp/frame.hpp>
+#include <ds3d/common/hpp/lidar_custom_process.hpp>
+using namespace ds3d;
+using namespace nvdsinferserver;
+class NvInferServerCustomPreProcess : public IInferCustomPreprocessor {
+public:
+  // process key-values from datamap and generate into model inputs batchArray.
+  NvDsInferStatus preproc(GuardDataMap &datamap, SharedIBatchArray batchArray, cudaStream_t stream) override {...}
+};
+extern "C" {
+IInferCustomPreprocessor *CreateInferServerCustomPreprocess() {
+  return new NvInferServerCustomPreProcess();
+} }
+```
+
+- Custom postprocess after triton inference
+
+Postprocessing is quite specific for each model. You'll need to implement your own postprocessing functions based on inference output tensors results.
+Custom postprocess libs and functions are specified from nvdsinferserver's config. for example in `apps/sample_apps/deepstream-3d-lidar-sensor-fusion/model_config_files/config_triton_bev_fusion_infer_grpc.pbtxt`
+
+```text
+infer_config {
+  backend {
+    triton {
+      model_name: "bevfusion"
+      grpc {...}
+  } }
+  extra {
+    output_buffer_pool_size: 4
+    # specify custom postprocess function
+    custom_process_funcion: "Nvds3d_CreateLidarDetectionPostprocess"
+  }
+  custom_lib {
+    # specify custom postprocess library
+    path: "libnvds_3d_infer_postprocess_lidar_detection.so"
+  }
+}
+```
+
+An example of custom postprocess implementation is provided here:  `sources/libs/ds3d/inference_custom_lib/ds3d_lidar_detection_postprocess/ds3d_infer_postprocess_lidar_detection.cpp`
+
+```cpp
+#include "infer_custom_process.h"
+#include <ds3d/common/hpp/frame.hpp>
+#include <ds3d/common/hpp/datamap.hpp>
+using namespace ds3d;
+using namespace nvdsinferserver;
+class DS3DTritonLidarInferCustomPostProcess : public IInferCustomProcessor {
+public:
+  // process key-values from datamap and generate into model inputs batchArray.
+  NvDsInferStatus inferenceDone(const IBatchArray* batchArray, const IOptions* inOptions) override {
+   ...
+
+    // get ``ds3d::datamap`` from ``inOptions``
+    abiRefDataMap* refDataMap = nullptr;
+    if (inOptions->hasValue(kLidarRefDataMap)) {
+        INFER_ASSERT(inOptions->getObj(kLidarRefDataMap, refDataMap) == NVDSINFER_SUCCESS);
+    }
+    GuardDataMap dataMap(*refDataMap);
+    ...
+    // parsing output tensors from batchArray
+    TensorMap outTensors;
+    for (uint32_t i = 0; i < batchArray->getSize(); ++i) {
+        auto buf = batchArray->getSafeBuf(i);
+        outTensors[buf->getBufDesc().name] = buf;
+    }
+    std::vector<Lidar3DBbox> bboxes;
+    ret = parseLidar3Dbbox(outTensors, bboxes);
+    // warp data into ds3d frame ``bboxFrame``
+    size_t bufBytes = sizeof(Lidar3DBbox) * bboxes.size();
+    void* bufBase = (void*)bboxes.data();
+    Shape shape{3, {1, (int)bboxes.size(), sizeof(Lidar3DBbox)}};
+    FrameGuard bboxFrame = impl::WrapFrame<uint8_t, FrameType::kCustom>(
+        bufBase, bufBytes, shape, MemType::kCpu, 0, [outdata = std::move(bboxes)](void*) {});
+    // add key-value frame into ds3d::datamap
+    ErrCode code = dataMap.setGuardData(_3dBboxKey, bboxFrame);
+    ...
+    return ret;
+  }
+};
+extern "C" {
+IInferCustomProcessor *Nvds3d_CreateLidarDetectionPostprocess() {
+  return new DS3DTritonLidarInferCustomPostProcess();
+} }
+```
+
+### Custom Datafilter libnvds_3d_alignment_datafilter Specifications
+
+Data alignment for lidar and video data can be done using a custom library provided with DeepStreamSDK.
+
+More details on this is here: [Custom `ds3d::datafilter` library: `libnvds_3d_alignment_datafilter.so`](/text/DS_plugin_gst-nvds3dfilter#custom-ds3d-datafilter-library-libnvds-3d-alignment-datafilter-so).
+
+### Custom Datafilter libnvds_3d_lidar_preprocess_datafilter Specifications
+
+LiDAR data preprocess into voxel data format before V2X model sensor fusion inference.
+Source files located at `/opt/nvidia/deepstream/deepstream/sources/libs/ds3d/datafilter/lidar_preprocess`
+
+- Configuration for Lidar data preprocess `ds3d::datafilter` Header:
+
+  ```text
+  name: lidarpreprocess
+  type: ds3d::datafilter
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_3d_lidar_preprocess_datafilter.so
+  custom_create_function: createLidarPreprocessFilter
+  ```
+
+- Config Body Specifications
+
+For example:
+
+  ```text
+  config_body:
+  mem_pool_size: 4
+  filter_input_datamap_key: DS3D::LidarXYZI_0
+  model_inputs:
+  - name: feats
+    datatype: FP16
+    shape: [4, 8000, 10, 9]
+  - name: coords
+    datatype: INT32
+    shape: [4, 8000, 4]
+  - name: N
+    datatype: INT32
+    shape: [4, 1]
+  gpu_id: 0
+  input_tensor_mem_type: GpuCuda
+  lidar_data_from: [DS3D::LidarXYZI_0, DS3D::LidarXYZI_1, DS3D::LidarXYZI_2, DS3D::LidarXYZI_3]
+  output_features_tensor_key: DS3D::LidarFeatureTensor
+  output_coords_tensor_key: DS3D::LidarCoordTensor
+  output_num_tensor_key: DS3D::LidarPointNumTensor
+  ```
+
+| Property | Description | Type and Range | Example |
+| --- | --- | --- | --- |
+| mem_pool_size | memory buffer pool size | Integer | mem_pool_size: 4 |
+| filter_input_datamap_key | Specify input lidar data key name | String | filter_input_datamap_key: DS3D::LidarXYZI_0 |
+| model_inputs | Specify model input layers info | Dict | see example in deepstrem-3d-lidar-sensor-fusion/ds3d_lidar_video_sensor_v2xfusion.yml |
+| gpu_id | Specify GPU ID | Integer | gpu_id: 0 |
+| input_tensor_mem_type | Specify model input tensors memory type | String, select value from [GpuCuda, CpuCuda] | input_tensor_mem_type: GpuCuda |
+| lidar_data_from | Specify lidar data key name | List of String | lidar_data_from: [DS3D::LidarXYZI_0] |
+| output_features_tensor_key | Specify output lidar feature tensor key name | String | DS3D::LidarFeatureTensor |
+| output_coords_tensor_key | Specify output lidar coordinate tensor key name | String | output_coords_tensor_key: DS3D::LidarCoordTensor |
+| output_num_tensor_key | Specify keyname of numbers of ldiar data into tensor | String | output_num_tensor_key: DS3D::LidarPointNumTensor |
+
+### Custom Dataloader libnvds_lidarfileread Configuration Specifications
+
+The lib reads lidar data file frame by frame, it creates a new `ds3d::datamap` per frame and deliver to next component.
+Source files located at `/opt/nvidia/deepstream/deepstream/sources/libs/ds3d/dataloader/lidarsource`
+
+- Configuration for Lidar file reader `ds3d::dataloader` Header:
+
+  ```text
+  name: ds3d_lidar_file_source
+  type: ds3d::dataloader
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_lidarfileread.so
+  custom_create_function: createLidarFileLoader
+  ```
+
+- Config Body Specifications
+
+For example:
+
+  ```text
+  config_body:
+    data_config_file: lidar_nuscene_data_list.yaml
+    points_num: 242180
+    fixed_points_num: True
+    lidar_datatype: FP32
+    mem_type: gpu
+    gpu_id: 0
+    mem_pool_size: 6
+    element_size: 4
+    output_datamap_key: DS3D::LidarXYZI
+    file_loop: True
+  ```
+
+| Property | Description | Type and Range | Example |
+| --- | --- | --- | --- |
+| data_config_file | lidar data list file path | Path String, or List of Path String | data_config_file: lidar_data_list.yaml |
+| source_id | Specify the unique source id of the loader instance | Integer | source_id: 0 |
+| points_num | Specify point number of each frame | Integer | points_num: 70000 |
+| fixed_points_num | Indicate the point number is always same as `points_num` | Bool | fixed_points_num: False |
+| lidar_datatype | Specify Lidar data type | String, Only FP32 supported for now. | lidar_datatype: FP32 |
+| mem_type | Specify memory type of process data, supports [cpu, gpu] | String, [cpu, gpu] | mem_type: gpu |
+| mem_pool_size | Specify buffer pool size allocated for frames | Integer | mem_pool_size: 16 |
+| gpu_id | Specify GPU ID in the case of `mem_type: gpu` | Integer | gpu_id: 0 |
+| element_size | Specify how manay elements will be read per each point. 3, means XYZ, 4, means XYZI. | Integer | element_size: 4 |
+| element_stride | Specify element stride between 2 continuous points. e.g. XYZI, stride:4, XYZIT,5 | Integer | element_stride: 4 |
+| file_loop | Indicate whether loop the file list without EOS | Bool | file_loop: True |
+| output_datamap_key | Specify output frame keyname into the `ds3d::datamap` | String or List of String | output_datamap_key: DS3D::LidarXYZI_0 |
+
+- lidar data config file
+
+The lib reads frames from `data_config_file` which is a separate file containers multiple lidar files. each lidar file is a single lidar frame file which are listed inside of `source-list`. Each item's keyname is the timestamp(millisecond) of the lidar frame.
+
+An example of `data_config_file`.
+
+  ```text
+  source-list:
+    - 0: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000000-LIDAR_TOP.bin
+    - 50: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000001-LIDAR_TOP.bin
+    - 100: /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene/LIDAR_TOP/000002-LIDAR_TOP.bin
+  ```
+
+### Custom Dataloader libnvds_3d_dataloader_realsense Configuration Specifications
+
+Configuration for `Realsense` `Dataloader` Header:
+
+  ```text
+  name: realsense_dataloader
+  type: ds3d::dataloader
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_3d_dataloader_realsense.so
+  custom_create_function: createRealsenseDataloader
+  ```
+
+`libnvds_3d_dataloader_realsense.so` requires you to install `librealsense2` SDK. For x86, follow the instructions from https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md.
+For Jetson platform, follow the instructions from https://github.com/IntelRealSense/librealsense/blob/master/doc/installation_jetson.md.
+
+**libnvds_3d_dataloader_realsense `config_body` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| streams | Specify which streams to enable | List[String],  select from [color, depth] | streams: [color, depth] |
+| aligned_image_to_depth | Indicate whether color image is aligned to depth | Boolean | aligned_image_to_depth: False |
+
+### Custom datafilter libnvds_3d_depth2point_datafilter Configuration Specifications
+
+Convert 2D depth data into 3D point-cloud(XYZ) data into `ds3d::datamap`
+
+- Configuration for Depth to Points Header:
+
+```text
+name: depth2points
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_depth2point_datafilter.so
+custom_create_function: createDepth2PointFilter
+```
+
+**libnvds_3d_depth2point_datafilter `config_body` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| streams | Specify which streams to enable | List[String],  select from [color, depth] | streams: [color, depth] |
+| max_points | Indicate maximum 3d points to allocate | Uint32 | max_points: 407040 |
+| mem_pool_size | Indicate max buffer pool size | Uint32 | mem_pool_size: 8 |
+
+### Custom datarender libnvds_3d_gles_ensemble_render Configuration Specifications
+
+Renders 3D scene using OpenGL ES (GLES) with various elements (textures, LiDAR points, bounding boxes) within a single window, allowing for flexible layout customization. Users can split the windows into multiple views, and project each tensor data or frame from `ds3d::datamap` into a separate view or into multiple views at the same time.
+It could also support overlay if multi frames rendered into a single view position overlap, it depends on the render graph order.
+
+- Configuration Header
+
+```text
+name: ds3d_sensor_fusion_render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gles_ensemble_render.so
+custom_create_function: NvDs3D_CreateGlesEnsembleRender
+```
+
+- Configuration Body
+
+An example of a multi-view config with `render_graph`. There are 2 views rendered with different frames inside the same `ds3d::datamap`. The 2D color image is rendered by `texture3d_render` into view area `[0, 0, 640, 360]`; The Lidar data is rendered by `lidar3d_render` into view area `[640, 0, 1280, 360]`.
+
+```text
+config_body:
+  window_width: 1280 # window size
+  window_height: 360 # window size
+  color_clear: true
+  window_title: DS3D-Lidar-6-Cameras-BEVFusion
+  render_graph:
+    - texture3d_render: # 2D texture view
+        layout: [0, 0, 640, 360] # layout [x0, y0, x1, y1]
+        max_vertex_num: 6
+        color_clear: false
+        texture_frame_key: DS3D::ColorFrame_2 # image data key
+    - lidar3d_render: # lidar top view
+        layout: [640, 0, 1280, 360] # layout [x0, y0, x1, y1]
+        color_clear: false
+        view_position: [0, 0, 30]
+        view_target: [0, 0, 0]
+        view_up: [0, 1, 0]
+        lidar_color: [0, 0, 255]
+        lidar_data_key: DS3D::LidarXYZI
+        lidar_bbox_key: DS3D::Lidar3DBboxRawData
+        element_size: 4
+```
+
+**libnvds_3d_gles_ensemble_render `config_body` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| window_title | Specify window title | string | window_title: DS3D-Lidar-6-Cameras-BEVFusion |
+| window_width | Specify window width | uint32 | window_width: 1920 |
+| window_height | Specify window height | uint32 | window_height: 1080 |
+| color_clear | Specify whether to clear up the whole window when new frame arrive | bool | color_clear: true |
+| render_graph | Specify a list of multiple renders in different views | List[Dict] | .. code-block:: text<br />render_graph:<br />- texture3d_render:<br />layout: [0, 0, 640, 360]<br />color_clear: false<br />texture_frame_key: DS3D::ColorFrame<br />- lidar3d_render:<br />layout:  [640, 0, 1280, 360]<br />color_clear: false<br />lidar_data_key: DS3D::LidarXYZI |
+
+- Render graph `render_graph`
+
+It supports 2 different modes of views
+
+    - `texture3d_render`, it renders 2D image data into a specified view area.
+
+    - `lidar3d_render`, it renders lidar data and 3D bbox data into a specified view area.
+
+Each mode could be configured multiple times in the same `render_graph`. Multiple camera data inside a single `ds3d::datamap` could be configured into different view area. Similarly, multiple lidar data insdie the same `ds3d::datamap` could also be configured at different viewpoint(topview, front-view, side-view) into different view area.
+
+- Configuration Specifications of `texture3d_render`
+
+**libnvds_3d_gles_ensemble_render `texture3d_render` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| layout | Specify the view location for [x0, y0, x1, y1] | List[Float] | layout: [0, 0, 640, 360]<br />x0 = 0;<br />y0 = 0;<br />x1 = 640;<br />y1 = 360; |
+| color_clear | Indicate whether to clear up this view before new frame came. | bool | color_clear: false |
+| texture_frame_key | Specify texture image keyname from `ds3d::datamap` | string | texture_frame_key: DS3D::ColorFrame_1+1 |
+| max_vertex_num | Specify vertex_num used for the texture drawing, default value 6 | uint32 | max_vertex_num: 6 |
+| texture_vetex_key | Specify 3D vertex key name from `ds3d::datamap`, it's used for the texture drawing, there are 6 values by default. | string | texture_vetex_key: DS3D::TextureVertexKey |
+| texture_coord_key | Specify texture coordinate key name from `ds3d::datamap`, it's used for the texture drawing, there are 6 values by default. | string | texture_coord_key: DS3D::TextureCoordKey |
+
+- Configuration Specifications of `lidar3d_render`
+
+**libnvds_3d_gles_ensemble_render `lidar3d_render` fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| layout | Specify the view location for [x0, y0, x1, y1] | List[Float] | layout: [0, 0, 640, 360]<br />x0 = 0;<br />y0 = 0;<br />x1 = 640;<br />y1 = 360; |
+| color_clear | Indicate whether to clear up this view before new frame came. | bool | color_clear: false |
+| lidar_color | Specify lidar data color RGB | list[uint8] | lidar_color: [0, 0, 255] |
+| lidar_data_key | Specify lidar data keyname from `ds3d::datamap` | string | lidar_data_key: DS3D::LidarXYZI+0 |
+| element_size | Specify lidar data element size. choose from [3, 4], default value 4 is for xyzi. value 3 is for xyz. | uint32 | element_size: 4 |
+| lidar_bbox_key | Specify 3D detection bounding-box key name from `ds3d::datamap` | string | lidar_bbox_key: DS3D::Lidar3DBboxRawData |
+| project_lidar_to_image | Indicate whether need project lidar data and bounding-box into camera image, default value: false | bool | project_lidar_to_image: false |
+| intrinsics_mat_key | Specify camera intrinsics matrix key name from `ds3d::datamap`,  It's needed when project_lidar_to_image: true |  | intrinsics_mat_key: DS3D::Cam2_IntrinsicMatrix |
+| extrinsics_mat_key | Specify lidar extrinsics matrix key name from `ds3d::datamap` |  | extrinsics_mat_key: DS3D::LidarToCam2_ExtrinsicMatrix |
+| image_width | Specify original camera intrinsic image width, this is needed when project_lidar_to_image: true |  | image_width: 1600 |
+| image_height | Specify original camera intrinsic image height, this is needed when project_lidar_to_image: true |  | image_height: 900 |
+| view_position | Specify view position [x, y, z]coordinates | List[Float] | view_position: [0, 0, -1] |
+| view_target | Specify view target [x, y, z]coordinates | List[Float] | view_target: [0, 0, 1] |
+| view_up | Specify view up direction [x, y, z]coordinates | List[Float] | view_up: [0, -1.0, 0] |
+| perspective_near | Specify perspective projection near plane | Float | perspective_near: 0.1 |
+| perspective_far | Specify perspective projection far plane | Float | perspective_far: 10.0 |
+| perspective_fov | Specify perspective projection field of view,  degree angle | Float | perspective_fov: 40.0 |
+| perspective_ratio | Specify perspective ratio for width/height. default 0.0f means view-width/view-height | Float | perspective_ratio: 0.0 |
+| enable_label | Indicate whether label text render enabled. default value: false | bool | enable_label: true |
+
+### Custom datarender libnvds_3d_gl_datarender Configuration Specifications
+
+Configuration Common header for `libnvds_3d_gl_datarender`:
+
+  ```text
+  name: depth-point-render
+  type: ds3d::datarender
+  in_caps: ds3d/datamap
+  custom_lib_path: libnvds_3d_gl_datarender.so
+  ```
+
+Configuration Body for Common Part:
+
+**libnvds_3d_gl_datarender `config_body` common fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| title | Specify window title | String | title: ds3d-point-cloud-test |
+| streams | Indicate which streams to render. depth render must have [depth], 3D points render must have [points] | List[String],  select from [color, depth, points] | streams: [color, depth] |
+| width | Specify window width | UINT32 | width: 1280 |
+| height | Specify window height | UINT32 | height: 720 |
+| block | Indicate rendering thread as block mode | Boolean | block: True |
+
+- Configuration Header for Point Cloud Render:
+
+```text
+name: point-3D-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createPointCloudDataRender # specific function for 3D point rendering
+```
+
+- Configuration Header for Lidar data Render:
+
+```text
+name: lidar-data-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createLidarDataRender # specific function for Lidar point cloud rendering
+```
+
+- Configuration Body for 3D Point Cloud and Lidar Render Part:
+
+For more details on 3D coordinate system, refer to https://learnopengl.com/Getting-started/Coordinate-Systems.
+To know the value meanings for `view_position`, `view_target` and `view_up`,refer to  the `gluLookAt` here: https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluLookAt.xml.
+To know the value meanings for `near`, `far` and `fov`, refer to the `gluPerspective` here: https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml.
+
+**libnvds_3d_gl_datarender Point Cloud Render `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| view_position | Specify view position [x, y, z]coordinates | List[Float] | view_position: [0, 0, -1] |
+| view_target | Specify view target [x, y, z]coordinates | List[Float] | view_target: [0, 0, 1] |
+| view_up | Specify view up direction [x, y, z]coordinates | List[Float] | view_up: [0, -1.0, 0] |
+| near | Specify perspective projection near plane | Float | near: 0.01 |
+| far | Specify perspective projection far plane | Float | far: 10.0 |
+| fov | Specify perspective projection field of view,  degree angle | Float | fov: 40.0 |
+| coord_y_opposite | Specify texture map V direction, Realsense coordinates is different from GLES default coordinates | Boolean | coord_y_opposite: False |
+| positive_z_only | Specify whether display negative depth values | Boolean | positive_z_only: False |
+
+- Configuration Body for Lidar Render Specific Part:
+
+**libnvds_3d_gl_datarender Lidar Render extra `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| view_position | Specify view position [x, y, z]coordinates | List[Float] | view_position: [0, 0, -1] |
+| view_target | Specify view target [x, y, z]coordinates | List[Float] | view_target: [0, 0, 1] |
+| view_up | Specify view up direction [x, y, z]coordinates | List[Float] | view_up: [0, -1.0, 0] |
+| near | Specify perspective projection near plane | Float | near: 0.01 |
+| far | Specify perspective projection far plane | Float | far: 10.0 |
+| fov | Specify perspective projection field of view,  degree angle | Float | fov: 40.0 |
+| lidar_color | Specify lidar data color for display | List[Uint32] | lidar_color: [0, 255, 0] |
+| element_size | Specify lidar data element size. e.g. 4 for XYZI or 3 for XYZ | Uint32 | element_size: 4 |
+| lidar_data_key | Specify lidar data frame in datamap, default value is DS3D::LidarXYZI | String | lidar_data_key: DS3D::LidarXYZI |
+| lidar_bbox_key | Specify lidar 3D bounding box data in datamap, default value is DS3D::Lidar3DBboxRawData | String | lidar_bbox_key: DS3D::Lidar3DBboxRawData |
+
+- Configuration Header for Depth and Color 2D Render:
+
+```text
+name: depth-2D-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createDepthStreamDataRender # specific function for 2D depth rendering
+```
+
+- Configuration Body for Depth and Color 2D Specific Part:
+
+**libnvds_3d_gl_datarender 2D Depth Render `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| min_depth | Specify minimum depth value. other values less that it will be removed in rendering | Float | min_depth: 0.3 |
+| max_depth | Specify maximum depth value. other values less that it will be removed in rendering | Float | max_depth: 2.0 |
+| min_depth_color | Specify minimum depth rendering color in [R, G, B] | List[Uint32] | min_depth_color: [255, 128, 0] |
+| max_depth_color | Specify maximum depth rendering color in [R, G, B] | Float | max_depth_color: [0, 128, 255] |
+
+### libnvds_3d_depth_datasource Depth file source Specific Configuration Specifications
+
+Configuration header:
+
+```text
+name: depthfilesource
+type: ds3d::dataloader
+out_caps: ds3d/datamap, framerate=30/1
+custom_lib_path: libnvds_3d_depth_datasource.so
+custom_create_function: createDepthColorLoader
+```
+
+Configuration body:
+
+**libnvds_3d_depth_datasource Depth file source `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| depth_source | Specify file path for depth source | String | depth_source: depth_uint16_640x480.bin |
+| color_source | Specify file path for color image source | String | color_source: color_rgba_1920x1080.bin |
+| depth_scale | Indicate depth unit in meters per each depth value | Float | depth_scale: 0.0010 |
+| depth_datatype | Indicate depth datatype, only [uint16] is supported for this version | String, Values must be uint16 | depth_datatype: uint16 |
+| depth_size | Indicate depth resolutions in [width, height] | List[Uint32], must be [width, height] | depth_size: [640, 480] |
+| color | Indicate color format. only `rgba` is supported | String. Value must be rgba | color: rgba |
+| color_size | Indicate color resolutions in [width, height] | List[Uint32], must be [width, height] | color_size: [1920, 1080] |
+| depth_intrinsic | Indicate depth sensor intrinsic parameter groups | Intrinsic Configuration Group | depth_intrinsic:<br />width: 848<br />height: 480<br />centerX: 424.06073<br />centerY: 237.75032<br />fx: 422.513062<br />fy: 422.513062 |
+| color_intrinsic | Indicate color sensor intrinsic parameter groups | Intrinsic Configuration Group | color_intrinsic:<br />width: 1920<br />height: 1080<br />centerX: 964.288086<br />centerY: 533.287354<br />fx: 1358.21423<br />fy: 1358.2533 |
+| depth_to_color_extrinsic | Indicate extrinsic parameters from depth sensor to color sensor | Extrinsic Configuration Group | depth_to_color_extrinsic:<br />rotation: [1, -0.0068, 0.0010, 0.0068, 1, 0, -0.0010, 0, 1]<br />translation: [0.01481, -0.0001, 0.0002] |
+
+Configuration Body for Intrinsic Parameters :
+
+**libnvds_3d_depth_datasource Intrinsic Parameters in Depth file source `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| width | Specify sensor width in pixels | Uint32 | width: 848 |
+| height | Specify sensor height in pixels | Uint32 | height: 480 |
+| centerX | Specify coordinate axis position in pixels in horizontal direction | Float | centerX: 424.06 |
+| centerY | Specify coordinate axis position in pixels in vertical direction | Float | centerY: 533.28 |
+| fx | Specify focal length in pixels in X direction | Float | fx: 1358.21 |
+| fy | Specify focal length in pixels in Y direction | Float | fy: 1358.25 |
+
+Configuration Body for Extrinsic Parameters:
+
+**libnvds_3d_depth_datasource Extrinsic Parameters in Depth file source `config_body` Fields**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| rotation | Specify an extrinsic 3x3 matrix for rotation. Values in Column-major order | List[Float], Values in Column-major order | rotation: [1, -0.0068, 0.0010, 0.0068, 1, 0, -0.0010, 0, 1] |
+| translation | Specify an extrinsic 3x1 matrix for translation. Values in Column-major order | List[Float], Values in Column-major order | translation: [0.01481, -0.0001, 0.0002] |

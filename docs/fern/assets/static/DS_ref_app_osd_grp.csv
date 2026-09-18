@@ -1,0 +1,39 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the On-Screen Display (OSD).,Boolean,enable=1,"dGPU, Jetson"
+gpu-id,GPU to be used by the element in case of multiple GPUs.,"Integer, ≥0",gpu-id=1,dGPU
+border-width,"Border width of the bounding boxes drawn for objects, in pixels.","Integer, ≥0",border-width=10,"dGPU, Jetson"
+border-color,Border color of the bounding boxes drawn for objects.,"R;G;B;A Float,
+0≤R,G,B,A≤1",border-color=0;0;0.7;1 #Dark Blue,"dGPU, Jetson"
+text-size,"Size of the text that describes the objects, in points.","Integer, ≥0",text-size=16,"dGPU, Jetson"
+text-color,"The color of the text that describes the objects, in RGBA format.","R;G;B;A Float,
+0≤R,G,B,A≤1",text-color=0;0;0.7;1 #Dark Blue,"dGPU, Jetson"
+text-bg-color,"The background color of the text that describes the objects, in RGBA format.","R;G;B;A Float,
+0≤R,G,B,A≤1",text-bg-color=0;0;0;0.5 #Semi-transparent black,"dGPU, Jetson"
+clock-text-size,"The size of the clock time text, in points.","Integer, >0",clock-text-size=16,"dGPU, Jetson"
+clock-x-offset,"The horizontal offset of the clock time text, in pixels.","Integer, >0",clock-x-offset=100,"dGPU, Jetson"
+clock-y-offset,"The vertical offset of the clock time text, in pixels.","Integer, >0",clock-y-offset=100,"dGPU, Jetson"
+font,Name of the font for text that describes the objects.,String,font=Purisa,"dGPU, Jetson"
+,Enter the shell command fc-list to display the names of available fonts.,,,
+clock-color,"Color of the clock time text, in RGBA format.","R;G;B;A Float,
+0≤R,G,B,A≤1",clock-color=1;0;0;1 #Red,"dGPU, Jetson"
+nvbuf-memory-type,"Type of CUDA memory the element is to allocate for output buffers.
+
+0 (nvbuf-mem-default): a platform-specific default
+
+1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory
+
+2 (nvbuf-mem-cuda-device): Device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory
+
+For dGPU: All values are valid.
+
+For Jetson: Only 0 (zero) is valid.","Integer,
+0, 1, 2, or 3",nvbuf-memory-type=3,dGPU
+process-mode,"NvOSD processing mode.
+ | 0: CPU
+ | 1: GPU","Integer,
+0, 1, or 2",process-mode=1,"dGPU, Jetson"
+display-text,Indicate whether to display text,Boolean,display-text=1,"dGPU, Jetson"
+display-bbox,Indicate whether to bounding box,Boolean,display-bbox=1,"dGPU, Jetson"
+display-mask,Indicate whether to display instance mask,Boolean,display-mask=1,"dGPU, Jetson"

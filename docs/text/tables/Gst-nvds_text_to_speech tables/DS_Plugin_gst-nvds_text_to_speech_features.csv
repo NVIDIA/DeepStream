@@ -1,0 +1,9 @@
+Feature,Description,Release
+TTS template,The plugin provides a Text To Speech base which can support runtime loading of custom TTS library,DS 6.0
+DS-Riva TTS library and Context,Default TTS library based on Riva TTS gRPC service,DS 6.0
+Live speech synthesis,Supports speech synthesis in real time using the streaming mode of the Riva TTS service,DS 6.0
+Languages support,English is supported at present,DS 6.0
+Audio format,Outputs F32LE Linear PCM mono audio at 22050 Hz,DS 6.0
+Frame size,Supports configurable output frame size,DS 6.0
+x86 platform support,"--",DS 6.0
+Jetson platform support,"--",DS 6.2

@@ -1,0 +1,74 @@
+﻿Property,Meaning,Type and Range,"Example
+Notes","| Network Types
+| / Applicable to GIEs 
+| (Primary/­Secondary)"
+num-detected-classes,Number of classes detected by the network,"Integer, >0",num-detected-classes=­91,"Detector
+Both"
+net-scale-factor,Pixel normalization factor,"Float, >0.0",net-scale-factor=­0.031,"All
+Both"
+model-file,Pathname of the caffemodel file. Not required if model-engine-file is used,String,model-file=­/home/­ubuntu/­model.caffemodel,"All
+Both"
+proto-file,Pathname of the prototxt file. Not required if model-engine-file is used,String,proto-file=­/home/­ubuntu/­model.prototxt,"All
+Both"
+int8-calib-file,Pathname of the INT8 calibration file for dynamic range adjustment with an FP32 model,String,int8-calib-file=­/home/­ubuntu/­int8_calib,"All
+Both"
+batch-size,Number of frames or objects to be inferred together in a batch,"Integer, >0",batch-size=30,"All
+Both"
+model-engine-file,Pathname of the serialized model engine file,String,model-engine-file=­/home/­ubuntu/­model.engine,"All
+Both"
+onnx-file,Pathname of the ONNX model file,String,onnx-file=­/home/­ubuntu/­model.onnx,"All
+Both"
+labelfile-path,Pathname of a text file containing the labels for the model,String,labelfile-path=­/home/­ubuntu/­model_labels.txt,"Detector & classifier
+Both"
+output-blob-names,Array of output layer names,Semicolon delimited string array,"For detector:
+output-blob-names=coverage;bbox
+
+For multi-label classifiers:
+output-blob-names = coverage_attrib1;coverage_attrib2","All
+Both"
+custom-lib-path,Absolute pathname of a library containing custom method implementations for custom models,String,custom-lib-path=­/home/­ubuntu/­libresnet_custom_impl.so,"All
+Both"
+classifier-threshold,Minimum threshold label probability. The GIE outputs the label having the highest probability if it is greater than this threshold,"Float, ≥0",classifier-threshold=0.4,"Classifier
+Both"
+output-tensor-meta,Gst-nvinfer attaches raw tensor output as Gst Buffer metadata.,Boolean,output-tensor-meta=1,"All
+Both"
+network-type,Type of network,"Integer
+0: Detector
+1: Classifier
+2: Segmentation
+3: Instance Segmentation",network-type=1,"All
+Both"
+parse-classifier-func-name,"Name of the custom classifier output parsing function. If not specified, Gst-nvinfer uses the internal parsing function for softmax layers.",String,parse-classifier-func-name=­parse_bbox_softmax,"Classifier
+Both"
+custom-network-config,Pathname of the configuration file for custom networks available in the custom interface for creating CUDA engines.,String,custom-network-config=­/home/­ubuntu/­network.config,"All
+Both"
+workspace-size,"Workspace size to be used by the engine, in MB","Integer, >0",workspace-size=45,"All
+Both"
+force-implicit-batch-dim,"When a network supports both implicit batch dimension and full dimension, force the implicit batch dimension mode.",Boolean,force-implicit-batch-dim=1,"All
+Both"
+infer-dims,Binding dimensions to set on the image input layer.,channel;,infer-dims=3;224;224,"All
+Both"
+uff-input-order,UFF input layer order,"Integer
+0: NCHW
+1: NHWC
+2: NC",uff-input-order=1,"All
+Both"
+engine-create-func-name,Name of the custom TensorRT CudaEngine creation function. Refer to the “Custom Model Implementation Interface” section for details,String,engine-create-func-name=NvDsInferYoloCudaEngineGet,"All
+Both"
+output-io-formats,"Specifies the data type and order for bound output layers. For layers not specified, defaults to FP32 and CHW","Semi-colon separated list of format.
+<output-layer1-name>:<data-type>:<order>;<output-layer2-name>:<data-type>:<order>
+
+data-type should be one of
+[fp32, fp16, int32, int8]
+
+order should be one of [chw, chw2, chw4, hwc8, chw16, chw32]",output-io-formats=conv2d_bbox:fp32:chw;conv2d_cov/Sigmoid:fp32:chw,"All
+Both"
+Layer-device-precision,Specifies the device type and precision for any layer in the network,"Semi-colon separated list of format.
+<layer1-name>:<precision>:<device-type>;<layer2-name>:<precision>:<device-type>;
+
+precision should be one of
+[fp32, fp16, int8]
+
+Device-type should be one of [gpu, dla]","layer-device-precision=
+output_cov/Sigmoid:fp32:gpu;output_bbox/BiasAdd:fp32:gpu;","All
+Both"

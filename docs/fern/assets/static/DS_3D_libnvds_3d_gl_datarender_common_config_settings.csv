@@ -1,0 +1,6 @@
+Property,Meaning,Type and Range,Example
+title,Specify window title,String,title: ds3d-point-cloud-test
+streams,"Indicate which streams to render. depth render must have [depth], 3D points render must have [points]","List[String],  select from [color, depth, points]","streams: [color, depth]"
+width,Specify window width,UINT32,width: 1280
+height,Specify window height,UINT32,height: 720
+block,Indicate rendering thread as block mode,Boolean,block: True

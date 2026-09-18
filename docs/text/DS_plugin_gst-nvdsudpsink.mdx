@@ -1,0 +1,438 @@
+---
+title: "Gst-nvdsudpsink"
+---
+
+The Gst-nvdsudpsink plugin is a sink type component which can be used to transmit the RTP packets over IP network. Internally, the plugin uses `Rivermax` SDK APIs for network communications. NVIDIA Rivermax <sup>®</sup> offers a unique IP-based solution for any media and data streaming use case. For more details see the [Rivermax Product Page](https://developer.nvidia.com/networking/rivermax).
+
+`nvdsudpsink` can operate in three different modes based on the input type and properties set to the component. Mode 3 has an additional sub-variant for SMPTE ST 2110-40 ancillary data (RFC 8331) — see the [Gst-nvdsudpsink](/text/DS_plugin_gst-nvdsudpsink) section below.
+
+**Mode 1: RTP packets with Rivermax Generic API**
+  This is default mode. In this mode nvdsudpsink will receive RTP packets and transmit it to network using Rivermax generic APIs. nvdsudpsink doesn’t require any information about the content of RTP packets.
+
+**Mode 2: RTP packets with Rivermax Media API**
+  This mode is for specific use case of SMPTE 2110-20, 30 streams. In this mode, nvdsudpsink supports SMPTE 2110-20 and SMPTE 2110-30 streams with traffic shaping. nvdsudpsink expects RTP packets having either uncompressed audio or video as payload and It will transmit those packets to network using Rivermax media APIs.
+
+  Since Rivermax media APIs need to know the information about the data being transmitted for it to handle the traffic shaping, nvdsudpsink needs that information for Rivermax initialization in the form of SDP file.
+
+  * This mode can be enabled by setting `sdp-file` property of the component. In this mode, for uncompressed video streams, `packets-per-line` and `payload-size` properties along with `sdp-file` must be set. Similarly, value of `mtu` property of payloader component must be same as `payload-size` of `nvdsudpsink`.
+  * For uncompressed audio streams in this mode, `max-ptime` and `ptime-multiple` properties of payloader component must be set. Also it is mandatory to set `a=ptime:` attribute in the SDP file with an appropriate value which denotes packet time in milliseconds.
+
+**Mode 3: Uncompressed data with Rivermax media API**
+  In this mode, nvdsudpsink expects uncompressed audio or video frames directly instead of RTP packets. The component will convert those frames to RTP packets and then transmit over network using Rivermax media API.
+
+  * This mode will be enabled if `sdp-file` is set and the incoming data is uncompressed video or audio frames instead of RTP packets.
+  * For uncompressed video streams, `packets-per-line` and `payload-size` properties along with `sdp-file` must be set.
+  * For uncompressed audio streams, `payload-size` and `sdp-file` must be set. It is also mandatory to set `a=ptime:` attribute in the SDP file with an appropriate value which denotes packet time in milliseconds.
+  * If `render-thread-core` property is set, a separate thread will be created to packetize the frame and transmit the packets. That thread will also be bound to the CPU core(s) provided as the value of the property.
+
+<Note>
+In this mode as uncompressed video input, only YUV 4:2:2 and RGB with 8 or 10 bit depth is supported.
+</Note>
+
+**SMPTE ST 2110-40 ancillary data support (RFC 8331)**
+  `nvdsudpsink` supports transmission of SMPTE 291M ancillary (ANC) data — for example, closed captions encoded as CEA-608/708 — over ST 2110 networks as per SMPTE ST 2110-40 / RFC 8331. This can be considered as a sub-variant of Mode 3 (uncompressed data with Rivermax media API) for SMPTE 291M ancillary metadata rather than uncompressed video/audio essence. The plugin accepts ST2038 wire-format buffers as input (no upstream payloader), packetizes them into RFC 8331 RTP payloads (with bit-packing, 32-bit alignment, and ANC count header), and transmits using the Rivermax media API.
+
+  * This mode is activated by setting `meta/x-st-2038` caps on the sink pad. The typical upstream is the GStreamer element `cctost2038anc` (provided by `gst-plugins-rs` via `libgstrsrtp.so` — see the prerequisites section below), which converts closed-caption data to ST2038 ANC buffers.
+  * The `sdp-file` property is mandatory in this mode. The SDP file must use `smpte291/90000` as the `rtpmap` and include an `exactframerate` (matching the upstream framerate) and `SSN=ST2110-40:2021` in the `fmtp` attribute. The `DID_SDID` `fmtp` parameter identifies the ancillary data type being transported (e.g. `{0x61,0x01}` for CEA-608 closed captions per SMPTE 334-1, or `{0x61,0x02}` for CEA-708 closed captions per SMPTE 334-2). The example pipelines below carry CEA-608, so the sample SDP files use `{0x61,0x01}`.
+  * Unlike SMPTE 2110-20/30 modes, `payload-size` and `packets-per-line` need not be set — ANC packet sizes are determined dynamically by the input ST2038 data, and the Rivermax media API integration handles variable-length payloads.
+  * The `pass-rtp-timestamp` property is supported and is recommended when an upstream component (for example a `clockselect`-driven pipeline) supplies the reference timestamp.
+  * GPU Direct is not applicable for ancillary streams. If `gpu-id` is set on the plugin, it is automatically disabled with a warning when `meta/x-st-2038` caps are negotiated.
+  * SMPTE 2022-7 redundant transmission is supported for ANC streams via a `DUP` SDP file describing the two streams (see below).
+
+  **Prerequisites: gst-plugins-rs elements for ST 2110-40 example pipelines**
+
+  The ST 2110-40 sender pipelines below use the following upstream elements from `gst-plugins-rs` to convert closed-caption text into ST2038-formatted ANC buffers:
+
+  * `tttocea608` and `ccconverter` — provided by the `closedcaption` plugin (`libgstrsclosedcaption.so`).
+  * `cctost2038anc` — provided by the `rtp` plugin (`libgstrsrtp.so`). This element was added in `gst-plugins-rs` 0.13, which is aligned with **GStreamer 1.26**.
+
+  DeepStream 9.2 is based on Ubuntu 24.04 with **GStreamer 1.24.2**, so `cctost2038anc` is not available in the bundled GStreamer stack and must be built from `gst-plugins-rs` source. The `closedcaption` plugin is rebuilt from the same source tree to keep `tttocea608` / `ccconverter` versions consistent with the `rtp` plugin.
+
+  Run the following commands once, either on the bare-metal DeepStream host or inside the running DeepStream container (e.g. after `docker exec -it <container> bash`). The commands install the Rust toolchain, fetch the matching `gst-plugins-rs` source, build the two required plugins, and install them next to the system GStreamer plugins:
+
+  ```bash
+  GST_PLUGINS_RS_TAG="gstreamer-1.26.11"
+  
+  sudo apt-get install -y --no-install-recommends curl
+  curl https://sh.rustup.rs -sSf | sh -s -- --profile minimal -y
+  export PATH="$HOME/.cargo/bin:$PATH"
+  
+  curl https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs/-/archive/${GST_PLUGINS_RS_TAG}/gst-plugins-rs-${GST_PLUGINS_RS_TAG}.tar.gz | tar -xz
+  cd gst-plugins-rs-${GST_PLUGINS_RS_TAG}
+  
+  cargo b --no-default-features --jobs 1 --release -p gst-plugin-rtp
+  sudo cp target/release/libgstrsrtp.so /usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0/
+  
+  cargo b --no-default-features --jobs 1 --release -p gst-plugin-closedcaption
+  sudo cp target/release/libgstrsclosedcaption.so /usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0/
+  ```
+
+  Verify the new elements are visible to GStreamer:
+
+  ```bash
+  gst-inspect-1.0 cctost2038anc
+  gst-inspect-1.0 tttocea608
+  ```
+
+<Note>
+* Inside the DeepStream container the default user is `root`, so `sudo` is a no-op and can be omitted; on a bare-metal host it is required.
+* If you are running these steps inside the container, the installed plugins live only in that container's writable layer and will be lost when the container is removed. Either commit the container to a new image (`docker commit`) or re-run these steps each time a fresh container is started.
+* Build the two plugins from the **same** `gst-plugins-rs` tag (`gstreamer-1.26.11` shown above). Mixing versions may produce element re-registration warnings against the GStreamer 1.24.2 runtime.
+* This is a temporary prerequisite specific to DeepStream 9.2 on Ubuntu 24.04. Once the bundled GStreamer stack is upgraded to 1.26 (or `gst-plugins-rs` 0.13+ is packaged for Ubuntu 24.04), this manual build step will no longer be required.
+</Note>
+
+  Sample SDP file for a single ST 2110-40 ancillary stream:
+
+  ```text
+  v=0
+  o=- 1443716955 3985163321 IN IP4 192.168.60.193
+  s=nmos:sink_0 (simple-roi.local)
+  t=0 0
+  m=video 5004 RTP/AVP 100
+  c=IN IP4 232.178.247.136/64
+  a=ts-refclk:ptp=IEEE1588-2008:traceable
+  a=mediaclk:direct=0
+  a=source-filter: incl IN IP4 232.178.247.136 192.168.60.193
+  a=rtpmap:100 smpte291/90000
+  a=fmtp:100 DID_SDID={0x61,0x01}; exactframerate=30; SSN=ST2110-40:2021; TM=CTM; TROFF=764436
+  ```
+
+  Sample SDP file for an ST 2110-40 ancillary stream with SMPTE 2022-7 redundancy:
+
+  ```text
+  v=0
+  o=- 123456 2 IN IP4 192.168.1.10
+  s=SMPTE ST2022-7 DUP ANC streams
+  i=Includes ANC data (ST 2110-40)
+  t=0 0
+  a=recvonly
+  a=group:DUP 1 2
+  m=video 5004 RTP/AVP 100
+  c=IN IP4 232.178.247.136/64
+  a=source-filter: incl IN IP4 232.178.247.136 192.168.60.193
+  a=rtpmap:100 smpte291/90000
+  a=fmtp:100 DID_SDID={0x61,0x01}; exactframerate=30; SSN=ST2110-40:2021; TM=CTM; TROFF=764436
+  a=ts-refclk:ptp=IEEE1588-2008:traceable
+  a=mediaclk:direct=0
+  a=mid:1
+  m=video 5004 RTP/AVP 100
+  c=IN IP4 232.178.247.137/64
+  a=source-filter: incl IN IP4 232.178.247.137 192.168.60.193
+  a=rtpmap:100 smpte291/90000
+  a=fmtp:100 DID_SDID={0x61,0x01}; exactframerate=30; SSN=ST2110-40:2021; TM=CTM; TROFF=764436
+  a=ts-refclk:ptp=IEEE1588-2008:traceable
+  a=mediaclk:direct=0
+  a=mid:2
+  ```
+
+**SMPTE 2022-7 feature support**
+  The plugin supports SMPTE 2022-7 standard.  Its main purpose is to ensure uninterrupted transport of media streams, by providing redundancy for RTP packets to safeguard against packet loss or network/interface failures.
+  To enable SMPTE 2022-7 feature, corresponding sdp-file should be provided. It should have a `DUP` string as well as details of two streams.
+
+  Sample sdp-file provided below:
+
+  ```text
+  v=0
+  o=- 123456 2 IN IP4 192.168.1.10
+  s=SMPTE ST2022-7 DUP streams
+  i=Includes 1080p@30 fps video
+  t=0 0
+  a=recvonly
+  a=group:DUP one other
+  m=video 50020 RTP/AVP 96
+  c=IN IP4 225.1.1.2/64
+  a=source-filter: incl IN IP4 225.1.1.2 192.168.1.10
+  a=rtpmap:96 raw/90000
+  a=fmtp:96 sampling=YCbCr-4:2:2; width=1920; height=1080; exactframerate=30; depth=10; TCS=SDR; colorimetry=BT709; PM=2110GPM; TP=2110TPN; SSN=ST2110-20:2017
+  a=ts-refclk:localmac=04-3F-72-DB-77-D4
+  a=mediaclk:direct=0
+  a=mid:one
+  m=video 50120 RTP/AVP 96
+  c=IN IP4 225.1.1.3/64
+  a=source-filter: incl IN IP4 225.1.1.3 192.168.101.10
+  a=rtpmap:96 raw/90000
+  a=fmtp:96 sampling=YCbCr-4:2:2; width=1920; height=1080; exactframerate=30; depth=10; TCS=SDR; colorimetry=BT709; PM=2110GPM; TP=2110TPN; SSN=ST2110-20:2017
+  a=ts-refclk:localmac=04-3F-72-DB-77-D4
+  a=mediaclk:direct=0
+  a=mid:other
+  ```
+
+<Note>
+SMPTE 2022-7 is supported in Mode 2, Mode 3, and the SMPTE ST 2110-40 ancillary data mode.
+</Note>
+
+* Example pipeline that uses SMPTE 2022-7 feature to send two identical streams over separate network paths:
+
+  ```text
+  gst-launch-1.0 videotestsrc horizontal-speed=1 ! 'video/x-raw,width=640,height=480,format=UYVP,framerate=30/1' ! nvvideoconvert ! 'video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)UYVP, framerate=30/1' ! queue ! nvdsudpsink host=<ip address> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file>
+  ```
+
+**GPU Direct for SMPTE 2110-20 stream**
+  GPU Direct feature is only supported for SMPTE 2110-20 stream and only in Mode 3. To enable this feature, provide `video/x-raw(memory:NVMM)` as input for nvdsudpsink and also set `gpu-id` property for the plugin.
+
+* Example pipeline that uses GPU-direct feature while sending SMPTE ST2110-20 stream (requires ConnectX-6 or above cards)
+
+  ```text
+  gst-launch-1.0 videotestsrc ! 'video/x-raw, width=640, height=480, format=(string)NV12, framerate=60/1' ! nvvideoconvert compute-hw=1 ! 'video/x-raw(memory:NVMM),width=1920,height=1080,format=UYVP,framerate=60/1' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> gpu-id=<gpu id> sync=1 -v --gst-debug=3
+  ```
+
+If enabled, Rivermax media API's will allocate GPU memory to receive the SMPTE 2110-20 stream and this memory is directly accessible by NICThis feature is only available for ConnectX-6 or above cards.
+
+**Timestamps in RTP packet headers**
+  - By default, nvdsudpsink ignores timestamps from upstream components (buffer pts/dts) and generates RTP header timestamp based on system clock.
+
+    If `ptp-src` property is set, the plugin will use time from the Rivermax hardware clock provider instead of system clock.
+
+    The timestamp generated is in TAI time (International Atomic Time) which is 37 seconds (called as leap seconds) ahead of UTC time.
+
+    The above timestamp generation logic is applicable only in Mode 2 and 3.
+
+  - If user want to generate RTP header timestamp based on upstream time (e.g. buffer pts or meta), set `pass-rtp-timestamp` property. It will ignore the timestamp generation logic discussed above.
+    It has two ways to set RTP timestamp for outgoing buffers:
+
+    - Use the buffer PTS it received from upstream component for calculating RTP timestamp for outgoing buffers:
+
+      ```text
+      RTP time = base time of pipeline + buffer PTS
+      ```
+
+    - If metadata `GstRTPTimestampMeta` is attached along with the upstream buffer, the timestamp from that metadata will be used directly and take precedence over the RTP timestamp calculated using buffer PTS.
+
+    `pass-rtp-timestamp` is only valid if no payloader is used before nvdsudpsink, that is, in Mode 3 and the SMPTE ST 2110-40 ancillary data sub-variant.
+
+  - Receiver (nvdsudpsrc) has to do leap second adjustment if they receive timestamp in TAI time and wants to use UTC time. Whenever sender (nvdsudpsink) does packetization, by default it uses TAI time. So leap-second adjustment will be required in most scenarios except when `pass-rtp-timestamp` is set and the upstream component does not provide timestamps in TAI time.
+    It is the user's responsibility to identify if TAI time based timestamps are expected in such cases.
+
+* Example pipeline that uses "pass-rtp-timestamp" property to pass the timestamp it received from upstream nvdsudpsrc component.
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip address of NIC> caps='video/x-raw(memory:NVMM), format=UYVP, width=1920, height=1080, framerate=60/1' header-size=20 payload-size=1200 gpu-id=0 use-rtp-timestamp=1 adjust-leap-seconds=1 ! nvvideoconvert ! 'video/x-raw, width=(int)1920, height=(int)1080, framerate=(fraction)30/1, format=(string)UYVP' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> pass-rtp-timestamp=1 sync=1 -v --gst-debug=3
+  ```
+
+**Payload size and packets per line for some of common formats**
+
+To calculate the payload size and packets per line, use the following steps:
+
+1. Calculate line stride as follows:
+
+```
+line stride = (width * pgroup size) / pgroup coverage
+```
+
+2. Divide this stride into number of packets having equal bytes. This will be value of packet-per-line.
+
+3. Add 20 bytes to size of each packet calculated in step 2 for RTP + Payload header. This will be value for payload-size.
+
+<Note>
+It is assumed that there is only single Sample Row Data per RTP packet and line stride is equally divisible.
+</Note>
+
+  Following are values for some of the common formats:
+
+```
+YCbCr-4:2:2 1920x1080 8 bit:  payload-size:1300, packets-per-line:3
+YCbCr-4:2:2 1920x1080 10 bit: payload-size:1220, packets-per-line:4
+YCbCr-4:2:0 1920x1080 8 bit:  payload-size:1460, packets-per-line:2
+YCbCr-4:2:0 1920x1080 10 bit: payload-size:1220, packets-per-line:3
+RGB 1920x1080 8 bit:  payload-size:1460, packets-per-line:4
+RGB 1920x1080 10 bit: payload-size:1220, packets-per-line:6
+```
+
+Refer to the `SMPTE ST 2110-20:2017` for more information.
+
+System can also have Gstreamer provided OSS implementation of udp sink (`udpsink`) component. In that case system would have two implementations for udp sink - `udpsink` and `nvdsudpsink`.
+`nvdsudpsink` component can only be used with NVIDIA ConnectX-5 and above cards after having installed `Rivermax` SDK and its license.
+
+* Download and setup the `Rivermax` 1.70.x SDK here: https://developer.nvidia.com/networking/rivermax-getting-started.
+
+* Follow the instruction on the SDK page to obtain development license for Rivermax.
+
+* To select `nvdsudpsink` out of two installations, use either `LOCAL_IFACE_IP` environment variable or `local-iface-ip` property. Use the command below to export the environment variable:
+
+```
+export LOCAL_IFACE_IP=<IP of NIC>
+```
+
+* `nvdsudpsink` component also requires `CAP_NET_RAW` capability. Either run the application that uses `nvdsudpsink` component with superuser privilege or set the `CAP_NET_RAW` capabilities using the following command.
+
+```
+     sudo setcap CAP_NET_RAW=ep <absolute path of application>
+
+For example: ::
+
+      sudo setcap CAP_NET_RAW=ep /opt/nvidia/deepstream/deepstream/bin/deepstream-app
+
+      sudo setcap CAP_NET_RAW=ep /usr/bin/gst-launch-1.0
+```
+
+![Gst-nvdsudpsrc](/assets/images/content/DS_plugin_gst-nvdsudpsink.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  * GstBufferList having RTP packets as buffer content.
+  * GstBuffer having uncompressed audio or video frame.
+
+* Control parameters
+
+  *	LOCAL_IFACE_IP ENV flag or local-iface-ip property
+
+* Output
+
+  * None
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsudpsink plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports Rivermax Generic and Media APIs | By default, it supports generic APIs, but media API can be enabled by setting sdp-file property. | DS 6.1 |
+| Supports any type of RTP packet (Compressed, Uncompressed, audio etc.) with Generic APIs | No restriction on content of RTP payload in case of Generic APIs. | DS 6.1 |
+| Supports RTCP packets,In addition to RTP | RTCP packets can also be transmitted. | DS 6.1 |
+| Traffic shaping in case of Uncompressed streams (video and audio) | By using Rivermax media APIs,packet pacing can be enabled for uncompressed video and audio streams. | DS 6.1 |
+| Supports SMPTE 2110-20 | Uncompressed SMPTE 2110-20 streams with packet pacing is supported through Rivermax media APIs. | DS 6.1 |
+| Supports SMPTE 2110-30 | Uncompressed SMPTE 2110-30 stream with packet pacing is supported through Rivermax media APIs. | DS 6.1 |
+| Supports RTP packetization of uncompressed video | Uncompressed video as input can be converted to RTP packets as per SMPTE 2110-20 before sending to network | DS 6.2 |
+| Supports RTP packetization of uncompressed audio | Uncompressed audio as input can be converted to RTP packets as per SMPTE 2110-30 before sending to network | DS 6.2 |
+| Supports PTP clock | In addition to system clock hardware clock from the PTP source (Network card) can be used to generate RTP packet timestamp | DS 6.2 |
+| Supports render thread affinity | Separate thread to packetize and transmit the data. This thread can be bound to specific CPU core(s) | DS 6.2 |
+| Supports GPU-Direct for SMPTE 2110-20 stream | Rivermax media API's will allocate GPU memory to receive the SMPTE 2110-20 stream and this memory is directly accessible by NIC (ConnectX 6 or above required) | DS-8.0 |
+| Supports SMPTE 2022-7 | By using Rivermax media API's, can transmit redundant packet streams over independent network paths. SDP file will decide whether it is 2022-7 stream | DS-8.0 |
+| Supports SMPTE 2110-40 ancillary data (RFC 8331) | Transmit SMPTE 291M ancillary data (e.g. CEA-608/708 closed captions) over ST 2110 networks. Accepts meta/x-st-2038 caps and packetizes ST2038 buffers into RFC 8331 RTP payloads. SMPTE 2022-7 redundancy is supported. | DS 9.1 |
+
+## Gst Properties
+
+The following table describes the Gst-nvdsudpsink plugin’s Gst properties.
+
+**Gst-nvdsudpsink plugin gst properties**
+
+| Property | Meaning | Type and Range | Example / Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| port | The port number to send the RTP packets to | Integer, 0 to 65535 | Port=5004 | dGPU Jetson |
+| host | Unicast / Multicast address to send the packets | String | address=192.168.4.60 | dGPU Jetson |
+| chunk-size | Number of chunks to allocate in case of generic APIs | Integer, 1 to 65535 | chunk-size=100 | dGPU Jetson |
+| packets-per-chunk | Number of packets per chunk | Integer, 1 to 65535 | packets-per-chunk=10 | dGPU Jetson |
+| payload-size | Size of payload in RTP packet | Integer, 0 to 65535 | payload-size=1400 | dGPU Jetson |
+| packets-per-line | Number of packets per line in case of media APIs | Integer, 1 to 65535 | packets-per-line=4 | dGPU Jetson |
+| sdp-file | Path to SDP file, to enable the use of Rivermax media APIs | String | sdp-file="sdp_video.txt | dGPU Jetson |
+| local-iface-ip | IP Address associated with network interface through which to transmit the data | String | local-iface-ip="192.168.2.20 | dGPU Jetson |
+| internal-thread-core | CPU core to run Rivermax internal thread | Integer, -1 to 1023 | internal-thread-core=2 | dGPU Jetson |
+| ptp-src | IP Address of PTP source | String | ptp-src="192.168.2.20 | dGPU Jetson |
+| render-thread-core | Comma separated list of CPU core(s) for rendering thread | String | render-thread-core="2,3 | dGPU Jetson |
+| gpu-id | GPU ID to use for GPUDirect | Integer, -1 to 2147483647 | gpu-id=0 | dGPU Jetson |
+| pass-rtp-timestamp | When enabled use RTP timestamp from upstream metadata or calculate RTP timestamp from upstream buffer PTS | Boolean | pass-rtp-timestamp=true | dGPU Jetson |
+| auto-multicast | Automatically joins/leaves multicast groups; FALSE means the user must do it manually | Boolean | auto-multicast=1 | dGPU Jetson |
+| socket | Socket to use for UDP sending; NULL allocates one automatically | GObject (GSocket) |  | dGPU Jetson |
+| close-socket | Closes the socket if it was passed in as a property, on state change | Boolean | close-socket=1 | dGPU Jetson |
+| loop | Sets the multicast loop parameter: TRUE enables, FALSE disables loopback | Boolean | loop=1 | dGPU Jetson |
+| rtp-timestamp-offset | Offset in nanoseconds to add to the RTP timestamp when pass-rtp-timestamp is enabled | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | rtp-timestamp-offset=0 | dGPU Jetson |
+
+## Example pipelines
+
+**Mode 1: RTP packets with Rivermax Generic API**
+
+In Mode 1 (the default), a payloader creates RTP packets and nvdsudpsink transmits them using Rivermax generic APIs. No `sdp-file` is required.
+
+* Video — transmit H.264 RTP stream:
+
+  ```text
+  gst-launch-1.0 -e videotestsrc is-live=true pattern=smpte ! 'video/x-raw, width=640, height=480, format=(string)I420, framerate=30/1' ! nvvideoconvert ! 'video/x-raw(memory:NVMM), format=(string)NV12, width=1920, height=1080' ! nvv4l2h264enc ! rtph264pay pt=96 mtu=1400 ! 'application/x-rtp, media=(string)video, encoding-name=(string)H264, payload=(int)96, clock-rate=(int)90000' ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1400 packets-per-chunk=10 chunk-size=100 sync=1
+  ```
+
+* Audio — transmit Opus encoded 2 channel 48k audio RTP stream:
+
+  ```text
+  gst-launch-1.0 -e audiotestsrc is-live=true wave=8 ! 'audio/x-raw, channels=2, rate=48000' ! opusenc ! rtpopuspay pt=97 ! 'application/x-rtp, media=(string)audio, encoding-name=(string)OPUS, payload=(int)97, clock-rate=(int)48000' ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> sync=1
+  ```
+
+**Mode 2: RTP packets with Rivermax Media API**
+
+In Mode 2, a payloader creates RTP packets and nvdsudpsink transmits them using Rivermax media APIs with traffic shaping. Requires `sdp-file` to be set. For video, `payload-size` and `packets-per-line` must also be set. For audio, the payloader's `max-ptime` and `ptime-multiple` must be set along with `a=ptime:` in the SDP file.
+
+* Video — transmit 10 bit YUV 4:2:2 1080p30 stream with payloader:
+
+  ```text
+  gst-launch-1.0 videotestsrc ! 'video/x-raw, width=1920, height=1080, format=(string)UYVP, framerate=30/1' ! queue ! rtpvrawpay mtu=1220 ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> -v --gst-debug=3
+  ```
+
+* Audio — transmit 24 bit 2 channel 48k audio stream with payloader:
+
+  ```text
+  gst-launch-1.0 audiotestsrc wave=8 ! 'audio/x-raw, format=(string)S24BE, rate=48000, channels=2, payload=(int)97' ! rtpL24pay ptime-multiple=1000000 max-ptime=1000000 seqnum-offset=0 pt=97 ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> sdp-file=<sdp file> internal-thread-core=4 -v --gst-debug=3
+  ```
+
+**Mode 3: Uncompressed data with Rivermax Media API**
+
+In Mode 3, uncompressed audio or video frames are sent directly to nvdsudpsink without a payloader. The plugin handles RTP packetization and transmits using Rivermax media APIs. Requires `sdp-file` to be set. For video, `payload-size` and `packets-per-line` must also be set.
+
+* Video — transmit 10 bit YUV 4:2:2 1080p60 stream without payloader:
+
+  ```text
+  gst-launch-1.0 videotestsrc ! 'video/x-raw, width=1920, height=1080, format=(string)UYVP, framerate=60/1' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> -v --gst-debug=3
+  ```
+
+* Audio — transmit 24 bit 2 channel 48k audio stream without payloader:
+
+  ```text
+  gst-launch-1.0 audiotestsrc wave=8 ! 'audio/x-raw, format=(string)S24BE, rate=(int)48000, channels=(int)2' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> sdp-file=<sdp file> payload-size=300 internal-thread-core=4 sync=1 -v --gst-debug=3
+  ```
+
+* Video with PTP hardware clock from NIC:
+
+  ```text
+  gst-launch-1.0 videotestsrc ! 'video/x-raw, width=1920, height=1080, format=(string)UYVP, framerate=60/1' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> ptp-src=<ip addr of PTP source> -v --gst-debug=3
+  ```
+
+* Video with separate render thread bound to CPU core(s):
+
+  ```text
+  gst-launch-1.0 videotestsrc ! 'video/x-raw, width=1920, height=1080, format=(string)UYVP, framerate=60/1' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1220 packets-per-line=4 sdp-file=<sdp file> ptp-src=<ip addr of PTP source> render-thread-core="list of core(s)" sync=0 -v --gst-debug=3
+  ```
+
+**SMPTE ST 2110-40 ancillary data (RFC 8331)**
+
+In this mode, `nvdsudpsink` accepts ST2038 wire-format ANC buffers and packetizes them as RFC 8331 RTP payloads. The `sdp-file` property is required and the SDP file must use `smpte291/90000` with `SSN=ST2110-40:2021` in the `fmtp` line. Refer to the **SMPTE ST 2110-40 ancillary data support (RFC 8331)** section above for SDP file details.
+
+* Transmit closed captions (CEA-608) extracted from an SRT subtitle file as a SMPTE ST 2110-40 ancillary stream. The `clockselect` element (`clock-id=2`) is used to drive the pipeline with a realtime clock so that RTP timestamps can be reconstructed at the receiver:
+
+  ```text
+  gst-launch-1.0 clockselect. \( clock-id=2 \
+    filesrc location=example.srt ! subparse ! tttocea608 \
+    ! ccconverter ! "closedcaption/x-cea-608, format=s334-1a" \
+    ! cctost2038anc ! queue \
+    ! "meta/x-st-2038, alignment=frame, framerate=30/1" \
+    ! nvdsudpsink host=<ip address> port=<port number> \
+      pass-rtp-timestamp=1 \
+      local-iface-ip=<ip addr of NIC> sdp-file=<sdp file> sync=1 \)
+  ```
+
+  Sample `example.srt` content used by the pipeline above:
+
+  ```text
+  1
+  00:00:00,000 --> 00:00:00,500
+  Caption 0
+  2
+  00:00:00,500 --> 00:00:01,000
+  Caption 1
+  3
+  00:00:01,000 --> 00:00:01,500
+  Caption 2
+  ```
+
+* Transmit the same ANC stream redundantly over two paths using SMPTE 2022-7. The redundant `DUP` SDP file (with `m=` sections for both destinations) must be supplied via `sdp-file`:
+
+  ```text
+  gst-launch-1.0 clockselect. \( clock-id=2 \
+    filesrc location=example.srt ! subparse ! tttocea608 \
+    ! ccconverter ! "closedcaption/x-cea-608, format=s334-1a" \
+    ! cctost2038anc ! queue \
+    ! "meta/x-st-2038, alignment=frame, framerate=30/1" \
+    ! nvdsudpsink host=<primary ip address> port=<port number> \
+      pass-rtp-timestamp=1 \
+      local-iface-ip=<ip addr of NIC> sdp-file=<dup sdp file> sync=1 -v \)
+  ```

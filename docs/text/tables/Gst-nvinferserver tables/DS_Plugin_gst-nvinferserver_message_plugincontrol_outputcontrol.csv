@@ -1,0 +1,17 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs
+| (Primary/Secondary)"
+output_tensor_meta,"Enable attaching Inference output tensor metadata, tensor buffer pointer for host only",bool,output_tensor_meta: false,"| All
+| Both"
+detect_control,Specifies detection output filter policy,PluginControl::OutputDetectionControl,"detect_control {
+default_filter {
+bbox_filter {
+min_width: 32
+min_height: 32
+}
+}
+}
+see details in OutputDetectionControl","| Detector
+| Both"
+classifier_type,"The classifier type to be added in the NvDsClassifierMeta in case of classification networks",string,classifier_type: multi_class_classification,"| Classifier
+| Both"

@@ -1,0 +1,11 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+r,Red color value,"float
+Range[0.0, 1.0]",r: 0.5,"| All 
+| Both"
+g,Green color value,"float. Range[0.0, 1.0]",g: 0.5,"| All
+| Both"
+b,Blue color value,"float. Range[0.0, 1.0]",b: 0.3,"| All
+| Both"
+a,Alpha blending value,"float. Range[0.0, 1.0]",a: 1.0,"| All
+| Both"

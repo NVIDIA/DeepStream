@@ -1,0 +1,13 @@
+Custom Parsing Function,Description
+NvDsPostProcessParseCustomResnet,Parsing Resnet 10 model packaged in DeepStream
+NvDsPostProcessParseCustomTfSSD ,Tensorflow/Onnx SSD detector 
+NvDsPostProcessParseCustomNMSTLT ,"Parsing TAO Toolkit Open Architecture Models SSD, FRCNN, DSSD, RetinaNet "
+NvDsPostProcessParseCustomBatchedNMSTLT,"Parsing of TAO Toolkit  Open Architecture Models Yolo V3, Yolo V4"
+NvDsPostProcessParseCustomMrcnnTLTV2,Parsing of TAO Toolkit  Open Architecture Model MaskRCNN
+NvDsPostProcessParseCustomFasterRCNN ,Parsing of Faster R-CNN Network 
+NvDsPostProcessClassiferParseCustomSoftmax,Parsing Resnet 18 vehicle type classifier model packaged in DeepStream
+NvDsPostProcessParseCustomSSD ,Parsing of  SSD Network 
+NvDsPostProcessParseCustomYoloV3,Parsing of Yolo V3 Network 
+NvDsPostProcessParseCustomYoloV3Tiny,Parsing of Yolo V3 Tiny Network 
+NvDsPostProcessParseCustomYoloV2,Parsing of Yolo V2 Network 
+NvDsPostProcessParseCustomYoloV2Tiny,Parsing of Yolo V2 Tiny Network 

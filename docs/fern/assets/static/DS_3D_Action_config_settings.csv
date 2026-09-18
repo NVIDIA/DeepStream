@@ -1,0 +1,12 @@
+Property,Meaning,Type and Range,Example
+uri-list,source video file or stream list,Semicolon delimited string list,file:///path/to/sample_action1.mp4;file:///path/to/sample_action2.mp4;
+display-sync,Indicate display synchronization on timestamp or not,Boolean,display-sync=1
+preprocess-config,Gst-nvdspreprocess plugin config file path,String,preprocess-config=config_preprocess_3d_custom.txt
+infer-config,Gst-nvinfer plugin config file path,String,infer-config=config_infer_primary_2d_action.txt
+muxer-height,Gst-nvstreammux height,Unsigned Integer,muxer-height=720
+muxer-width,Gst-nvstreammux width,Unsigned Integer,muxer-width=1280
+muxer-batch-timeout,Gst-nvstreammux batched push timeout in usec,Unsigned Integer,muxer-batch-timeout=40000
+tiler-height,Gst-nvmultistreamtiler height,Unsigned Integer,tiler-height=720
+tiler-width,Gst-nvmultistreamtiler width,Unsigned Integer,tiler-width=1280
+debug,Log print debug level,"Integer, 0: disabled. 1: debug. 2: verbose",debug=0
+enable-fps,Indicate whether print fps on screen,Boolean,enable-fps=1

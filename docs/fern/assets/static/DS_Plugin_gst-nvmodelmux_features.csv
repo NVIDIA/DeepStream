@@ -1,0 +1,5 @@
+﻿Feature,Description,Release
+Per-stream model routing,Routes each stream to its own configured primary (and optional shadow) inference model behind one batched input/output,DS 9.2
+Primary/shadow A/B comparison,Runs a primary and an optional shadow model per stream and can combine both outputs into one batched buffer (unified-batch) for A/B comparison,DS 9.2
+Runtime model and routing control,Supports runtime model swap and stream-routing changes through the DeepStream REST/control-message interface without pipeline reconstruction,DS 9.2
+Automatic model sharding,Automatically distributes streams beyond a model instance's per-model batch cap onto additional same-model shard instances,DS 9.2

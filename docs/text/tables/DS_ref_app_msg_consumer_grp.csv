@@ -1,0 +1,7 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the message consumer.,Boolean,enable=1,"dGPU, Jetson"
+proto-lib,Path to the library having protocol adapter implementation.,String,proto-lib=/opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_kafka_proto.so,"dGPU, Jetson"
+conn-str,Connection string of the server.,String,conn-str=foo.bar.com;80,"dGPU, Jetson"
+config-file,"Path to the file having additional configurations for protocol adapter,",String,config-file=../cfg_kafka.txt,"dGPU, Jetson"
+subscribe-topic-list,List of topics to subscribe.,String,subscribe-topic-list=toipc1;topic2;topic3,"dGPU, Jetson"
+sensor-list-file,File having mappings from sensor index to sensor name.,String,sensor-list-file=dstest5_msgconv_sample_config.txt,"dGPU, Jetson"

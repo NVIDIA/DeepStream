@@ -1,0 +1,106 @@
+---
+title: "DeepStream-3D Multi-Modal V2XFusion Setup"
+---
+
+The pipeline efficiently processes data from 4 cameras and 4 corresponding LiDARs, inferencing the 3D bboxes with a new model which combines the [BEVFusion](https://github.com/mit-han-lab/bevfusion/tree/main) model and the [BEVHeight](https://github.com/ADLab-AutoDrive/BEVHeight/tree/main) model together to get more accurate detection result. This model is pre-trained by the [DAIR-V2X dataset](https://github.com/AIR-THU/DAIR-V2X) . The pipeline seamlessly employs `ds3d::datafilter` for triton inference. Ultimately, users can inferencing 4 cameras' videos/images and the corresponding LiDARs' data to detect 3D bboxes of different objects in road. The results can be visualized together with videos/images and projected LiDAR point clouds in different ways by different rendering configurations.
+
+  ![DeepStream 3D Lidar V2XFusion pipeline overview](/assets/images/content/DS3D_lidar_sensor_fusion_v2xfusion_pipeline.png)
+
+## Prerequisites
+
+Follow the instructions in the `apps/sample_apps/deepstream-app/README` file to install the prerequisites for common DeepStream SDK modules.
+
+Follow the instructions in the `samples/configs/deepstream-app-triton/README` file to prepare the Triton Server environment.
+
+The following development packages must be installed for DS3D sample apps:
+
+ * GStreamer-1.0
+ * GStreamer-1.0 Base Plugins
+ * GLES library
+ * libyaml-cpp-dev
+
+## Getting Started
+
+Start the deepstream-triton base container for V2XFusion tests.
+Skip this step if users have installed Triton dependencies manually on Jetson host.
+
+  ```bash
+  # running cmdline outside of the container
+  $ xhost +
+  # export DOCKER_GPU_ARG="--runtime nvidia --privileged" # for Jetson Orin
+  $ export DOCKER_GPU_ARG="--gpus all" # for x86
+  
+  # start the container interactively
+  $ docker run $DOCKER_GPU_ARG -it --rm --ipc=host --net=host -v /tmp/.X11-unix:/tmp/.X11-unix \
+      -e DISPLAY=$DISPLAY \
+      -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion \
+      nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
+  # {xx.xx.xx} is deepstream sdk version number
+  ```
+
+To get started, navigate to the following directory:
+
+```bash
+$ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+# sudo chmod -R a+rw . # Grant read/write permission if running on Jetson host
+```
+
+### Download V2XFusion Models and Build TensorRT Engine Files
+
+Download the pre-trained model from the [V2XFusion pre-trained model download link](https://nvidia.box.com/s/xqj7ob2sa3betojf1084juyrlr1eek1a) and put it to the folder v2xfusion/models/v2xfusion.
+
+Download the V2X-Seq-SPD (V2X-Seq Perception Dataset) [example dataset](https://drive.google.com/file/d/1gjOmGEBMcipvDzu2zOrO9ex_OscUZMYY/view?usp=drive_link) from https://github.com/AIR-THU/DAIR-V2X and put the downloaded V2X-Seq-SPD-Example.zip in the v2xfusion/scripts folder.
+
+```bash
+$ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/scripts
+$ ls V2X-Seq-SPD-Example.zip # verify the dataset is ready
+```
+
+Please ensure you have the latest python packages
+
+  ```bash
+  $ sudo pip install --upgrade setuptools packaging
+  $ sudo pip cache purge
+  ```
+
+Run the script to generate the model TensorRT engine file and ds3d required dataset.
+
+  ```bash
+  $ pip install gdown python-lzf
+  $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/scripts
+  $ gdown 1gjOmGEBMcipvDzu2zOrO9ex_OscUZMYY
+  $ ./prepare.sh dataset
+  ```
+
+Note: The example dataset is provided by https://github.com/AIR-THU/DAIR-V2X. For each dataset an user elects to use, the user is responsible for checking if the dataset license is fit for the intended purpose.
+
+### Start DS3D V2XFusion Pipeline
+
+```bash
+$ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+$ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_video_sensor_v2x_fusion.yml
+```
+
+## Build from source:
+
+- To compile sample app deepstream-3d-lidar-sensor-fusion:
+
+```bash
+$ make
+$ sudo make install
+```
+
+In Docker containers, `sudo` is not required for this install step.
+
+NOTE: To compile the sources, run make with "sudo" or root permission.
+
+- To compile the custom preprocessing and postprocessing libraries for the sample app deepstream-3d-lidar-sensor-fusion from source:
+
+```bash
+$ cd /opt/nvidia/deepstream/deepstream/sources/libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess
+# sudo not required in case of docker containers
+$ sudo make install
+$ cd /opt/nvidia/deepstream/deepstream/sources/libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_postprocess
+# sudo not required in case of docker containers
+$ sudo make install
+```

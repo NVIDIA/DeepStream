@@ -1,0 +1,61 @@
+---
+title: "Gst-nvvideoconvert"
+---
+
+This plugin performs video color format conversion. It accepts NVMM memory as well as RAW (memory allocated using `calloc()` or `malloc()` ), and provides NVMM or RAW memory at the output.
+
+![Gst-nvvideoconvert](/assets/images/content/DS_plugin_gst-nvvideoconvert.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Gst Buffer batched buffer
+  *	NvDsBatchMeta
+  *	Format: (NVMM/RAW)
+
+   * dGPU - NV12, I420, P010_10LE, BGRx, RGBA, GRAY8, RGB, BGR, Y444, Y444_10LE, Y444_12LE, BGR10A2_LE, UYVP, I420_12LE, RGB10A2_LE, GRAY16_LE, BGRA64_LE
+   * Jetson - NV12, I420, P010_10LE, BGRx, RGBA, GRAY8, RGB, BGR, BGR10A2_LE, UYVP, UYVY, YUY2, YVYU, Y42B, I420_12LE, GRAY16_LE, BGRA64_LE
+
+* Output
+
+  *	Gst Buffer
+  *	NvDsBatchMeta
+  *	Format: (NVMM/RAW)
+
+   * dGPU - NV12, I420, P010_10LE, BGRx, RGBA, GRAY8, RGB, BGR, Y444, Y444_10LE, Y444_12LE, BGR10A2_LE, UYVP, I420_12LE, RGB10A2_LE, GRAY16_LE, BGRA64_LE
+   * Jetson - NV12, I420, P010_10LE, BGRx, RGBA, GRAY8, RGB, BGR, BGR10A2_LE, UYVP, UYVY, YUY2, YVYU, Y42B, I420_12LE, GRAY16_LE, BGRA64_LE
+
+<Note>
+* For 12bit NV12 format, the input/output caps shows I420_12LE. But the data is handled as semiplanar 12 bit data. This is a workaround since gstreamer v1.16 does not have the particular caps for 12 bit NV12. Downstream component should process it considering as 12bit NV12 only.
+* Only NVMM memory support is added for I420_12LE, Y444_10LE and Y444_12LE formats.
+* For BGRA64_LE format, only conversions from or to UYVP/BGRA64_LE are supported.
+* Not all formats mentioned in the caps are directly supported on Jetson platforms. For example, conversions involving GRAY16_LE, BGR10A2_LE, RGB10A2_LE, BGRA64_LE, RGB, BGR, UYVP, I420_12_LE, YUV444, YUV444_10LE, YUV444_12LE etc. require 'compute-hw=GPU', 'copy-hw=GPU' and 'nvbuf-memory-type=nvbuf-mem-cuda-device' to be set as properties, because the default conversion engine VIC, in jetson, does not support these formats.
+</Note>
+
+## Features
+
+This plugin supports scaling and conversion for NVMM to NVMM, RAW to NVMM, and NVMM to RAW and RAW to RAW buffer type conversion. The plugin supports cropping of the input and output frames.
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvvideoconvert plugin.
+
+**Gst-nvvideoconvert gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| nvbuf-memory-type | Type of memory to be allocated.<br />For dGPU:<br />0 (nvbuf-mem-default): Default memory, cuda-device<br />1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory<br />2 (nvbuf-mem-cuda-device) Device CUDA memory<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory<br />For Jetson:<br />0 (nvbuf-mem-default): Default memory, surface array<br />4 (nvbuf-mem-surface-array): Surface array memory | enum GstNvVidConvBufMemoryType |  |
+| src-crop | Pixel location: left:top:width:height of the input image which will be cropped and transformed into the output buffer. If the crop location is out of bound the values will be clamped to image boundaries of the input image. This property will be applied to all the input images in the batch | String | src-crop="20:40:150:100 |
+| dest-crop | Pixel location: left:top:width:height is the location in the output image where the input image will be transformed to. If the crop location is out of bound the values will be clamped to image boundaries of the output image. This property will be applied to all the output images in the batch | String | dest-crop="20:40:150:100 |
+| interpolation-method | Interpolation method:<br />0: Nearest<br />1: Bilinear<br />2: Algo-1 (GPU—Cubic, VIC—5 Tap)<br />3: Algo-2 (GPU—Super, VIC—10 Tap)<br />4: Algo-3 (GPU—LanzoS, VIC—Smart)<br />5: Algo-4 (GPU—Ignored, VIC—Nicest)<br />6: Default (GPU—Nearest, VIC—Nearest) | enum GstInterpolationMethod | interpolation-method=1<br />Default value is 6. |
+| compute-hw | Type of computing hardware:<br />0: Default (GPU for gDPU, VIC for Jetson)<br />1: GPU<br />2: VIC | enum GstComputeHW | compute-hw=0<br />Default value is 0. |
+| gpu-id | Device ID of GPU to use for format conversion | Integer,<br />0 to 4,294,967,295 | gpu-id=0 |
+| output-buffers | Number of Output Buffers for the buffer pool | Unsigned integer,<br />1 to 4,294,967,295 | output-buffers=4 |
+| bl-output | Flag applicable only for Jetson to output Block linear NVMM buffer for NV12 format. This is ignored for dGPU, Software memory (output buffer) and formats other than NV12 | Boolean.<br />Default: false | bl-output=1 |
+| flip-method | Type of rotation method. This flag is applicable for Jetson and GPU.<br />Flip method:<br />0: Identity (no rotation)<br />1: Rotate counter-clockwise 90 degrees<br />2: Rotate 180 degrees<br />3: Rotate clockwise 90 degrees<br />4: Rotate horizontally<br />5: Rotate across upper right/lower left diagonal<br />6: Rotate vertically<br />7: Rotate across upper left/lower right diagonal | enum GstNvDsVideoFlipMethod | flip-method=1<br />Default value is 0. |
+| allow-odd-crop | Flag to allow the odd dimensions for source and destination crop rectangle | Boolean | allow-odd-crop=1 Default value is 1. |
+| contiguous-buffers | Enable contiguous output buffers | Boolean | contiguous-buffers=1 Default value is 0. |
+| disable-passthrough | Disable passthrough mode at init time | Boolean | disable-passthrough=1 Default value is 0. |
+| copy-hw | Select hardware used for surface copies:<br />1: GPU<br />2: VIC<br />flags: readable, writable, controllable | enum GstNvCopyHWType | copy-hw=2 Default value is 1. |
+| silent | Suppresses verbose console output when set | Boolean | silent=1 |

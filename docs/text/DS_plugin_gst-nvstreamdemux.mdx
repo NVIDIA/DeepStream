@@ -1,0 +1,93 @@
+---
+title: "Gst-nvstreamdemux"
+---
+
+The Gst-nvstreamdemux plugin demuxes batched frames into individual buffers. It creates a separate Gst Buffer for each frame in the batch. It does not copy the video frames. Each Gst Buffer contains a pointer to the corresponding frame in the batch.
+The plugin pushes the unbatched Gst Buffer objects downstream on the pad corresponding to each frame’s source. The plugin gets this information through the NvDsBatchMeta attached by Gst-nvstreammux. The original buffer timestamps (PTS) of individual frames are also attached back to the Gst Buffer.
+Since there is no frame copy, the input Gst Buffer is not returned upstream immediately. When all of the non-batched Gst Buffer objects demuxed from an input batched Gst Buffer are returned to the demuxer by the downstream component, the input batched Gst Buffer is returned upstream.
+The demuxer does not scale the buffer back to the source’s original resolution even if Gst-nvstreammux has scaled the buffers.
+
+![Gst-nvstreamdemux](/assets/images/content/DS_plugin_gst-nvstreamdemux.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Gst Buffer (batched)
+  *	NvDsBatchMeta
+  *	Other meta
+
+* Control parameters
+
+  *	per-stream-eos: sends EOS for individual streams as soon as EOS is received for the corresponding source. By default, EOS is sent only when EOS has been received for all streams. Connect all the src pads of the demuxer to separate sink components when this is set to TRUE.
+
+* Output
+
+  * Gst Buffer (non-batched, single source)
+  *	Meta related to each Gst Buffer source
+
+This plugin can be tested with the following pipelines:
+
+### Use case 1
+
+* Two video sources are mux’ed together using nvstreammux.
+* The muxer’s output goes to nvinfer which is configured with `batch-size=2`.
+* After nvinfer, we use nvstreamdemux to display the contents of video source 0, and 1 along with inference output for each overlaid using nvdsosd plugin on two separate windows.
+
+**Pipeline (x86):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2
+! nvstreamdemux name=demux filesrc location=/ opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! queue !
+mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder !
+queue ! mux.sink_1 demux.src_0 ! "video/x-raw(memory:NVMM), format=NV12" ! queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nvdsosd !
+nvvideoconvert ! nveglglessink demux.src_1 ! queue ! "video/x-raw(memory:NVMM), format=NV12" ! queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nvdsosd ! nveglglessink
+```
+
+**Pipeline (Jetson):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2  !
+nvstreamdemux name=demux filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! queue !
+mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_1 demux.src_0 ! "video/x-raw(memory:NVMM), format=NV12" !
+queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nvdsosd ! nvvideoconvert ! nv3dsink demux.src_1 ! queue ! "video/x-raw(memory:NVMM), format=NV12" ! queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nv3dsink
+```
+
+### Use case 2
+
+* Two video sources are mux’ed together using nvstreammux.
+* The muxer’s output goes to nvinfer which is configured with `batch-size=2`.
+* After nvinfer, we use nvstreamdemux to write the contents of video source 0 along with inference output overlaid using nvdsosd plugin to a file.
+* The contents of video source 1 post demux is directly displayed on screen using nveglglessink plugin
+
+**Pipeline (x86):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2  ! nvstreamdemux name=demux filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_1 demux.src_0 ! "video/x-raw(memory:NVMM), format=NV12" ! queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nvdsosd ! nvvideoconvert ! nvv4l2h264enc ! h264parse ! qtmux ! filesink location=./out.mp4 demux.src_1 ! queue ! nveglglessink
+```
+
+**Pipeline (Jetson):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2  ! nvstreamdemux name=demux filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_1 demux.src_0 ! "video/x-raw(memory:NVMM), format=NV12" ! queue ! nvvideoconvert ! "video/x-raw(memory:NVMM), format=RGBA" ! nvdsosd ! nvvideoconvert ! nvv4l2h264enc ! h264parse ! qtmux ! filesink location=./out.mp4 demux.src_1 ! queue ! nv3dsink
+```
+
+### Use case 3
+
+Use case 3 demonstrates displaying both streams as it is in two separate windows.
+
+* Two video sources are mux’ed together using nvstreammux.
+* The muxer’s output goes to nvinfer which is configured with `batch-size=2`.
+* After nvinfer, we use nvstreamdemux to display the contents of video source 0, and 1 on two separate windows.
+
+**Pipeline (x86):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2  ! nvstreamdemux name=demux filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_1 demux.src_0 ! queue ! nvvideoconvert ! nveglglessink demux.src_1 ! queue ! nveglglessink
+```
+
+**Pipeline (Jetson):**
+
+```
+gst-launch-1.0 -e nvstreammux name=mux batch-size=2 width=1920 height=1080 ! nvinfer config-file-path=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.txt batch-size=2  ! nvstreamdemux name=demux filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_720p.h264 ! h264parse ! nvv4l2decoder ! queue ! mux.sink_1 demux.src_0 ! queue ! nv3dsink demux.src_1 ! queue ! nv3dsink
+```

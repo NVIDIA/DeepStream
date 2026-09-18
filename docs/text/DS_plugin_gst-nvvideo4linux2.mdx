@@ -1,0 +1,166 @@
+---
+title: "Gst-nvvideo4linux2"
+---
+
+DeepStream extends the open source V4L2 codec plugins (here called `Gst-v4l2`) to support hardware-accelerated codecs.
+
+![Gst-nvvideo4linux2](/assets/images/content/DS_plugin_gst-nvvideo4linux2.png)
+
+## Decoder
+
+The OSS Gst-nvvideo4linux2 plugin leverages the hardware decoding engines on Jetson and DGPU platforms by interfacing with libv4l2 plugins on those platforms. It supports H.264, H.265, AV1, JPEG and MJPEG formats.
+The plugin accepts an encoded bitstream and uses the NVDEC hardware engine to decode the bitstream. The decoded output can be NV12 or YUV444 format which depends on the encoded stream content.
+
+<Note>
+* When you use the v4l2 decoder for decoding JPEG images, you must use the open source jpegparse plugin before the decoder to parse encoded JPEG images.
+* Also, note that JPEG and MJPEG decoding is not supported on Thor platform.
+</Note>
+
+### Inputs and Outputs
+
+* Inputs
+
+  *	An encoded bitstream. Supported formats are H.264, H.265, AV1, JPEG and MJPEG
+  * H264 encoded bitstream in 8bit 4:2:0 format.
+  * H265 encoded bitstream in 8/10/12 bit 4:2:0 and 8/10/12 bit 4:4:4 format.
+  * AV1 encoded bitstream in 8bit 4:2:0 format.
+
+* Output
+
+  * H264 decoder outputs GstBuffer in 8bit semi-planar(NV12) 4:2:0 format.
+  * H265 decoder outputs GstBuffer in 8/10/12 bit semi-planar(NV12) 4:2:0 format, 8/10/12 bit planar(YUV444) 4:4:4 format.
+  * AV1 decoder outputs GstBuffer in 8bit semi-planar(NV12) 4:2:0 format.
+
+### Features
+
+The following table summarizes the features of the Gst-nvvideo4linux2 decoder plugin.
+
+**Gst-nvvideo4linux2 plugin decoder features**
+
+| Feature | Description |
+| --- | --- |
+| Supports H.264 decode | h264 encoded bitstream is decoded into 8bit NV12 |
+| Supports H.265 decode | h265 encoded bitstream is decoded into 8/10/12 bit NV12 or 8/10/12 bit YUV444 depending on the stream content |
+| Supports JPEG/MJPEG decode | — |
+| User-configurable CUDA memory type (Pinned/Device/Unified) for output buffers | — |
+
+<Note>
+* 10/12bit YUV444 format support is applicable only for x86/dGPU platforms.
+* Also, for 12bit NV12 format, the output caps shows I420_12LE. But the data is handled as semiplanar 12 bit data. This is a workaround since gstreamer v1.16 does not have the particular caps for 12 bit NV12. Downstream component should process it considering as 12bit NV12 only.
+</Note>
+
+### Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvvideo4linux2 decoder plugin.
+
+**Gst-nvvideo4linux2 plugin decoder gst properties**
+
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| capture-io-mode | Capture I/O mode (matches src pad)<br />(0): auto             - GST_V4L2_IO_AUTO<br />(2): mmap          - GST_V4L2_IO_MMAP | On dGPU:<br />Enum "GstNvV4l2IOMode<br />On Jetson:<br />Enum "GstNvV4l2DecCaptureIOMode | Default: 0 | dGPU<br />Jetson |
+| capture-buffer-dynamic-allocation | Set to enable capture buffer dynamic allocation<br />(0): cap_buf_dyn_alloc_disabled - Capture buffer dynamic allocation disabled<br />(1): fw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for forward playback<br />(2): rw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for reverse playback<br />(3): fw_rw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for forward and reverse playback | Enum "CaptureBufferDynamicAllocationModes | Default: 0 | Jetson |
+| cudadec-memtype | Memory type for CUDA decoder buffers.<br />(0): memtype_device   - Memory type Device<br />(1): memtype_pinned   - Memory type Host Pinned<br />(2): memtype_unified  - Memory type Unified | Enum "CudaDecMemType | Default: 2 | dGPU |
+| disable-dpb | Set to disable DPB buffer for low latency | Boolean | Default: false | Jetson |
+| drop-frame-interval | Interval to drop the frames, e.g. a value of 5 means the decoder outputs every fifth frame, and others are dropped. | Integer,<br />1 to 30 | Default: 0 | dGPU<br />Jetson |
+| extract-sei-type5-data | Set to extract and attach SEI type5 unregistered data on output buffer (not supported on Thor) | Boolean | Default: false | dGPU |
+| enable-error-check | Set to enable error check (not supported on Thor) | Boolean | Default: false | Jetson |
+| enable-frame-type-reporting | Set to enable frame type reporting (not supported on Thor) | Boolean | Default: false | Jetson |
+| enable-full-frame | Whether or not the data is full framed (not supported on Thor) | Boolean | Default: false | Jetson |
+| enable-max-performance | Set to enable max performance (not supported on Thor) | Boolean | Default: false | Jetson |
+| gpu-id | Device ID of GPU to use for decoding. | Integer | Default:0 | dGPU |
+| low-latency-mode | Set low latency mode for bitstreams having I and IPPP frames with no B frames | Boolean | Default: false | dGPU<br />Jetson |
+| mjpeg | Set to open MJPEG block (not supported on Thor) | Boolean | Default: false | Jetson |
+| num-extra-surfaces | Number of surfaces in addition to min decode surfaces given by the V4L2 driver. | Integer, 1 to 24 | Default: 0 | dGPU<br />Jetson |
+| output-io-mode | Output side I/O mode (matches sink pad)<br />On dGPU:<br />(0): auto             - GST_V4L2_IO_AUTO<br />(2): mmap         - GST_V4L2_IO_MMAP<br />(5): dmabuf-import    - GST_V4L2_IO_DMABUF_IMPORT<br />On Jetson:<br />(0): auto             - GST_V4L2_IO_AUTO<br />(2): mmap          - GST_V4L2_IO_MMAP<br />(3): userptr        - GST_V4L2_IO_USERPTR | On dGPU:<br />Enum "GstNvV4l2IOMode<br />On Jetson:<br />Enum "GstNvV4l2DecOutputIOMode | Default: 0, "auto | dGPU<br />Jetson |
+| sei-uuid | Set 16 bytes UUID string for SEI Parsing, extract-sei-type5-data should be TRUE | String | Default: null | dGPU |
+| skip-frames | Type of frames to skip during decoding.<br />0 (decode_all): decode all frames<br />1 (decode_non_ref): skips non-ref frames (Applicable only on Jetson platform)<br />2 (decode_key): decode key frames | Enum "SkipFrame | Default: 0 | dGPU<br />Jetson |
+
+## Encoder
+
+The OSS Gst-nvvideo4linux2 plugin leverages the hardware accelerated encoding engine available on Jetson and dGPU platforms by interfacing with libv4l2 plugins on those platforms.
+The plugin accepts RAW data in I420/NV12 or YUV444 format. It uses the NVENC hardware engine to encode RAW input. Encoded output is in elementary bitstream supported format.
+To set appropriate tuning-info-id and preset-id properties please refer to Nvidia Video Codec SDK Documentation at https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/nvenc-preset-migration-guide/index.html
+
+### Inputs and Outputs
+
+* Inputs
+
+  * RAW input in I420/NV12 or YUV444 format
+  * 8 bit I420/NV12 and YUV444 raw formats
+  * 8/10 bit I420/NV12 and YUV444 raw formats
+
+* Output
+
+  *	Gst Buffer with encoded output in H264, H265 and AV1 format.
+
+### Features
+
+The following table summarizes the features of the Gst-nvvideo4linux2 encoder plugin.
+
+**Gst-nvvideo4linux2 plugin encoder features**
+
+| Feature | Description |
+| --- | --- |
+| Supports H.264 encode | 8 bit I420/NV12, 8bit YUV444 raw format can be encoded into h264 bitstream |
+| Supports H.265 encode | 8/10 bit I420/NV12, 8/10 bit YUV444 raw format can be encoded into h265 bitstream |
+
+<Note>
+* 8/10bit YUV444 format support is applicable only for x86/dGPU platforms.
+</Note>
+
+### Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvvideo4linux2 encoder plugin.
+
+**Gst-nvvideo4linux2 plugin encoder gst properties**
+
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| aq | Enable spatial AQ and set its strength | Unsigned Integer, 0-15 | Default: 0, "auto | dGPU |
+| bit-packetization | Whether or not Packet size is based upon Number Of bits | Boolean | Default: false | Jetson |
+| bitrate | Sets bitrate for encoding, in bits/seconds. | Unsigned Integer | Default: 4000000 | dGPU<br />Jetson |
+| capture-io-mode | Capture I/O mode (matches src pad)<br />(0): auto - GST_V4L2_IO_AUTO<br />(2): mmap - GST_V4L2_IO_MMAP<br />(5): dmabuf-import  - GST_V4L2_IO_DMABUF_IMPORT | Enum "GstNvV4l2IOMode | Default: 0, "auto | dGPU<br />Jetson |
+| constqp | Sets constant QP values for I:P:B frames | String, 1 to 51 | Default: null | dGPU |
+| copy-meta | Copies input metadata on output buffer | Boolean | Default: false | dGPU |
+| copy-timestamp | Enabling the flag allows to copy the timestamps from input to the capture stream. | Boolean | Default: false | Jetson |
+| control-rate | Sets rate control mode for v4l2 encoding<br />(0): variable_bitrate - GST_V4L2_VIDENC_VARIABLE_BITRATE<br />(1): constant_bitrate - GST_V4L2_VIDENC_CONSTANT_BITRATE<br />(2): constantQP       - GST_V4L2_VIDENC_CONSTANT_QP | Enum "GstV4l2VideoEncRateControlType | Default: 1, "constant_bitrate | dGPU<br />Jetson |
+| cq | Sets targetQuality (Constant Quality) level for VBR mode | Integer, 0-51 | Default: 0, "auto | dGPU |
+| disable-cabac | Set Entropy Coding Type CAVLC(TRUE) or CABAC(FALSE) | Boolean | Default: false | Jetson |
+| enable-lossless | Enable lossless encoding for YUV444 | Boolean | Default: false | Jetson |
+| EnableMVBufferMeta | Enable Motion Vector Meta data for encoding | Boolean | Default: false | Jetson |
+| EnableTwopassCBR | Enable two pass CBR while encoding | Boolean | Default: false | Jetson |
+| extended-colorformat | Sets extended colorformat pixel values 0 to 255 in VUI Info | Boolean | Default: false | dGPU |
+| force-idr | Force an IDR frame | Boolean | Default: false | dGPU |
+| force-intra | Forces an INTRA frame | Boolean | Default: false | dGPU |
+| gpu-id | Device ID of GPU to used. | Unsigned Integer | Default:0 | dGPU |
+| idrinterval | Sets IDR Frame occurrence frequency in encoded stream | Unsigned Integer | Default: 256 | dGPU<br />Jetson |
+| iframeinterval | Sets encoding intra-frame occurrence frequency. | Unsigned Integer | Default: 30 | dGPU<br />Jetson |
+| initqp | Set values of initQP in I:P:B order.<br />This provides rough hint to encoder to influence the qp difference between I, P and B | String | Default: null | dGPU |
+| insert-aud | Insert H.264 Access Unit Delimiter(AUD) | Boolean | Default: false | Jetson |
+| insert-sps-pps | Insert H.264 SPS, PPS at every IDR frame | Boolean | Default: false | Jetson |
+| insert-vui | Insert H.264 VUI(Video Usability Information) in SPS | Boolean | Default: false | Jetson |
+| intra-refresh | Intra Refresh Parameters. Use string with unsigned integer values of Intra Refresh in enableIntraRefresh,intraRefreshPeriod,intraRefreshCnt in same order to set the property. e.g. 1,30,5 | String | Default: null | dGPU |
+| maxbitrate | Set maxbitrate for v4l2 encoder. This mode is specified by setting rateControlMode to VBR | Unsigned Integer | Default: 0 | dGPU |
+| maxperf-enable | Enable or Disable Max Performance mode | Boolean | Default: false | Jetson |
+| MeasureEncoderLatency | Enable Measure Encoder latency Per Frame | Boolean | Default: false | Jetson |
+| num-B-Frames | Number of B Frames between two reference frames (not recommended) | Unsigned Integer, 0-2 | Default: 0 | Jetson |
+| num-Ref-Frames | Number of Reference Frames for encoder | Unsigned Integer, 0-8 | Default: 1 | Jetson |
+| output-io-mode | Sets output side I/O mode (matches sink pad)<br />(0): auto - GST_V4L2_IO_AUTO<br />(2): mmap - GST_V4L2_IO_MMAP<br />(5): dmabuf-import - GST_V4L2_IO_DMABUF_IMPORT | Enum "GstNvV4l2IOMode | Default: 0, "auto | dGPU<br />Jetson |
+| peak-bitrate | Peak bitrate in variable control-rate. The value must be >= bitrate (1.2*bitrate) is set by default (Default: 0) | Unsigned Integer | Default: 0 | Jetson |
+| poc-type | Set Picture Order Count type value | Unsigned Integer, 0-2 | Default: 1 | Jetson |
+| preset-id | Sets CUVID Preset ID for Encoder | Unsigned Integer,<br />1 to 7 | Default: 1 | dGPU |
+| preset-level | HW preset level for encoder.<br />(0): DisablePreset    - Disable HW-Preset<br />(1): UltraFastPreset  - UltraFastPreset for high perf<br />(2): FastPreset       - FastPreset<br />(3): MediumPreset     - MediumPreset<br />(4): SlowPreset       - SlowPreset | Enum "GstV4L2VideoEncHwPreset | Default: 1, "UltraFastPreset | Jetson |
+| Profile | H.264/H.265 encoder profile.<br />For H.264:<br />(0): Baseline         - GST_V4L2_H264_VIDENC_BASELINE_PROFILE<br />(2): Main             - GST_V4L2_H264_VIDENC_MAIN_PROFILE<br />(4): High             - GST_V4L2_H264_VIDENC_HIGH_PROFILE<br />(7): High444          - GST_V4L2_H264_VIDENC_HIGH_444_PREDICTIVE<br />For H.265:<br />(0): Main             - GST_V4L2_H265_VIDENC_MAIN_PROFILE<br />(1): Main10           - GST_V4L2_H265_VIDENC_MAIN10_PROFILE<br />(3): FREXT            - GST_V4L2_H265_VIDENC_FREXT_PROFILE | Enum "GstV4l2VideoEncProfileType | For H.264:<br />Default: 0 (Baseline)<br />For H.265:<br />Default: 0 (Main) | dGPU<br />Jetson |
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| qp-range | Sets quantization parameter range for P, I and B frame | String, 1 to 51 | Default: null | dGPU<br />Jetson |
+| quant-b-frames | Quantization parameter for B-frames (0xffffffff=component default), use with ratecontrol-enable = 0 and preset-level = 0 | Unsigned Integer, 0 - 4294967295 | Default: 4294967295 | Jetson |
+| quant-i-frames | Quantization parameter for I-frames (0xffffffff=component default), use with ratecontrol-enable = 0 | Unsigned Integer, 0 - 4294967295 | Default: 4294967295 | Jetson |
+| quant-p-frames | Quantization parameter for P-frames (0xffffffff=component default), use with ratecontrol-enable = 0 and preset-level = 0 | Unsigned Integer, 0 - 4294967295 | Default: 4294967295 | Jetson |
+| ratecontrol-enable | Enable or Disable rate control mode | Boolean | Default: true | Jetson |
+| slice-header-spacing | Slice Header Spacing number of macroblocks/bits in one packet | Unsigned Integer64 | Default: 0 | Jetson |
+| SliceIntraRefreshInterval | Set SliceIntraRefreshInterval | Unsigned Integer | Default: 0 | Jetson |
+| temporalaq | Set this to enable adaptive quantization (Temporal). | Boolean | Default: false | dGPU |
+| tuning-info-id | Sets Tuning Info Preset for encoder.<br />(1): HighQualityPreset - Tuning Preset for High Quality<br />(2): LowLatencyPreset - Tuning Preset for Low Latency<br />(3): UltraLowLatencyPreset - Tuning Preset for Low Latency<br />(4): LosslessPreset   - Tuning Preset for Lossless | Enum "GstV4L2VideoEncTuingInfoPreset | Default: 2 (LowLatencyPreset) | dGPU |
+| vbvbufsize | Set VBV buffer size in bits. | Unsigned Integer | Default: 0 (default value by encoder) | dGPU |
+| vbvinit | Set VBV initial delay in bits | Unsigned Integer | Default: 0 (default value by encoder) | dGPU |
+| vbv-size | virtual buffer size | Unsigned Integer | Default: 4000000 | Jetson |

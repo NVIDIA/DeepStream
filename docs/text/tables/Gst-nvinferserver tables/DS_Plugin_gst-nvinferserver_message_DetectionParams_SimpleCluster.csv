@@ -1,0 +1,5 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+threshold,Detection score lesser than this threshold would be rejected,float,confidence_threshold:0.6,"Detector
+
+Both"

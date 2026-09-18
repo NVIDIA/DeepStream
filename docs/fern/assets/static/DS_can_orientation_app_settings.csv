@@ -1,0 +1,29 @@
+Group,Property,Meaning,Type and Range,Example
+source,,source settings,YAML node,
+source,uri,decodebin uri,string,uri: multifile:///opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-can-orientation-app/data/sample1/test_sample_%2504d.jpg
+source,framerate,framerate for multifile source and raw format data source,string,framerate: 10/1
+source,frame_settings,Raw frame setting description,YAML node,"frame_settings:
+  format: GREY
+  width: 870
+  height: 1200"
+source.frame_settings,format,"color format, choose from [GREY, RGBA]","String:  [GREY, RGBA]",format: GREY
+source.frame_settings,width,width of input raw frame,Integer: >0,width: 870
+source.frame_settings,height,height of input raw frame,Integer: >0,height: 1200
+source,camera,Basler camera settings,YAML node,"camera:
+    device_serial_number: 0815-0000
+    pfs_path: basler_cam_emulation_0815-0000.pfs
+    width: 870
+    height: 1200"
+source.camera,device_serial_number,Basler camera serial number,String,device_serial_number: 0815-0000
+source.camera,pfs_path,Basler PFS setting file path,String,pfs_path: basler_cam_emulation_0815-0000.pfs
+source.camera,width,Basler camera capture image width,Integer: >0,width: 870
+source.camera,height,Basler camera capture image height,Integer: >0,height: 1200
+video_template,,deepstream video template plugin settings,YAML node,
+video_template,customlib_name,Indicate custom-lib location for video template to load,String,customlib_name: /opt/nvidia/deepstream/deepstream/lib/libnvds_vpicanmatch.so
+video_template,customlib_props,Indicate the configuration settings for the custom-lib,String,customlib_props: config-file:config_video_template_can_match.yaml
+sink,,sink settings,YAML node,"sink:
+  egl_display: true"
+sink,egl_display,Indicate whether enable EGL display,bool,egl_display: true
+sink,sync,Indicate whether do snchronization on timestamp,bool,sync: true
+debug,,debug settings,YAML node,
+debug,print_result,Indicate whether print orientation result,bool,print_result: true

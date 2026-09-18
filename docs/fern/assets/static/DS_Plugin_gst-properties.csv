@@ -1,0 +1,18 @@
+Property,Meaning,Type and Range,Example Notes
+uri-list,"comma separated URI list of sources; URI of the file or rtsp source",string,"uri-list=file:///opt/file.mp4,file:///opt/file.mp4"
+sensor-id-list,"comma separated list of unique source sensor IDs; this vector is one to one mapped with the uri-list",string,"sensor-id-list=uniqueSensorID1,uniqueSensorID2"
+sensor-name-list,"OPTIONAL comma separated list of source sensor names; this vector is one to one mapped with the uri-list",string,"sensor-name-list=SensorName1,SensorName2"
+mode,"Video-only or Audio-only modes available","0: for video-only
+1: for audio-only",mode=0 (default)
+ip-address,"Set REST API HTTP IP Address",string,ip-address=localhost (default)
+port,"Set REST API HTTP Port number; Note: User may pass 0 to disable REST API Server",string,port=9000 (default)
+max-batch-size,"Set the maximum batch size to be used for nvstreammux; Maximum number of sources to be supported with this instance of nvmultiurisrcbin","Integer,
+1 to 4,294,967,295",max-batch-size=30 (default)
+http-download-timeout,Maximum time in seconds for the whole HTTP(S) file download (curl CURLOPT_TIMEOUT); 0 means no limit,"Integer,
+0 to 4,294,967,295",http-download-timeout=0
+http-connect-timeout,Maximum time in seconds for the HTTP(S) connect phase (curl CURLOPT_CONNECTTIMEOUT); 0 means no limit,"Integer,
+0 to 4,294,967,295",http-connect-timeout=0
+http-max-concurrent-downloads,"Maximum number of HTTP(S) source-file downloads that may run at once across concurrent stream/add requests; 0 uses max-batch-size, any other value is clamped to max-batch-size","Integer,
+0 to 4,294,967,295",http-max-concurrent-downloads=0
+ipc-frame-copy,"Publishes each source's decoded frames over IPC (per-source nvunixfdsink, tapped right after the decoder). Socket: /tmp/nvds_ipc_<sensorId|source-id>.sock",Boolean,ipc-frame-copy=0
+drop-pipeline-eos,(Forwarded to the internal nvstreammux) EOS is not propagated downstream when all source pads are at EOS when set,Boolean,drop-pipeline-eos=0

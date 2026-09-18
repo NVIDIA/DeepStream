@@ -1,0 +1,73 @@
+﻿Name,Description,Type and Range,"Example
+
+Notes",(Primary/Secondary)
+threshold,Detection threshold,"Float, ≥0",threshold=0.5,"Object detector
+
+Both"
+pre-cluster-threshold,Detection threshold to be applied prior to clustering operation,"Float, ≥0","pre-cluster-threshold=
+
+0.5","Object detector
+
+Both"
+post-cluster-threshold,Detection threshold to be applied post clustering operation,"Float, ≥0","post-cluster-threshold=
+
+0.5","Object detector
+
+Both"
+eps,Epsilon values for OpenCV grouprectangles() function and DBSCAN algorithm,"Float, ≥0",eps=0.2,"Object detector
+
+Both"
+group-threshold,Threshold value for rectangle merging for OpenCV grouprectangles() function,"Integer, ≥0","group-threshold=1
+
+0 disables the clustering functionality","Object detector
+
+Both"
+minBoxes,Minimum number of points required to form a dense region for DBSCAN algorithm,"Integer, ≥0","minBoxes=1
+
+0 disables the clustering functionality","Object detector
+
+Both"
+dbscan-min-score,Minimum sum of confidence of all the neighbors in a cluster for it to be considered a valid cluster.,"Float, ≥0","dbscan-min-score=
+
+0.7","Object detector
+
+Both"
+nms-iou-threshold,Maximum IOU score between two proposals after which the proposal with the lower confidence will be rejected.,"Float, ≥0","nms-iou-threshold=
+
+0.2","Object detector
+
+Both"
+roi-top-offset,Offset of the RoI from the top of the frame. Only objects within the RoI are output.,"Integer, ≥0","roi-top-offset=
+
+200","Object detector
+
+Both"
+roi-bottom-offset,Offset of the RoI from the bottom of the frame. Only objects within the RoI are output.,"Integer, ≥0","roi-bottom-offset=
+
+200","Object detector
+
+Both"
+detected-min-w,Minimum width in pixels of detected objects to be output by the GIE,"Integer, ≥0","detected-min-w=
+
+64","Object detector
+
+Both"
+detected-min-h,Minimum height in pixels of detected objects to be output by the GIE,"Integer, ≥0","detected-min-h=
+
+64","Object detector
+
+Both"
+detected-max-w,Maximum width in pixels of detected objects to be output by the GIE,"Integer, ≥0","detected-max-w=200
+
+0 disables the property","Object detector
+
+Both"
+detected-max-h,Maximum height in pixels of detected objects to be output by the GIE,"Integer, ≥0","detected-max-h=200
+
+0 disables the property","Object detector
+
+Both"
+topk,Keep only top K objects with highest detection scores.,"Integer, ≥0.
+-1 to disable",topk=10,"Object detector
+
+Both"

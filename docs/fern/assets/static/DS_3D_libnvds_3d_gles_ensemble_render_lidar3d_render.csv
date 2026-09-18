@@ -1,0 +1,24 @@
+Property,Meaning,Type and Range,Example
+layout,"Specify the view location for [x0, y0, x1, y1]","List[Float] ","layout: [0, 0, 640, 360]
+x0 = 0;
+y0 = 0;
+x1 = 640;
+y1 = 360;"
+color_clear,Indicate whether to clear up this view before new frame came.,bool,color_clear: false
+lidar_color,Specify lidar data color RGB,list[uint8],"lidar_color: [0, 0, 255]"
+lidar_data_key,Specify lidar data keyname from ``ds3d::datamap``,string,lidar_data_key: DS3D::LidarXYZI+0
+element_size,"Specify lidar data element size. choose from [3, 4], default value 4 is for xyzi. value 3 is for xyz.",uint32,element_size: 4
+lidar_bbox_key,Specify 3D detection bounding-box key name from ``ds3d::datamap``,string,lidar_bbox_key: DS3D::Lidar3DBboxRawData
+project_lidar_to_image,"Indicate whether need project lidar data and bounding-box into camera image, default value: false",bool,project_lidar_to_image: false
+intrinsics_mat_key,"Specify camera intrinsics matrix key name from ``ds3d::datamap``,  It's needed when project_lidar_to_image: true",,intrinsics_mat_key: DS3D::Cam2_IntrinsicMatrix
+extrinsics_mat_key,Specify lidar extrinsics matrix key name from ``ds3d::datamap``,,extrinsics_mat_key: DS3D::LidarToCam2_ExtrinsicMatrix
+image_width,"Specify original camera intrinsic image width, this is needed when project_lidar_to_image: true",,image_width: 1600
+image_height,"Specify original camera intrinsic image height, this is needed when project_lidar_to_image: true",,image_height: 900
+view_position,"Specify view position [x, y, z]coordinates","List[Float] ","view_position: [0, 0, -1]"
+view_target,"Specify view target [x, y, z]coordinates","List[Float] ","view_target: [0, 0, 1]"
+view_up,"Specify view up direction [x, y, z]coordinates","List[Float] ","view_up: [0, -1.0, 0]"
+perspective_near,Specify perspective projection near plane,Float,perspective_near: 0.1
+perspective_far,Specify perspective projection far plane,Float,perspective_far: 10.0
+perspective_fov,"Specify perspective projection field of view,  degree angle",Float,perspective_fov: 40.0
+perspective_ratio,Specify perspective ratio for width/height. default 0.0f means view-width/view-height,Float,perspective_ratio: 0.0
+enable_label,Indicate whether label text render enabled. default value: false,bool,enable_label: true

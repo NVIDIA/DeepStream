@@ -1,0 +1,2 @@
+﻿Property,Meaning,Type and Range,Example/Notes,Platforms
+serialize-lib,Set serialization library Name to be used.,String,Default: null,dGPU

@@ -1,0 +1,80 @@
+Property,Meaning,Type and Range,Example Notes
+nvbuf-memory-type,"Type of memory to be allocated.
+For dGPU:
+
+0 (nvbuf-mem-default): Default memory, cuda-device
+
+1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory
+
+2 (nvbuf-mem-cuda-device) Device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory
+
+For Jetson:
+
+0 (nvbuf-mem-default): Default memory, surface array
+
+4 (nvbuf-mem-surface-array): Surface array memory",enum GstNvVidConvBufMemoryType,
+src-crop,Pixel location: left:top:width:height of the input image which will be cropped and transformed into the output buffer. If the crop location is out of bound the values will be clamped to image boundaries of the input image. This property will be applied to all the input images in the batch,String," src-crop=""20:40:150:100"""
+dest-crop,Pixel location: left:top:width:height is the location in the output image where the input image will be transformed to. If the crop location is out of bound the values will be clamped to image boundaries of the output image. This property will be applied to all the output images in the batch,String,"dest-crop=""20:40:150:100"""
+interpolation-method,"Interpolation method:
+
+0: Nearest
+
+1: Bilinear
+
+2: Algo-1 (GPU—Cubic, VIC—5 Tap)
+
+3: Algo-2 (GPU—Super, VIC—10 Tap)
+
+4: Algo-3 (GPU—LanzoS, VIC—Smart)
+
+5: Algo-4 (GPU—Ignored, VIC—Nicest)
+
+6: Default (GPU—Nearest, VIC—Nearest)",enum GstInterpolationMethod,"interpolation-method=1
+Default value is 6."
+compute-hw,"Type of computing hardware:
+
+0: Default (GPU for gDPU, VIC for Jetson)
+
+1: GPU
+
+2: VIC",enum GstComputeHW,"compute-hw=0
+Default value is 0."
+gpu-id,Device ID of GPU to use for format conversion,"Integer,
+0 to 4,294,967,295",gpu-id=0
+output-buffers,Number of Output Buffers for the buffer pool,"Unsigned integer,
+1 to 4,294,967,295",output-buffers=4
+bl-output,"Flag applicable only for Jetson to output Block linear NVMM buffer for NV12 format. This is ignored for dGPU, Software memory (output buffer) and formats other than NV12","Boolean. 
+Default: false",bl-output=1
+flip-method,"Type of rotation method. This flag is applicable for Jetson and GPU. 
+
+Flip method:
+
+0: Identity (no rotation)
+
+1: Rotate counter-clockwise 90 degrees
+
+2: Rotate 180 degrees
+
+3: Rotate clockwise 90 degrees
+
+4: Rotate horizontally
+
+5: Rotate across upper right/lower left diagonal
+
+6: Rotate vertically
+
+7: Rotate across upper left/lower right diagonal",enum GstNvDsVideoFlipMethod,"flip-method=1 
+Default value is 0."
+allow-odd-crop,"Flag to allow the odd dimensions for source and destination crop rectangle","Boolean","allow-odd-crop=1 Default value is 1."
+contiguous-buffers,"Enable contiguous output buffers","Boolean","contiguous-buffers=1 Default value is 0."
+disable-passthrough,"Disable passthrough mode at init time","Boolean","disable-passthrough=1 Default value is 0."
+copy-hw,"Select hardware used for surface copies:
+
+1: GPU
+
+2: VIC
+
+flags: readable, writable, controllable","enum GstNvCopyHWType","copy-hw=2 Default value is 1."
+silent,Suppresses verbose console output when set,Boolean,silent=1

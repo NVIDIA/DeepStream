@@ -1,0 +1,84 @@
+---
+title: "Gst-nvof"
+---
+
+NVIDIA GPUs, starting with the dGPU Turing generation (except TU117 GPU) and Jetson Orin generation, contain a hardware accelerator for computing optical flow. Optical flow vectors are useful in various use cases such as object detection and tracking, video frame rate up-conversion, depth estimation, stitching, and so on.
+The Gst-nvof plugin collects a pair of NV12 images and passes it to the low-level optical flow library. The low-level library returns a map of flow vectors between the two frames as its output.
+The map of flow vectors is encapsulated in the `NvDsOpticalFlowMeta` structure and is added as a user meta with meta_type set to `NVDS_OPTICAL_FLOW_META`. The user meta is added to the frame_user_meta_list member of NvDsFrameMeta.
+For guidance on how to access user metadata, see User/Custom Metadata Addition Inside `NvDsMatchMeta` and Tensor Metadata.
+
+![Gst-Nvof](/assets/images/content/DS_plugin_gst-nvof.png)
+
+<Note>
+Flow vectors are bi-dimensional vector and each component of flow vector is stored using S10.5 in a fixed-point representation of a 16-bit number. Structure `NvOFFlowVector` is used to store Flow Vector.
+
+```
+/**
+* Holds motion vector information about an element.
+*/
+typedef struct _NvOFFlowVector
+{
+/** Holds the motion vector X component. */
+gshort flowx;
+
+/** Holds the motion vector Y component. */
+gshort flowy;
+} NvOFFlowVector;
+```
+
+MSB specifies the sign bit, the next 10 bits specify the integer value and the last 5 bits represent the fractional value of the flow vector. HW support only quarter pixel resolution and only the first 2 bits from 5 available fraction bits are used. We can convert the flow vector from fixed-point representation to floating-point using the following formula.
+
+```
+NvOFFlowVector   output;
+float32_t flow_vector.x = output.flowx/32.0f;
+float32_t flow_vector.y = output.flowy/32.0f;
+```
+
+</Note>
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	GStreamer buffer containing NV12 frame(s)
+
+* Control parameters
+
+  *	gpu-id: selects the GPU ID (valid only for dGPU platforms)
+  *	dump-of-meta: enables dumping of optical flow map vector into a .bin file
+  *	preset-level: sets the preset level
+  *	pool-size: sets the pool size
+  *	grid-size: sets the grid size
+
+* Outputs
+
+  *	GStreamer buffer containing NV12 frame(s)
+  *	NvDsOpticalFlowMeta metadata
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvof plugin features**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU to be used for decoding (dGPU only). | Integer,<br />0 to 4,294,967,295 | gpu-id=0 |
+| dump-of-meta | Dumps optical flow output into a .bin file. |  | dump-of-meta=1 |
+| preset-level | Selects a preset level, default preset level is 0 i.e. NV_OF_PERF_LEVEL_FAST<br />Possible values are:<br />0 (NV_OF_PERF_LEVEL_FAST): high performance, low quality.<br />1 (NV_OF_PERF_LEVEL_MEDIUM): intermediate performance and quality.<br />2 (NV_OF_PERF_LEVEL_SLOW): low performance, best quality (valid only for dGPU platforms). | Enum, 0 to 2 | preset-level=0 |
+| grid-size | Selects the grid size. The hardware generates flow vectors blockwise, one vector for each block of 4×4 pixels. Currently only the 4x4 grid size is supported. | Enum, 0 | grid-size=0 |
+| pool-size | Sets the number of internal motion vector output buffers to be allocated. | Integer,<br />1 to 4,294,967,295 | pool-size=7 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvof plugin.
+
+**Gst-nvof plugin features**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU to be used for decoding (dGPU only). | Integer,<br />0 to 4,294,967,295 | gpu-id=0 |
+| dump-of-meta | Dumps optical flow output into a .bin file. |  | dump-of-meta=1 |
+| preset-level | Selects a preset level, default preset level is 0 i.e. NV_OF_PERF_LEVEL_FAST<br />Possible values are:<br />0 (NV_OF_PERF_LEVEL_FAST): high performance, low quality.<br />1 (NV_OF_PERF_LEVEL_MEDIUM): intermediate performance and quality.<br />2 (NV_OF_PERF_LEVEL_SLOW): low performance, best quality (valid only for dGPU platforms). | Enum, 0 to 2 | preset-level=0 |
+| grid-size | Selects the grid size. The hardware generates flow vectors blockwise, one vector for each block of 4×4 pixels. Currently only the 4x4 grid size is supported. | Enum, 0 | grid-size=0 |
+| pool-size | Sets the number of internal motion vector output buffers to be allocated. | Integer,<br />1 to 4,294,967,295 | pool-size=7 |

@@ -1,0 +1,4 @@
+Property,Meaning,Type and Range,Example
+active-pad,Active sink pad which video buffer will be send to src pad,String,active-pad=sink_0
+pts-toleranc,"If the diff of frame PTS for the same source id is bigger than the threshold, The meta data merge will be skipped",Integer,pts-tolerance=60000
+src-ids-model,Source IDs which need to be merge,String,src-ids-model-1=0

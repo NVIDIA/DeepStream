@@ -1,0 +1,3 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the plugin.,Boolean,enable=1,"dGPU, Jetson"
+config-file,Configuration file path for nvdsanalytics plugin,String,config-file=config_nvdsanalytics.txt,"dGPU, Jetson"

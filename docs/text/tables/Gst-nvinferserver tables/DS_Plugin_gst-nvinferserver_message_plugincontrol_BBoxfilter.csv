@@ -1,0 +1,15 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+min_width,Bounding box minimum width ,uint32,min_width: 64,"All
+
+Both"
+min_height,Bounding box minimum height,uint32,min_height: 64,"All
+
+Both"
+max_width,"Bounding box maximum width, default 0, max_width is ignored ",uint32,max_width: 640,"All
+
+Both"
+max_height,"Bounding box maximum height, 
+default 0, max_height is ignored ",uint32,max_height: 640,"All
+
+Both"

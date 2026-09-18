@@ -1,0 +1,172 @@
+---
+title: "Gst-nvdewarper"
+---
+
+This plugin dewarps camera input. It accepts gpu-id and config-file as properties. Based on the selected configuration of surfaces, it can generate a maximum of four dewarped surfaces. It currently supports 18 dewarping projection types. Out of these, `NVDS_META_SURFACE_FISH_PUSHBROOM` and `NVDS_META_SURFACE_FISH_VERTCYL` are used in 360-D use case for dewarping 360° camera input.
+The plugin performs its function in these steps:
+
+1. Reads the configuration file and creates a vector of surface configurations. It supports a maximum of four dewarp surface configurations.
+2. Receives the frame from the decoder. Based on the configuration, generates up to four dewarped surfaces.
+3. Scales these surfaces down to network/selected dewarper output resolution using `NPP` APIs.
+4. Pushes a buffer containing the dewarped surfaces to the downstream component.
+
+![Gst-nvdewarper](/assets/images/content/DS_plugin_gst-nvdewarper.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	A buffer containing a frame in RGBA format
+
+* Control parameters
+
+  *	gpu-id; selects the GPU ID (dGPU only)
+  *	config-file, containing the pathname of the dewarper configuration file
+
+* Output
+
+  *	Dewarped RGBA surfaces
+  *	`NvDewarperSurfaceMeta` with information associated with each surface (`projection_type`, `surface_index`, and `source_id`), and the number of valid dewarped surfaces in the buffer (`num_filled_surfaces`)
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdewarper features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Configure number of dewarped surfaces | Supports a maximum of four dewarper surfaces. | DS 3.0 |
+| Configure per-surface projection type | Currently supports FishPushBroom and FishVertRadCyd projections. | DS 3.0 |
+| Configure per-surface projection type | PerspectivePerspective projections | DS 5.0 |
+| Configure per-surface projection type | 18 projections | DS 6.2 |
+| Configure per-surface index | Surface index to be set in case of multiple surfaces having same projection type. | DS 3.0 |
+| Configure per-surface width and height |  | DS 3.0 |
+| Configure per-surface dewarping parameters | Per surface configurable yaw, roll, pitch, top angle, bottom angle, and focal length and CUDA address mode dewarping parameters.<br />For PerspectivePerspective projection type, field of view, distortion and principal point can additionally be configured. | DS 3.0 |
+| Configurable dewarper output resolution | Creates a batch of up to four surfaces of a specified output resolution; internally scales all dewarper surfaces to output resolution. | DS 3.0 |
+| Configurable NVDS CUDA memory type | — | DS 3.0 |
+| Multi-GPU support | — | DS 3.0 |
+| Aisle view CSV calibration file support | If set, properties in the [surface&lt;n>] group are ignored.<br />Only supported for FishPushBroom and FishVertRadCyd. | DS 3.0 |
+| Spot view CSV calibration file support | If set, properties in the [surface&lt;n>] group are ignored.<br />Only supported for FishPushBroom and FishVertRadCyd. | DS 3.0 |
+| Configure source id | Sets the source ID information in the NvDewarperSurfaceMeta. | DS 4.0 |
+| Configurable number of output buffers | Number of allocated output dewarper buffers. Each buffer contains four dewarped output surfaces. | DS 4.0 |
+| Configurable number of surfaces per output buffer | Number of dewarped output surfaces per buffer. Maximum allowed value is 4. | DS 5.0 |
+| Support for advanced configuration parameters | Fisheye distortion coefficients, destination focal length, destination principal point, rotation axes sequence, rotation matrix | DS 6.2 |
+
+## Configuration File Parameters
+
+The configuration file located at `configs/deepstream-app/config_dewarper.txt`.
+The configuration file specifies per-surface configuration parameters in `[surface<n>]` groups, where `<n>` is an integer from `0` to `3`, representing dewarped surfaces `0` to `3`.
+
+**`Gst-nvdewarper configuration file [surface<n>] parameters`**
+
+| Property | Property Type | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- | --- |
+| output-width | Global | Scale dewarped surfaces to specified output width | Integer, >0 | output-width=960 |
+| output-height | Global | Scale dewarped surfaces to specified output height | Integer, >0 | output-height=752 |
+| dewarp-dump-frames | Global | Number of dewarped frames to dump. | Integer, >0 | dewarp-dump-frames=10 |
+| num-batch-buffers | Global | Number of dewarped output surfaces per buffer, i.e batch-size of the buffer. | Integer,<br />0 to 4 | num-batch-buffers=4 |
+| projection-type | Surface | Selects projection type. Supported types are:<br />1: Fisheye to PushBroom<br />2: Fisheye to Vertical Radial Cylindrical<br />3: Perspective to Perspective<br />4: Fisheye to Perspective<br />5: Fisheye to Fisheye<br />6: Fisheye to Cylindrical<br />7: Fisheye to Equirectangular<br />8: Fisheye to Panini<br />9: Perspective to Equirectangular<br />10: Perspective to Panini<br />11: Equirectangular to Cylindrical<br />12: Equirectangular to Equirectangular<br />13: Equirectangular to Fisheye<br />14: Equirectangular to Panini<br />15: Equirectangular to Perspective<br />16: Equirectangular to PushBroom<br />17: Equirectangular to Stereographic<br />18: Equirectangular to Vertical Radial Cylindrical | Integer, 1 to 18 | projection-type=1 |
+| surface-index | Surface | An index that distinguishes surfaces of the same projection type. | Integer, ≥0 | surface-index=0 |
+| width | Surface | Dewarped surface width. | Integer, >0 | width=3886 |
+| height | Surface | Dewarped surface height. | Integer, >0 | height=666 |
+| top-angle | Surface | Top field of view angle, in degrees. | Float, −180.0 to 180.0 | top-angle=0 |
+| bottom-angle | Surface | Bottom field of view angle, in degrees. | Float, −180.0 to 180.0 | bottom-angle=0 |
+| pitch | Surface | Viewing parameter pitch in degrees. | Float, 0.0 to 360.0 | pitch=90 |
+| yaw | Surface | Viewing parameter yaw in degrees. | Float, 0.0 to 360.0 | yaw=0 |
+| roll | Surface | Viewing parameter roll in degrees. | Float, 0.0 to 360.0 | roll=0 |
+| focal-length | Surface | Focal length of camera lens, in pixels per radian. Can be specified as :<br />fxy : single float value<br />&lt;fx, fy> : array of two float values corresponding to focal lengths in x and y direction respectively | Floats, >0.0 | focal-length=437 OR<br />focal-length=442.63;395.106339 |
+| src-fov | Surface | Source vertical field of view in degrees. Used to compute the source focal-length if the latter is not provided. | Float, >0.0 | src-fov=180 |
+| distortion | Surface | Distortion coefficients in the distortion polynomial for a fisheye/perspective source.<br />For perspective source :<br />Three radial coefficients:<br />`(k_0,k_1,k_2): r^'=r(1+k_0 r^2+k_1 r^4+k_2 r^6 )`<br />Two tangential coefficients:<br />`(k_3,k_4):x'=x+[1+2k_3 xy+k_4 (r^2 + 2x^2)]`<br />`y^'=y+[ k_3 (r^2+2y^2+2k_4 xy)]`<br />For fisheye source :<br />Four radial coefficients<br />`(k_0,k_1,k_2, k_3): r^'=r(1+k_0 r^2+k_1 r^4+k_2 r^6+k_3 r^8 )` | Array of 4/5 floats | distortion=<br />-0.3721;0.1023;-0.00203;0;0<br />`distortion=k_0,;k_1,;k_2;k_3;k_4`<br />If not provided, all coefficients are set to 0 (no distortion) |
+| src-x0 | Surface | The X coordinate of the center of projection of the source image, in pixel coordinates.<br />Typically, it is (srcWidth-1)/2, but may be different if the image is calibrated or wraps around. | Float, ≥0 | src-x0=479.5<br />If not provided, will take its default value =<br />(srcWidth-1)/2 |
+| src-y0 | Surface | The Y coordinate of the center of projection of the source image, in pixel coordinates.<br />Typically, it is (srcHeight-1)/2, but may be different if the image is calibrated or wraps around. | Float, ≥0 | src-y0=375.5<br />If not provided, will take its default value =<br />(srcHeight-1)/2 |
+| cuda-address-mode | Surface | Cuda Texture addressing mode.<br />Currently supports:<br />0: cudaAddressModeClamp (Default) - sets points outside of border to nearest pixel value<br />1: cudaAddressModeBorder - sets points outside of border to transparent black | Integer, 0 or 1 | cuda-address-mode=<br />­1 |
+| aisle-calibration-file | Global | Pathname of the configuration file for aisle view.<br />Set for the 360 D application only for PushBroom and/or VertRadCyl projection types.<br />If set, properties in the [surface&lt;n>] group are ignored.<br />The configuration file is a CSV file with columns like sensorId and cameraId, and dewarping parameters like top-angle, bottom-angle, yaw, roll, pitch, focal-length, width, and height. | String | aisle-calibration-file=<br />­csv_files/­nvaisle_2M.csv |
+| spot-calibration-file | Global | Pathname of the configuration file for spot view.<br />Set for the 360 D application only for PushBroom and/or VertRadCyl projection types.<br />If set, properties in the [surface&lt;n>] group are ignored.<br />The configuration file is a CSV file with columns like sensorId and cameraId, and dewarping parameters like top-angle, bottom-angle, yaw, roll, pitch, focal-length, width, and height. | String | spot-calibration-file=<br />­csv_files/-nvspot_2M.csv<br />For an example of a spot view configuration file, see the file in the example above. |
+| rot-axes | Surface | A three-character string that specifies the sequence of application of rotation angles.<br />Possible values are : XYZ, XZY, YXZ, YZX, ZXY, ZYX where :<br />X corresponds to pitch,<br />Y corresponds to yaw and<br />Z corresponds to roll.<br />Default sequence of rotation is YXZ | String of three characters | rot-axes=ZXY |
+| control | Surface | A control parameter to vary the amount of warp. Applicable for Panini, Stereographic and Pushbroom projections. | Float | control=1.0.<br />control=0 is identical to perspective output. |
+| rot-matrix | Surface | Configures the rotation as a 3X3 rotation matrix. The matrix is specified in a right-handed screen space, with X to the right, Y downwards and Z outwards.<br />If specified, this setting will override yaw, pitch, roll settings. | Array of 9 floats | rot-matrix=0.5;-0.86;0;0.86;0.5;0;0;0.0;1.0 |
+| dst-focal-length | Surface | Sets destination image focal length.<br />Can be specified as :<br />fxy : single float value<br />&lt;fx, fy> : array of two float values<br />If specified, this setting will override top-angle, bottom-angle settings. | Floats, >0.0 | dst-focal-length=350;316 |
+| dst-principal-point | Surface | Set the X coordinate and Y coordinate in pixels of the principal point in destination image<br />If specified, this setting will override top-angle, bottom-angle settings. | Float, >0.0 | dst-principal-point=521.02;257.37 |
+
+<Note>
+In case viewing angles (top & bottom)/dst-focal-length/dst-principal-point are not provided, the destination center of projection (Principal Point) and Focal Length are kept the same as the source.
+</Note>
+
+To increase the flexibility, `num-batch-buffers` is also a `GstProperty`. The plugin properties are parsed in order, so if `num-batch-buffers` is passed both attached to the `GstElement` in the `gstreamer` pipeline (eg. with `gst-launch-1.0` command), and in the configuration file, the latest configuration applied will be used (see example below).
+   *Example:*
+
+     * Config file (`config_dewarper.txt`) with `num-batch-buffers=2`.
+     * Command Line argument with property `num-batch-buffers=1`.
+
+   *Pipelines:*
+
+     * `gst-launch-1.0 … ! nvdewarper config-file=config_dewarper.txt num-batch-buffers=1 ! …`
+     * `gst-launch-1.0 … ! nvdewarper num-batch-buffers=1 config-file=config_dewarper.txt ! …`
+
+Pipeline 1 will result in 1 surface per buffer whereas pipeline 2 will result in 2 surfaces per buffer.
+
+This plugin can be tested with the one of the following pipelines.
+
+* For dGPU:
+
+```
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_cam6.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! nvvideoconvert ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper.txt source-id=6 ! m.sink_0 nvstreammux name=m width=960 height=752 \
+
+       batch-size=4 num-surfaces-per-frame=4 ! nvmultistreamtiler ! nveglglessink
+
+Perspective Projection use-case: ::
+
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/yoga.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! nvvideoconvert ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper_perspective.txt ! m.sink_0 nvstreammux name=m width=3680 height=2428 \
+
+       batch-size=1 num-surfaces-per-frame=1 ! nvmultistreamtiler ! nveglglessink
+```
+
+* For Jetson:
+
+```
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/sample_cam6.mp4 ! qtdemux ! h264parse ! nvv4l2decoder  ! nvvideoconvert  ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper.txt source-id=6  ! m.sink_0 nvstreammux name=m width=960 height=752 batch-size=4 \
+
+       num-surfaces-per-frame=4 ! nvmultistreamtiler ! nv3dsink
+
+Perspective Projection use-case: ::
+
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/yoga.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! nvvideoconvert ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper_perspective.txt ! m.sink_0 nvstreammux name=m width=3680 height=2428 \
+
+       batch-size=1 num-surfaces-per-frame=1 ! nvmultistreamtiler ! nv3dsink
+
+*	Image File example dGPU: ::
+
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/yoga.jpg ! nvjpegdec ! nvvideoconvert ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper_perspective.txt ! nvvideoconvert ! jpegenc ! filesink location=output.jpg
+
+*	Image File example Jetson: ::
+
+       gst-launch-1.0 filesrc location=/opt/nvidia/deepstream/deepstream/samples/streams/yoga.jpg ! nvjpegdec ! nvvideoconvert ! nvdewarper config-file=/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-dewarper-test/config_dewarper_perspective.txt ! nvvideoconvert ! jpegenc ! filesink location=output.jpg
+
+To better see the effect of cuda-address-mode you can change the dewarping size. For example, in config_dewarper_perspective.txt change [surface0] parameters to: ::
+
+       width=7360
+       height=4856
+       cuda-address-mode=1
+```
+
+The Gst-nvdewarper plugin always outputs a `GStreamer` buffer which contains the number of dewarped surfaces defined by `num-batch-buffers` (currently maximum of four surfaces are supported). These dewarped surfaces are scaled to the output resolution (`output-width × output-height`) set in the configuration file.
+Also, the `num-surfaces-per-frame` and `batch-size` of `Gst-nvstreammux` must be set accordingly. Batch-size must be a multiple of the number of dewarped surfaces, which should be set in `num-surfaces-per-frame`.
+
+## Gst Properties
+
+The following table describes the Gst-nvdewarper plugin’s Gst properties.
+
+**Gst-nvdewarper gst properties**
+
+| Property | Meaning | Type and Range | Example and Notes |
+| --- | --- | --- | --- |
+| config-file | Absolute pathname of configuration file for the Gst-nvdewarper element | String | config-file= configs/ deepstream-app/ config_dewarper.txt |
+| gpu-id | Device ID of the GPU to be used (dGPU only) | Integer,<br />0 to 4,294,967,295 |  |
+| source-id | Source ID, e.g. camera ID | Integer,<br />0 to 4,294,967,295 | source-id=6 |
+| num-batch-buffers | Number of dewarped output surfaces per buffer, i.e., batch-size of the buffer | Integer,<br />0 to 4 | num-batch-buffers=4 |
+| num-output-buffers | Number of output buffers | Integer,<br />0 to 4,294,967,295 | num-output-buffers=4 |
+| silent | Suppresses console output when set | Boolean | silent=1 |
+| dewarper-lib-version (read-only) | Version of the dewarper library in use | String |  |
+| interpolation-method | Interpolation method used for scaling; see :doc:`DS_plugin_gst-nvvideoconvert` for the shared enum values | Enum | interpolation-method=1 |
+| nvbuf-memory-type | Type of memory to be allocated.<br />For dGPU:<br />0 (nvbuf-mem-default): Default memory, cuda-device<br />1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory<br />2 (nvbuf-mem-cuda-device) Device CUDA memory<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory<br />For Jetson:<br />0 (nvbuf-mem-default): Default memory, surface array<br />4 (nvbuf-mem-surface-array): Surface array memory | Integer, 0 to 4 | nvbuf-memory-type=3 |

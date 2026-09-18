@@ -1,0 +1,9 @@
+Property,Meaning,Type and Range,Example
+view_position,"Specify view position [x, y, z]coordinates","List[Float] ","view_position: [0, 0, -1]"
+view_target,"Specify view target [x, y, z]coordinates","List[Float] ","view_target: [0, 0, 1]"
+view_up,"Specify view up direction [x, y, z]coordinates","List[Float] ","view_up: [0, -1.0, 0]"
+near,Specify perspective projection near plane,Float,near: 0.01
+far,Specify perspective projection far plane,Float,far: 10.0
+fov,"Specify perspective projection field of view,  degree angle",Float,fov: 40.0
+coord_y_opposite,"Specify texture map V direction, Realsense coordinates is different from GLES default coordinates",Boolean,coord_y_opposite: False
+positive_z_only,Specify whether display negative depth values,Boolean,positive_z_only: False

@@ -1,0 +1,17 @@
+,,,,Jetson AGX Thor,Jetson AGX Orin
+Model Arch,Inference resolution,Precision,Tracker,"GPU
+(FPS)","GPU
+(FPS)"
+C-RADIO-B,3*224*224,FP16,No Tracker,1320,544
+C-RADIO-L,3*224*224,FP16,No Tracker,557,179
+NV-DinoV2-L,3*224*224,FP16,No Tracker,451,126
+RT-DETR,3*640*640,FP16,No Tracker,208,96
+RT-DETR,3*640*640,FP16,NvDCF Tracker,189,96
+RT-DETR (warehouse),3*544*960,FP16,MV3DT Tracker,95,39
+Peoplenet 2.6.3,3*640*640,FP16,MV3DT Tracker,349,147
+PeopleNet Transformer,3*544*960,FP16,MV3DT Tracker,25,16
+Grounding-DINO,3*544*960,FP16,No Tracker,24,13
+MaskGroundingDINOv2,3*544*960,FP16,No Tracker,24,15
+TrafficCamnet Transformer Lite,3*544*960,FP16,NvDCF Tracker,153,105
+SegFormer,3*640*640,FP16,No Tracker,256,145
+Mask2Former + SWIN,3*800*800,FP16,No Tracker,26,18

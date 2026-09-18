@@ -1,0 +1,9 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+scale_factor,Pixel normalization factor,float,scale_factor: 0.0078,"| All
+| Both"
+channel_offsets,Array of mean values of color components to be subtracted from each pixel. Array length must equal the number of color components in the frame. The plugin multiplies mean values by scale_factor. ,"float array, Optional","channel_offsets: [77.5, 21.2, 11.8]","| All
+| Both"
+mean_file,Pathname of mean data file (PPM format),"string;
+Optional",mean_file: “./model_meanfile.ppm”,"| All
+| Both"

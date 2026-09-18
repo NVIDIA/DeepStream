@@ -1,0 +1,94 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the sink.,Boolean,enable=1,"dGPU, Jetson"
+type,"Type of sink, to use.
+  
+  | 1: Fakesink
+  | 2: EGL based windowed nveglglessink for dGPU and nv3dsink for Jetson
+  | 3: Encode + File Save (encoder + muxer + filesink)
+  | 4: Encode + RTSP streaming; Note: sync=1 for this type is not applicable;
+  | 5: nvdrmvideosink (Jetson only)
+  | 6: Message converter + Message broker","Integer, 1, 2, 3, 4, 5 or 6",type=2,"dGPU, Jetson"
+sync,"Indicates how fast the stream is to be rendered.
+ 
+ | 0: As fast as possible
+ | 1: Synchronously","Integer,
+0 or 1",sync=1,"dGPU, Jetson"
+qos,"Indicates whether the sink is to generate Quality-of-Service events, which can lead to the pipeline dropping frames when pipeline FPS cannot keep up with the stream frame rate.",Boolean,qos=0,"dGPU, Jetson"
+source-id,"The ID of the source whose buffers this sink must use. The source ID is contained in the source group name. For example, for group [source1] source-id=1.","Integer, ≥0",source-id=1,"dGPU, Jetson"
+gpu-id,GPU to be used by the element in case of multiple GPUs.,"Integer, ≥0",gpu-id=1,dGPU
+container,"Container to use for the file save. Only valid for type=3.
+   
+   | 1: MP4
+   | 2: MKV","Integer,
+1 or 2",container=1,"dGPU, Jetson"
+codec,"The encoder to be used to save the file.
+ | 1: H.264 (hardware)
+ | 2: H.265 (hardware)","Integer,
+1 or 2",codec=1,"dGPU, Jetson"
+bitrate,"Bitrate to use for encoding, in bits per second. Valid for type=3 and 4.","Integer, >0",bitrate=4000000,"dGPU, Jetson"
+iframeinterval,Encoding intra-frame occurrence frequency.,"Integer,
+0≤iv≤MAX_INT",iframeinterval=30,"dGPU, Jetson"
+output-file,Pathname of the output encoded file. Only valid for type=3.,String,output-file=­/home/­ubuntu/­output.mp4,"dGPU, Jetson"
+nvbuf-memory-type,"Type of CUDA memory the plugin is to allocate for output buffers.
+  
+  | 0 (nvbuf-mem-default): a platform-specific default
+  | 1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory
+  | 2 (nvbuf-mem-cuda-device): Device CUDA memory
+  | 3 (nvbuf-mem-cuda-unified): Unified CUDA memory
+  | For dGPU: All values are valid.
+  | For Jetson: Only 0 (zero) Is valid.","Integer,
+0, 1, 2, or 3",nvbuf-memory-type=3,"dGPU, Jetson"
+rtsp-port,Port for the RTSP streaming server; a valid unused port number. Valid for type=4.,Integer,rtsp-port=8554,"dGPU, Jetson"
+udp-port,Port used internally by the streaming implementation - a valid unused port number. Valid for type=4.,Integer,udp-port=5400,"dGPU, Jetson"
+conn-id,Connection index. Valid for nvdrmvideosink(type=5).,"Integer, >=1",conn-id=0,Jetson
+width,Width of the renderer in pixels.,"Integer, >=1",width=1920,"dGPU, Jetson"
+height,Height of the renderer in pixels.,"Integer, >=1",height=1920,"dGPU, Jetson"
+offset-x,"Horizontal offset of the renderer window, in pixels.","Integer, >=1",offset-x=100,"dGPU, Jetson"
+offset-y,"Vertical offset of the renderer window, in pixels.","Integer, >=1",offset-y=100,"dGPU, Jetson"
+plane-id,Plane on which video should be rendered. Valid for nvdrmvideosink(type=5).,"Integer, ≥0",plane-id=0,Jetson
+msg-conv-config,Pathname of the configuration file for the Gst-nvmsgconv element (type=6).,String,msg-conv-config=dstest5_msgconv_sample_config.txt,"dGPU, Jetson"
+msg-broker-proto-lib,Path to the protocol adapter implementation used Gst-nvmsgbroker (type=6).,String,msg-broker-proto-lib= /opt/nvidia/deepstream/deepstream-5.0/lib/libnvds_amqp_proto.so,"dGPU, Jetson"
+msg-broker-conn-str,Connection string of the backend server (type=6).,String,msg-broker-conn-str=foo.bar.com;80;dsapp,"dGPU, Jetson"
+topic,Name of the message topic (type=6).,String,topic=test-ds4,"dGPU, Jetson"
+msg-conv-payload-type,"Type of payload.
+  
+  | 0, PAYLOAD_DEEPSTREAM: DeepStream schema payload.
+  | 1, PAYLOAD_DEEPSTREAM\_-MINIMAL: DeepStream schema payload minimal.
+  | 256, PAYLOAD_RESERVED: Reserved type.
+  | 257, PAYLOAD_CUSTOM: Custom schema payload (type=6).","Integer 0, 1, 256, or 257",msg-conv-payload-type=0,"dGPU, Jetson"
+msg-broker-config,Pathname of an optional configuration file for the Gst-nvmsgbroker element (type=6).,String,msg-broker-config=/home/ubuntu/cfg_amqp.txt,"dGPU, Jetson"
+sleep-time,Sleep time between consecutive do_work calls in milliseconds,"Integer >= 0. 
+For Azure, use value >= 10 depending on IoT Hub service tier message rate limit.
+Warning: failure is likely with unreasonably high sleep times, e.g. 10000000 ms",sleep-time=10,"dGPU
+Jetson"
+new-api,use protocol adapter library api’s directly or use new msgbroker library wrapper api’s (type=6),"Integer 
+ | 0 : Use adapter api’s directly
+ | 1 : msgbroker lib wrapper api’s",new-api = 0,"dGPU, Jetson"
+msg-conv-msg2p-lib,"Absolute pathname of an optional custom payload generation library. This library implements the API defined by sources/libs/nvmsgconv/­nvmsgconv.h.
+Applicable only when msg-conv-payload-type=257, PAYLOAD_CUSTOM. (type=6)",String,msg-conv-msg2p-lib= /opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_msgconv.so,"dGPU, Jetson"
+msg-conv-comp-id,comp-id Gst property of the nvmsgconv element; ID (gie-unique-id) of the primary/secondary-gie component from which metadata is to be processed. (type=6),"Integer, >=0",msg-conv-comp-id=1,"dGPU, Jetson"
+msg-broker-comp-id,comp-id Gst property of the nvmsgbroker element; ID (gie-unique-id) of the primary/secondary gie component from which metadata is to be processed. (type=6),"Integer, >=0",msg-broker-comp-id=1,"dGPU, Jetson"
+debug-payload-dir,Directory to dump payload (type=6),String,debug-payload-dir=<absolute path> Default is NULL,dGPU Jetson
+multiple-payloads,Generate multiple message payloads (type=6),Boolean,multiple-payloads=1 Default is 0," ""dGPU Jetson"""
+msg-conv-msg2p-new-api,Generate payloads using Gst buffer frame/object metadata (type=6),Boolean,msg-conv-msg2p-new-api=1 Default is 0," ""dGPU Jetson"""
+msg-conv-frame-interval,Frame interval at which payload is generated (type=6),"Integer, 1 to  4,294,967,295",msg-conv-frame-interval=25 Default is 30,dGPU Jetson
+disable-msgconv,Only add a message broker component instead of a message converter + message broker. (type=6),"Integer,",disable-msgconv = 1,"dGPU, Jetson"
+enc-type,"Engine to use for encoder
+ 
+ | 0: NVENC hardware engine
+ | 1: CPU software encoder","Integer,
+0 or 1",enc-type=0,"dGPU, Jetson"
+profile (HW),"Encoder profile for the codec
+V4L2 H264 encoder(HW):
+ 
+ | 0: Baseline
+ | 2: Main
+ | 4: High
+
+V4L2 H265 encoder(HW):
+ 
+ | 0: Main
+ | 1: Main10","Integer,
+valid values from the column beside",profile=2,"dGPU, Jetson"
+udp-buffer-size,UDP kernel buffer size (in bytes) for internal RTSP output pipeline.,"Integer, >=0",udp-buffer-size=100000,"dGPU, Jetson"
+link-to-demux,A boolean which enables or disables streaming a particular “source-id” alone to this sink. Please check the tiled-display group enable key for more information.,Boolean,link-to-demux=0,"dGPU, Jetson"

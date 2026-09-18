@@ -1,0 +1,2 @@
+SL,Limitations
+1,Usage of new nvstreammux for video and audio usecases are not supported at this time and might not work.

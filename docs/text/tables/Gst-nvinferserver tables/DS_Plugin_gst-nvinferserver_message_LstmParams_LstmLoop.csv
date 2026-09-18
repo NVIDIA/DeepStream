@@ -1,0 +1,11 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+input,Specify input tensor name of the current loop.,string,Input: “init_state”,"All
+
+Both"
+output,Specify input tensor name of the current loop. Tensor data will feedback to the input tensor,string,onput: “output_state”,"All
+
+Both"
+init_const,Specify the constant values for the input in first frame,InitConst | value: float,Init_const { value: 0 },"All
+
+Both"

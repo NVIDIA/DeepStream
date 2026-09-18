@@ -1,0 +1,91 @@
+---
+title: "Gst-nvds3dmixer"
+---
+
+The Gst-nvds3dmixer plugin is a customizable plugin which provides a custom library interface to load component `ds3d::datamixer`.
+
+nvds3dmixer mix buffers from N input pads into one output pad.
+
+The Plugin is fully configured through YAML format content or file.
+
+![Gst-nvds3dmixer](/assets/images/content/DS_plugin_gst-nvds3dmixer.png)
+
+## Gst-nvds3dmixer properties Specifications
+
+**Gst-nvds3dmixer Properties.**
+
+| Properties | Description | Release |
+| --- | --- | --- |
+| config-content | yaml config content | DS 7.0 |
+| config-file | yaml config file path | DS 7.0 |
+
+## Custom library Interfaces
+
+The plugin parse the config file or content and set SinkCaps and SrcCaps. load a custom `ds3d::datamixer` from `custom_lib_path`. Create this datamixer by `custom_create_function`.
+
+## Supported DS3D Data mixers
+
+| SL | Data mixer | Data mixer custom library |
+| --- | --- | --- |
+| 1 | DS3D Data mixer. Mix buffers from N input pads into one output pad. | `libnvds_3d_multisensor_mixer.so` |
+
+Custom low level library: `libnvds_3d_multisensor_mixer.so`
+
+## Custom low level library: `libnvds_3d_multisensor_mixer.so`
+
+Mix buffers from N input pads into one output pad.
+
+### Inputs and Outputs
+
+* Inputs (support N input pads)
+
+   * ds3d/datamap
+
+* Control parameters
+
+  *	config-file
+  *	config-content
+
+* Output
+
+  * ds3d/datamap
+
+* sink_caps
+
+  * parsed from config-file: `in_caps:` [ds3d/datamap](/text/DS_3D_Custom_Manual#ds3d-data-format-ds3d-datamap).
+
+* src_caps
+
+  * parsed from config-file: `out_caps:` [ds3d/datamap](/text/DS_3D_Custom_Manual#ds3d-data-format-ds3d-datamap).
+
+* Example Inputs X 2 and Output
+
+| Input at sink_0 | Input at sink_1 | Output |
+| --- | --- | --- |
+| GstBuffer with ds3d/datamap | GstBuffer with ds3d/datamap | GstBuffer with ds3d/datamap |
+| \{kVideoBridge2dData:value1\}, \{kVideoBridge2dData:value2\}, ... | \{kLidarXYZI:value1\}, \{kLidarXYZI:value2\}, ... | \{kVideoBridge2dData+0:value1\}, \{kVideoBridge2dData+0:value2\}, \{kLidarXYZI+1:value1\}, \{kLidarXYZI+1:value2\}, ... |
+
+### Configuration file
+
+Example:
+```
+name: multisensor_mixer
+type: ds3d::datamixer
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_multisensor_mixer.so
+custom_create_function: createMultiSensorMixer
+config_body:
+    #timeout in milliseconds;
+    timeout: 50
+    #force_sync == true will force mixer to wait for buffers from ALL inputs
+    force_sync: true
+```
+
+### Video mixer configuration options
+
+| config-key | Description | Example value |
+| --- | --- | --- |
+| timeout | Timeout dictates the regular time interval in which mixer algorithm will run. This configuration is in ms. This configuration can dictate the frame-rate at which mixer will produce mixed output datamap buffers. | Default: 33 ms |
+| force_sync | Mixer will wait for ALL inputs to produce output. If true, the output framerate of mixer will be = slower of all the inputs. One may use this if all inputs are of equal frame-rate. | Default: false |
+| output_object2d_key | The key name to use when generating datamap output. This key name will be used to save NvDsObjectMeta from NvDsBatchMeta as an array of ds3d::Object2DBbox. | DS3D::Object2DBboxKey |

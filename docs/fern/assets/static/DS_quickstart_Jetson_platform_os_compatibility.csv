@@ -1,0 +1,12 @@
+DS release,DS 6.1.1,DS 6.2,DS 6.3,DS 6.4,DS 7.0,DS 7.1,DS 8.0,DS 9.0,DS 9.1,DS 9.2
+Jetson platforms,"AGX Xavier, Jetson NX, Jetson Orin","Xavier AGX , Xavier NX,  AGX Orin, Orin NX","Xavier AGX , Xavier NX,  AGX Orin, Orin NX, Orin nano","AGX Orin, Orin NX, Orin nano","AGX Orin, Orin NX, Orin nano","AGX Orin, Orin NX, Orin nano",AGX Thor,AGX Thor,"AGX Thor, Jetson Orin","AGX Thor, Jetson Orin, IGX Thor"
+OS,L4T Ubuntu 20.04,L4T Ubuntu 20.04,L4T Ubuntu 20.04,L4T Ubuntu 22.04,L4T Ubuntu 22.04,L4T Ubuntu 22.04,L4T Ubuntu 24.04,L4T Ubuntu 24.04,L4T Ubuntu 24.04,L4T Ubuntu 24.04
+JetPack release,5.0.2 GA Revision 1,5.1 GA,5.1.2 GA,6.0 DP,6.0 GA,6.1 GA,7.0 GA,7.1 GA,7.2 GA,7.2.1 GA
+L4T release,35.1,35.2.1,35.4,36.2,36.3,36.4,38.2,38.4,39.2,39.2
+CUDA release,CUDA 11.4,CUDA 11.4,CUDA 11.4,CUDA 12.2,CUDA 12.2,CUDA 12.6,CUDA 13.0,CUDA 13.0,CUDA 13.2,CUDA 13.2
+cuDNN release,cuDNN 8.4.1.50+,cuDNN 8.6.0.166+,cuDNN 8.6.0.166+,cuDNN 8.9.4.25+,cuDNN 8.9.4.25+,cuDNN 9.3.0,CuDNN 9.12.0,CuDNN 9.12.0,CuDNN 9.20.0.46,CuDNN 9.20.0.48
+TensorRT release,TRT 8.4.1.5,TRT 8.5.2.2,TRT 8.5.2.2,TRT 8.6.2.3,TRT 8.6.2.3,TRT 10.3.0.31,TRT 10.13.2.6,TRT 10.13.2.6,TRT 10.16.1.7,TRT 10.16.1.7
+OpenCV release,OpenCV 4.2.0,OpenCV 4.2.0,OpenCV 4.5.4,OpenCV 4.8.0,OpenCV 4.8.0,OpenCV 4.8.0,OpenCV 4.8.0,OpenCV 4.8.0,OpenCV 4.8.0,OpenCV 4.8.0
+Vision­Works,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+GStreamer,GStreamer 1.16.2,GStreamer 1.16.3,GStreamer 1.16.3,GStreamer 1.20.3,GStreamer 1.20.3,GStreamer 1.20.3,GStreamer 1.24.2,GStreamer 1.24.2,GStreamer 1.24.2,GStreamer 1.24.2
+Docker image,deepstream-l4t:6.1.1,deepstream-l4t:6.2,deepstream-l4t:6.3,deepstream:6.4,deepstream:7.0,deepstream:7.1,deepstream:8.0,deepstream:9.0,deepstream:9.1,deepstream:9.2

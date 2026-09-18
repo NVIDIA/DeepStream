@@ -1,0 +1,47 @@
+---
+title: "Networked Media Open Specifications (NMOS) in DeepStream"
+---
+
+The NvDsNmos utility library provides the APIs to create, destroy and internally manage an [NMOS](https://specs.amwa.tv/nmos/) Node for a DeepStream application.
+
+The library can automatically discover and register with an NMOS Registry on the network using the [AMWA IS-04](https://specs.amwa.tv/is-04/) Registration API.
+
+The library provides callbacks for NMOS events such as [AMWA IS-05](https://specs.amwa.tv/is-05/) Connection API requests from an NMOS Controller.
+These callbacks can be used to update running DeepStream pipelines with new transport parameters, for example.
+
+NvDsNmos currently supports Senders and Receivers for uncompressed Video and Audio, i.e., SMPTE ST 2110-20 and SMPTE ST 2110-30 streams.
+
+## Supported Specifications
+
+The NvDsNmos library supports the following specifications, using the [Sony nmos-cpp](https://github.com/sony/nmos-cpp) implementation:
+
+* [AMWA IS-04 NMOS Discovery and Registration Specification](https://specs.amwa.tv/is-04/) v1.3
+* [AMWA IS-05 NMOS Device Connection Management Specification](https://specs.amwa.tv/is-05/) v1.1
+* [AMWA IS-09 NMOS System Parameters Specification](https://specs.amwa.tv/is-09/) v1.0
+* [AMWA BCP-002-01 Natural Grouping of NMOS Resources](https://specs.amwa.tv/bcp-002-01/) v1.0
+* [AMWA BCP-002-02 NMOS Asset Distinguishing Information](https://specs.amwa.tv/bcp-002-02/) v1.0
+* [AMWA BCP-004-01 NMOS Receiver Capabilities](https://specs.amwa.tv/bcp-004-01/) v1.0
+* Session Description Protocol conforming to SMPTE ST 2110-20 and -30
+
+## Prerequisites
+
+The Avahi Apple Bonjour compatibility library must be installed. For example, run:
+
+```
+sudo apt-get install libavahi-compat-libdnssd-dev
+```
+
+The Avahi mDNS/DNS-SD daemon must also be running.
+The Avahi browsing, publishing and discovery utilities (avahi-utils) can be used to confirm that DNS Service Discovery (DNS-SD) records for an NMOS Registry are discoverable. For example, run:
+
+```
+avahi-browse -r _nmos-register._tcp
+```
+
+## NvDsNmos API
+
+Refer to the `nvdsnmos.h` header file.
+
+## Sample Application
+
+Refer to the [DS_ref_app_nmos](DS_ref_app_nmos), which demonstrates how to use the NvDsNmos library.

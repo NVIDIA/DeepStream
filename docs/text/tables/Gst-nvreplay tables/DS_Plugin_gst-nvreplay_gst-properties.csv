@@ -1,0 +1,14 @@
+Property,Meaning,Type and Range,Example Notes
+label-dir,Directory path containing ground truth label files,String,label-dir=/path/to/labels/
+file-names,Semicolon-separated list of label file names corresponding to each source stream. Order must match source order (source0 source1 etc.),String,"file-names=
+src0_det.txt;
+src1_det.txt"
+max-frame-nums,Semicolon-separated list of maximum frame numbers for each stream. If not specified uses maximum frame number from label files. Frames wrap around using modulo when exceeding this value,String,"max-frame-nums=100;100;100"
+label-width,Frame width in the coordinate system used by ground truth labels. Used to scale coordinates to actual frame width,"Integer,
+0 to 4,294,967,295
+Default: 1920",label-width=1920
+label-height,Frame height in the coordinate system used by ground truth labels. Used to scale coordinates to actual frame height,"Integer,
+0 to 4,294,967,295
+Default: 1080",label-height=1080
+interval,Number of consecutive batches to skip before adding labels to metadata. 0 means labels are added to every batch,"Integer, 0 to 4,294,967,295
+Default: 0",interval=0

@@ -1,0 +1,7 @@
+Feature,Description,Release
+New streammux with numerous config-keys supported in a separate mux config-file.,Introducing new streammux,DS 5.0
+Buffer TimeStamp Synchronization support,Please check sync-inputs and max-latency property documentation,DS 6.0
+GstMeta and NvDsMeta copy support, Supported in both nvstreammux and nvstreamdemux,DS 6.1
+Batching batched buffers from another nvstreammux instance,Cascaded nvstreammux usage in a pipeline, DS 6.1
+Runtime config-file change,Please check config-file-path property documentation, DS 6.1
+Latency Measurement support for video and audio buffers, Supported in both nvstreammux and nvstreamdemux,DS 6.1

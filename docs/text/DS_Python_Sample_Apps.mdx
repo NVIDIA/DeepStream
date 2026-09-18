@@ -1,0 +1,238 @@
+---
+title: "Python Sample Apps and Bindings Source Details (Deprecated)"
+---
+
+{/` include: <isonum.txt> `/}
+
+<Note>
+DeepStream Python bindings (`pyds`) are deprecated. New Python development
+should use **pyservicemaker** instead — see [DS_service_maker_python](DS_service_maker_python)
+to get started.
+</Note>
+
+## Sample Application Source Details
+
+The following table shows the location of the Python sample applications under https://github.com/NVIDIA-AI-IOT/deepstream_python_apps.
+
+**Python sample application source details**
+
+| Reference test application | Path inside the GitHub repo | Description |
+| --- | --- | --- |
+| Simple test application 1 | apps/­deepstream-test1 | Simple example of how to use DeepStream elements for a single H.264 stream: filesrc \|rarr\| decode \|rarr\| nvstreammux \|rarr\| nvinfer (primary detector) \|rarr\| nvdsosd \|rarr\| renderer. |
+| Simple test application 2 | apps/­deepstream-test2 | Simple example of how to use DeepStream elements for a single H.264 stream: filesrc \|rarr\| decode \|rarr\| nvstreammux \|rarr\| nvinfer (primary detector) \|rarr\| nvtracker \|rarr\| nvinfer (secondary classifier) \|rarr\| nvdsosd \|rarr\| renderer. |
+| Simple test application 3 | apps/­deepstream-test3 | Builds on deepstream-test1 (simple test application 1) to demonstrate how to:<br />* Use multiple sources in the pipeline<br />* Use a uridecodebin to accept any type of input (e.g. RTSP/File), any GStreamer supported container format, and any codec<br />* Configure Gst-nvstreammux to generate a batch of frames and infer on it for better resource utilization<br />* Extract the stream metadata, which contains useful information about the frames in the batched buffer |
+| Simple test application 4 | apps/­deepstream-test4 | Builds on deepstream-test1 for a single H.264 stream: filesrc, decode, nvstreammux, nvinfer, nvdsosd, renderer to demonstrate how to:<br />* Use the Gst-nvmsgconv and Gst-nvmsgbroker plugins in the pipeline<br />* Create NVDS_META_EVENT_MSG type metadata and attach it to the buffer<br />* Use NVDS_META_EVENT_MSG for different types of objects, e.g. vehicle and person<br />* Implement “copy” and “free” functions for use if metadata is extended through the extMsg field |
+| USB camera source application | apps/­deepstream-test1-usbcam | Simple test application 1 modified to process a single stream from a USB camera. |
+| RTSP output application | apps/­deepstream-test1-rtsp-out | Simple test application 1 modified to output visualization stream over RTSP. |
+| Image data access application | apps/­deepstream-imagedata-multistream | Builds on simple test application 3 to demonstrate how to:<br />* Access decoded frames as NumPy arrays in the pipeline<br />* Check detection confidence of detected objects (DBSCAN or NMS clustering required)<br />* Modify frames and see the changes reflected downstream in the pipeline<br />* Use OpenCV to annotate the frames and save them to file |
+| Optical flow application | apps/deepstream-opticalflow | Demonstrates how to obtain opticalflow meta data and also demonstrates how to:<br />* Access optical flow vectors as numpy array<br />* Visualize optical flow using obtained flow vectors and OpenCV |
+| Segmentation application | apps/deepstream-segmentation | Demonstrates how to obtain segmentation meta data and also demonstrates how to:<br />* Access segmentation masks as numpy array<br />* Visualize segmentation using obtained masks and OpenCV |
+| Analytics application | apps/deepstream-nvdsanalytics | Demonstrates how to use the nvdsanalytics plugin and obtain analytics metadata |
+| Runtime source add/delete application | apps/runtime_source_add_delete | Demonstrates how to add and delete input sources at runtime |
+| Face redaction application | apps/deepstream-imagedata-multistream-redaction | Demonstrates how to access image data and perform face redaction |
+| RTSP input/output application | apps/deepstream-rtsp-in-rtsp-out | Multi-stream pipeline with RTSP input and output |
+| Preprocess application | apps/deepstream-preprocess-test | Demonstrates how to use nvdspreprocess plugin and perform custom preprocessing on provided ROIs |
+| Demuxer application | apps/deepstream-demux-multi-in-multi-out | Builds on deepstream-test3 to demonstrate how to use nvstreamdemux plugin to split batches and output separate buffer/streams. |
+| CuPy application | apps/deepstream-imagedata-multistream-cupy | Demonstrates how to access GPU buffer in a multistream source as a CuPy array and modify images in place. |
+| Segmask application | apps/deepstream-segmask | Demonstrates how to extract NvOSD_MaskParams from stream metadata and resize and binarize mask array for interpretable segmentation mask. |
+| Custom binding application | apps/deepstream-custom-binding-test | Demonstrates how to use NvDsUserMeta to attach and extract custom data structure written in Python bindings to/from the buffer. |
+
+## Python Bindings and Application Development
+
+This section provides details about DeepStream application development in Python.
+Python bindings are available here: https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/tree/master/bindings .
+Read more about Pyds API [here](https://docs.nvidia.com/metropolis/deepstream/dev-guide/python-api/index.html).
+
+### Prerequisites
+
+* Ubuntu 24.04
+* DeepStream SDK 9.0 or later
+* Python 3.12
+* Gst Python v1.24.1
+
+If Gst python installation is missing on Jetson, follow the instructions in bindings [readme](https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/blob/master/bindings/README.md).
+
+### Running Sample Applications
+
+1. Clone the `deepstream_python_apps` repo under `<DeepStream ROOT>/sources`:
+
+```
+git clone https://github.com/NVIDIA-AI-IOT/deepstream_python_apps
+```
+
+2. This will create the following directory:
+
+```
+<DeepStream ROOT>/sources/deepstream_python_apps
+```
+
+3. The Python apps are under the `apps` directory. Go into each app directory and follow instructions in the README.
+
+   <Note title="The app configuration files contain relative paths for models.">
+
+   </Note>
+
+### Pipeline Construction
+
+DeepStream pipelines can be constructed using `Gst` Python, the GStreamer framework's Python bindings. See sample applications main functions for pipeline construction examples.
+
+## MetaData Access
+
+DeepStream MetaData contains inference results and other information used in analytics. The MetaData is attached to the `Gst Buffer` received by each pipeline component. The metadata format is described in detail in the SDK MetaData documentation and API Guide.
+The SDK MetaData library is developed in C/C++. Python bindings provide access to the MetaData from Python applications. Please find Python bindings source and packages at https://github.com/NVIDIA-AI-IOT/deepstream_python_apps.
+
+### Memory Management
+
+Memory for MetaData is shared by the Python and C/C++ code paths. For example, a MetaData item may be added by a probe function written in Python and needs to be accessed by a downstream plugin written in C/C++. The deepstream-test4 app contains such usage. The Python garbage collector does not have visibility into memory references in C/C++, and therefore cannot safely manage the lifetime of such shared memory. Because of this complication, Python access to MetaData memory is typically achieved via references without claiming ownership.
+
+### Allocations
+
+When MetaData objects are allocated in Python, an allocation function is provided by the bindings to ensure proper memory ownership of the object. If the constructor is used, the the object will be claimed by the garbage collector when its Python references terminate. However, the object will still need to be accessed by C/C++ code downstream, and therefore must persist beyond those Python references.
+Example: To allocate an `NvDsEventMsgMeta` instance, use this:
+
+ ```text
+ msg_meta = pyds.alloc_nvds_event_msg_meta() *# get reference to allocated instance without claiming memory ownership*
+ ```
+
+NOT this:
+
+ ```text
+ msg_meta = NvDsEventMsgMeta() *# memory will be freed by the garbage collector when msg_meta goes out of scope in Python*
+ ```
+
+Allocators are available for the following structs:
+
+* `NvDsVehicleObject: alloc_nvds_vehicle_object()`
+* `NvDsPersonObject: alloc_nvds_person_object()`
+* `NvDsFaceObject: alloc_nvds_face_object()`
+* `NvDsEventMsgMeta: alloc_nvds_event_msg_meta()`
+* `NvDsEvent: alloc_nvds_event()`
+* `NvDsPayload: alloc_nvds_payload()`
+* `Generic buffer: alloc_buffer(size)`
+
+### String Access
+
+Some MetaData structures contain string fields. Sections below provide details on accessing them.
+
+#### Setting String Fields
+
+Setting a string field results in the allocation of a string buffer in the underlying C++ code.
+
+```
+obj.type = "Type"
+```
+
+This will cause a memory buffer to be allocated, and the string "TYPE" will be copied into it. This memory is owned by the C code and will be freed later. To free the buffer in Python code, use:
+
+```
+pyds.free_buffer(obj.type)
+```
+
+<Note title="`NvOSD_TextParams.display_text` string now gets freed automatically when a new string is assigned.">
+
+</Note>
+
+#### Reading String Fields
+
+Directly reading a string field returns C address of the field in the form of an int, for example:
+
+```
+obj = pyds.NvDsVehicleObject.cast(data);
+print(obj.type)
+```
+
+This will print an int representing the address of `obj.type` in C (which is a char*).
+To retrieve the string value of this field, use `pyds.get_string()`, for example:
+
+```
+print(pyds.get_string(obj.type))
+```
+
+### Casting
+
+Some MetaData instances are stored in GList form. To access the data in a GList node, the data field needs to be cast to the appropriate structure. This casting is done via cast() member function for the target type:
+
+```
+NvDsBatchMeta.cast
+NvDsFrameMeta.cast
+NvDsObjectMeta.cast
+NvDsUserMeta.cast
+NvDsClassifierMeta.cast
+NvDsDisplayMeta.cast
+NvDsLabelInfo.cast
+NvDsEventMsgMeta.cast
+NvDsVehicleObject.cast
+NvDsPersonObject.cast
+```
+
+In version v0.5, standalone cast functions were provided. Those are now deprecated and superseded by the cast() functions above:
+
+```
+glist_get_nvds_batch_meta
+glist_get_nvds_frame_meta
+glist_get_nvds_object_meta
+glist_get_nvds_user_meta
+glist_get_nvds_classifier_meta
+glist_get_nvds_display_meta
+glist_get_nvds_label_info
+glist_get_nvds_event_msg_meta
+glist_get_nvds_vehicle_object
+glist_get_nvds_person_object
+```
+
+Example:
+
+```
+l_frame = batch_meta.frame_meta_list
+frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
+```
+
+### Callback Function Registration
+
+Custom MetaData added to `NvDsUserMeta` require custom copy and release functions. The MetaData library relies on these custom functions to perform deep-copy of the custom structure, and free allocated resources. These functions are registered as callback function pointers in the `NvDsUserMeta` structure. Callback functions are registered using these functions:
+
+```
+pyds.set_user_copyfunc(NvDsUserMeta_instance, copy_function)
+pyds.set_user_releasefunc(NvDsUserMeta_instance, free_func)
+```
+
+<Note>
+Callbacks need to be unregistered with the bindings library before the application exits. The bindings library currently keeps global references to the registered functions, and these cannot last beyond bindings library unload which happens at application exit. Use the following function to unregister all callbacks:
+
+```
+pyds.unset_callback_funcs()
+```
+
+</Note>
+
+See the deepstream-test4 sample application for an example of callback registration and deregistration.
+
+**Limitation**: The bindings library currently only supports a single set of callback functions for each application. The last registered function will be used.
+
+### Optimizations and Utilities
+
+Python interpretation is generally slower than running compiled C/C++ code. To provide better performance, some operations are implemented in C and exposed via the bindings interface. This is currently experimental and will expand over time.
+The following optimized functions are available:
+
+* `pyds.NvOSD_ColorParams.set(double red, double green, double blue, double alpha)`
+
+    This is a simple function that performs the same operations as the following:
+
+```
+txt_params.text_bg_clr.red = red
+txt_params.text_bg_clr.green = green
+txt_params.text_bg_clr.blue = blue
+txt_params.text_bg_clr.alpha = alpha
+```
+
+    These are performed on each object in deepstream_test_4.py, causing the aggregate processing time to slow down the pipeline. Pushing this function into the C layer helps to increase performance.
+
+* `generate_ts_rfc3339 (buffer, buffer_size)`
+
+    This function populates the input buffer with a timestamp generated according to RFC3339:
+    `%Y-%m-%dT%H:%M:%S.nnnZ\0`
+
+### Image Data Access
+
+Decoded images are accessible as `NumPy` arrays via the `get_nvds_buf_surface` function. This function is documented in the API Guide.
+See the `deepstream-imagedata-multistream` sample application for an example of image data usage.

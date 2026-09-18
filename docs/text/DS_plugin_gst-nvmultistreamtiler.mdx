@@ -1,0 +1,70 @@
+---
+title: "Gst-nvmultistreamtiler"
+---
+
+The Gst-nvmultistreamtiler plugin composites a 2D tile from batched buffers. The plugin accepts batched NV12/RGBA data from upstream components. The plugin composites the tile based on stream IDs, obtained from `NvDsBatchMeta` and `NvDsFrameMeta` in row-major order (starting from source 0, left to right across the top row, then across the next row). Each source frame is scaled to the corresponding location in the tiled output buffer. The plugin can reconfigure if a new source is added and it exceeds the space allocated for tiles. It also maintains a cache of old frames to avoid display flicker if one source has a lower frame rate than other sources.
+
+![Gst-nvmultistreamtiler](/assets/images/content/DS_plugin_gst-nvmultistreamtiler.png)
+
+## Inputs and Outputs
+
+*	Inputs
+
+   *	Gst Buffer batched buffer
+   *	NvDsBatchMeta with Gst Buffer batched (batch is one or more buffers)
+   *	Formats supported: NV12/RGBA
+
+*	Control Parameters
+
+   *	rows
+   *	columns
+   *	width
+   *	height
+   *	gpu-id (dGPU only)
+   *	compute-hw (Jetson only)
+   *	show-source
+   *	nvbuf-memory-type
+   *	custom-tile-config
+   *	square-seq-grid
+
+*	Output
+
+   *	Gst Buffer (single frame) with composited input frames
+   *	Transformed metadata (NvDsBatchMeta)
+   *	Formats supported: NV12/RGBA
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvmultistreamtiler features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Composites a 2D tile of input buffers | — | DS 2.0 |
+| Scales bounding box with metadata coordinates according to scaling and position in tile | — | DS 2.0 |
+| Multi-GPU support | — | DS 2.0 |
+| Shows expanded preview for a single source | — | DS 2.0 |
+| User configurable CUDA memory type (Pinned/Device/Unified) for output buffers | — | DS 3.0 |
+| Reconfigures 2D tile for new sources added at runtime | — | DS 3.0 |
+
+## Gst Properties
+
+The following table describes the Gst-nvmultistreamtiler plugin’s Gst properties.
+
+**Gst-nvmultistreamtiler gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| rows | Number of rows in 2D tiled output | Integer,<br />1 to 4,294,967,295 | row=2 |
+| columns | Number of columns in 2D tiled output | Integer,<br />1 to 4,294,967,295 | columns=2 |
+| width | Width of 2D tiled output in pixels | Integer,<br />1 to 4,294,967,295 | width=1920 |
+| height | Height of 2D tiled output in pixels | Integer,<br />1 to 4,294,967,295 | height=1080 |
+| show-source | Scale and show frames from a single source.<br />-1: composite and show all sources<br />For values ≥0, frames from that source are zoomed. | Signed integer, −1 to 2,147,483,647 | show-source=2 |
+| gpu-id | ID of the GPU on which device/unified memory is to be allocated, and in which buffers are copied or scaled. (dGPU only.) | Integer,<br />1 to 4,294,967,295 | gpu-id=1 |
+| nvbuf-memory-type | Type of CUDA memory to be allocated.<br />For dGPU:<br />0 (nvbuf-mem-default): Default memory, cuda-device<br />1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory<br />2 (nvbuf-mem-cuda-device) Device CUDA memory<br />3 (nvbuf-mem-cuda-unified):<br />Unified CUDA memory<br />For Jetson:<br />0 (nvbuf-mem-default): Default memory, surface array<br />4 (nvbuf-mem-surface-array): Surface array memory | Integer, 0-4 | nvbuf-memory-type=1 |
+| custom-tile-config | Custom tile position and resolution. Can be configured programmatically for all or none of the sources. | Values of enum CustomTileConfig | Reserved for future use.<br />Default: null. |
+| compute-hw | Compute Scaling HW to use. Applicable only for Jetson. dGPU systems uses GPU by default.<br />0 (Default): Default, GPU for Tesla, VIC for Jetson<br />1 (GPU): GPU<br />2 (VIC): VIC | Integer: 0-2 | compute-hw=1 |
+| square-seq-grid | Enable automatic square tiling according to number of sources.<br />The tiles are placed sequentially on the grid with empty tiles at the end | Boolean | square-seq-grid=1 |
+| buffer-pool-size | Size of the nvtiler output buffer pool | Integer,<br />4 to 10 | buffer-pool-size=4 |
+| interpolation-method | Interpolation method used for scaling; see :doc:`DS_plugin_gst-nvvideoconvert` for the shared enum values | Enum | interpolation-method=1 |

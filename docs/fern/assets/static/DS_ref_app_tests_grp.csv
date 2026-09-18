@@ -1,0 +1,2 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+file-loop,Indicates whether input files should be looped infinitely.,Boolean,file-loop=1,"dGPU, Jetson"

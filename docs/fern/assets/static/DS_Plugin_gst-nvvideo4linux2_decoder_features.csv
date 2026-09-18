@@ -1,0 +1,5 @@
+﻿Feature,Description
+Supports H.264 decode, "h264 encoded bitstream is decoded into 8bit NV12"
+Supports H.265 decode, "h265 encoded bitstream is decoded into 8/10/12 bit NV12 or 8/10/12 bit YUV444 depending on the stream content"
+Supports JPEG/MJPEG decode,—
+User-configurable CUDA memory type (Pinned/Device/Unified) for output buffers,—

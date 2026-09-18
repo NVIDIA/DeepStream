@@ -1,0 +1,36 @@
+---
+title: "Migration Guide"
+---
+
+The NVIDIA team is very excited with all the new features and capabilities that DeepStream 9.2 brings to the table.
+However, there are a few important items that need to be understood before you start developing with DeepStream 9.2.
+This is especially true if you are an existing developer and plan to bring existing models to the latest release of DeepStream.
+
+<Info>
+Make sure you understand how to migrate your older DeepStream custom models to DeepStream 9.2 before you start.
+</Info>
+
+DeepStream 9.2 now supports TensorRT 10.16.0.72 for x86 and TensorRT 10.16.1.7 for Jetson. TensorRT 10.x is not compatible with TensorRT 8.x, and models created with older TensorRT versions require updated calibration files.
+Depending on where you are in your development journey there are a few steps that need to take before you get started.
+
+* If you are new to DeepStream OR you do not need to reuse any old models, **You are good to go!** Make sure you download the latest models from [NGC](https://ngc.nvidia.com/).
+
+* If you want to bring models that were developed for previous versions of DeepStream or TensorRT, you should run them in FP16 or FP32 mode as TAO toolkit 6.0 does not support int8 calibration mechanism.
+
+## Additional Resources
+
+For additional details, make sure you are familiar with the documentation available along with checking our developer forums.
+
+### Documentation
+
+* [TensorRT Documentation](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html)
+
+* [TAO Toolkit Documentation](https://docs.nvidia.com/tao/tao-toolkit/)
+
+### Forums
+
+- [DeepStream SDK Forum](https://forums.developer.nvidia.com/c/accelerated-computing/intelligent-video-analytics/deepstream-sdk/15)
+
+- [TensorRT Forum](https://forums.developer.nvidia.com/c/ai-data-science/deep-learning/tensorrt/92)
+
+- [TAO Toolkit Forum](https://forums.developer.nvidia.com/c/accelerated-computing/intelligent-video-analytics/tao-toolkit/17)

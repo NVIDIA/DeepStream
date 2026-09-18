@@ -1,0 +1,87 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the source.,Boolean,enable=1,"dGPU, Jetson"
+type,"Type of source; other properties of the source depend on this type.
+
+1: Camera (V4L2)
+
+2: URI
+
+3: MultiURI
+
+4: RTSP
+
+5: Camera (CSI) (Jetson only)","Integer,
+1, 2, 3, 4, or 5",type=1,"dGPU, Jetson"
+uri,"URI to the encoded stream. The URI can be a file, an HTTP URI, or an RTSP live source. Valid when type=2 or 3. With MultiURI, the %d format specifier can also be used to specify multiple sources. The application iterates from 0 to num-sources−1 to generate the actual URIs.",String,"uri=file:///home/ubuntu/source.mp4
+uri=http://127.0.0.1/source.mp4
+uri=rtsp://127.0.0.1/source1
+uri=file:///home/ubuntu/source_%d.mp4","dGPU, Jetson"
+num-sources,Number of sources. Valid only when type=3.,"Integer, ≥0",num-sources=2,"dGPU, Jetson"
+intra-decode-enable,Enables or disables intra-only decode.,Boolean,intra-decode-enable=1,"dGPU, Jetson"
+num-extra-surfaces,Number of surfaces in addition to minimum decode surfaces given by the decoder. Can be used to manage the number of decoder output buffers in the pipeline.,"Integer,
+≥0 and ≤24",num-extra-surfaces=5,"dGPU, Jetson"
+gpu-id,GPU to be used by the element in case of multiple GPUs.,"Integer, ≥0",gpu-id=1,dGPU
+camera-id,Unique ID for the input source to be added to metadata. (Optional),"Integer, ≥0",camera-id=2,"dGPU, Jetson"
+camera-width,"Width of frames to be requested from the camera, in pixels. Valid when type=1 or 5.","Integer, >0",camera-width=1920,"dGPU, Jetson"
+camera-height,"Height of frames to be requested from the camera, in pixels. Valid when type=1 or 5.","Integer, >0",camera-height=1080,"dGPU, Jetson"
+camera-fps-n,"Numerator part of a fraction specifying the frame rate requested by the camera, in frames/sec. Valid when type=1 or 5.","Integer, >0",camera-fps-n=30,"dGPU, Jetson"
+camera-fps-d,"Denominator part of a fraction specifying the frame rate requested from the camera, in frames/sec. Valid when type=1 or 5.","Integer, >0",camera-fps-d=1,"dGPU, Jetson"
+camera-v4l2-dev-node,"Number of the V4L2 device node. For example, /dev/video<num> for the open source V4L2 camera capture path. Valid when the type setting (type of source) is 1.","Integer, >0",camera-v4l2-dev-node=1,"dGPU, Jetson"
+latency,Jitterbuffer size in milliseconds; applicable only for RTSP streams.,"Integer, ≥0",latency=200,"dGPU, Jetson"
+camera-csi-sensor-id,Sensor ID of the camera module. Valid when the type (type of source) is 5.,"Integer, ≥0",camera-csi-sensor-id=1,Jetson
+drop-frame-interval,"Interval to drop frames. For example, 5 means decoder outputs every fifth frame; 0 means no frames are dropped.","Integer,",drop-frame-interval=5,"dGPU, Jetson"
+cudadec-memtype,"Type of CUDA memory element used to allocate for output buffers for source of type 2,3 or 4. Not applicable for CSI or USB camera source
+
+0 (memtype_device): Device memory allocated with cudaMalloc().
+
+1 (memtype_pinned): host/pinned memory allocated with cudaMallocHost().
+
+2 (memtype_unified): Unified memory allocated with cudaMallocManaged().
+
+","Integer,
+0, 1, or 2",cudadec-memtype=1,dGPU
+nvbuf-memory-type,"Type of CUDA memory the element is to allocate for output buffers of nvvideoconvert, useful for source of type 1.
+
+0 (nvbuf-mem-default, a platform-specific default
+
+1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory.
+
+2 (nvbuf-mem-cuda-device): Device CUDA memory.
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory.
+ 
+For dGPU: All values are valid.
+
+For Jetson: Only 0 (zero) is valid.","Integer,
+0, 1, 2, or 3",nvbuf-memory-type=3,"dGPU,Jetson"
+select-rtp-protocol,"Transport Protocol to use for RTP. Valid when type (type of source) is 4.
+ | 0: UDP + UDP Multicast + TCP
+ | 4: TCP only
+","Integer,
+0 or 4",select-rtp-protocol=4,"dGPU, Jetson"
+rtsp-reconnect-interval-sec,Timeout in seconds to wait since last data was received from an RTSP source before forcing a reconnection. Setting it to 0 will disable the reconnection. Valid when type (type of source) is 4.,"Integer, ≥0",rtsp-reconnect-interval-sec=60,"dGPU, Jetson"
+rtsp-reconnect-attempts,Maximum number of times a reconnection is attempted. Setting it to -1 means reconnection will be attempted infinitely. Valid when type of source is 4 and rtsp-reconnect-interval-sec is a non-zero positive value.,"Integer, ≥-1",rtsp-reconnect-attempts=2,
+smart-record,"Ways to trigger the smart record.
+
+0: Disable
+
+1: Only through cloud messages
+
+2: Cloud message + Local events
+","Integer,
+0, 1 or 2",smart-record=1,"dGPU, Jetson"
+smart-rec-dir-path,"Path of directory to save the recorded file. By default, the current directory is used.
+",String,smart-rec-dir-path=/home/nvidia/,"dGPU, Jetson"
+smart-rec-file-prefix,"Prefix of file name for recorded video. By default, Smart_Record is the prefix. For unique file names every source must be provided with a unique prefix.
+
+",String,smart-rec-file-prefix=Cam1,"dGPU, Jetson"
+smart-rec-cache,Size of smart record cache in seconds.,"Integer, ≥0 ",smart-rec-cache=20,"dGPU, Jetson"
+smart-rec-container,Container format of recorded video. MP4 and MKV containers are supported.,"Integer,
+0 or 1",smart-rec-container=0,"dGPU, Jetson"
+smart-rec-start-time,"Number of seconds earlier from now to start the recording.
+E.g. if t0 is the current time and N is the start time in seconds that means recording will start from t0 – N. Obviously for it to work the video cache size must be greater than the N."," Integer, ≥0",smart-rec-start-time=5,"dGPU, Jetson"
+smart-rec-default-duration,In case a Stop event is not generated. This parameter will ensure the recording is stopped after a predefined default duration.,"Integer, ≥0 ",smart-rec-default-duration=20,"dGPU, Jetson"
+smart-rec-duration,Duration of recording in seconds.,"Integer, ≥0 ",smart-rec-duration=15,"dGPU, Jetson"
+smart-rec-interval,This is the time interval in seconds for SR start / stop events generation.,"Integer, ≥0 ",smart-rec-interval=10,"dGPU, Jetson"
+udp-buffer-size,UDP buffer size in bytes for RTSP sources.,"Integer, ≥0 ",udp-buffer-size=2000000,"dGPU, Jetson"
+video-format, "Output video format for the source. This value is set as the output format of the nvvideoconvert element for the source.","String: NV12, I420, P010_10LE, BGRx, RGBA",video-format=RGBA,"dGPU, Jetson"

@@ -1,0 +1,61 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+num_detected_classes,Define number of classes detected by the network,"int32, > 0",num_detected_classes:4,"Detector
+
+Both"
+per_class_params,Map of specific detection parameters per class. Key-value follows <class_id: per_class_params> order. ,"map<int32, PerClassParams>;
+Optional","per_class_params [
+
+{ key: 1,
+value { pre_threshold : 0.4}
+},
+
+{ key: 2,
+value { pre_threshold : 0.5}
+}
+
+]
+see details for PerClassParams","Detector
+
+Both"
+custom_parse_bbox_func,"Name of the custom bounding box parsing function. If not specified, Gst-nvinferserver uses the internal function for the resnet model provided by the SDK.
+If specified, also need to set custom_lib to load custom library.",string;,"custom_parse_bbox_func: ""NvDsInferParseCustomTfSSD""","Detector
+
+Both"
+oneof clustering_policy,"Indicates one of the clustering policies from
+nms;
+dbscan;
+group_rectangle;
+simple_cluster;",None,N/A,"Detector
+
+Both"
+nms,"Indicates clustering bounding boxes by Non-Maximum-Suppression method detected objects.
+It is oneof clustering_policy",Nms,"nms {
+confidence_threshold: 0.3
+iou_threshold: 0.4
+}
+see details in Nms","Detector
+
+Both"
+dbscan,"Indicates clustering bounding boxes by DBSCAN method for detected objects.
+It is oneof clustering_policy",DbScan,"dbscan {
+pre_threshold: 0.3
+eps: 0.7
+min_boxes: 3
+}
+see details in DbScan","Detector
+
+Both"
+group_rectangle,"Indicates clustering bounding boxes by groupRectangles() function for grouping detected objects
+It is oneof clustering_policy",GroupRectangle,"group_rectangle {
+confidence_threshold: 0.2
+group_threshold: 2
+eps: 0.2
+}","Detector
+
+Both"
+simple_cluster,Indicates simple clustering method by outlier boxes through threshold,SimpleCluster,"simple_cluster {
+threshold: 0.2
+}","Detector
+
+Both"

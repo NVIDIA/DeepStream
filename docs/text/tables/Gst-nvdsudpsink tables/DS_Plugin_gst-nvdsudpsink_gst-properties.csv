@@ -1,0 +1,20 @@
+Property,Meaning,Type and Range,Example / Notes,Platforms
+port,The port number to send the RTP packets to,"Integer, 0 to 65535",Port=5004,"dGPU Jetson"
+host,Unicast / Multicast address to send the packets,String,address=192.168.4.60,"dGPU Jetson"
+chunk-size,Number of chunks to allocate in case of generic APIs,"Integer, 1 to 65535",chunk-size=100,"dGPU Jetson"
+packets-per-chunk,Number of packets per chunk,"Integer, 1 to 65535",packets-per-chunk=10,"dGPU Jetson"
+payload-size,Size of payload in RTP packet,"Integer, 0 to 65535",payload-size=1400,"dGPU Jetson"
+packets-per-line,Number of packets per line in case of media APIs,"Integer, 1 to 65535",packets-per-line=4,"dGPU Jetson"
+sdp-file,"Path to SDP file, to enable the use of Rivermax media APIs",String,"sdp-file=""sdp_video.txt""","dGPU Jetson"
+local-iface-ip,IP Address associated with network interface through which to transmit the data,String,"local-iface-ip=""192.168.2.20""","dGPU Jetson"
+internal-thread-core,CPU core to run Rivermax internal thread,"Integer, -1 to 1023",internal-thread-core=2,"dGPU Jetson"
+ptp-src,IP Address of PTP source,String,"ptp-src=""192.168.2.20""","dGPU Jetson"
+render-thread-core,Comma separated list of CPU core(s) for rendering thread,String,"render-thread-core=""2,3""","dGPU Jetson"
+gpu-id,GPU ID to use for GPUDirect,"Integer, -1 to 2147483647",gpu-id=0,"dGPU Jetson"
+pass-rtp-timestamp,When enabled use RTP timestamp from upstream metadata or calculate RTP timestamp from upstream buffer PTS,Boolean,pass-rtp-timestamp=true,"dGPU Jetson"
+auto-multicast,Automatically joins/leaves multicast groups; FALSE means the user must do it manually,Boolean,auto-multicast=1,dGPU Jetson
+socket,Socket to use for UDP sending; NULL allocates one automatically,GObject (GSocket),,dGPU Jetson
+close-socket,"Closes the socket if it was passed in as a property, on state change",Boolean,close-socket=1,dGPU Jetson
+loop,"Sets the multicast loop parameter: TRUE enables, FALSE disables loopback",Boolean,loop=1,dGPU Jetson
+rtp-timestamp-offset,Offset in nanoseconds to add to the RTP timestamp when pass-rtp-timestamp is enabled,"Integer (uint64),
+0 to 18,446,744,073,709,551,615",rtp-timestamp-offset=0,dGPU Jetson

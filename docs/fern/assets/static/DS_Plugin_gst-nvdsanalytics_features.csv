@@ -1,0 +1,5 @@
+﻿Feature,Description,Release
+ROI Filtering,"This feature detects presence of objects in the ROI, the result is attached as metadata for every object, as well as total count of objects in ROI per frame.",DS 5.0
+Overcrowding Detection,"This feature detects presence of objects in the ROI, the result is attached as metadata for every object, as well as total count of objects in ROI per frame along with overcrowding status, i.e. no of objects in ROI exceed a pre-configured threshold.",DS 5.0
+Direction Detection,Checks using history of position of object and the current frame information if it is following a preconfigured direction. The result is attached as metadata for every object.,DS 5.0
+Line Crossing,This feature checks if object is following a preconfigured direction for the virtual line and if it has crossed the virtual line. The result is attached to object when Line crossing also frame meta where cumulative count along with per frame count of line crossing is attached.,DS 5.0

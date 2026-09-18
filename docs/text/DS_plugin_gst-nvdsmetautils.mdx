@@ -1,0 +1,236 @@
+---
+title: "Gst-nvdsmetautils"
+---
+
+gst-nvdsmetautils contain nvdsmetainsert and nvdsmetaextract plugins. Below is the detailed explanation of each plugin, purpose and use-cases.
+
+## Gst-nvdsmetainsert
+
+The Gst-nvdsmetainsert plugin is a NvDsMeta utils plugin which provides a custom library hooking interface for single/batched audio/video frame(s) processing. Custom lib implementation can have algorithms to  serialize NvDsBatchmeta or custom gst user meta received on the input buffers depending upon the use case. The plugin accepts batched audio/video NVMM HW buffers, and outputs batched audio/video NVMM HW buffers with serialized metadata on the buffer as per the use case.
+
+![Gst-nvdsmetainsert](/assets/images/content/DS_plugin_gst-nvdsmetainsert.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+   * NVMM Gst Buffer.
+
+* Control parameters
+
+  *	serialize-lib
+
+* Output
+
+  *	NVMM Gst Buffer in place.
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsmetainsert features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Simplified API | Simplified interface to implement custom library to add any algorithm without implementing new plugin | DS 6.1 |
+| Easy Data Accessing | Easy access to GstBuffer and it’s metadata inside custom library | DS 6.1 |
+| Reference Impl. | Reference implementation of custom library provides implementation for serialized data to be used with decoder, serializing and de-serializing of NvDsBatchmeta. | DS 6.1 |
+
+## customlib_impl Interfaces
+
+* serialize_data => Accepts a GstBuffer, serializes input meta and attaches it as NvDsUserMeta / gst meta on the same GstBuffer.
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdsmetainsert plugin.
+
+**Gst-nvdsmetainsert gst properties**
+
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| serialize-lib | Set serialization library Name to be used. | String | Default: null | dGPU |
+
+## Use Cases & Sample Pipelines
+
+Below are two reference implementations, these can be extended to suit any particular use case.
+
+**Use Case 1 - Attaching CustomMeta as SEI data in H264 :**
+
+  nvdsmetainsert plugin with sei_serialization library released as part of DS SDK 6.1 onwards,
+  serializes input metadata and attaches it on the same buffer as gst meta, nv encoder embeds this metadata in the bitstream with type as SEI unregistered data.
+
+  Below pipeline demonstrates generation of dummy bounding boxes by nvdsvideotemplate plugin and this metadata is serialized by nvdsmetainsert plugin with serialization lib.
+  Serialized metadata is used by nv encoder to insert it as SEI unregistered data in H264 bitstream.
+
+```
+export USE_NEW_NVSTREAMMUX=yes
+
+gst-launch-1.0 filesrc location=~/sample_720p.mp4 ! qtdemux ! h264parse \
+! nvv4l2decoder ! m.sink_0 nvstreammux name=m ! nvdsvideotemplate dummy-meta-insert=1 \
+customlib-name=libcustom_videoimpl.so customlib-props="scale-factor:0.5" \
+! nvmultistreamtiler width=640 height=480 ! nvdsmetainsert serialize-lib = "libnvds_sei_serialization.so" \
+! nvv4l2h264enc bitrate=1000000 ! filesink location=~/ds_maxine_sei.h264 \
+filesrc location=~/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1
+```
+
+**Use Case 2 - Video NvDsBatchMeta Serialization :**
+
+  nvdsmetainsert plugin with nvds_video_meta_serialization library released as part of DS SDK 6.1 onwards,
+  serializes NvDsFrameMeta and NvDsObjectMeta and attaches as NvDsUserMeta inside NvDsFrameMeta on the same buffer.
+
+  Below pipeline demonstrates serialization of NvDsFrameMeta and NvDsObjectMeta by nvdsmetainsert plugin with serialization lib. Serialized metadata is used by nvdsmetaextract plugin to
+  de-serialize and re-construct NvDsFrameMeta and NvDsObjectMeta.
+
+  Setting CLEAR_NVDS_BATCH_META=yes is needed only for the demonstration of below pipeline, in actual use-case scenario like RDMA transfer this flag is not needed.
+
+```
+export CLEAR_NVDS_BATCH_META=yes
+export USE_NEW_NVSTREAMMUX=yes
+
+gst-launch-1.0 filesrc location=~/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder \
+! m.sink_0 nvstreammux name=m ! nvvideoconvert ! nvinfer config-file-path= config_infer_primary.txt \
+! nvdsmetainsert serialize-lib = "libnvds_video_metadata_serialization.so" \
+! nvdsmetaextract deserialize-lib = "libnvds_video_metadata_serialization.so"  \
+! nvmultistreamtiler width=1280 height=720 ! nvdsosd !  nveglglessink     filesrc location=~/sample_720p.mp4 \
+! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1
+```
+
+**Use Case 3 - Audio NvDsBatchMeta Serialization :**
+
+  nvdsmetainsert plugin with nvds_audio_meta_serialization library released as part of DS SDK 6.1 onwards,
+  serializes NvDsAudioFrameMeta and attaches as NvDsUserMeta inside NvDsAudioFrameMeta on the same buffer.
+
+  Below pipeline demonstrates serialization of NvDsAudioFrameMeta by nvdsmetainsert plugin with serialization lib. Serialized metadata is used by nvdsmetaextract plugin to de-serialize
+  and re-construct NvDsAudioFrameMeta.
+
+  Setting CLEAR_NVDS_BATCH_META=yes is needed only for the demonstration of below pipeline, in actual use-case scenario like RDMA transfer this flag is not needed.
+
+```
+export CLEAR_NVDS_BATCH_META=yes
+export USE_NEW_NVSTREAMMUX=yes
+
+gst-launch-1.0 \
+filesrc location= ~/noise_44_1k_16bits.wav ! wavparse \
+! audioconvert ! audioresample ! "audio/x-raw, rate=(int)44100" ! queue \
+! m.sink_0 nvstreammux name=m batch-size=2 ! queue \
+! nvinferaudio audio-framesize=44100 audio-hopsize=11025 batch-size=2 \
+config-file-path= config_infer_audio_sonyc.txt \
+audio-transform="melsdb,fft_length=2560,hop_size=692,dsp_window=hann,num_mels=128,sample_rate=44100,p2db_ref=(float)1.0,p2db_min_power=(float)0.0,p2db_top_db=(float)80.0" \
+! nvdsmetainsert serialize-lib = "libnvds_audio_metadata_serialization.so" \
+! nvdsmetaextract deserialize-lib = "libnvds_audio_metadata_serialization.so" \
+! fakesink                    \
+filesrc location= ~/noise_44_1k_16bits.wav ! wavparse \
+! audioconvert ! audioresample ! "audio/x-raw, rate=(int)44100" ! m.sink_1
+```
+
+## Gst-nvdsmetaextract
+
+The Gst-nvdsmetaextract plugin is a NvDsMeta utils plugin which provides a custom library hooking interface for single/batched audio/video frame(s) processing. Custom lib implementation can have algorithms to de-serialize NvDsBatchmeta or custom gst user meta received on the input buffer depending upon the use case. The plugin accepts batched/non-batched audio/video NVMM HW buffers, and outputs batched/non-batched audio/video NVMM HW buffers with de-serialized metadata on the buffer as per the use case.
+
+![Gst-nvdsmetaextract](/assets/images/content/DS_plugin_gst-nvdsmetaextract.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+   * NVMM Gst Buffer.
+
+* Control parameters
+
+  *  deserialize-lib
+
+* Output
+
+  *  NVMM Gst Buffer in place.
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsmetaextract features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Simplified API | Simplified interface to implement custom library to add any algorithm without implementing new plugin | DS 6.1 |
+| Easy Data Accessing | Easy access to GstBuffer and it’s metadata inside custom library | DS 6.1 |
+| Reference Impl. | Reference implementation of custom library provides implementation for serialized data to be used with decoder, serializing and de-serializing of NvDsBatchmeta. | DS 6.1 |
+
+## customlib_impl Interfaces
+
+* deserialize_data => Accepts a GstBuffer, de-serializes input meta and attaches as gst meta / update existing NvDsBatchMeta on the same GstBuffer.
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdsmetaextract plugin.
+
+**Gst-nvdsmetaextract gst properties**
+
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| deserialize-lib | Set de-serialization library Name to be used. | String | Default: null | dGPU |
+
+## Use Cases & Sample Pipelines
+
+Below are two reference implementations, these can be extended to suit any particular use case.
+
+**Use Case 1 : CustomMeta De-Serialization SEI in H264 :**
+
+  Nv decoder sends parsed SEI data of unregistered type which is serialized metadata inside bitstream, nvdsmetaextract plugin with sei_serialization library released as part of DS SDK 6.1 onwards,
+  de-serializes this metadata and add it on the outgoing buffer as gst metadata, this data can be consumed by downstream plugin as per the use-case.
+
+  Below pipeline demonstrates parsing serialized SEI data in the bitstream, attaching it as Gst meta on the outgoing buffer and de-serializing it in nvdsmetaexract plugin:
+
+```
+gst-launch-1.0 filesrc location=~/ds_maxine_sei.h264 ! h264parse ! nvv4l2decoder extract-sei-type5-data=1 \
+! nvdsmetaextract deserialize-lib=libnvds_sei_serialization.so ! nveglglessink
+```
+
+**Use Case 2 : Video NvDsBatchMeta De-Serialization :**
+
+  Upstream component sends GstBuffer with serialized NvDsFrameMeta & NvDsObjectMeta attached as NvDsUserMeta inside NvDsFrameMeta, nvdsmetaextract plugin with nvds_video_meta_serialization library released as part of DS SDK 6.1 onwards,
+  de-serializes this NvDsUserMeta and re-constructs NvDsFrameMeta and NvDsObjectMeta as part of NvDsBatchMeta.
+
+  Below pipeline demonstrates serialization of NvDsFrameMeta and NvDsObjectMeta by nvdsmetainsert plugin with serialization lib. Serialized metadata is used by nvdsmetaextract plugin to
+  de-serialize and re-construct NvDsFrameMeta and NvDsObjectMeta.
+
+  Setting CLEAR_NVDS_BATCH_META=yes is needed only for the demonstration of below pipeline, in actual use-case scenario like RDMA transfer this flag is not needed.
+
+```
+export CLEAR_NVDS_BATCH_META=yes
+export USE_NEW_NVSTREAMMUX=yes
+
+gst-launch-1.0 filesrc location=~/sample_720p.mp4 ! qtdemux ! h264parse ! nvv4l2decoder \
+! m.sink_0 nvstreammux name=m ! nvvideoconvert ! nvinfer config-file-path= config_infer_primary.txt \
+! nvdsmetainsert serialize-lib = "libnvds_video_metadata_serialization.so" \
+! nvdsmetaextract deserialize-lib = "libnvds_video_metadata_serialization.so"  \
+! nvmultistreamtiler width=1280 height=720 ! nvdsosd !  nveglglessink     filesrc location=~/sample_720p.mp4 \
+! qtdemux ! h264parse ! nvv4l2decoder ! m.sink_1
+```
+
+**Use Case 3 - Audio NvDsBatchMeta Serialization :**
+
+  Upstream component sends GstBuffer with serialized NvDsAudioFrameMeta attached as NvDsUserMeta inside NvDsAudioFrameMeta, nvdsmetaextract plugin with nvds_audio_meta_serialization library released as part of DS SDK 6.1 onwards,
+  de-serializes this NvDsUserMeta and re-constructs NvDsAudioFrameMeta as part of NvDsBatchMeta
+
+  Below pipeline demonstrates serialization of NvDsAudioFrameMeta by nvdsmetainsert plugin with serialization lib. Serialized metadata is used by nvdsmetaextract plugin to de-serialize
+  and re-construct NvDsAudioFrameMeta.
+
+  Setting CLEAR_NVDS_BATCH_META=yes is needed only for the demonstration of below pipeline, in actual use-case scenario like RDMA transfer this flag is not needed.
+
+```
+export CLEAR_NVDS_BATCH_META=yes
+export USE_NEW_NVSTREAMMUX=yes
+
+gst-launch-1.0 \
+filesrc location= ~/noise_44_1k_16bits.wav ! wavparse \
+! audioconvert ! audioresample ! "audio/x-raw, rate=(int)44100" ! queue \
+! m.sink_0 nvstreammux name=m batch-size=2 ! queue \
+! nvinferaudio audio-framesize=44100 audio-hopsize=11025 batch-size=2 \
+config-file-path= config_infer_audio_sonyc.txt \
+audio-transform="melsdb,fft_length=2560,hop_size=692,dsp_window=hann,num_mels=128,sample_rate=44100,p2db_ref=(float)1.0,p2db_min_power=(float)0.0,p2db_top_db=(float)80.0" \
+! nvdsmetainsert serialize-lib = "libnvds_audio_metadata_serialization.so" \
+! nvdsmetaextract deserialize-lib = "libnvds_audio_metadata_serialization.so" \
+! fakesink                    \
+filesrc location= ~/noise_44_1k_16bits.wav ! wavparse \
+! audioconvert ! audioresample ! "audio/x-raw, rate=(int)44100" ! m.sink_1
+```

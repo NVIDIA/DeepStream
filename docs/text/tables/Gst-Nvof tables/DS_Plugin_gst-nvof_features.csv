@@ -1,0 +1,5 @@
+﻿Feature,Description,Release
+Configure GPU selection,Sets the gpu ID to be used for optical flow operation (valid only for dGPU platforms),DS 4.0
+Configure dumping of optical flow metadata,Enables dumping of optical flow output (motion vector data),DS 4.0
+Configure preset level,Sets the desired preset level,DS 4.0
+Configure grid size,Sets the flow vector block size,DS 4.0

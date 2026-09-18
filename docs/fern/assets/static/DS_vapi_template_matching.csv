@@ -1,0 +1,20 @@
+Property,Meaning,Type and Range,Example
+radius,"Indicate radius of the can, unit in cm",Float,radius: 3.3
+distance,"Indicate distance from camera to can, unit in cm",Float,distance: 12.7
+center,Indicate center of the can in input raw image normalized by width,Float,center: 0.5
+can_width,Indicate width of the can in input raw image normalized by width,Float,can_width: 1.0
+input_width,"Indicate width of input raw image, It should be the input image width",Uint32,input_width: 870
+input_height,"Indicate height of input raw image, It should be the input image height",Uint32,input_height: 1200
+crop_width,Indicate width of dewarped inference image to be used to match with reference image,Uint32,crop_width: 500
+target_x,Indicate target center in reference image in pixels,Uint32,target_x: 250
+ref_image,Specify reference image parameters,YAML node,
+ref_image.perimeter,Indicate can circumference in reference image in pixels,Uint32,"ref_image:
+  perimeter: 1689"
+ref_image.image_path,"Indicate reference image path, must be in color format GREY",,"ref_image:
+  image_path: data/reference_sample.grey"
+ref_image.image_format,"Indicate reference image color format, only GREY supported in this version",String: fourcc,"ref_image:
+  image_format: GREY"
+ref_image.image_width,Indicate reference image width,Uint32,"ref_image:
+  image_width: 2508"
+ref_image.image_height,Indicate reference image height,Uint32,"ref_image:
+  image_height: 625"

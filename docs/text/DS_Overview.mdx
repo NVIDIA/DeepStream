@@ -1,0 +1,75 @@
+---
+title: "Welcome to the DeepStream Documentation"
+---
+
+<Info>
+Ensure you understand how to migrate your DeepStream 9.1 custom models to DeepStream 9.2 before you start.
+</Info>
+
+<Info>
+DeepStream 9.2 is the release that supports new features for NVIDIA <sup>®</sup> T4, NVIDIA <sup>®</sup> Hopper, NVIDIA <sup>®</sup> Ampere, NVIDIA <sup>®</sup> ADA,  NVIDIA <sup>®</sup> Blackwell, NVIDIA <sup>®</sup> RTX pro 4500, NVIDIA <sup>®</sup> Jetson™ AGX Thor, NVIDIA <sup>®</sup> Jetson™ Orin and NVIDIA <sup>®</sup> IGX Thor. It is the release with support for Ubuntu 24.04 LTS.
+</Info>
+
+<Info>
+For NVAIE customers, only x86 platform is supported.
+</Info>
+
+<Note>
+DS 9.2 is available for production on x86 and Jetson. On Jetson it is based on JP 7.2.1 GA.
+</Note>
+
+## NVIDIA DeepStream Overview
+
+DeepStream is a streaming analytic toolkit to build AI-powered applications. It takes the streaming data as input - from USB/CSI camera, video from file or streams over RTSP, and uses AI and computer vision to generate insights from pixels for better understanding of the environment. DeepStream SDK can be the foundation layer for a number of video analytic solutions like understanding traffic and pedestrians in smart city, health and safety monitoring in hospitals, self-checkout and analytics in retail, detecting component defects at a manufacturing facility and others. Read more about DeepStream [here](https://ngc.nvidia.com/catalog/collections/nvidia:deepstreamcomputervision).
+
+  ![DeepStream Overview](/assets/images/content/DeepStream_Overview.png)
+
+The core SDK consists of several hardware accelerator plugins that use accelerators such as VIC, GPU, DLA, NVDEC and NVENC. By performing all the compute heavy operations in a dedicated accelerator, DeepStream can achieve highest performance for video analytic applications. One of the key capabilities of DeepStream is secure bi-directional communication between edge and cloud. DeepStream ships with several out of the box security protocols such as SASL/Plain authentication using username/password and 2-way TLS authentication. To learn more about these security features, read the [\DS_IoT](\DS_IoT) chapter. To learn more about bi-directional capabilities, see the [Bidirectional Messaging](/text/DS_IoT#bidirectional-messaging) section in this guide.
+
+DeepStream builds on top of several NVIDIA libraries from the CUDA-X stack such as CUDA, TensorRT, NVIDIA <sup>®</sup> Triton <sup>™</sup> Inference server and multimedia libraries. TensorRT accelerates the AI inference on NVIDIA GPU. DeepStream abstracts these libraries in DeepStream plugins, making it easy for developers to build video analytic pipelines without having to learn all the individual libraries.
+
+DeepStream is optimized for NVIDIA GPUs; the application can be deployed on an embedded edge device running Jetson platform or can be deployed on larger edge or datacenter GPUs like T4. DeepStream applications can be deployed in containers using NVIDIA container Runtime. The containers are available on NGC, NVIDIA GPU cloud registry. To learn more about deployment with dockers, see the Docker container chapter. DeepStream applications can be orchestrated on the edge using Kubernetes on GPU. [Sample Helm chart](https://ngc.nvidia.com/catalog/helm-charts/nvidia:video-analytics-demo) to deploy DeepStream application is available on NGC.
+
+### DeepStream Graph Architecture
+
+DeepStream is an optimized graph architecture built using the open source GStreamer framework. . The graph below shows a typical video analytic application starting from input video to outputting insights. All the individual blocks are various plugins that are used. At the bottom are the different hardware engines that are utilized throughout the application. Optimum memory management with zero-memory copy between plugins and the use of various accelerators ensure the highest performance.
+
+![DeepStream Overview](/assets/images/content/DS_overview_graph_architecture.png)
+
+DeepStream provides building blocks in the form of GStreamer plugins that can be used to construct an efficient video analytic pipeline. There are more than 20 plugins that are hardware accelerated for various tasks.
+
+* Streaming data can come over the network through RTSP or from a local file system or from a camera directly. The streams are captured using the CPU. Once the frames are in the memory, they are sent for decoding using the NVDEC accelerator. The plugin for decode is called [\DS_plugin_gst-nvvideo4linux2](\DS_plugin_gst-nvvideo4linux2).
+* After decoding, there is an optional image pre-processing step where the input image can be pre-processed before inference. The pre-processing can be image dewarping or color space conversion. [\DS_plugin_gst-nvdewarper](\DS_plugin_gst-nvdewarper) plugin can dewarp the image from a fisheye or 360 degree camera. [\DS_plugin_gst-nvvideoconvert](\DS_plugin_gst-nvvideoconvert) plugin can perform color format conversion on the frame. These plugins use GPU or VIC (vision image compositor).
+* The next step is to batch the frames for optimal inference performance. Batching is done using the [\DS_plugin_gst-nvstreammux](\DS_plugin_gst-nvstreammux) plugin.
+* Once frames are batched, it is sent for inference. The inference can be done using TensorRT, NVIDIA’s inference accelerator runtime or can be done in the native framework such as TensorFlow or `PyTorch` using Triton inference server. Native TensorRT inference is performed using [\DS_plugin_gst-nvinfer](\DS_plugin_gst-nvinfer) plugin and inference using Triton is done using [\DS_plugin_gst-nvinferserver](\DS_plugin_gst-nvinferserver) plugin.
+* After inference, the next step could involve tracking the object. There are several built-in reference trackers in the SDK, ranging from high performance to high accuracy. Object tracking is performed using the [\DS_plugin_gst-nvtracker](\DS_plugin_gst-nvtracker) plugin.
+* For creating visualization artifacts such as bounding boxes, segmentation masks, labels there is a visualization plugin called [\DS_plugin_gst-nvdsosd](\DS_plugin_gst-nvdsosd).
+* Finally to output the results, DeepStream presents various options: render the output with the bounding boxes on the screen, save the output to the local disk, stream out over RTSP or just send the metadata to the cloud. For sending metadata to the cloud, DeepStream uses [\DS_plugin_gst-nvmsgconv](\DS_plugin_gst-nvmsgconv) and [\DS_plugin_gst-nvmsgbroker](\DS_plugin_gst-nvmsgbroker) plugin. [\DS_plugin_gst-nvmsgconv](\DS_plugin_gst-nvmsgconv) converts the metadata into schema payload and [\DS_plugin_gst-nvmsgbroker](\DS_plugin_gst-nvmsgbroker) establishes the connection to the cloud and sends the telemetry data. There are several built-in broker protocols such as Kafka, MQTT, AMQP and Azure IoT. Custom broker adapters can be created.
+
+### DeepStream reference app
+
+To get started, developers can use the provided reference applications. Also included are the source code for these applications. The end-to-end application is called `deepstream-app`. This app is fully configurable - it allows users to configure any type and number of sources. Users can also select the type of networks to run inference. It comes pre-built with an inference plugin to do object detection cascaded by inference plugins to do image classification. There is an option to configure a tracker. For the output, users can select between rendering on screen, saving the output file, or streaming the video out over RTSP.
+
+![DeepStream Overview](/assets/images/content/DS_overview_reference_app.png)
+
+This is a good reference application to start learning the capabilities of DeepStream. This application is covered in greater detail in the [DS_ref_app_deepstream](DS_ref_app_deepstream) chapter. The source code for this application is available in `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-app`. This application will work for all AI models with detailed instructions provided in individual READMEs. The performance benchmark is also run using this application.
+
+### Getting started with building apps
+
+For developers looking to build their custom application, the `deepstream-app` can be a bit overwhelming to start development. The SDK ships with several simple applications, where developers can learn about basic concepts of DeepStream, constructing a simple pipeline and then progressing to build more complex applications.
+
+![DeepStream Overview](/assets/images/content/DS_overview_building_apps.png)
+
+Developers can start with deepstream-test1 which is almost like a DeepStream hello world. In this app, developers will learn how to build a GStreamer pipeline using various DeepStream plugins. They will take video from a file, decode, batch and then do object detection and then finally render the boxes on the screen. The deepstream-test2 progresses from test1 and cascades secondary network to the primary network. The deepstream-test3 shows how to add multiple video sources and then finally test4 will show how to IoT services using the message broker plugin. These 4 starter applications are available in both native C/C++ as well as in Python. To read more about these apps and other sample apps in DeepStream, see the [DS_C_Sample_Apps](DS_C_Sample_Apps) and [DS_Python_Sample_Apps](DS_Python_Sample_Apps).
+
+### DeepStream in Python
+
+Python is easy to use and widely adopted by data scientists and deep learning experts when creating AI models. NVIDIA introduced Python bindings to help you build high-performance AI applications using Python. DeepStream pipelines can be constructed using `Gst-Python`, the GStreamer framework’s Python bindings.
+
+![DeepStream Overview](/assets/images/content/DS_Overview_deepstream_python.png)
+
+The DeepStream Python application uses the `Gst-Python` API action to construct the pipeline and use probe functions to access data at various points in the pipeline. The data types are all in native C and require a shim layer through `PyBindings` or NumPy to access them from the Python app. Tensor data is the raw tensor output that comes out after inference. If you are trying to detect an object, this tensor data needs to be post-processed by a parsing and clustering algorithm to create bounding boxes around the detected object. To get started with Python, see the [DS_Python_Sample_Apps](DS_Python_Sample_Apps) in this guide and “DeepStream Python” in the DeepStream [Python API Guide](https://docs.nvidia.com/metropolis/deepstream/dev-guide/python-api/index.html).
+
+<Note>
+DeepStream Python bindings is deprecated. Usage of pyservicemaker instead of python bindings is recommended.
+</Note>

@@ -1,0 +1,25 @@
+﻿Tracker Type,"GPU
+Compute","CPU
+Compute",Pros,Cons,Best Use Cases
+IOU,"No","Very Low",* Light weight,"* No visual features for matching, so prone to frequent tracker ID switches and failures. Not suitable for fast moving scene.","* Objects are sparsely located, with distinct sizes
+* Detector is expected to run every frame or very frequently (ex. every alternate frame)"
+NvSORT,"No","Very Low","* Light weight
+* Motion estimation and prection with Kalman filter based state estimator
+* Enhanced data association with reasonable tracking accuracy with medium or high accuracy detectors","* No visual features for matching, so prone to frequent tracker ID switches and failures.","* Medium or high accuracy detectors such as PeopleNet and YOLO
+* Detector is expected to run every frame or very frequently (ex. every alternate frame)"
+NvDeepSORT,"High","Low","* Allow custom Re-ID model for appearance matching
+* Less frequent ID switches
+* Highly discriminative on targets with similar appearance","* Higher compute cost due to inferencing required for each object
+* Cannot easily adjust accuracy/perf level unless switching Re-ID model","* Multi-object, complex scenes even with partial occlusion
+* Objects with similar appearance"
+NvDCF,"Medium","Low","* Highly robust against partial occlusions, shadow, and other transient visual changes
+* Less frequent ID switches
+* Can be used with PGIE interval > 0 without significant accuracy degradation
+* Output tracking confidence based on visual similarity
+* Easily adjust params for accuracy-perf tradeoff depending on application requirements","* Slower than IOU, NvSORT due to increased computational complexity for visual feature extraction","* Multi-object, complex scenes even with partial occlusion
+* PGIE interval > 0"
+MaskTracker,"High","Medium","* Highly accurate segmentation using SAM2 foundation model
+* Robust against occlusions and diverse motion
+* Works with diverse object classes","* Highest compute cost due to SAM2 model inference
+* Requires significant GPU memory","* Applications requiring precise object tracking and segmentation
+* Complex scenes with occlusions and diverse object types"

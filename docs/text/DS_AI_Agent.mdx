@@ -1,0 +1,70 @@
+---
+title: "DeepStream Coding Agent"
+---
+
+Building production‑grade vision AI pipelines has traditionally demanded deep expertise in GStreamer internals, GPU‑accelerated inference, and multi‑stream orchestration. DeepStream's AI Agent support changes that equation — it brings the knowledge to the developer, right inside the IDE.
+
+By pairing AI coding assistants such as Cursor, Claude Code, and Codex with DeepStream‑specific skills and MCP tooling, developers can describe what they want in natural language and receive architecturally sound, SDK‑idiomatic code in return.
+
+DeepStream offers two complementary AI agent integrations:
+
+- **DeepStream Agentic Skills** — A suite of structured knowledge packages, each targeting a specific DeepStream workflow. Skills cover `pyservicemaker` (DeepStream's Python pipeline API) code generation, `gst-launch` pipeline building, stack/RTSP compatibility diagnostics, config generation and auditing, Nsight Systems profiling, vision-model onboarding and fine-tuning, MV3DT reference-app operations, SOP microservice development, WSL2 setup, declarative YAML inference-pipeline generation, and AutoMagicCalib camera calibration. The full skill catalog, install instructions, and example prompts are in the [DeepStream GitHub repository](https://github.com/NVIDIA/DeepStream/tree/main/skills).
+
+- **Inference Builder MCP** — A Model Context Protocol server that connects [Inference Builder](/text/DS_Inference_Builder) directly to AI coding agents. Through natural‑language prompts, the agent can generate inference pipeline configurations, build Docker images, and run smoke tests — all without leaving the conversation. See [DS_AI_Agent_MCP](DS_AI_Agent_MCP) for details.
+
+Together, these integrations compress the path from idea to running pipeline, letting developers focus on application logic while the agent handles boilerplate, configuration, and SDK plumbing.
+
+<Note>
+Code generated with AI coding assistants is a development starting point. All generated code must go through your full software development lifecycle (SDLC) — including code review, testing, and security validation — before production use.
+</Note>
+
+## DeepStream Agentic Skills
+
+The [DeepStream GitHub repository](https://github.com/NVIDIA/DeepStream) ships a suite of agentic skills under the `skills/` directory. Each skill follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and Codex, and can be installed at the user level (available across all projects) or at the workspace level (scoped to a single project).
+
+<Note>
+The six DeepStream pipeline skills require only an AI coding assistant — no GPU, DeepStream SDK installation, or special hardware is needed. The AutoMagicCalib skills additionally require an NVIDIA GPU, Docker, NVIDIA Container Toolkit, and NGC image access on the host where the calibration stack runs. DeepStream SDK is only required on the system where you run the generated code; see [DS_Installation](DS_Installation) for setup instructions.
+</Note>
+
+To install a skill, clone the repository and copy the skill directory into your tool's skills folder:
+
+```bash
+git clone https://github.com/NVIDIA/DeepStream
+cp -r DeepStream/skills/<skill-name> ~/.claude/skills/   # Claude Code
+# or ~/.cursor/skills/  for Cursor, ~/.codex/skills/  for Codex
+```
+
+See the [GitHub README](https://github.com/NVIDIA/DeepStream/tree/main/skills) for per-tool paths and symlink-based update instructions.
+
+**DeepStream pipeline and application skills:**
+
+| Skill | Mode | Use when you want to… |
+| --- | --- | --- |
+| `deepstream-dev` | Reference-rich | Hand-author or refine a `pyservicemaker` / GStreamer DeepStream pipeline — the agent consults condensed SDK references and guardrails for accurate API usage. |
+| `deepstream-inspect-stack` | Read-only compatibility diagnosis + rerouting | Diagnose DeepStream installation, version, container, JetPack/CUDA/TensorRT/driver, GPU/Jetson, WSL2, and Python-binding mismatches; reroutes to pipeline building or model import without generating implementation code. |
+| `deepstream-generate-pipeline` | Interactive + retrieval | Generate a ready-to-run `gst-launch-1.0` pipeline by answering a short questionnaire; the agent retrieves and adapts from 270+ verified pipelines and validates the result before presenting it. |
+| `deepstream-generate-config` | Interactive Q&A / spec → render → validate | Generate or repair a `deepstream-app` / `deepstream-test5-app` config (sources, streammux, GIE, tracker, sinks, RTSP/msgbroker) from a quickstart, YAML spec, natural language, or guided Q&A — then validate it and print the run command. |
+| `deepstream-audit-config` | Offline validate + approval-gated probes | Audit or sanity-check an existing `deepstream-app` / `deepstream-test5` config (sources, streammux, GIE/tracker, sinks, msgbroker, nvmultiurisrcbin, RTSP/NTP policy) and get a Go-ahead / conditions / Do-not-use-yet verdict. |
+| `deepstream-profile-pipeline` | Measure-then-derive | Profile a pipeline with Nsight Systems, derive optimal configs from the measured inference plateau batch and HW ceiling, and report per-plugin NVTX timings. Requires the `deepstream:9.2-triton-multiarch` container; other DS images strip the NVTX injector and produce empty traces. |
+| `deepstream-inspect-rtsp` | Diagnostic triage | Diagnose DeepStream and GStreamer RTSP ingest packet loss, latency, disconnects, frame drops, decoder saturation, artifacts, and camera/network faults without generating a production application. |
+| `deepstream-import-vision-model` | Autonomous orchestration | Onboard any HuggingFace or NGC object-detection model end-to-end: ONNX export, TensorRT engine build, multi-stream DeepStream benchmark, and a PDF report — fully unattended. |
+| `deepstream-eval-and-finetune` | Accuracy evaluation + fine-tuning orchestration | Deploy an object-detection model to DeepStream (TensorRT FP16), measure mAP and performance on a KPI dataset through the real pipeline, fine-tune it with a single run or AutoML sweep, re-deploy, and produce a before/after report. |
+| `deepstream-run-mv3dt` | Reference-app operations | Run the DeepStream Multi-View 3D Tracking (MV3DT) reference app on shipped samples or synchronized MP4 datasets, including calibration handoff, Kafka metadata, and OSD/Bird's Eye View (BEV) outputs. |
+| `deepstream-sop` | Microservice scaffold + evaluate-and-fix loop | Build, deploy, evaluate, debug, and measure latency on a DeepStream SOP (Standard Operating Procedure) inference microservice for GPU-accelerated operator step-sequence compliance via Generic Event Boundary Detection (GEBD) + Vision Language Model (VLM). Supports file, RTSP, and Basler GigE camera inputs with SSE and Kafka output. |
+| `deepstream-setup-on-wsl` | Consent-first setup and verification | Set up and verify DeepStream in Docker inside WSL2 on a supported local or remote Windows workstation, with secure remote access and GPU compatibility gates. |
+| `inference-builder` | Declarative pipeline generation | Generate deployable GPU inference pipelines and containers from YAML for DeepStream, Triton, vLLM, TensorRT-LLM, or PyTorch backends. |
+
+**AutoMagicCalib camera calibration skills** (see [AutoMagicCalib ](DS_AutoMagicCalib)):
+
+| Skill | Mode | Use when you want to… |
+| --- | --- | --- |
+| `amc-setup-calibration-stack` | Deployment runbook | Launch the AutoMagicCalib microservice and web UI from NGC release images via Docker Compose. |
+| `amc-run-sample-calibration` | Validation runbook | Verify a running AutoMagicCalib stack with the bundled synthetic sample dataset. |
+| `amc-run-video-calibration` | Calibration runbook | Calibrate a camera rig from user-provided pre-recorded MP4 files via the AutoMagicCalib REST API. |
+| `amc-run-rtsp-calibration` | RTSP capture + calibration | Calibrate a camera rig from live RTSP streams by recording them via a capture service and submitting them to the AutoMagicCalib REST API. |
+
+For per-skill install instructions, bundled reference documents, and example prompts, see the [skills/ directory in the DeepStream GitHub repository](https://github.com/NVIDIA/DeepStream/tree/main/skills).
+
+<Tip>
+All skills work best in **Agent mode**. In agent mode, the AI assistant automatically selects and activates the relevant skill based on the task context — no manual file referencing needed.
+</Tip>

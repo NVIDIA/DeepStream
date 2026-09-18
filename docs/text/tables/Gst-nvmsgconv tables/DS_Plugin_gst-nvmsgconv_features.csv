@@ -1,0 +1,9 @@
+﻿Feature,Description,Release
+Payload in JSON format,Message payload is generated in JSON format,DS 3.0
+Supports DeepStream schema specification,DeepStream schema spec implementation for messages,DS 3.0
+Custom schema specification,Provision for custom schemas for messages,DS 3.0
+Key-value file parsing for static properties,Read static properties of sensor/place/module in the form of key-value pair from a text file,DS 3.0
+CSV file parsing for static properties,Read static properties of sensor/place/module from a CSV file,DS 3.0
+DeepStream 4.0.1 minimalistic schema,Minimal variation of the DeepStream message schema,DS 4.0
+New msgconv api,Supports generation of deepStream message schema payloads(full & minimal) directly using Gst buffer frame & object metadata,DS 6.0
+Payload generation interval,Set frame intervals at which payloads are generated, DS 6.0

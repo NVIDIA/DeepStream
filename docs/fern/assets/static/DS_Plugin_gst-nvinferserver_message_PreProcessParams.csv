@@ -1,0 +1,45 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs
+| (Primary/Secondary)"
+network_format,"enum MediaFormat with formats:
+MEDIA_FORMAT_NONE
+IMAGE_FORMAT_RGB
+IMAGE_FORMAT_BGR
+IMAGE_FORMAT_GRAY
+. use IMAGE_FORMAT_RGB by default.",MediaFormat,network_format: IMAGE_FORMAT_RGB,"All
+
+Both"
+tensor_order,"enum TensorOrder with order types:
+TENSOR_ORDER_NONE,
+TENSOR_ORDER_LINEAR(this includes NCHW, CHW, DCHW, ... orders),
+TENSOR_ORDER_NHWC.
+It can deduce the value from backend layers info if set to TENSOR_ORDER_NONE",TensorOrder,tensor_order: TENSOR_ORDER_NONE,"All
+
+Both"
+tensor_name,"Specify the tensor name for the preprocessing buffer.
+This is in the case when multiple input tensors in a single network.","| string;
+| Optional",tensor_name: “input_0”,"All
+
+Both"
+frame_scaling_hw,Compute hardware to use for scaling frames / object crops to network resolution,"enum FrameScalingHW
+FRAME_SCALING_HW_DEFAULT: Platform default – GPU (dGPU), VIC (Jetson)
+FRAME_SCALING_HW_GPU
+FRAME_SCALING_HW_VIC (Jetson only)",frame_scaling_hw:  FRAME_SCALING_HW_GPU,"All
+
+Both"
+frame_scaling_filter,The filter to use for scaling frames / object crops to network resolution,"int32, refer to enum NvBufSurfTransform_Inter in nvbufsurftransform.h for valid values",frame_scaling_filter: 1,"All
+
+Both"
+maintain_aspect_ratio,Indicates whether to maintain aspect ratio while scaling input.,"int32;
+0 or 1",maintain_aspect_ratio: 0,"All
+
+Both"
+symmetric_padding,Indicates whether to pad image symmetrically while scaling input. DeepStream pads the images asymmetrically by default.,"int32;
+0 or 1",symmetric_padding: 0,"All
+
+Both"
+normalize,"Network input tensor normalization settings for scale-factors, offsets and mean-subtraction",PreProcessParams::ScaleNormalize,"normalize {
+scale_factor: 1.0
+channel_offsets: [0, 0, 0]
+}
+see details in PreProcessParams::ScaleNormalize",

@@ -1,0 +1,13 @@
+﻿Property,Meaning,Type and Range,Example Notes
+enable,Runs inference (TRUE) or acts as a transparent passthrough (FALSE),Boolean,enable=1
+config-file-path,"Multimodel config file (""[multimodel]"" defaults/behavior plus per-sensor ""[stream-model-<id>]"" bindings) parsed by the plugin; individual properties override values from it",String,config-file-path=config_modelmux.txt
+batch-size,"Maximum number of concurrent streams, sizing every internal mux; 0 inherits from the config file/default and should match the upstream streammux batch","Integer,
+0 to MM_MAX_BATCH",batch-size=0
+per-model-batch-size,"nvinfer batch size for a single model instance (0 uses batch-size); streams beyond this auto-shard onto additional same-model instances","Integer,
+0 to MM_MAX_BATCH",per-model-batch-size=0
+unified-batch,Combines primary and shadow outputs into one batched buffer for an A/B view,Boolean,unified-batch=0
+wait-for-default-models,"Blocks the pipeline's transition to PLAYING until the configured default model(s) are warmed, so defaults run inference from the first frame (mirrors nvinfer); FALSE warms them asynchronously and streams passthrough until ready",Boolean,wait-for-default-models=0
+compact-idle-models-across-pools,"When a model goes idle as a lone redundant warm copy, moves it out of its role pool (primary/shadow) into a shared limbo pool so a later request from either role reuses that warm copy, keeping fewer warm copies overall; applies only when no twin already exists, and the configured default model is never moved",Boolean,compact-idle-models-across-pools=0
+primary-model,"Default PRIMARY model as ""name;version;config-file"" (config-file required; name defaults to its basename, version optional); required to enable inference",String,primary-model=trafficcamnet;;config_infer_primary.txt
+shadow-model,"Optional default SHADOW model (A/B) as ""name;version;config-file""; unset means no shadow",String,shadow-model=car;;config_infer_secondary_car.txt
+model-sharding,"Enables automatic sharding of streams across model instances. TRUE (default): overflow streams beyond the per-model batch cap are distributed onto new same-model shard instances. FALSE: streams exceeding the cap are silently ignored, matching stock nvinfer behavior",Boolean,model-sharding=1

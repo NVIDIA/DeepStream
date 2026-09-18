@@ -1,0 +1,8 @@
+System Configuration,Specification
+CPU,AMD EPYC 7763 @2430 MHz
+GPU,A2
+Ubuntu,Ubuntu 22.04
+GPU Driver,535.161.08
+CUDA,12.2
+TensorRT,8.6.1.6
+GPU clock frequency,1770 MHz

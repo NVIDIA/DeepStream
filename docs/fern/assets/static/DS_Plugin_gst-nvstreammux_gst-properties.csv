@@ -1,0 +1,65 @@
+﻿Property,Meaning,Type and Range,Example Notes
+batch-size,Maximum number of frames in a batch.,"Integer,
+0 to 4,294,967,295",batch-size=30
+batched-push-timeout,Timeout in microseconds to wait after the first buffer is available to push the batch even if a complete batch is not formed.,"Signed integer,
+-1 to 2,147,483,647","batched-push-timeout= 40000
+40 msec"
+width,"If non-zero, muxer scales input frames to this width.","Integer,
+0 to 4,294,967,295",width=1280
+height,"If non-zero, muxer scales input frames to this height.","Integer,
+0 to 4,294,967,295",height=720
+enable-padding,Maintains aspect ratio by padding with black borders when scaling input frames.,Boolean,enable-padding=1
+gpu-id,ID of the GPU on which to allocate device or unified memory to be used for copying or scaling buffers. (dGPU only.),"Integer,
+0 to 4,294,967,295",gpu-id=1
+live-source,"Indicates to muxer that sources are live, e.g. live feeds like an RTSP or USB camera.",Boolean,live-source=1
+nvbuf-memory-type,"Type of memory to be allocated.
+For dGPU:
+
+0 (nvbuf-mem-default): Default memory, cuda-device
+
+1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory
+
+2 (nvbuf-mem-cuda-device) Device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory
+
+For Jetson:
+
+0 (nvbuf-mem-default): Default memory, surface array
+
+4 (nvbuf-mem-surface-array): Surface array memory","Integer, 0-4",nvbuf-memory-type=1
+num-surfaces-per-frame,Maximum number of surfaces per frame,"Integer, 1-4",num-surfaces-per-frame=4
+buffer-pool-size,Number of buffers in output buffer pool,Integer<=1024,buffer-pool-size=4
+attach-sys-ts,"Attach system timestamp as ntp timestamp, otherwise ntp timestamp calculated from RTCP sender reports",boolean,attach-sys-ts=TRUE
+compute-hw,"Compute engine to use for scaling.
+
+0 - Default
+
+1 - GPU
+
+2 - VIC (Jetson only)","Integer, 0-2",compute-hw=1
+interpolation-method,"Set interpolation methods","Integer, refer to enum NvBufSurfTransform_Inter in nvbufsurftransform.h for valid values",interpolation-method=1
+sync-inputs,"Boolean property to synchronization of input frames using PTS",Boolean,sync-inputs=1
+frame-duration,"Duration of input frames in milliseconds for use in NTP timestamp correction based on frame rate.
+If set to 0, frame duration is inferred automatically from PTS values seen at RTP jitter buffer.
+When there is change in frame duration between the RTP jitter buffer and the nvstreammux,
+this property can be used to indicate the correct frame rate to the nvstreammux,
+for e.g. when there is an audiobuffersplit GstElement before nvstreammux in the pipeline.
+If set to -1 (GST_CLOCK_TIME_NONE), disables frame rate based NTP timestamp correction. (default)","Unsigned Integer64, 0 to 18446744073709551615",frame-duration=10
+drop-pipeline-eos,Boolean property to control EOS propagation downstream from nvstreammux when all the sink pads are at EOS. (Experimental),"Boolean",drop-pipeline-eos=0(default) for dGPU/Jetson
+align-first-buffer,"Align only the first buffer of all sources within frame rate range",Boolean,align-first-buffer=false
+extract-sei-sim-time,"Set to extract and attach simulation time on output buffer",Boolean,extract-sei-sim-time=false
+cache-buffer,"Render previous frame in case new frame is delayed",Boolean,cache-buffer=false
+cache-buffer-timeout,"Timeout in microseconds to reuse previous rendered buffer. Post timeout and when no initial buffer available, grey image to be rendered. Set to -1 to wait infinitely","Integer, -1 to 2,147,483,647",cache-buffer-timeout=-1
+sort-batch,"Sort Batch Buffer in ascending order of pad-ids",Boolean,sort-batch=false
+sync-inputs-ntp,"Time in nanoseconds to synchronize incoming inputs based on ntp","Integer, 0 to 2,147,483,647",sync-inputs-ntp=0
+align-inputs,Forces timestamp alignment of input frames,Boolean,align-inputs=0
+drop-backward-sei,Drops incoming buffers whose SEI timestamp is behind the previous buffer's SEI timestamp (per sink pad),Boolean,drop-backward-sei=0
+failsafe-flush-count,Maximum iterations before forcing a batch push to prevent buffer leaks (failsafe mechanism); should be less than buffer-pool-size (capped at buffer-pool-size - 1 if set higher),"Integer,
+1 to buffer-pool-size",failsafe-flush-count=10
+max-latency,"Additional latency in live mode, in nanoseconds, to allow upstream to take longer to produce buffers for the current position","Integer,
+0 to 4,294,967,295",max-latency=0
+frame-num-reset-on-eos,Resets frame numbers to 0 for a source from which EOS is received (for debugging purposes only),Boolean,frame-num-reset-on-eos=0
+frame-num-reset-on-stream-reset,Resets frame numbers to 0 for a source which needs to be reset (for debugging purposes only); must be paired with tracking-id-reset-mode=1 in the tracker config,Boolean,frame-num-reset-on-stream-reset=0
+async-process,Enables or disables asynchronous processing of input frames for performance,Boolean,async-process=1
+extract-sei-type5-data,"Extracts and attaches SEI type5 unregistered data on the output buffer, for debugging purposes",Boolean,extract-sei-type5-data=0

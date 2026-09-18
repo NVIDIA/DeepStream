@@ -1,0 +1,16 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+pre_threshold,Detection score lesser than this threshold would be rejected before DBSCAN clustering,float,pre_threshold:0.2,"Detector
+
+Both"
+eps,DBSCAN epsilon to control merging of overlapping boxes.,float,eps: 0.7,"Detector
+
+Both"
+min_boxes,Minimum boxes in DBSCAN cluster to be considered an object,"int32, > 0",min_boxes: 3;,"Detector
+
+Both"
+min_score,Minimum score in DBSCAN cluster for it to be considered as an object,float,"min_score: 0.7 
+
+Default value is 0","Detector
+
+Both"

@@ -1,0 +1,4 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,Must be name: riva_model
+detail,Node for Riva model setting details,Node,detail: model_name: citrinet-1024-asr-trt-ensemble-vad-streaming
+model_name,Part of detail node. Specify which model entry is used,String,model_name: citrinet-1024-asr-trt-ensemble-vad-streaming

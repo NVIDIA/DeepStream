@@ -1,0 +1,14 @@
+Property,Meaning,Type and Range,Example notes
+batch-size,Maximum number of buffers in a batch,Unsigned Integer. Range: 0 - 4294967295 Default: 1,batch-size=2
+buffer-pool-size,Maximum number of buffers in muxer's internal pool,Unsigned Integer. Range: 2 - 16 Default: 4,buffer-pool-size=2
+gpu-id,Set GPU Device ID,Unsigned Integer. Range: 0 - 4294967295 Default: 0,gpu-id=1
+p2p-gpu-id,Set P2P GPU ID to enable P2P access.Default P2P access between GPUs is disabled.,Integer. Range: -1 - 1024 Default: -1,p2p-gpu-id=0
+nvbuf-memory-type,Type of NvBufSurface Memory to be allocated for output buffers,"Enum ""GstNvBufMemoryType"" Default: 0, ""nvbuf-mem-default""
+
+(0): nvbuf-mem-default - Default memory allocated, specific to particular platform
+
+(1): nvbuf-mem-cuda-pinned - Allocate Pinned/Host cuda memory
+
+(2): nvbuf-mem-cuda-device - Allocate Device cuda memory
+
+(3): nvbuf-mem-cuda-unified - Allocate Unified cuda memory",nvbuf-memory-type=2

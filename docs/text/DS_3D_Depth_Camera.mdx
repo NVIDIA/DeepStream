@@ -1,0 +1,258 @@
+---
+title: "DeepStream 3D Depth Camera App"
+---
+
+The `deepstream-3d-depth-camera` sample application is provided at `app/sample_apps/deepstream-3d-depth-camera` for your reference. This example demonstrates two different pipelines which bring depth camera from 2D into 3D world.
+The depth and color data capture component is produced by Intel <sup>®</sup> RealSense <sup>™</sup> Depth Camera D435 series. For more details, see https://www.realsenseai.com/products/stereo-depth-camera-d435/.
+
+## Prerequisites
+
+You must have the following development packages installed:
+
+ * GStreamer-1.0
+ * GStreamer-1.0 Base Plugins
+ * GStreamer-1.0 gstrtspserver
+ * X11 client-side library
+ * libyaml-cpp-dev
+ * RealSense SDK
+
+1. To install these packages, execute the following command:
+
+```
+sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+libgstrtspserver-1.0-dev libx11-dev libyaml-cpp-dev
+```
+
+2. Follow the RealSense SDK documentation to add RealSense public key and list of repositories. For x86, refer to https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md. For Jetson platforms, refer to https://github.com/IntelRealSense/librealsense/blob/master/doc/installation_jetson.md. You may use Ubuntu 20.04 source path into apt-repository to install dependencies.
+
+```
+sudo add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo bionic main" -u
+```
+
+3. Then install `librealsense2` package to build and test.
+
+```
+  sudo apt-get install librealsense2-utils librealsense2-dev
+
+Make sure RealSense SDK version is not earlier than 2.48.
+```
+
+4. Plugin in Intel RealSense Depth D400 series USB camera. To verify the camera and upgrade firmware, run `realsense-viewer` and update from the UI. Navigate to the folder `sources/apps/sample_apps/deepstream-3d-depth-camera`.
+
+5. If you are running these commands inside deepstream container, make sure camera devices are mounted in the `docker run` command. For example:
+
+   ```text
+   docker run --rm -it --gpus '"device=0"' --device /dev/video0 --device /dev/video1 --device /dev/video2 ...
+   ```
+
+6. Export `DISPLAY` environment to  the correct display. for example,  `export DISPLAY=:0.0`.
+
+## Depth Color Capture to 2D Rendering Pipeline Overview
+
+This is the first pipeline from the depth capture to 2D based `depthmap` to direct rendering with linear colors configured by the user.
+
+  ![DeepStream Depth Camera for 2D rendering stack overview](/assets/images/content/DS_3D_depth_camera_2d_render.png)
+
+* `ds3d::dataloader` loads custom lib `libnvds_3d_dataloader_realsense.so` and creates a RealSense `dataloader` through the `createRealsenseDataloader` function. This specific loader is configured for output streams of `[color, depth]`. `Gst-appsrc` connects the `dataloader` into the deepstream pipeline.
+
+  ```text
+  name: realsense_dataloader
+  type: ds3d::dataloader
+  out_caps: ds3d/datamap
+  custom_lib_path: libnvds_3d_dataloader_realsense.so
+  custom_create_function: createRealsenseDataloader
+  ```
+
+* `ds3d::datarender` loads custom lib `libnvds_3d_gl_datarender.so` and create a `GLES` render through the `createDepthStreamDataRender` function. This specific loader is configured for 2D depth and color images. `Gst-appsink` connects the `datarender` into the deepstream pipeline.
+
+```
+name: depth-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createDepthStreamDataRender
+```
+
+* `realsense_dataloader` captures color and depth streams in `ds3d/datamap`, then delivers the data to `ds3d::datarender` component `depth-render`.
+
+## Depth Color Capture to 3D Point Cloud Processing and Rendering
+
+The 2nd pipeline is from depth capture, 3D point cloud processing and alignment, to the 3D point cloud rendering with colors.
+
+  ![DeepStream Depth Camera for 3D point cloud processing overview](/assets/images/content/DS_3D_depth_camera_3d_points_process.png)
+
+* `ds3d::dataloader` is the same as the 1st pipeline for depth and color capture. It also outputs the intrinsic parameters of the color/depth sensors, and extrinsic parameters from depth to color sensor module.
+
+```
+name: realsense_dataloader
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_dataloader_realsense.so
+custom_create_function: createRealsenseDataloader
+```
+
+* `ds3d::datafilter` loads custom lib `libnvds_3d_depth2point_datafilter.so` and creates a depth-to-3D-point processing filter through the `createDepth2PointFilter` function. This specific filter generates the 3D point-cloud dataset from depth, and calculates a UV-coordinate map for correspondence between points and color position. It requires sensors' intrinsic and extrinsic data from `dataloader` to make the alignment.
+
+```
+name: point2cloud_datafilter
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_depth2point_datafilter.so
+custom_create_function: createDepth2PointFilter
+```
+
+  `ds3d::datafilter` is loaded by the `nvds3dfilter` `Gst-plugin` which accepts `in_caps` as `sink_caps` and `out_caps` as `src_caps`. It creates a custom `ds3d::datafilter` instance and processes data as `ds3d/datamap`.
+
+* `ds3d::datarender` loads custom lib `libnvds_3d_gl_datarender.so` and create a `GLES` render through the `createPointCloudDataRender` function . This specific loader is configured for 3D points and colors rendering. It also supports 3D scene rotation based on mouse-drag.
+
+```
+name: point-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createPointCloudDataRender
+```
+
+* `realsense_dataloader` captures color and depth streams along with  the intrinsic and extrinsic parameters of the sensor in `ds3d/datamap`. It then delivers the data to the next component `point2cloud_datafilter`. This component generates 3D point-cloud data and UV coordination map into new output data `ds3d/datamap`. Finally, the data is delivered to `ds3d::datarender` component `point-render` for 3D rendering.
+
+ Inside the configuration files, `in_caps` and `out_caps` correspond to Gstreamer's `sink_caps` and `src_caps`.
+
+## Getting Started
+
+### Run RealSense Camera for Depth Capture and 2D Rendering Examples
+
+1. Run the depth capture 2D render pipeline:
+
+```
+$ deepstream-3d-depth-camera -c ds_3d_realsense_depth_capture_render.yaml
+```
+
+2. This sets up a `realsense` `dataloader`.
+
+```
+name: realsense_dataloader
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_dataloader_realsense.so
+custom_create_function: createRealsenseDataloader
+```
+
+3. It then streams `ds3d/datamap` to final the rendering component: `depth-render`.
+
+```
+name: depth-render
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createDepthStreamDataRender
+```
+
+3. The `depth-render` custom lib shall display the depth data and color data together in same window. Update `min_depth/max_depth` to remove foreground and background objects in the depth rendering. From RealSense specification, `D435` Camera depth range is between `0.3` and `3` meters.
+
+```text
+min_depth: 0.3 # in meters
+max_depth: 2.0 # in meters
+```
+
+4. Update `min_depth_color/min_depth_color` [R, G, B] values to visualize color map of depth.
+
+```text
+min_depth_color: [255, 128, 0] # RGB color value for minimum depth
+max_depth_color: [0, 128, 255] # RGB color value for maximum depth
+```
+
+  The other colors are linearly interpolated between `min_depth_color` and `max_depth_color`
+
+## Run 3D Depth Capture, Point Cloud filter, and 3D Points Rendering Examples
+
+1. Run the depth capture and 3D processing pipeline:
+
+  ```text
+  $ deepstream-3d-depth-camera -c ds_3d_realsense_depth_to_point_cloud.yaml
+  ```
+
+2. This sets up a realsense `dataloader` (same as 2D depth). It then streams `ds3d/datamap` to the downstream `datafilter` component `point2cloud_datafilter`.
+
+   ```text
+   name: realsense_dataloader
+   type: ds3d::dataloader
+   out_caps: ds3d/datamap
+   custom_lib_path: libnvds_3d_dataloader_realsense.so
+   custom_create_function: createRealsenseDataloader
+   ```
+
+3. It streams `ds3d/datamap` to the `nvds3dfilter` `Gst-plugin`  which loads `point2cloud_datafilter` to convert 2D depth into 3D points. For more details on `nvds3dfilter` `Gst-plugin`, See [DS_plugin_gst-nvds3dfilter](DS_plugin_gst-nvds3dfilter).
+
+    ```text
+    name: point2cloud_datafilter
+    type: ds3d::datafilter
+    in_caps: ds3d/datamap
+    out_caps: ds3d/datamap
+    custom_lib_path: libnvds_3d_depth2point_datafilter.so
+    custom_create_function: createDepth2PointFilter
+    ```
+
+4. Finally the data stream as `ds3d/datamap` is delivered to the render component `point-render`.
+
+   ```text
+   name: point-render
+   type: ds3d::datarender
+   in_caps: ds3d/datamap
+   custom_lib_path: libnvds_3d_gl_datarender.so
+   custom_create_function: createPointCloudDataRender
+   ```
+
+* Fields of `view_*` are the eyes of the view position, similar to the `OpenGL` `gluLookAt()`.
+
+  ```text
+  view_position: [0, 0, -1] # view position in xyz coordinates
+  view_target: [0, 0, 1] # view target which is the direction pointing to
+  view_up: [0, -1.0, 0] # view up direction
+  ```
+
+* Fields of `near/far/fov` are the perspective range of the eye, similar to the `OpenGL` `gluPerspective()`.
+
+  ```text
+  near: 0.01 # nearest points of perspective
+  far: 10.0 # farmost points of perspective
+  fov: 40.0 # FOV of perspective
+  ```
+
+## DeepStream 3D Depth Camera App Configuration Specifications
+
+deepstream-3d-depth-camera `[ds3d::userapp]` group settings
+
+### deepstream-3d-depth-camera `[ds3d::userapp]` group settings
+
+The table below demonstrates the group settings for `ds_3d_realsense_depth_to_point_cloud.yaml` as an example.
+
+**3D depth camera app user debug supported settings**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| type | Specify type ds3d::userapp | Component type for user debug | Must be type: ds3d::userapp |
+| name | Indicate user-defined component name | String | name: debugdump |
+| enable_debug | Indicate whether enable debug log | Boolean | enable_debug: False |
+| dump_depth | Indicate file location to dump depth raw data | String | dump_depth: depth_uint16_640x480.bin |
+| dump_color | Indicate file location to dump color raw data | String | dump_color: color_rgba_1920x1080.bin |
+| dump_points | Indicate file location to dump 3D points raw data. datatype is Float and XYZ packed | String | dump_points: pointxyz.bin |
+
+### DS3D Custom Components Configuration Specifications
+
+See more details in the `DS_3D supported custom components specifications` section in the [DS_3D_Custom_Manual](DS_3D_Custom_Manual).
+
+#### Build application From Source
+
+1. Go to the folder `sources/apps/sample_apps/deepstream-3d-depth-camera`.
+2. Run the following commands:
+
+   ```text
+   $ Set CUDA_VER=13.2 in the MakeFile.
+   $ make
+   $ make install
+   ```
+
+<Note>
+Check the source code for more details on how to load `dataloader/datarender` through `Gst-appsrc` and `Gst-appsink`. `datafilter` is loaded by the `nvds3dfilter` `Gst-plugin`.
+</Note>

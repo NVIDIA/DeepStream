@@ -1,0 +1,4 @@
+Property,Meaning,Type and Range,Example
+pixel-normalization-factor,factor at which pixels are scaled,Float,pixel-normalization-factor=­0.031
+offsets,Array of mean values of color components to be subtracted from each pixel. Array length must equal the number of color components in the frame. The plugin multiplies mean values by pixel-normalization-factor,Semicolon delimited float array of values ≥0,offsets=77.5;21.2;11.8
+mean-file,pathname of mean data file (PPM format),String,mean-file=/home/ubuntu/model_meanfile.ppm

@@ -1,0 +1,435 @@
+---
+title: "DeepStream SDK 9.1 for NVIDIA dGPU/X86 and Jetson"
+---
+
+## DeepStream Release Notes
+
+1.0 [About this Release](#about-this-release)
+
+1.1 [What’s New](#whats-new)
+
+1.1.1 [DS 9.1](/text/DS_Release_notes#ds-9-1)
+
+1.1.2 [DS 9.0 (Previous Release)](/text/DS_Release_notes#ds-9-0-previous-release)
+
+1.2 [Differences since Deepstream 6.1 and Above](/text/DS_Release_notes#differences-since-deepstream-6-1-and-above)
+
+2.0 [Limitations](#limitations)
+
+3.0 [Notes](#notes)
+
+3.1 [Deploying Applications in a Docker Container](#deploying-applications-in-a-docker-container)
+
+## About this Release
+
+These release notes are for the NVIDIA\ <sup>®</sup> DeepStream SDK for
+NVIDIA\ <sup>®</sup> Turing \ <sup>®</sup>, NVIDIA\ <sup>®</sup> Ampere\ <sup>®</sup>,
+NVIDIA\ <sup>®</sup> Hopper\ <sup>®</sup>, NVIDIA\ <sup>®</sup> Ada
+Lovelace\ <sup>®</sup>, NVIDIA\ <sup>®</sup> Blackwell\ <sup>®</sup>,
+NVIDIA\ <sup>®</sup> RTX Pro 4500\ <sup>®</sup>, NVIDIA\ <sup>®</sup> Jetson Orin \ <sup>™</sup> and
+NVIDIA\ <sup>®</sup> Jetson Thor \ <sup>™</sup>.
+
+## What’s New
+
+The following new features are supported in this DeepStream SDK release:
+
+## DS 9.1
+
+-  Support for Jetson Orin (Nano, NX, AGX) platforms
+
+-  DeepStream SDK sources are now available on GitHub
+   ([github.com/NVIDIA/DeepStream](https://github.com/NVIDIA/DeepStream)) as a monorepo,
+   introduced with DS 9.0 and now updated for DS 9.1. Future releases are expected to follow
+   this model as DeepStream gradually transitions to a GitHub-based release process
+
+-  Starting with DS 9.1, the DeepStream SDK packages (deb and tar) are distributed as GitHub
+   Release assets at
+   [github.com/NVIDIA/DeepStream/releases/tag/v9.1.0](https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0).
+   NGC is no longer used for SDK package distribution. See [DS_Monorepo_FAQ](DS_Monorepo_FAQ) for details
+
+-  Starting with DS 9.1, the DeepStream Open Source Dockerfiles (previously at
+   [github.com/NVIDIA-AI-IOT/deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers))
+   are now part of the GitHub mono-repo at
+   [github.com/NVIDIA/DeepStream/deepstream_dockers](https://github.com/NVIDIA/DeepStream/tree/main/deepstream_dockers).
+   See [DS_Monorepo_FAQ](DS_Monorepo_FAQ) for details
+
+-  Starting with DS 9.1, DeepStream Libraries (previously at
+   [github.com/NVIDIA-AI-IOT/deepstream_libraries](https://github.com/NVIDIA-AI-IOT/deepstream_libraries))
+   are now part of the GitHub mono-repo at
+   [github.com/NVIDIA/DeepStream/deepstream_libraries](https://github.com/NVIDIA/DeepStream).
+   See [DS_Monorepo_FAQ](DS_Monorepo_FAQ) for details
+
+-  Starting with DS 9.1, the `deepstream` NGC container repo is the official repository for
+   all containers (Jetson and dGPU). The `deepstream-l4t` NGC repo will not be updated in
+   future DeepStream releases; existing releases remain accessible to users
+
+-  Support for RTX Pro 4500 GPUs
+
+-  Support for [Triton 26.03](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-03.html#rel-26-03) on x86 and [Triton 26.04](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-04.html#rel-26-04) on Jetson
+
+-  Jetson package based on JP 7.2 GA (r39.2 BSP)
+
+-  Open-sourced components
+
+    - nvdsmetainsert
+    - nvdsmetaextract
+
+-  New `deepstream-ipc-test` sample app (Jetson)
+
+## DS 9.0 (Previous Release)
+
+-  Support for Blackwell and Jetson Thor
+
+-  Jetson package based on JP 7.1 (r38.2 BSP)
+
+-  New applications using pyservicemaker: Action recognition app, Smart record app, DeepStream test5 app using Flow API, Kafka test app using pipeline APIs
+
+-  Added MaskTracker, MediaExtractor, Multi-View 3D Tracking (MV3DT), pose estimation to Single and Multi-View 3D Tracking
+
+-  Sparse4D plugin for multi-camera BEV-based 3D object detection and temporal tracking
+
+-  Support for Dynamic stream handling in demuxer
+
+-  nvvideoconvert to support UYVY (8-bit YCbCr-4:2:2) on x86/dGPU
+
+-  OpenSourced components - nvll_osd library, smart record library "gst-nvdssr", nvimageenc, nvimagedec, nvdsudpsrc, nvdsudpsink, nvdsanalytics gst-plugins
+
+-  REST API support for nvdsanalytics and nvtracker plugin
+
+-  Added support for OpenTelemetry and Prometheus metric exporters
+
+-  Added nv3dsink support on x86
+
+-  Support for Inference Builder open-source tool to create inference microservice across multiple AI frameworks
+
+-  VLM support (Cosmos Reason 2) via the [vLLM based VLM inference DeepStream plugin](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/reference_apps/deepstream-vllm-plugin)
+
+-  Added support for high quality pixel formats in nvvideotestsrc
+
+-  Support for TAO 6.0 models
+
+## Differences since Deepstream 6.1 and Above
+
+gstreamer1.0-libav, libav, OSS encoder,decoder plugins (x264/x265) and
+audioparsers packages are removed in DeepStream dockers from DeepStream
+6.1 onwards. You may install these packages based on your requirement
+(gstreamer1.0-plugins-good/ gstreamer1.0-plugins-bad/
+gstreamer1.0-plugins-ugly). While running DeepStream applications inside
+dockers, you may see the following warnings:
+
+WARNING from src_elem: No decoder available for type 'audio/mpeg,
+mpegversion=(int)4, framed=(boolean)true, stream-format=(string)raw,
+level=(string)2, base-profile=(string)lc, profile=(string)lc,
+codec_data=(buffer)119056e500, rate=(int)48000, channels=(int)2'.
+
+Debug info: gsturidecodebin.c(920): unknown_type_cb ():
+
+To avoid such warnings, install gstreamer1.0-libav and
+gstreamer1.0-plugins-good inside docker.
+
+Specifically, for deepstream-nmos and python based
+deepstream-imagedata-multistream app you would need to install
+gstreamer1.0-libav and gstreamer1.0-plugins-good.
+
+Gst-nveglglessink plugin is deprecated. Use Gst-nv3dsink plugin for
+Jetson instead.
+
+## Limitations
+
+This section provides details about issues discovered during development
+and QA but not resolved in this release.
+
+-  DeepStream on Jetson is based on L4T BSP version r39.2. Refer to
+   “Known Issues” section in [Jetson release notes](https://docs.nvidia.com/jetson/archives/r39.2/ReleaseNotes/Jetson_Linux_Release_Notes_r39.2.pdf).
+
+-  With V4L2 codecs only MAX 1024 (decode + encode) instances are
+   provided. The maximum number of instances can be increased by making
+   changes in open-source code.
+
+-  detected-min-w and detected-min-h must be set to values larger than
+   32 in the primary inference configuration file
+   (config_infer_primary.txt) for gst-dsexample on Jetson.
+
+-  The Kafka protocol adapter sometimes does not automatically reconnect
+   when the Kafka Broker to which it is connected goes down and comes
+   back up. This requires the application to restart.
+
+-  If the nvds log file ds.log has been deleted, to restart logging you
+   must delete the file /run/rsyslogd.pid within the container before
+   reenabling logging by running the setup_nvds_logger.sh script. This
+   is described in the “nvds_logger: Logging Framework” sub-section in
+   the “Gst-nvmsgbroker” section.
+
+-  Running a DeepStream application over SSH (via putty) with X11
+   forwarding does not work.
+
+-  DeepStream currently expects model network width to be a multiple of
+   4 and network height to be a multiple of 2.
+
+-  Triton Inference Server implementation in DeepStream currently
+   supports a single GPU. The models need to be configured to use a
+   single GPU.
+
+-  For some models output in DeepStream is not exactly same as observed
+   in TAO Toolkit. This is due to input scaling algorithm differences.
+
+-  Dynamic resolution change support is Alpha quality.
+
+-  On the fly Model update only supports the same type of Model with
+   same Network parameters.
+
+-  Rivermax SDK is not part of DeepStream. So, the following warning is
+   observed (gst-plugin-scanner:33257):
+
+   GStreamer-WARNING \**: 11:38:46.882: Failed to load plugin
+   '/usr/lib/x86_64-linux-gnu/gstreamer-1.0/deepstream/libnvdsgst_udp.so':
+   librivermax.so.0: cannot open shared object file: No such file or
+   directory
+
+   You can ignore this warning safely.
+
+-  On jetson, when the screen is idle, fps is lowered for DeepStream
+   applications. This behavior is by design to save power. However, if
+   user does not want screen idle then refer to the FAQ for WAR.
+
+-  RDMA functionality is only supported on x86 and only in x86 Triton
+   docker for now.
+
+-  You cannot build the DeepStream out of the box on Jetson dockers
+   except its Triton variant.
+
+-  There can be performance drop from TensorRT to Triton for some models
+   (5 to 15%). In such cases, user may want to use nvinfer plugin
+   instead of nvinferserver plugin.
+
+-  NVRM: XID errors seen sometimes when running 200+ streams on Ampere,
+   Hopper and ADA.
+
+-  NVRM: XID errors seen on some setups with gst-dsexample and transfer
+   learning sample apps.
+
+-  Sometimes during deepstream-testsr app execution, assertion "
+   GStreamer-CRITICAL \**: 12:55:35.006: gst_pad_link_full: assertion
+   'GST_IS_PAD sinkpad)' failed" is seen which can be safely ignored.
+
+-  For some of the models during engine file generation, error “[TRT]:
+   3: [builder.cpp::~Builder::307] Error Code 3: API Usage Error“
+   observed from TensorRT, but has no impact on functionality and can be
+   safely ignored.
+
+-  deepstream-server app is not supported with new nvstreammux plugin.
+
+-  TAO point-pillar model works only in FP32 mode.
+
+-  REST API support for a few components (decoder, preprocessor, nvinfer
+   along with stream addition deletion support) with limited
+   configuration options. However, you can extend the functionality with
+   the steps mentioned in SDK documentation.
+
+-  While adding and removing streams continuously using REST API at frequent intervals,
+   memory surge is observed. This is due to new libc behaviour on Ubuntu 24.
+   Users should export the following system environment variables before running
+   application which uses REST API.
+
+   - export MALLOC_ARENA_MAX=1
+   - export MALLOC_MMAP_MAX_=0
+   - export MALLOC_MMAP_THRESHOLD_=131072
+   - export MALLOC_TRIM_THRESHOLD_=131072
+
+-  With Basler camera, on Jetson, only images with width of multiple of
+   4 supported.
+
+-  In some cases, performance with Python sample apps may be lower than
+   C version.
+
+-  while running deepstream-opencv-test app, warning
+   “gst_caps_features_set_parent_refcount: assertion 'refcount == NULL'
+   failed" observed. No impact on functionality & can be safely ignored.
+
+-  Performance drop for some Models seen with nvinferserver in gRPC mode
+   when run on ARM SBSA w.r.t to x86.
+
+-  Minor performance drop may be observed when using the NvDCF performance configuration. To improve performance in this case, set the environment variable `NVDS_DISABLE_CUDADEV_BLOCKINGSYNC=1`.
+
+-  For Azure, messages sent not matching with messages received on server side.
+
+-  Performance in WSL is not at par with Ubuntu system. There is a known
+   throughput issue while running multiple decode instances in WSL.
+   So you may observe lower FPS compared to ubuntu baseline
+
+-  Image encode not supported in WSL.
+
+-  In WSL2, black screen with log ""MESA: error: Failed to attach to x11 shm"
+   is observed with pipelines with nveglglessink or other display sinks.
+   Use filesink instead in such usecases.
+
+-  While running ~200+ streams simultaneously kernel crash may be observed randomly
+   which may stall the application for some time.
+
+## Notes
+
+-  DeepStream Python bindings (`pyds`) are deprecated. Usage of `pyservicemaker` is recommended instead.
+   Existing `pyds` users should migrate to the pyservicemaker API — see [DS_service_maker_python_quick_start](DS_service_maker_python_quick_start) for a quickstart guide.
+
+- GFX/Graph Composer support is deprecated since DS 8.0.
+
+-  NVIDIA\ <sup>®</sup> DeepStream SDK 9.1 supports TAO model-based
+   applications (https://developer.nvidia.com/tao-toolkit). For more
+   details, see https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps.
+
+-  The following NVIDIA-AI-IOT GitHub repositories are archived and will no longer receive updates.
+   All future updates will be published exclusively in the [DeepStream mono-repo](https://github.com/NVIDIA/DeepStream):
+
+   -  [deepstream_reference_apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps)
+   -  [deepstream_tao_apps](https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps)
+   -  [deepstream_tools](https://github.com/NVIDIA-AI-IOT/deepstream_tools)
+   -  [deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers)
+
+-  On vGPU, only CUDA device memory NVBUF_MEM_CUDA_DEVICE supported.
+
+- Usecase with HW encoder + RTSP in long duration may face issue, work around is to restart application.
+
+- For DGX Spark, as VIC is not supported, need to set tiler compute-hw to GPU (compute-hw=1)
+  Example: In ds_python app - deepstream_test_3.py, set `compute_hw=1` for tiler property.
+
+- For DGX Spark, WARNING: Detected NVIDIA GB10 GPU, which is not yet supported in this version of the container
+  seen while launching container. This is harmless and can be ignored as it does not impact the functionality.
+
+-  From DeepStream 8.0 onwards, the following models are removed.
+   Facedetect, FacedetectIR, PeopleSegnet, bodyposenet,
+   gesturenet,emotionnet, heartratenet, gazenet, facial landmark
+   estimation models and its corresponding applications.
+   Yolo OSS, SSD, DSSD, Yolov3, Yolov4, Yolov4-tiny, Fasterrcnn,
+   Densenet models and its corresponding applications.
+
+-  DeepStream Audio support, ASR, TTS plugin not supported. Users should use
+   NVIDIA RIVA Speech SDK.
+
+-  DeepStream 8.0 onwards removed support for tensorflow, uff and caffe models.
+
+   The Tensorflow Backend has been deprecated starting in 25.03.
+   The last release of Triton Inference Server with the Tensorflow Backend is 25.02.
+   To continue using the Tensorflow backend starting with version 25.03 and onward,
+   users must compile the Tensorflow backend themselves from the source code,
+   since pre-built versions will no longer be available.
+
+   For more details refer: https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-25-03.html#rel-25-03
+
+-  Removed int8 calibration support for previous DeepStream releases supported TAO models.
+   Lower perf with default model will be observed, as we are moving to FP16 mode from INT8.
+
+-  nvv4l2decoder does not support JPEG decode for Thor OpenRM.
+
+-  DLA is not supported on Jetson Thor.
+
+-  For Protocol adapters - Password through config file will be
+   deprecated from the next release.
+
+-  Some of the open-source libraries related to Codecs have been removed so user might see some warnings as below, which can be ignored safely:
+
+  For example: (gst-plugin-scanner:1433): GStreamer-WARNING \**: 18:05:56.454: Failed
+  to load plugin '/usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstfaad.so':
+  libfaad.so.2: cannot open shared object file: No such file or directory
+  /bin/bash: line 1: lsmod: command not found
+  /bin/bash: line 1: modprobe: command not found
+
+<Note>
+-  **OpenCV Deprecation:** OpenCV is deprecated by default. However, you can enable OpenCV support in plugins such as `nvinfer` (`nvdsinfer`) and `dsexample` (`gst-dsexample`) by setting `WITH_OPENCV=1` in the Makefile of these components. Refer to the component README for detailed instructions.
+-  **Docker Note:** If your application requires OpenCV and you are using Docker, ensure that the `libopencv-dev` package is installed inside the Docker container.
+</Note>
+
+## Known Issues
+
+-  During ultra-long duration runs (60+hr) involving live streams with NvDCF accuracy
+   tracking config and software encoder on specific Ampere SKUs,
+   an intermittent pipeline stability issue may occur involving a g_mutex_clear() error.
+
+-  On Jetson, when using CUDA Unified memory with DeepStream reference app (example: dsexample),
+   you may get the pipeline failure with a NvBufSurfaceUnMapNvmmBufferImpl: Wrong memType(3) error.
+   It is recommended to use CUDA Device/Host memory instead.
+
+-  On Jetson, using the deepstream-redaction-app Python app, you may get the pipeline failure
+   with nvbufsurface: mapping of memory type (2) not supported error when accessing surface data.
+
+-  On DGX Spark, error "Cuda failure: status=1 in createTexture" is observed when running appsrc-cuda-test app
+   with nvinferserver plugin.
+
+-  On Jetson Orin, `deepstream-image-decode-test` with `nvinfer` or `nvinferserver` crashes (SIGSEGV)
+   in Docker due to hardware NVJPEG decoder (`nvjpegdec`) failing to initialize.
+   Workaround: Set `export GST_PLUGIN_FEATURE_RANK="nvjpegdec:0"` before running the app to fall back to software JPEG decode.
+
+-  On Jetson Orin Docker, `deepstream-3d-lidar-sensor-fusion` V2XFusion test fails with all three
+   configs (default, single_batch, single_batch_iot). Root cause: `kmod` is not installed in the
+   container, causing `nvjpegdec` to operate in dGPU mode.
+   Workaround: Run `apt install kmod` inside the container.
+
+-  On x86 and Jetson (Docker and deb), running `deepstream-3d-lidar-sensor-fusion` with the
+   `ds3d_lidar_video_sensor_v2x_fusion_single_batch_iot.yml` config crashes on startup with
+   `YAML::ParserException: bad YAML version: 1.2ds3d::datamap:` due to a corrupted
+   `v2xfusion/config/msgconv_config_v2xfusion.yml` config file.
+   Workaround: `sed -i 's/^%YAML 1\.2ds3d::datamap:/%YAML 1.2\nds3d::datamap:/' \`
+   `/opt/nvidia/deepstream/deepstream-9.2/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/config/msgconv_config_v2xfusion.yml`
+
+-  On x86 Docker containers, a benign GStreamer warning is observed on startup:
+   `Failed to load plugin 'libgstmsdk.so': libmfx.so.1: cannot open shared object file`.
+   `libmfx1` was removed for IP compliance; this does not affect DeepStream functionality.
+
+## Deploying Applications in a Docker Container
+
+Refer [Deepstream docker](/text/DS_docker_containers) section for detailed
+information of using DeepStream SDK inside dockers.
+
+Notice
+
+THE INFORMATION IN THIS DOCUMENT AND ALL OTHER INFORMATION CONTAINED IN
+NVIDIA DOCUMENTATION REFERENCED IN THIS DOCUMENT IS PROVIDED “AS IS.”
+NVIDIA MAKES NO WARRANTIES, EXPRESSED, IMPLIED, STATUTORY, OR OTHERWISE
+WITH RESPECT TO THE INFORMATION FOR THE PRODUCT, AND EXPRESSLY DISCLAIMS
+ALL IMPLIED WARRANTIES OF NONINFRINGEMENT, MERCHANTABILITY, AND FITNESS
+FOR A PARTICULAR PURPOSE. Notwithstanding any damages that customer
+might incur for any reason whatsoever, NVIDIA’s aggregate and cumulative
+liability towards customer for the product described in this document
+shall be limited in accordance with the NVIDIA terms and conditions of
+sale for the product. THE NVIDIA PRODUCT DESCRIBED IN THIS DOCUMENT IS
+NOT FAULT TOLERANT AND IS NOT DESIGNED, MANUFACTURED OR INTENDED FOR USE
+IN CONNECTION WITH THE DESIGN, CONSTRUCTION, MAINTENANCE, AND/OR
+OPERATION OF ANY SYSTEM WHERE THE USE OR A FAILURE OF SUCH SYSTEM COULD
+RESULT IN A SITUATION THAT THREATENS THE SAFETY OF HUMAN LIFE OR SEVERE
+PHYSICAL HARM OR PROPERTY DAMAGE (INCLUDING, FOR EXAMPLE, USE IN
+CONNECTION WITH ANY NUCLEAR, AVIONICS, LIFE SUPPORT OR OTHER LIFE
+CRITICAL APPLICATION). NVIDIA EXPRESSLY DISCLAIMS ANY EXPRESS OR IMPLIED
+WARRANTY OF FITNESS FOR SUCH HIGH RISK USES. NVIDIA SHALL NOT BE LIABLE
+TO CUSTOMER OR ANY THIRD PARTY, IN WHOLE OR IN PART, FOR ANY CLAIMS OR
+DAMAGES ARISING FROM SUCH HIGH RISK USES.
+
+NVIDIA makes no representation or warranty that the product described in
+this document will be suitable for any specified use without further
+testing or modification. Testing of all parameters of each product is
+not necessarily performed by NVIDIA. It is customer’s sole
+responsibility to ensure the product is suitable and fit for the
+application planned by customer and to do the necessary testing for the
+application in order to avoid a default of the application or the
+product. Weaknesses in customer’s product designs may affect the quality
+and reliability of the NVIDIA product and may result in additional or
+different conditions and/or requirements beyond those contained in this
+document. NVIDIA does not accept any liability related to any default,
+damage, costs or problem which may be based on or attributable to: (i)
+the use of the NVIDIA product in any manner that is contrary to this
+document, or (ii) customer product designs.
+
+Other than the right for customer to use the information in this
+document with the product, no other license, either expressed or
+implied, is hereby granted by NVIDIA under this document. Reproduction
+of information in this document is permissible only if reproduction is
+approved by NVIDIA in writing, is reproduced without alteration, and is
+accompanied by all associated conditions, limitations, and notices.
+
+Trademarks
+
+NVIDIA, the NVIDIA logo, TensorRT, NVIDIA Ampere, NVIDIA Hopper and
+NVIDIA Tesla are trademarks and/or registered trademarks of NVIDIA
+Corporation in the United States and other countries. Other company and
+product names may be trademarks of the respective companies with which
+they are associated.
+
+Copyright © 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.

@@ -1,0 +1,18 @@
+Feature,Description,Release
+Configurable tracker width/height,Frames are internally scaled in NvTracker plugin to the specified resolution for tracking and passed to the low-level lib,DS 2.0
+Multi-stream CPU/GPU tracker,Supports tracking on batched buffers consisting of frames from multiple sources,DS 2.0
+NV12 Input,,DS 2.0
+RGBA Input,,DS 3.0
+Configurable GPU device,User can select GPU for internal scaling/color format conversions and tracking,DS 2.0
+Dynamic addition/deletion of sources at runtime,Supports tracking on new sources added at runtime and cleanup of resources when sources are removed,DS 3.0
+Support for user’s choice of low-level library,Dynamically loads user selected low-level library,DS 4.0
+Support for batch processing exclusively,Supports sending frames from multiple input streams to the low-level library,DS 4.0
+Multiple buffer formats as input to low-level library,"Converts input buffer to formats requested by the low-level library, for up to 4 formats per frame",DS 4.0
+Enabling tracking-id display,Supports enabling or disabling display of tracking-id,DS 5.0
+Tracking ID reset based on event,"Based on the pipeline event (i.e., GST_NVEVENT_STREAM_EOS and GST_NVEVENT_STREAM_RESET),  the tracking IDs on a particular stream can be reset to start from 0 or new IDs.",DS 6.0
+Tracker Miscellaneous data output,"Supports outputting user defined miscellaneous data (including object Re-ID features, the past-frame data, a list of terminated tracks, etc. ) if the low-level library supports the capability",DS 6.3
+Support for NVIDIA's `VPI™ <https://docs.nvidia.com/vpi/index.html>`_ based Crop-scaler and DCF-Tracker algorithms in NvDCF tracker," ""Configuration options provided in NvDCF tracker which allow the user to switch to NVIDIA's `VPI™ <https://docs.nvidia.com/vpi/index.html>`_ implementation of Crop-scaler and DCF-Tracker. The user can also configure the compute backend to be used amongst the backends supported by `VPI™ <https://docs.nvidia.com/vpi/index.html>`_""",DS 6.4
+PVA-backend for NvDCF via `VPI™ <https://docs.nvidia.com/vpi/index.html>`_'s unified API,Allow PVA-based execution of a significant part of NvDCF on Jetson to achieve lower GPU utilization,DS 6.4
+Sub-batching,"Supports splitting of a batch of frames in sub-batches which are internally processed in parallel resulting in higher resource utilization. This feature also enables specification of a different config file for each sub-batch.",DS 6.4
+Single-View 3D Tracking,"Allow 3D world coordinate system based object tracking when camera/model info (3x4 projection matrix and 3D human model info) is provided for better handling of partial occlusion", DS 6.4
+MaskTracker (Developer Preview),A new algorithm for multi-object tracking and segmentation using SAM2 as visual tracking engine,DS 8.0

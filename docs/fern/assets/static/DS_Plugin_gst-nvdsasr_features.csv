@@ -1,0 +1,9 @@
+Feature,Description,Release
+Speech ASR template,The plugin is a ASR speech base which can support custom ASR library loading in runtime,DS 6.0
+Live stream transcription,Support partial transcript output in realtime,DS 6.0
+Final transcription,Support final transcription only useful for local audio streams,DS 6.0
+Languages support, The plugin is currently only tested for English (en-US) ,DS 6.0
+Words punctuation,Support words punctuation and capitalization,DS 6.0
+Custom library with gRPC API implementation, Supports custom library implementation that uses gRPC APIs for accessing Riva ASR gRPC service. Set ``libnvds_riva_asr_grpc.so`` as ``customlib-name`` and ``create_riva_asr_grpc_ctx`` as ``create-speech-ctx-func``, DS 6.0
+x86 platform support,"--",DS 6.0
+Jetson platform support,"--",DS 6.2

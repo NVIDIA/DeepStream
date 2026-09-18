@@ -1,0 +1,5 @@
+"communicatorType","{0, 2}","0","Select the communicator. 0: Dummy communicator. No actual communication happens. 2: MQTT Communicator. Multiple DS instances / GPUs / Machines supported."
+"pubSubInfoConfigPath","String","","This parameter needs to be specified with the vision neighbor configuration"
+"mqttProtoAdaptorConfigPath","String","","This parameter needs to be specified with the path to the MQTT message protocol adaptor configuration file. Not needed for the debug communicator"
+"waitForConnInterval","Nonnegative Int","50","This parameter controls an interval to wait for a connection to the MQTT message broker. Not needed for the debug communicator"
+"connTimeout","Nonnegative Int","200","This parameter controls the maximum wait time to wait for a connection to the MQTT message broker. Not needed for the debug communicator"

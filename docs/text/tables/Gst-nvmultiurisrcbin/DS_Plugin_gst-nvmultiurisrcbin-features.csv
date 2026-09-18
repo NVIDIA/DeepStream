@@ -1,0 +1,17 @@
+Feature,Description,Release
+"nvmultiurisrcbin integrating REST API Server, nvurisrcbin, and nvstreammux","Introducing nvmultiurisrcbin", "DS 6.2"
+REST API to add and remove sensors runtime,Dynamically add/remove sensors, DS 6.2
+Stream specific,Stream addition and removal, DS 6.2
+nvdspreprocess,Update ROI for preprocess, DS 6.4
+nvv4l2decoder,"""drop-frame-interval"" and ""skip-frame"" property update", DS 6.4
+nvdsinfer,"""interval"" property update", DS 6.4
+nvdsinferserver,"""interval"" property update", DS 6.4
+nvv4l2encoder,"""force-idr"", ""force-intra"",  “iframeinterval” and ""bitrate"" property update", DS 6.4
+nvstreammux,"""batched-push-timeout"" property update", DS 6.4
+nvvideoconvert,"""src-crop"", ""dest-crop"", ""flip-method"" and ""interpolation-method"" property update", DS 6.4
+nvdsosd,"""process-mode"" property update", DS 6.4
+Application specific,Application quit, DS 6.4
+GET requests,Get the stream-info, DS 7.0
+GET requests,Get the  DeepStream readiness info, DS 8.0
+nvdsanalytics,"""config-file"" Reload config file", DS 8.0
+nvdstracker,"""config-file"" Update configurable parameters of tracker using config file", DS 8.0

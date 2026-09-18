@@ -1,0 +1,4 @@
+﻿Name,Description,Type and Range,"Example
+Notes",(Primary/­Secondary)
+threshold,Detection threshold,"Float, ≥0",threshold=0.5,"Object detector
+Both"

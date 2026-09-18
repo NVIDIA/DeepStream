@@ -1,0 +1,7 @@
+﻿Feature,Description,Release
+ReID embedding generation,Generates ReID embeddings for tracked objects via Triton Inference Server or a local TensorRT engine,DS 9.2
+NVDS_TRACKER_OBJ_REID_META attachment,Attaches generated embeddings directly to DeepStream tracked-object metadata using native C pointers,DS 9.2
+Minimum crop-size filtering,Skips embedding generation for objects smaller than min-crop-size,DS 9.2
+Embedding caching,"Caches per-object embeddings (smart-infer) and periodically re-infers them (cache-refresh-interval), avoiding redundant inference for already-embedded tracked objects",DS 9.2
+Optical-flow staleness prediction,"Uses hardware optical flow motion vectors (ofa-predict) to transform cached embeddings instead of re-inferring when object motion is below a configurable threshold",DS 9.2
+DLA appearance-change validator,Gates full vision-encoder inference behind a lightweight DLA (or GPU fallback) appearance-change detector,DS 9.2

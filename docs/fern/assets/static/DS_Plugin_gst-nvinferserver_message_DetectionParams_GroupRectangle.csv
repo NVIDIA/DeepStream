@@ -1,0 +1,11 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+confidence_threshold,Detection score lesser than this threshold would be rejected,float,confidence_threshold:0.2,"Detector
+
+Both"
+group_threshold,Threshold value for rectangle merging for OpenCV grouprectangles() function,int32; >= 0,group_threshold: 1,"Detector
+
+Both"
+eps,Epsilon to control merging of overlapping boxes,float,eps: 0.2,"Detector
+
+Both"

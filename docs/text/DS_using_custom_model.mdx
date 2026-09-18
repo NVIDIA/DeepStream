@@ -1,0 +1,85 @@
+---
+title: "Using a Custom Model with DeepStream"
+---
+
+The NVIDIA® DeepStream SDK on NVIDIA® Tesla® or NVIDIA® Jetson platforms can be customized to support custom neural networks for object detection and classification.
+You can create your own model. You must specify the applicable configuration parameters in the [property] group of the `nvinfer` configuration file (for example, `config_infer_primary.txt`).
+The configuration parameters that you must specify include:
+
+* onnx-file (ONNX models)
+* model-engine-file, if already generated
+* int8-calib-file for INT8 mode
+* mean-file, if required
+* offsets, if required
+* maintain-aspect-ratio, if required
+* parse-bbox-func-name (detectors only)
+* parse-classifier-func-name (classifiers only)
+* custom-lib-path
+* network-type
+* model-color-format
+* process-mode
+* engine-create-func-name
+* infer-dims
+
+<Note>
+Caffe and uff model support is removed
+</Note>
+
+## Custom Model Implementation Interface
+
+nvinfer supports interfaces for these purposes:
+
+* Custom bounding box parsing for custom neural network detectors and classifiers
+* IPlugin implementation for layers not natively supported by NVIDIA® TensorRT™
+* Initializing non-image input layers in cases where the network has more than one input layer
+* Creating a CUDA engine using TensorRT Layer APIs instead of model parsing APIs. Read more about TensorRT docs here: https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html
+* IModelParser interface to parse the model and fill the layers in an INetworkDefinition
+
+All the interface implementations for the models must go into a single independent shared library. nvinfer dynamically loads the library with `dlopen()`, looks for implemented interfaces with `dlsym()`, and calls the interfaces as required.
+For more information about the interface, refer to the header file `nvdsinfer_custom_impl.h`.
+
+## Custom Output Parsing
+
+For detectors, you must write a library that can parse the bounding box coordinates and the object class from the output layers. For classifiers, the library must parse the object attributes from the output layers. For example, in segmentation models, the library must parse the bounding box, object class and the mask from the output layers. You can find example code and makefile in the source directory in `sources/libs/nvdsinfer_customparser`.
+The generated library path and the function name must be specified with the configuration parameters as mentioned in the section Custom Model. The README file in `sources/libs/nvdsinfer_customparser` has an example of how to use this custom parser.
+
+## IPlugin Implementation
+
+DeepStream supports networks containing layers not supported by TensorRT but supported through implementations of the IPlugin interface. The `objectDetector_SSD`, `objectDetector_FasterRCNN`, and `objectDetector_YoloV3` sample applications show examples of IPlugin implementations.
+DeepStream supports NVIDIA® TensorRT™ plugins for custom layers. The Gst-nvinfer plugin now has support for the IPluginV2 and IPluginCreator interface, introduced in TensorRT 5.0. For caffemodels and for backward compatibility with existing plugins, it also supports the following interfaces:
+
+- nvinfer1::IPluginFactory
+
+See the TensorRT documentation for details on new and deprecated plugin interfaces.
+
+### How to Use IPluginCreator
+
+To use the new IPluginCreator interface you must implement the interface in an independent custom library. This library must be passed to the Gst-nvinfer plugin through its configuration file by specifying the library’s pathname with the custom-lib-path key.
+Gst-nvinfer opens the library with `dlopen()`, which causes the plugin to be registered with TensorRT. There is no further direct interaction between the custom library and Gst-nvinfer. TensorRT calls the custom plugin functions as required.
+The SSD sample provided with the SDK provides an example of using the IPluginV2 and IPluginCreator interface. This sample has been adapted from TensorRT.
+
+### How to Use IPluginFactory
+
+To use the IPluginFactory interface, you must implement the interface in an independent custom library. Pass this library to the Gst-nvinfer plugin through the plugin’s configuration file by specifying the library’s pathname in the custom-lib-path key. The custom library must implement the applicable functions:
+
+* NvDsInferPluginFactoryRuntimeGet
+* NvDsInferPluginFactoryRuntimeDestroy
+
+These structures are defined in `nvdsinfer_custom_impl.h`. The function definitions must be named as in the header file. Gst-nvinfer opens the custom library with `dlopen()` and looks for the names.
+
+#### During Deserialization
+
+If deserializing the models requires an instance of `NvInfer1::IPluginFactory`, the custom library must also implement `NvDsInferPluginFactoryRuntimeGet()` and optionally `NvDsInferPluginFactoryRuntimeDestroy()`. During deserialization, Gst-nvinfer calls the library’s `NvDsInferPluginFactoryRuntimeGet()` function to get the IPluginFactory instance, then calls `NvDsInferPluginFactoryRuntimeDestroy` to destroy the instance if it finds that function during Gst-nvinfer deinitialization.
+The FasterRCNN sample provided with the SDK provides an example of using the `IPluginV2+nvcaffeparser1::IPluginFactoryV2` interface with DeepStream. This sample has been adapted from TensorRT. It also provides an example of using the legacy `IPlugin + nvcaffeparser1::IPluginFactory + Gst-nvinfer 1::IPluginFactory` interface for backward compatibility.
+
+## Input Layer Initialization
+
+DeepStream supports initializing non-image input layers for networks having more than one input layer. The layers are initialized only once before the first inference call. The objectDetector_FasterRCNN sample application shows an example of an implementation.
+
+## CUDA Engine Creation for Custom Models
+
+DeepStream supports creating TensorRT CUDA engines for models which are not in ONNX format, or which must be created from TensorRT Layer APIs. The objectDetector_YoloV3 sample application shows an example of the implementation. When using a single custom library for multiple nvinfer plugin instances in a pipeline, each instance can have its own implementation of engine-create-func-name and this can be specified in the configuration file. An example would be back-to-back detector pipeline with different types of yolo models.
+
+## IModelParser Interface for Custom Model Parsing
+
+This is an alternative to the “CUDA Engine Creation” interface for parsing and filling a TensorRT network (INetworkDefinition). The `objectDetector_YoloV3` sample application shows an example of the implementation.

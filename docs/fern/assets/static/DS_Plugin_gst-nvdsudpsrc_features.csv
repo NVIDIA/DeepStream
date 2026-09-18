@@ -1,0 +1,10 @@
+Feature,Description,Release
+Supports header and payload separation,Separate memories can be allocated for RTP header and payload,DS 6.0
+"Supports any type of RTP packet (Compressed, Uncompressed, audio etc.)",No restriction on content of RTP payload,DS 6.0
+Supports RTCP packets,"In addition to RTP, RTCP packets can also be received",DS 6.0
+Supports RTP payload directly in GPU memory,Content of RTP payload can directly be in GPU memory. This can avoid copy if GPU processing of payload is required,DS 6.0
+Supports de-packetization of uncompressed video,RTP packets having uncompressed video as payload can be depacketized and converted to video frame as per SMPTE 2110-20 specification,DS 6.3
+Supports de-packetization of uncompressed audio,RTP packets having uncompressed audio as payload can be depacketized and converted to audio frame as per SMPTE 2110-30 specification,DS 6.3
+Supports de-packetization of generic payload,RTP packets having fixed header and payload size can be depacketized to form a frame. In this mode headers will be removed and payloads will be combined to form a frame,DS 6.3
+Supports SMPTE 2022-7,"By using Rivermax media API's, can receive redundant packets over independent network paths.",DS-8.0
+Supports SMPTE 2110-40 ancillary data (RFC 8331),"Receive SMPTE 291M ancillary data (e.g. CEA-608/708 closed captions) over ST 2110 networks. Depayloads RFC 8331 RTP packets into ST2038 wire-format buffers (one buffer per ANC packet). Activated by meta/x-st-2038 caps. RTP marker bit and timestamp are propagated to downstream buffers; SMPTE 2022-7 dual-path reception is supported.",DS 9.1

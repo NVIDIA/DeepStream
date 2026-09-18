@@ -1,0 +1,22 @@
+﻿Module,Property,Meaning,Type and Range,Default value
+Segmentation Network Dimension,outputLabelNum,Number of output masks for segmentation. Only 1 is supported now,Integer,outputLabelNum: 1
+,hiddenDim,Hidden dimension size used in MaskTracker,Integer,hiddenDim: 256
+,encoderFeatureDim,Encoder feature dimension in MaskTracker,Integer,encoderFeatureDim: 64
+,inferDims,Segmentation network input dimension,"Array of 3 integers","inferDims: [3, 1024, 1024]"
+Frame Input Preprocessing,inputOrder,"Input order (NCHW=0, NHWC=1)","Integer (0 or 1)",inputOrder: 0
+,colorFormat,"Input color format (RGB=0, BGR=1)","Integer (0 or 1)",colorFormat: 0
+,offsets,Array of values to subtract from each input channel,"Array of 3 floats","offsets: [123.6750, 116.2800, 103.5300]"
+,netScaleFactor,Scaling factor for input after subtracting offsets,Float,netScaleFactor: 0.0174
+,useVPICropScaler,Use VPI for image cropping and rescaling,"Integer (0 or 1)",useVPICropScaler: 1
+Memory Management,updateMemBankPrompt,Whether to update memory bank using detection bounding box as prompt,"Integer (0 or 1)",updateMemBankPrompt: 0
+,minIouDiff4MemoryUpdate,IOU threshold between the current target and other targets for memory update,Float,minIouDiff4MemoryUpdate: 0.8
+,minMemoryUpdateConfidence,Minimum confidence for memory update,Float,minMemoryUpdateConfidence: 0.5
+,maskMemoryUpdateInterval,Interval for mask memory update,Integer,maskMemoryUpdateInterval: 0
+,minIouPrevFrame4ProgBbox,Minimum IOU with previous frame for progressive bbox,Float,minIouPrevFrame4ProgBbox: 0.0
+,minPromptUpdateConfidence,Minimum confidence for prompt update,Float,minPromptUpdateConfidence: 0.8
+,numConditionalMem,Number of conditional memory entries,Integer,numConditionalMem: 1
+TensorRT Inference for Each Network,batchSize,Batch size of network,Integer,batchSize: 1
+,workspaceSize,Workspace size for network engine (MB),Integer,workspaceSize: 5000
+,networkMode,"Network inference precision mode (fp32=0, fp16=1, int8=2)","Integer (0, 1, or 2)",networkMode: 1
+,onnxFile,ONNX model path for network,String,"onnxFile:"""""
+,modelEngineFile,Engine file path for network,String,"modelEngineFile:"""""

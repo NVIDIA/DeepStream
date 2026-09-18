@@ -1,0 +1,113 @@
+---
+title: "C/C++ Sample Apps Source Details"
+---
+
+{/` include: <isonum.txt> `/}
+
+The DeepStream SDK package includes archives containing plugins, libraries, applications, and source code.
+The sources directory is located at `/opt/nvidia/deepstream/deepstream/sources` for both Debian installation (on Jetson or dGPU) and SDK Manager installation. For tar packages the source files are in the extracted `deepstream` package.
+DeepStream Python bindings and sample applications are available as separate packages. For more information, see https://github.com/NVIDIA-AI-IOT/deepstream_python_apps.
+
+**Sample source details**
+
+| Reference test application | Path inside `sources` directory | Description |
+| --- | --- | --- |
+| Sample test application 1 | apps/sample_apps/deepstream-test1 | Sample of how to use DeepStream elements for a single H.264 stream: filesrc \|rarr\| decode \|rarr\| nvstreammux \|rarr\| nvinfer or nvinferserver (primary detector) \|rarr\| nvdsosd \|rarr\|  renderer. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Sample test application 2 | apps/sample_apps/deepstream-test2 | Sample of how to use DeepStream elements for a single H.264 stream: filesrc \|rarr\| decode \|rarr\| nvstreammux \|rarr\| nvinfer or nvinferserver (primary detector) \|rarr\| nvtracker \|rarr\| nvinfer or nvinferserver (secondary classifier) \|rarr\| nvdsosd \|rarr\| renderer. This app uses resnet18_trafficcamnet_pruned.onnx for detection and 2 classifier models (i.e., resnet18_vehiclemakenet_pruned.onnx, resnet18_vehicletypenet_pruned.onnx). |
+| Sample test application 3 | apps/sample_apps/deepstream-test3 | Builds on deepstream-test1 (simple test application 1) to demonstrate how to:<br />* Use multiple sources in the pipeline.<br />* Use a uridecodebin to accept any type of input (e.g. RTSP/File), any GStreamer supported container format, and any codec.<br />* Configure Gst-nvstreammux to generate a batch of frames and infer on it for better resource utilization.<br />* Extract the stream metadata, which contains useful information about the frames in the batched buffer.<br />This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Sample test application 4 | apps/sample_apps/­deepstream-test4 | Builds on deepstream-test1 for a single H.264 stream: filesrc, decode, nvstreammux, nvinfer or nvinferserver, nvdsosd, renderer to demonstrate how to:<br />* Use the Gst-nvmsgconv and Gst-nvmsgbroker plugins in the pipeline.<br />* Create NVDS_META_EVENT_MSG type metadata and attach it to the buffer.<br />* Use NVDS_META_EVENT_MSG for different types of objects, e.g. vehicle and person.<br />*  Implement “copy” and “free” functions for use if metadata is extended through the extMsg field.<br />This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Sample test application 5 | apps/sample_apps/­deepstream-test5 | Builds on top of deepstream-app. Demonstrates:<br />• Use of Gst-nvmsgconv and Gst-nvmsgbroker plugins in the pipeline for multistream.<br />• How to configure Gst-nvmsgbroker plugin from the config file as a sink plugin (for KAFKA, Azure, etc.).<br />• How to handle the RTCP sender reports from RTSP servers or cameras and translate the Gst Buffer PTS to a UTC timestamp.<br />For more details refer the RTCP Sender Report callback function `test5_rtcp_sender_report_callback()` registration and usage in `deepstream_test5_app_main.c`.<br />GStreamer callback registration with rtpmanager element’s “handle-sync” signal is documented in `apps-common/src/deepstream_source_bin.c`.<br />This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| :doc:`DeepStream 3D Multi-Modal Lidar Camera Sensor Fusion App <DS_3D_MultiModal_Lidar_Sensor_Fusion>` | apps/sample_apps/deepstream-3d-lidar-sensor-fusion | The sample app :doc:`deepstream-3d-lidar-sensor-fusion <DS_3D_MultiModal_Lidar_Sensor_Fusion>`  showcases a multi-modal sensor fusion pipeline for LiDAR and camera data using the DS3D framework. There are 2 pipelines integrated into this sample,   :doc:`ds3d multi-modal bevfusion <DS_3D_MultiModal_Lidar_Camera_BEVFusion>` with 6 cameras plus a lidar data fusion and 3D detection; `v2x` model Processes data from a single camera and a LiDAR, utilizing a batch size of 4. |
+| AMQP protocol test application | libs/amqp_­protocol_adaptor | Application to test AMQP protocol. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Azure MQTT test application | libs/azure_protocol_adaptor | Test application to show Azure IoT device2edge messaging and device2cloud messaging using MQTT. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| DeepStream reference application | apps/sample_apps/­deepstream-app | Source code for the DeepStream reference application. This app uses resnet18_trafficcamnet_pruned.onnx for detection and 2 classifier models (i.e., resnet18_vehiclemakenet_pruned.onnx, resnet18_vehicletypenet_pruned.onnx). |
+| Dewarper example | apps/sample_apps/deepstream-dewarper-test | Demonstrates dewarper functionality for single or multiple 360-degree camera streams. Reads camera calibration parameters from a CSV file and renders aisle and spot surfaces on the display. |
+| Optical flow example | apps/sample_apps/deepstream-nvof-test | Demonstrates optical flow functionality for single or multiple streams. This example uses two GStreamer plugins (Gst-nvof and Gst-nvofvisual). The Gst-nvof element generates the MV (motion vector) data and attaches it as user metadata. The Gst-nvofvisual element visualizes the MV data using a predefined color wheel matrix. |
+| Custom meta data example | apps/sample_apps/deepstream-user-metadata-test | Demonstrates how to add custom or user-specific metadata to any component of DeepStream. The test code attaches a 16-byte array filled with user data to the chosen component. The data is retrieved in another component. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| MJPEG and JPEG decoder and inferencing example | apps/sample_apps/deepstream-image-decode-test | Builds on deepstream-test3 to demonstrate image decoding instead of video. This example uses a custom decode bin so the MJPEG codec can be used as input. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Handling metadata before Gst-nvstreammux | apps/sample_apps/deepstream-gst-metadata-test | Demonstrates how to set metadata before the Gst-nvstreammux plugin in the DeepStream pipeline, and how to access it after Gst-nvstreammux. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Gst-nvinfer tensor meta flow example | apps/sample_apps/deepstream-infer-tensor-meta-test | Demonstrates how to flow and access nvinfer tensor output as metadata. NOTE: This binary is not packaged due to OpenCV deprecation. This app needs to be compiled by the user. This app uses resnet18_trafficcamnet_pruned.onnx for detection and 2 classifier models (i.e., resnet18_vehiclemakenet_pruned.onnx, resnet18_vehicletypenet_pruned.onnx). |
+| Preprocess example | apps/sample_apps/deepstream-preprocess-test | Demonstrates inference on preprocessed ROIs configured for the streams. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| 3D action recognition Reference app | apps/sample_apps/deepstream-3d-action-recognition | Demonstrates a sequence batching based 3D or 2D model inference pipeline for action recognition. It also includes a sequence based preprocess custom lib for NCSHW temporal batching. Refer Prerequisites in README before running the application. This app uses resnet18_2d_rgb_hmdb5_32.etlt for 2D and resnet18_3d_rgb_hmdb5_32.etlt for 3D action recognition. |
+| Analytics example | apps/sample_apps/deepstream-nvdsanalytics-test | Demonstrates batched analytics like ROI filtering, Line crossing, direction detection and overcrowding. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| OpenCV example | apps/sample_apps/deepstream-opencv-test | Demonstrates the use of OpenCV in dsexample plugin. Need to compile dsexample with flag `WITH_OPENCV=1`. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Image as Metadata example | Apps/sample_apps / deepstream-image-meta-test | Demonstrates how to attach encoded image as meta data and save the images in jpeg format. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Appsrc and Appsink example | apps/sample_apps/deepstream-appsrc-test | Demonstrates AppSrc and AppSink usage for consuming and giving data from non DeepStream code respectively. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Cuda Appsrc and Appsink example | apps/sample_apps/deepstream-appsrc-cuda-test | Demonstrates  how cuda frames acquired from outside DeepStream can be fed to a DeepStream pipeline. |
+| Transfer learning example | apps/sample_apps/ deepstream-transfer-learning-app | Demonstrates a mechanism to save the images for objects which have lesser confidence and the same can be used for training further. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| Smart Record example | apps/sample_apps/deepstream-testsr | Demonstrates event based smart record functionality. This app uses resnet18_trafficcamnet_pruned.onnx for detection. |
+| DeepStream NMOS Application | apps/sample_apps/deepstream-nmos | This application demonstrates how to create a DeepStream app as an `NMOS <https://specs.amwa.tv/nmos/>`_ Node.<br />It uses a library (NvDsNmos) which provides the APIs to create, destroy and internally manage the NMOS Node.<br />The NMOS Node can automatically discover and register with an NMOS Registry on the network using the `AMWA IS-04 <https://specs.amwa.tv/is-04/>`_ Registration API.<br />It also shows how to create various Video and Audio pipelines, run them simultaneously and reconfigure them based on NMOS events such as `AMWA IS-05 <https://specs.amwa.tv/is-05/>`_ Connection API requests from an NMOS Controller. |
+| DeepStream UCX test | apps/sample_apps/deepstream-ucx-test | Demonstrates how to use the communication plugin `gst-nvdsucx` with DeepStream SDK. The application has been validated with kernel-5.15. |
+| DeepStream 3D Depth Camera Reference App | apps/sample_apps/deepstream-3d-depth-camera | Demonstrates how to setup depth capture, depth render, 3D-point-cloud processing and 3D-points render pipelines over DS3D interfaces and custom-libs of `ds3d::dataloader`, `ds3d::datafilter` and `ds3d::datarender`. See more details in :doc:`DS_3D_Depth_Camera` |
+| DeepStream 3D Lidar Data Inferencing Reference App | apps/sample_apps/deepstream-lidar-inference-app | Demonstrates how to read in point cloud data, inference point cloud data with pointpillar 3D objects detection model with Triton, render point cloud data and 3D objects with GLES. The whole application is based on DS3D interfaces and custom-libs of `ds3d::dataloader`, `ds3d::datafilter` and `ds3d::datarender`. See more details in :doc:`DS_3D_Lidar_Inference` |
+| Deepstream Server Application | apps/sample_apps/deepstream-server | Demonstrates REST API support to control DeepStream pipeline on-the-fly. |
+| DeepStream Can Orientation Sample App | apps/sample_apps/deepstream-can-orientation-app | Demonstrates can orientation detection with CV-based VPI template matching algorithm.  VPI template matching is implemented with DeepStream video template plugin. See more details in apps/sample_apps/deepstream-can-orientation-app/README |
+| Triton Ensemble Model Example | apps/sample_apps/TritonBackendEnsemble | Configuration files, Triton custom C++ backend implementation and custom library implementation for Triton ensemble model example. Demonstrates use of Triton ensemble models with gst-nvinferserver plugin and how to implement custom Triton C++ backend to access DeespStream metadata like stream ID using multi-input tensors. |
+| deepstream-multigpu-nvlink-test | apps/sample_apps/deepstream-multigpu-nvlink-test | Uses gst-nvdsxfer plugin to simulate pipelines with NVLINK enabled multi-gpu setup to achieve better performance. User can use "position" param of nvxfer config section from dsmultigpu_config.yml file to simulate gst-nvxfer plugin supported various multi-gpu usecase pipelines. |
+| deepstream-ipc-test | apps/sample_apps/deepstream-ipc-test | Demonstrates decoder buffer sharing IPC use-case on Jetson platform for live streams to optimize NVDEC HW utilization. This example uses IPC sink and IPC source element to interconnect GStreamer pipelines that run in different processes. |
+| deepstream-demuxer-static | apps/sample_apps/deepstream-demuxer-static | Demonstrates dynamically adding pads to nvstreamdemux already linked in the pipeline. Uses nvstreamdemux to separate batched frames into individual streams. Supports static source pads (predefined URI list) and dynamic source pads (REST API-based addition). |
+| deepstream-demuxer-dynamic | apps/sample_apps/deepstream-demuxer-dynamic | Demonstrates dynamically adding nvstreamdemux to the pipeline during runtime. Uses tee element to split output: one branch to tiler and another to dynamically created nvstreamdemux. Each demuxer source pad gets a processing branch (queue -> nvdsosd -> sink). |
+| KITTI overlay example | apps/sample_apps/deepstream-kitti-overlay | Builds on deepstream-test3, but does NOT run inference. Overlays bounding boxes from pre-generated DeepStream KITTI dump files onto one or more video sources for offline analysis, using a uridecodebin so any GStreamer-supported input, container format, and codec can be used. |
+| Dynamic source decoder throughput example | apps/sample_apps/deepstream-dynamicsrcbin-test | Demonstrates the nvdsdynamicsrcbin element for high decoder-throughput scenarios. The element keeps a single decoder active at all times and supports run-time addition and removal of video sources without pipeline reconstruction, avoiding per-stream decoder initialization overhead. |
+| Triton ONNX YOLOv3 custom postprocessing example | apps/sample_apps/TritonOnnxYolo | Demonstrates using Gst-nvinferserver (DS-Triton) to run ONNX YOLOv3 models with dynamic-sized, multi-input output tensors, and how to implement a custom nvdsinferserver::IInferCustomProcessor to parse the mixed-batch output tensors and attach detection bounding boxes into NvDs metadata. |
+
+<Note>
+Apps which write output files (example: `deepstream-image-meta-test`, `deepstream-testsr`, `deepstream-transfer-learning-app`) should be run with `sudo` permission.
+</Note>
+
+## Plugin and Library Source Details
+
+The following table describes the contents of the sources directory except for the reference test applications:
+
+**Plugin and Library source details**
+
+| Plugin or library | Path inside sources directory | Description |
+| --- | --- | --- |
+| DsExample GStreamer plugin | gst-plugins/gst-dsexample | Template plugin for integrating custom algorithms into DeepStream SDK graph. |
+| GStreamer Gst-nvmsgconv plugin | gst-plugins/gst-nvmsgconv | Source code for the GStreamer Gst-nvmsgconv plugin to convert metadata to schema format. |
+| GStreamer Gst-nvmsgbroker plugin | gst-plugins/gst-nvmsgbroker | Source code for the GStreamer Gst-nvmsgbroker plugin to send data to the server. |
+| GStreamer Gst-nvdspreprocess plugin | gst-plugins/gst-nvdspreprocess | Source code for the GStreamer Gst-nvdspreprocess plugin for preprocessing on the predefined ROIs. |
+| GStreamer Gst-nvinfer plugin | gst-plugins/gst-nvinfer | Source code for the GStreamer Gst-nvinfer plugin for inference. |
+| GStreamer Gst-nvinferserver plugin | gst-plugins/gst-nvinferserver | Source code for the GStreamer Gst-nvinferserver plugin for inference using Triton Inference Server. |
+| GStreamer Gst-nvdsosd plugin | gst-plugins/gst-nvdsosd | Source code for the GStreamer Gst-nvdsosd plugin to draw bboxes, text and other objects. |
+| Gstreamer Gst-nvdewarper plugin | gst-plugins/gst-nvdewarper | Source code for the GStreamer Gst-nvdewarper plugin to dewarp frames |
+| NvDsInfer library | libs/nvdsinfer | Source code for the NvDsInfer library, used by the Gst-nvinfer GStreamer plugin. |
+| NvDsInferServer library | libs/nvdsinferserver | Source code for the NvDsInferServer library, used by the Gst-nvinferserver GStreamer plugin. |
+| NvDsNmos library | libs/nvdsnmos | Source code for the NvDsNmos library, demonstrated by the DeepStream NMOS Application. |
+| NvMsgConv library | libs/nvmsgsconv | Source code for the NvMsgConv library, required by the Gst-nvmsgconv GStreamer plugin. |
+| Kafka protocol adapter | libs/kafka_protocol_adapter | Protocol adapter for Kafka. |
+| nvds_rest_server library | libs/nvds_rest_server | Source code for the rest server. |
+| nvds_customhelper | libs/gstnvdscustomhelper | Source code for "nvdsmultiurisrcbin helper" and custom "gst-events, gst-messages and common configs" required for rest server. |
+| nvdsinfer_customparser | libs/nvdsinfer_customparser | Custom model output parsing example for detectors and classifiers. |
+| Gst-v4l2 | See the note below [#f1]_ | Source code for v4l2 codecs. |
+| Gstreamer gst-nvdsvideotemplate plugin | gst-plugins/gst-nvdsvideotemplate | Source code for template plugin to implement video custom algorithms (non Gstreamer based) |
+| NvDsVideoTemplate custom library | gst-plugins/gst-nvdsvideotemplate/customlib_impl | Source code for custom library to implement video custom algorithms |
+| Gstreamer gst-nvdsmetautils | gst-plugins/gst-nvdsmetautils | Source code for Gstreamer Gst-nvdsmetainsert and Gst-nvdsmetaextract plugins to process metadata |
+| NvDsMetaUtils SEI serialization library | gst-plugins/gst-nvdsmetautils/sei_serialization | Source code for custom meta de/serialization to embed in encoded bitstream as SEI data, required by Gst-nvdsmetautils plugins |
+| NvDsMetaUtils Audio serialization library | gst-plugins/gst-nvdsmetautils/audio_metadata_serialization | Source code for Audio NvDsFrameMeta de/serialization, required by Gst-nvdsmetautils plugins |
+| NvDsMetaUtils Video serialization library | gst-plugins/gst-nvdsmetautils/video_metadata_serialization | Source code for Video NvDsFrameMeta & NvDsObjectMeta de/serialization, required by Gst-nvdsmetautils plugins |
+| Gstreamer gst-nvvideotestsrc plugin | gst-plugins/gst-nvvideotestsrc | Source code to generate video test data in a variety of formats and patterns that is written directly to GPU output buffers |
+| Gstreamer gst-nvdspostprocess plugin | gst-plugins/gst-nvdspostprocess | Source code for the plugin and low level lib to provide a custom library interface for post processing on Tensor output of inference plugins (nvinfer/nvinferserver) |
+| Gstreamer gst-nvtracker plugin | gst-plugins/gst-nvtracker | Source code for the plugin to track the detected objects with persistent (possibly unique) IDs over time |
+| Gstreamer gst-nvdsanalytics plugin | gst-plugins/gst-nvdsanalytics | Interface for performing analytics on metadata attached by nvinfer (primary detector) and nvtracker |
+| Gstreamer gst-nvstreammux New plugin | gst-plugins/gst-nvmultistream2 | Source code for the plugin to form a batch of frames from multiple input sources |
+| DS3D lidar file reader custom lib | libs/ds3d/dataloader/lidarsource | Source code for DS3D lidar file reader with an implementation of ds3d::dataloader interface, developer could follow it to implement custom lidar device capture,  see lib details in **DS_3D_Custom_Manual_dataloader_lidar_file_spec** |
+| DS3D lidar data reader custom process lib | libs/ds3d/datafilter/lidar_preprocess | Source code for DS3D lidar data processing with an implementation of ds3d::datafilter interface |
+| DS3D lidar detection postprocess custom lib | libs/ds3d/inference_custom_lib/ds3d_lidar_detection_postprocess | Source code for DS3D lidar and sensor fusion(bevfusion) postprocessing custom lib |
+| DS3D lidar v2xfusion postprocess custom lib | libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_postprocess | Source code for DS3D lidar and sensor fusion(v2xfusion) postprocessing custom lib |
+| DS3D lidar v2xfusion preprocess custom lib | ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess | Source code for DS3D sensor fusion(v2xfusion) preprocess custom lib |
+| Gstreamer Gst-nvurisrcbin plugin | gst-plugins/gst-nvurisrcbin | Source code for the Gstreamer Gst-nvurisrcbin plugin which is is a wrapper over uridecodebin with additional functionality of the file looping, rtsp reconnection and smart record |
+| Gstreamer Gst-nvmultiurisrcbin plugin | gst-plugins/gst-nvmultiurisrcbin | Source code for the Gstreamer Gst-nvmultiurisrcbin plugin which integrates gstnvurisrcbin, nvstreammux plugin with REST server support enabled by default. |
+| Gst-nvdssr library | libs/gst-nvdssr | Source code for smart record library |
+| nvll_osd library | libs/nvll_osd | Source code for osd low level library |
+| Gstreamer gst-nvimage | gst-plugins/gst-nvimage | Source code for nvimageenc and nvimagedec plugin |
+| Gstreamer gst-nvdsudp | gst-plugins/gst-nvdsudp | Source code for nvdsudpsrc, nvdsudpsink plugin |
+
+[^f1]: Gst-v4l2 sources are not present in DeepStream package. To download, follow these steps:
+
+          1. Go to: https://developer.nvidia.com/embedded/downloads.
+          2. In the `Search filter` field, enter `L4T`
+          3. Select the appropriate item for L4T Release `39.2`.
+          4. Search for `L4T Driver Package (BSP) Sources`
+          5. Download the file and `un-tar` it, to get the `.tbz2` file.
+          6. Expand the `.tbz2` file. `Gst-v4l2` source files are in `gst-nvvideo4linux2_src.tbz2`. libnvv4l2 sources are present in `v4l2_libs_src.tbz2`

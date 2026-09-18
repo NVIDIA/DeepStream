@@ -1,0 +1,55 @@
+Property,Meaning,Type and Range,Example Notes
+tracker-width,"Frame width at which the tracker is to operate, in pixels.","Integer, 0 to 4,294,967,295",tracker-width=640
+tracker-height,"Frame height at which the tracker is to operate, in pixels.","Integer, 0 to 4,294,967,295",tracker-height=384
+ll-lib-file,Pathname of the low-level tracker library to be loaded by Gst-nvtracker.,String,ll-lib-file=­/opt/nvidia/­deepstream/­deepstream/­lib/libnvds_nvmultiobjecttracker.so
+ll-config-file,"Configuration file for the low-level library if needed.
+
+A list of configuration files can be specified when the property `sub-batches` is configured.","Path to configuration file OR
+
+A list of paths to configuration files delimited by semicolon","ll-config-file=config_tracker_NvDCF_perf.yml
+
+ll-config-file=config_tracker_NvDCF_perf1.yml;
+config_tracker_NvDCF_perf2.yml"
+gpu-id,"ID of the GPU on which device/unified memory is to be allocated, and with which buffer copy/scaling is to be done. (dGPU only.)","Integer, 0 to 4,294,967,295",gpu-id=0
+tracking-surface-type,Set surface stream type for tracking. (default value is 0),"Integer, ≥0",tracking-surface-type=0
+display-tracking-id,Enables tracking ID display on OSD.,Boolean,display-tracking-id=1
+compute-hw,"Compute engine to use for scaling.
+
+0 - Default
+
+1 - GPU
+
+2 - VIC (Jetson only)","Integer, 0 to 2",compute-hw=1
+tracking-id-reset-mode,"Allow force-reset of tracking ID based on pipeline event. Once tracking ID reset is enabled and such event happens, the lower 32-bit of the tracking ID will be reset to 0
+
+0: Not reset tracking ID when stream reset or EOS event happens
+
+1: Terminate all existing trackers and assign new IDs for a stream when the stream reset happens (i.e., GST_NVEVENT_STREAM_RESET)
+
+2: Let tracking ID start from 0 after receiving EOS event  (i.e., GST_NVEVENT_STREAM_EOS) (Note: Only the lower 32-bit of tracking ID to start from 0)
+
+3: Enable both option 1 and 2","Integer, 0 to 3",tracking-id-reset-mode=0
+input-tensor-meta,Use the tensor-meta from Gst-nvdspreprocess if available for tensor-meta-gie-id,Boolean,input-tensor-meta=1
+tensor-meta-gie-id,"Tensor Meta GIE ID to be used, property valid only if input-tensor-meta is TRUE","Unsigned Integer, ≥0",tensor-meta-gie-id=5
+sub-batches,"Configures splitting of a batch of frames in sub-batches. There are two ways to configure sub-batches.
+
+First option allows static mapping of each source id to individual sub-batch.
+
+Second option lets the user configure the sub-batch sizes. Mapping of individual streams to sub-batch happens dynamically at runtime.","Option 1 : Semicolon delimited integer array where each number corresponds to source id.
+
+Must include all values from 0 to (batch-size -1) where batch-size is configured in ``[streammux]``.
+
+Option 2 : Colon delimited integer array where each number corresponds to size of a sub-batch (i.e. max number of stream a sub-batch can accommodate)","Option 1 : sub-batches=0,1;2,3
+
+In this example, a batch size of 4 is split into two sub-batches where the first sub-batch consists of source ids 0 & 1 and second sub-batch consists of source ids 2 & 3
+
+Option 2 : sub-batches=2:1
+
+The above example indicates that there are two sub-batches, first one can accommodate 2 streams and second one can accommodate 1."
+sub-batch-err-recovery-trial-cnt (Alpha feature),"Configure the number of times the plugin can try to recover when the low level tracker in a sub-batch returns with a fatal error.
+
+To recover from the error, the plugin reinitializes the low level tracker library.","Integer,≥-1  where,
+
+-1 corresponds to infinite trials", sub-batch-err-recovery-trial-cnt=3
+user-meta-pool-size,"The size of tracker miscellaneous data buffer pool","Unsigned Integer, >0",user-meta-pool-size=32
+operate-on-class-ids,"Filtering objects based on class ID. When class IDs are specified, only objects with matching class IDs will have tracker metadata. Metadata for other objects will be copied directly to downstream without tracking. If class IDs are not specified or are empty, all classes are tracked by default.","Semicolon-separated list of class IDs (String)",operate-on-class-ids=1;2

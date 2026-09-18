@@ -1,0 +1,43 @@
+---
+title: "Gst-nvimageenc"
+---
+
+The Gst-nvimageenc plugin encodes images on dGPU and (ARM + dGPU) platforms like arm-sbsa.
+This plugin is based on the `libnvjpeg` library which is part of the CUDA toolkit.
+The plugin accepts RGB input and produces JPEG encoded bitstream.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Gst Buffer in RGB format
+
+* Control parameters
+
+  *	gpu-id
+
+* Output
+
+  *	Gst Buffer with encoded output in JPEG format
+
+## Features
+
+The following table summarizes the features of the Gst-nvimageenc plugin.
+
+**Gst-nvimageenc plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports JPEG Encode | — | DS 6.4 |
+
+## Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvimageenc plugin.
+
+**Gst-nvimageenc plugin gst properties**
+
+| Property | Meaning | Type and Range | Example and Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| gpu-id | Device ID of GPU to use for encoding. | Integer,<br />0 to 4,294,967,295 | gpu-id=0 | dGPU,<br />ARM+dGPU |
+| quality | Encoder quality | Integer,<br />0 to 100 | quality=90 | dGPU,<br />ARM+dGPU |
+| encoded-size | Encoded size of the output buffer | Integer,<br />0 to 4,294,967,295 | encoded-size=4194304 | dGPU,<br />ARM+dGPU |

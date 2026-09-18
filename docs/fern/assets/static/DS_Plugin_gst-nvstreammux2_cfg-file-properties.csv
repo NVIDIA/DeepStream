@@ -1,0 +1,46 @@
+Group,config-key,Description
+[property],algorithm-type,"Defines the batching algorithm; uint
+
+1 : Round-robin if all sources have same priority key setting. Otherwise higher priority streams will be batched until no more buffers from them.
+
+Default: 1"
+,batch-size,"The desired batch size; uint.
+This value will override plugin property and DS config file key “batch-size” for nvstreammux
+
+If batch-size not specified in the config-file, plugin property batch-size shall override the default.
+
+Default: 1 (or == number of sources if adaptive-batching=1)"
+,overall-max-fps-n,"Numerator of the desired overall muxer output max frame rate fps_n/fps_d; uint
+
+Default:120/1
+Note: This value needs to be configured to a value >= overall-min-fps even when max-fps-control=0."
+,overall-max-fps-d,Denominator of the desired overall muxer output max frame rate fps_n/fps_d; uint
+,overall-min-fps-n,"Numerator of the desired overall muxer output min frame rate fps_n/fps_d; uint
+
+Default: 5/1"
+,overall-min-fps-d,Denominator of the desired overall muxer output max frame rate fps_n/fps_d; uint
+,max-same-source-frames,"Max number of any stream’s frames allowed to be muxed per output batch buffer; uint
+
+The minimum of this value and key (max-num-frames-per-batch) will be used.
+
+Default: 1"
+,adaptive-batching,"Enable (1) or disable (0) adaptive batching; uint
+
+Default: 1
+If enabled, batch-size is == number of sources X num-surfaces-per-frame."
+,max-fps-control, "Enable (1) or disable (0) controlling the maximum frame-rate at which nvstreammux
+pushes out batch buffers based on the overall-max-fps-n/d configuration. Default: 0"
+
+[source-config-N],max-fps-n,"Numerator of this source’s max frame rate fps_n/fps_d. Deprecated (shall remove support from next release). Please use overall-max-fps instead; uint
+
+Default: 60/1"
+,max-fps-d,Denominator of this source’s max frame rate fps_n/fps_d. Deprecated (shall remove support from next release). Please use overall-max-fps instead. ; uint
+,min-fps-n,Numerator of this source’s min frame rate fps_n/fps_d. Deprecated (shall remove support from next release). Please use overall-min-fps instead; uint
+,min-fps-d,Denominator of this source’s min frame rate fps_n/fps_d. Deprecated (shall remove support from next release). Please use overall-min-fps instead; uint
+,priority,"The priority of this stream. Deprecated (shall remove support from next release). Please use algorithm-type instead; uint
+
+Default: 0 (highest priority)
+A higher value is a lower priority."
+,max-num-frames-per-batch,"Max number of this stream’s frames allowed to be muxed per output batch buffer; uint
+
+The minimum of this value and key (max-same-source-frames) will be used."

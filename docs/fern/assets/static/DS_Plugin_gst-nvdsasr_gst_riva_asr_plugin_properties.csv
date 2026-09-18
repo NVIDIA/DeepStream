@@ -1,0 +1,7 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,Must be name: ds_riva_asr_plugin
+detail,Node DS-Riva ASR library details,Node,detail: final_only: false
+final_only,Part of detail node. Specify whether final transcriptions only or with partial transcription output together,Boolean,final_only: false
+enable_text_pts,Part of detail node. Specify whether text buffer timestamp is enabled or not.,Boolean,enable_text_pts: false
+use_riva_pts,Part of detail node. Specify whether time information provided by Riva service is used to calculate the timestamp and duration of output buffer. Note: At present this option is supported for non-live sources only,Boolean,use_riva_pts: false
+force_final_trailing,Part of detail node. Enable insertion of new line character after the final transcription,Boolean,force_final_trailing: false

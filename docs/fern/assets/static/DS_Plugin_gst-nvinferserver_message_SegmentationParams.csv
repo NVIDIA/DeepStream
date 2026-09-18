@@ -1,0 +1,11 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+threshold,Segmentation score lesser than this threshold would be rejected,float,threshold: 0.5,"Segmentation
+
+Both"
+num_segmentation_classes,Number of output classes for the segmentation network,"int32, >0",num_segmentation_classes: 2,"Segmentation
+
+Both"
+custom_parse_segmentation_func,"Name of the custom segmentation output parsing function. If not specified, Gst-nvinferserver uses the internal function for the UNet model provided by the SDK. If specified, users also need to set custom_lib to load custom library.",string,custom_parse_segmentation_func: "NvDsInferParseCustomPeopleSemSegNet","Segmentation
+
+Both"

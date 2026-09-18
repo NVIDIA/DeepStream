@@ -1,0 +1,11 @@
+﻿Feature,Description,Release
+Configure GPU selection,Sets the GPU ID to be used for optical flow visualization operations (valid only for dGPU platforms),DS 8.0
+buffer copy,copy buffer for every client,DS 8.0
+buffer timestamp copy,copy timestamp of received buffer,DS 8.0
+compute HW,Compute HW for copy operation,DS 8.0
+meta deserialization lib,Set meta deserialization library name to be used,DS 8.0
+socket type,The type of underlying socket,DS 8.0
+socket path,The path to the control socket used to control the shared memory,DS 8.0
+connection attempts,Max number of attempts for connection,DS 8.0
+connection interval,connection interval,DS 8.0
+

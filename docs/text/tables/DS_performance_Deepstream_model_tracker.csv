@@ -1,0 +1,30 @@
+﻿,,,"Jetson 
+
+Nano","Jetson 
+
+Tx2","Jetson
+
+Xavier NX",,,"Jetson 
+
+AGX 
+
+Xavier",,,T4,"A100
+
+PCIe"
+Model Arch,Tracker,Inference resolution,"GPU
+
+(FPS)","GPU 
+
+(FPS)","GPU 
+
+(FPS)",DLA1 (FPS),DLA2 (FPS),"GPU
+
+(FPS)",DLA1 (FPS),DLA2 (FPS),"GPU 
+
+(FPS)","GPU 
+
+(FPS)"
+DetectNetV2 – ResNet10,No Tracker,480x272,"92","240","1014",443,443,"1809",581,581,2486,"5516"
+DetectNetV2 – ResNet10,NvDCF,480x272,"66","142","513",256,256,"885",442,442,2395,"2672"
+DetectNetV2 – ResNet10 + ResNet18 classifiers,IoU,480x272 + 224x224,"52","182","749",N/A,N/A,"1403",N/A,N/A,2340,"4725"
+DetectNetV2 – ResNet10 + ResNet18 classifiers,NvDCF,480x272 + 224x224,"41","116","452",N/A,N/A,"803",N/A,N/A,2135,"3045"

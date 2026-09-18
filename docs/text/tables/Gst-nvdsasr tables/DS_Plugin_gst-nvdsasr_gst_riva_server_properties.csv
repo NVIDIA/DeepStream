@@ -1,0 +1,4 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,name: riva_server
+detail,Node for Riva Server Setting details,Node,detail: server_uri: "localhost:50051"
+server_uri,Part of detail node. Specify Riva ASR service address. Used in case of gRPC APIs.,String,server_uri: "localhost:50051"

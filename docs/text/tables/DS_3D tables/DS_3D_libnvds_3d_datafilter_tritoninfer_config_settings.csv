@@ -1,0 +1,21 @@
+Property,Meaning,Type and Range,Example
+in_streams,which data type will be processed,"List of String, Optional",in_streams: [lidar]
+gpu_id,GPU device ID,"Integer, default value:０",gpu_id: 0
+config_file,"nvinferserver(triton) low level lib config file, supports gRPC and CAPI,
+see more details :ref:`DS_Plugin_gst_nvinferserver_low_level_spec`",String of Path,config_file: model_config_files/config_triton_bev_fusion_infer_grpc.pbtxt
+mem_pool_size,Size of the input tensor pool,Integer,mem_pool_size: 8
+model_inputs,"model 's input layers information, If there is no custom_preprocess defined, inferencefilter would forward the key-value frames from ``ds3d::datamap`` to triton's input tensor",List of Dict,"- name: input_image_0
+      datatype: UINT8
+      shape: [1, 900, 1600, 4]
+      from: DS3D::ColorFrame_0+1
+      is_2d_frame: true"
+input_tensor_mem_type,input tensor memory type after preprocess,String:[GpuCuda CpuCuda],input_tensor_mem_type: GpuCuda
+custom_preprocess_lib_path,custom preprocessing library path,String,custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_lidar_custom_preprocess_impl.so
+custom_preprocess_func_name,customized preprocessing function name,String,custom_preprocess_func_name: CreateInferServerCustomPreprocess
+postprocess,User defined postprocessing information,Dict,"postprocess:
+    score_threshold: 0.5"
+labels,User defined labels for custom postprocess,List of Dict,"labels:
+    - car:
+        color: [255, 158, 0]
+    - truck:
+        color: [255, 99, 71]"

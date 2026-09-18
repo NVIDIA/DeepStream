@@ -1,0 +1,14 @@
+﻿Application Configuration,Specification
+N×1080p 30 fps streams,"| ``sample_1080p_h265.mp4`` (provided with the SDK) N=30
+| ``sample_1080p_h264.mp4`` (provided with the SDK) N=23"
+Primary GIE,"* Resnet10 (960x544) Asynchronous mode enabled
+* Batch Size = N
+* Interval = 0"
+Tracker,"Enabled; processing at 960x544 resolution, IOU tracker enabled."
+3× secondary GIEs,"All batches are size 32.
+
+* Secondary_VehicleTypes (224×224—Resnet18)
+* Secondary_CarColor (224×224—Resnet18)
+* Secondary_CarMake (224×224—Resnet18)"
+OSD/tiled display,Disabled
+Renderer,Disabled

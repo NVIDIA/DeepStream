@@ -1,0 +1,28 @@
+Configuration File,Description,Platform
+source30_1080p_dec_infer-resnet_tiled_display.txt,Demonstrates 30 stream decodes with primary inferencing,For all platforms.
+source30_1080p_dec_infer-resnet_tiled_display.yml,YAML based config file to demonstrate 30 stream decode with primary inference for dGPU and Jetson AGX Orin platforms only.,For all platforms.
+source4_1080p_dec_infer-resnet_tiled_display.txt,"Demonstrates four stream decodes with primary inferencing, object tracking, and two different secondary classifiers",For all platforms.
+source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.yml,"YAML based config file to demonstrate four stream decode with primary inferencing, object tracking, and two different secondary classifiers",For all platforms.
+source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display_gpu1.txt,"Demonstrates four stream decodes with primary inferencing, object tracking, and two different secondary classifiers on GPU 1 (for systems that have multiple GPU cards)",For x86 platforms only
+config_infer_primary.txt,Configures a nvinfer element as primary detector,For all platforms.
+config_infer_primary.yml,YAML based config file to configure a nvinfer element as primary detector,For all platforms.
+"config_infer_secondary_vehiclemake.txt, config_infer_secondary_vehicletypes.txt",Configure a nvinfer element as secondary classifier,For all platforms.
+"config_infer_secondary_vehiclemake.yml, config_infer_secondary_vehicletypes.yml",YAML based config file to configure a nvinfer element as secondary classifier,For all platforms.
+config_tracker_IOU.yml,Config file for IOU tracker,For all platforms.
+config_tracker_NvSORT.yml,Config file for NvSORT tracker,For all platforms.
+config_tracker_NvDeepSORT.yml,Config file for NvDeepSORT tracker,For all platforms.
+config_tracker_NvDCF_accuracy.yml,Config file for NvDCF tracker for higher accuracy,For all platforms.
+config_tracker_NvDCF_max_perf.yml,Config file for NvDCF tracker for max perf mode,For all platforms.
+config_tracker_NvDCF_perf.yml,Config file for NvDCF tracker for perf mode,For all platforms.
+config_preprocess.txt,Config file for using preprocess in PGIE mode,For all platforms.
+config_preprocess_sgie.txt,Config file for using preprocess in SGIE mode,For all platforms.
+source4_1080p_dec_preprocess_infer-resnet_preprocess_sgie_tiled_display.txt,"Demonstrates four stream decodes with preprocess plugin in PGIE mode followed by primary inferencing, preprocess plugin in SGIE mode, and two different secondary classifiers",For all platforms.
+source30_1080p_dec_preprocess_infer-resnet_tiled_display.txt,Demonstrates 30 stream decodes with preprocess plugin in PGIE mode followed by primary inferencing,For all platforms.
+sources_30.csv,CSV file for 30 sources required in source30_1080p_dec_infer-resnet_tiled_display.yml,For all platforms.
+sources_4.csv,CSV file for 30 sources required in source4_1080p_dec_infer-resnet_tracker_sgie_tiled_display.yml,For all platforms.
+source1_usb_dec_infer_resnet.txt,Demonstrates one USB camera as input,For all platforms.
+source1_csi_dec_infer_resnet.txt,Demonstrates one CSI camera as input,For Jetson only
+source2_csi_usb_dec_infer_resnet.txt,Demonstrates one CSI camera and one USB camera as inputs,For Jetson only
+source6_csi_dec_infer_resnet.txt,Demonstrates six CSI cameras as inputs,For Jetson only
+source2_1080p_dec_infer-resnet_demux.txt,Demonstrates demux mode for two sources,For all platforms.
+"config_mux_source4.txt, config_mux_source30.txt",Sample nvstreammux (new) config files. For more details see :ref:`Section Mux Config Properties <DS_plugin_gst_nvstreammux2_config_file_properties>`,For all platforms.

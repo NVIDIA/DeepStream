@@ -1,0 +1,9 @@
+System Configuration,Specification
+CPU,Dual Intel® Xeon® CPU E5-2650 v4 @ 2.20GHz (48 threads total)
+GPU,Tesla T4*
+System Memory,"360448Mb (22x16384) DDR42666, 2400MHz"
+Ubuntu,Ubuntu 22.04
+GPU Driver,535.161.08
+CUDA,12.2
+TensorRT,8.6.1.6
+GPU clock frequency,1513 MHz

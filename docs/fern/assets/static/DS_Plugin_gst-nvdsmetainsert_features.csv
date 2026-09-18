@@ -1,0 +1,4 @@
+﻿Feature,Description,Release
+Simplified API,Simplified interface to implement custom library to add any algorithm without implementing new plugin,DS 6.1
+Easy Data Accessing,Easy access to GstBuffer and it’s metadata inside custom library,DS 6.1
+Reference Impl.,"Reference implementation of custom library provides implementation for serialized data to be used with decoder, serializing and de-serializing of NvDsBatchmeta.",DS 6.1

@@ -1,0 +1,3 @@
+Container,Container pull commands
+Triton Inference Server docker with Triton Inference Server and dependencies installed along with a development environment for building DeepStream applications,``docker pull nvcr.io/nvidia/deepstream:9.2-triton-multiarch``
+"DeepStream samples docker (contains the runtime libraries, GStreamer plugins, reference applications and sample streams, models and configs)",``docker pull nvcr.io/nvidia/deepstream:9.2-samples-multiarch``

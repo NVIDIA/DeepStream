@@ -1,0 +1,10 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+inputs,"Backend input layer settings, optional",InputLayer arrays,see details in InputLayer," | All
+ | Both"
+outputs,"Backend output layer settings, optional",OutputLayer arrays,see details in OutputLayer," | All
+ | Both"
+triton,backend of Triton Inference Server settings,TritonParams,see details in TritonParams," | All
+ | Both"
+output_mem_type,"Triton native output tensor memory type","MemoryType select from [MEMORY_TYPE_DEFAULT, MEMORY_TYPE_CPU, MEMORY_TYPE_GPU]",output_mem_type: MEMORY_TYPE_CPU," | All
+ | Both"

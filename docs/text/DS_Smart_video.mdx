@@ -1,0 +1,118 @@
+---
+title: "Smart Video Record"
+---
+
+Smart video record is used for event (local or cloud) based recording of original data feed. Only the data feed with events of importance is recorded instead of always saving the whole feed. This recording happens in parallel to the inference pipeline running over the feed.
+A video cache is maintained so that recorded video has frames both before and after the event is generated. The size of the video cache can be configured per use case.
+
+In smart record, encoded frames are cached to save on CPU memory. Based on the event, these cached frames are encapsulated under the chosen container to generate the recorded video. This means, the recording cannot be started until we have an Iframe. The first frame in the cache may not be an Iframe, so, some frames from the cache are dropped to fulfil this condition. This causes the duration of the generated video to be less than the value specified.
+
+Below diagram shows the smart record architecture:
+
+   ![Smart Video Record Architecture](/assets/images/content/DS_smart_video_record.png)
+
+## Smart Video Record Module APIs
+
+This module provides the following APIs. See the `gst-nvdssr.h` header file for more details.
+
+- `NvDsSRStatus NvDsSRCreate (NvDsSRContext **ctx, NvDsSRInitParams *params);`
+    • This function creates the instance of smart record and returns the pointer to an allocated `NvDsSRContext`. The `params` structure must be filled with initialization parameters required to create the instance.
+    •	A callback function can be setup to get the information of recorded audio/video once recording stops. `userData` received in that callback is the one which is passed during `NvDsSRStart()`.
+    • `GstBin` which is the `recordbin` of `NvDsSRContext` must be added to the pipeline. It expects encoded frames which will be `muxed` and saved to the file. Add this bin after the audio/video parser element in the pipeline.
+    • Call `NvDsSRDestroy()` to free resources allocated by this function.
+- `NvDsSRStatus NvDsSRStart (NvDsSRContext *ctx, NvDsSRSessionId *sessionId, guint startTime, guint duration, gpointer userData);`
+    • This function starts writing the cached audio/video data to a file. It returns the session id which later can be used in `NvDsSRStop()` to stop the corresponding recording.
+    • Here `startTime` specifies the seconds before the current time and `duration` specifies the seconds after the start of recording.
+    • If current time is `t1`, `content from t1 - startTime to t1 + duration` will be saved to file. Therefore, a total of `startTime + duration seconds` of data will be recorded. In case duration is set to zero, recording will be stopped after `defaultDuration` seconds set in `NvDsSRCreate()`.
+    •	Any data that is needed during callback function can be passed as `userData`.
+- `NvDsSRStatus NvDsSRStop (NvDsSRContext *ctx, NvDsSRSessionId sessionId);`
+    • This function stops the previously started recording.
+- `NvDsSRStatus NvDsSRDestroy (NvDsSRContext *ctx);`
+    • This function releases the resources previously allocated by `NvDsSRCreate()`
+
+See the `deepstream_source_bin.c` for more details on using this module.
+
+## Smart Video Record Configurations
+
+In existing `deepstream-test5-app` only RTSP sources are enabled for smart record. There are two ways in which smart record events can be generated – either through local events or through cloud messages. To enable smart record in `deepstream-test5-app` set the following under `[sourceX]` group:
+
+  -	`smart-record=<1/2>`
+
+     To enable smart record through only cloud messages, set `smart-record=1` and configure `[message-consumerX]` group accordingly.
+     The following minimum json message from the server is expected to trigger the `Start/Stop` of smart record.
+
+```
+ {
+  command: string   // <start-recording / stop-recording>
+  start: string     // "2020-05-18T20:02:00.051Z"
+  end: string       // "2020-05-18T20:02:02.851Z",
+  sensor: {
+  id: string
+ }
+}
+```
+
+     If you set `smart-record=2`, this will enable smart record through cloud messages as well as local events with default configurations. That means smart record `Start/Stop` events are generated every 10 seconds through local events.
+     Following are the default values of configuration parameters:
+
+```
+cache size = 30 seconds,
+container = MP4,
+default duration = 10 seconds,
+interval = 10 seconds,
+file prefix = Smart_Record etc.
+```
+
+     Following fields can be used under `[sourceX]` groups to configure these parameters.
+
+        * `smart-rec-cache=<val in seconds>`
+          Size of cache in seconds. This parameter will increase the overall memory usages of the application.
+        * `smart-rec-duration=<val in seconds>`
+          Duration of recording.
+        * `smart-rec-start-time=<val in seconds>`
+          Here, start time of recording is the number of seconds earlier to the current time to start the recording.
+          For example, if t0 is the current time and N is the start time in seconds that means recording will start from t0 – N. For it to work, the cache size must be greater than the N.
+        * `smart-rec-default-duration=<val in seconds>`
+          In case a Stop event is not generated. This parameter will ensure the recording is stopped after a predefined default duration.
+        * `Smart-rec-container=<0/1>`
+          MP4 and MKV containers are supported.
+        * `smart-rec-interval=<val in seconds>`
+          This is the time interval in seconds for SR start / stop events generation.
+          In the deepstream-test5-app, to demonstrate the use case smart record Start / Stop events are generated every interval second.
+        * `smart-rec-file-prefix=<file name prefix>`
+          Prefix of file name for generated stream. By default, “Smart_Record” is the prefix in case this field is not set. For unique names every source must be provided with a unique prefix.
+        * `smart-rec-dir-path=<path of directory to save the file>`
+          Path of directory to save the recorded file. By default, the current directory is used.
+
+Recording also can be triggered by JSON messages received from the cloud. The message format is as follows:
+
+```
+{
+command: string   // <start-recording / stop-recording>
+start: string     // "2020-05-18T20:02:00.051Z"
+end: string       // "2020-05-18T20:02:02.851Z",
+sensor: {
+id: string
+}
+}
+```
+
+Receiving and processing such messages from the cloud is demonstrated in the `deepstream-test5` sample application. This is currently supported for Kafka. To activate this functionality, populate and enable the following block in the application configuration file:
+
+```
+# Configure this group to enable cloud message consumer.
+[message-consumer0]
+enable=1
+proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_kafka_proto.so
+conn-str=<host>;<port>
+config-file=<broker config file e.g. cfg_kafka.txt>
+subscribe-topic-list=<topic1>;<topic2>;<topicN>
+# Use this option if message has sensor name as id instead of index (0,1,2 etc.).
+#sensor-list-file=dstest5_msgconv_sample_config.txt
+```
+
+While the application is running, use a Kafka broker to publish the above JSON messages on topics in the subscribe-topic-list to start and stop recording.
+
+<Note title="Currently, there is no support for overlapping smart record.">
+
+</Note>

@@ -1,0 +1,26 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+name,input tensor name,string,name: “input_0”,"All
+
+Both"
+dims,"input tensor shape, optional. Only required if backend cannot figure out fixed input shapes","int32 array,
+> 0","dims: [299, 299, 3]","All
+
+Both"
+data_type,"enum TensorDataType with types: 
+    
+ | TENSOR_DT_NONE,
+ | TENSOR_DT_FP32,
+ | TENSOR_DT_FP16,
+ | TENSOR_DT_INT8,
+ | TENSOR_DT_INT16,
+ | TENSOR_DT_INT32,
+ | TENSOR_DT_UINT8,
+ | TENSOR_DT_UINT16,
+ | TENSOR_DT_UINT32
+ | Default TENSOR_DT_NONE, 
+
+usually can be deduced from Triton model config.pbtxt",TensorDataType,"data_type:
+TENSOR_DT_FP32","All
+
+Both"

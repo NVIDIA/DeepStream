@@ -1,0 +1,14 @@
+DS release,DS 6.1.1,DS 6.2,DS 6.3,DS 6.4,DS 7.0,DS 7.1,DS 8.0,DS 9.0,DS 9.1,DS 9.2
+GPU platforms,"T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0)","T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA","T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA","T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA","T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA","T4, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA","Turing, Ampere, Hopper, ADA, Blackwell","Turing, Ampere, Hopper, ADA, Blackwell","Turing, Ampere, Hopper, ADA, Blackwell","Turing, Ampere, Hopper, ADA, Blackwell"
+OS,Ubuntu 20.04,Ubuntu 20.04,Ubuntu 20.04,Ubuntu 22.04,Ubuntu 22.04,Ubuntu 22.04,Ubuntu 24.04,Ubuntu 24.04,Ubuntu 24.04,Ubuntu 24.04
+GCC,GCC 9.4.0,GCC 9.4.0,GCC 9.4.0,GCC 11.4.0,GCC 11.4.0,GCC 11.4.0,GCC 11.4.0,GCC 11.4.0,GCC 11.4.0,GCC 11.4.0
+CUDA release,CUDA 11.7.1,CUDA 11.8,CUDA 12.1,CUDA 12.2,CUDA 12.2,CUDA 12.6,CUDA 12.8,CUDA 13.1,CUDA 13.2,CUDA 13.2
+cuDNN release,cuDNN 8.4.1.50+,cuDNN 8.7.0.84-1+,cuDNN 8.8.1.3-1+,cuDNN 8.9.4.25-1+,cuDNN 8.9.6.50-1+,cuDNN 9.3.0,CuDNN 9.7.1,CuDNN 9.18.0,CuDNN 9.20.0.48,CuDNN 9.20.0.48
+TRT release,TRT 8.4.1.5,TRT 8.5.2.2,TRT 8.5.3.1,TRT 8.6.1.6,TRT 8.6.1.6,TRT 10.3.0.26,TRT 10.9.0.34,TRT 10.14.1.48,TRT 10.16.0.72,TRT 10.16.0.72
+Display Driver,R515.65.01,R525.85.12,R525.125.06,R535.104.12,R535.161.08,"R535.183.06(Data Center GPUs), R560.35.03(RTX GPUs)",R570.133.20,R590.48.01,R595.58.03,R595.58.03
+VideoSDK release,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1,SDK 9.1
+OFSDK release,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23,2.0.23
+GStreamer release,GStreamer 1.16.2,GStreamer 1.16.3,GStreamer 1.16.3,GStreamer 1.20.3,GStreamer 1.20.3,GStreamer 1.20.3,GStreamer 1.24.2,GStreamer 1.24.2,GStreamer 1.24.2,GStreamer 1.24.2
+OpenCV release,OpenCV 4.2.0,OpenCV 4.2.0,OpenCV 4.2.0,OpenCV 4.5.4,OpenCV 4.5.4,OpenCV 4.5.4,OpenCV 4.6,OpenCV 4.6,OpenCV 4.6,OpenCV 4.6
+Docker image,deepstream:6.1.1,deepstream:6.2,deepstream:6.3,deepstream:6.4,deepstream:7.0,deepstream:7.1,deepstream:8.0,deepstream:9.0,deepstream:9.1,deepstream:9.2
+NVAIE release,NA,NVAIE-3.x,NVAIE-3.x,NVAIE-4.x,NA,NA,NA,NA,NA,NA

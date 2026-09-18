@@ -1,0 +1,42 @@
+---
+title: "Migrating Traditional DeepStream Apps to Service Maker Apps in Python"
+---
+
+There are two options available for migrating traditional Deepstream applications to Python apps. One option involves using Pipeline APIs with configuration files, while the other option utilizes Flow APIs. Each approach offers its own advantages and can be chosen based on the specific requirements and preferences of the application developers.
+
+Guidelines for migrating Deepstream applications to Python apps using pipeline APIs remain consistent with those of Service Maker C++ APIs. Thus, this section will focus on how to migrate Deepstream Applications to Python apps using Flow APIs.
+
+1. Defining the Video source
+
+    Service Maker uses a Source List YAML file to define inputs, including the source information and input configuration. Specification of source list file can be found in [SourceConfig](/text/DS_service_maker_cpp#sourceconfig). Once we have a Source List file, we can create a batch capture flow with it:
+
+     ```python
+     from pyservicemaker import Pipeline, Flow
+     
+     Flow(Pipeline("my-pipeline")).batch_capture("my_source_list.yaml")
+     ```
+
+2. Pipeline Customization
+
+    In Flow APIs, each predefined section for pipeline customization in the configuration file for a traditional Deepstream Application corresponds to its respective function:
+
+| DS Configuration | Flow API Name |
+| --- | --- |
+| primary-gie | infer |
+| secondary-gie | infer |
+| tracker | track |
+
+3. Sink management
+
+    Flow APIs have corresponding functions for each sink type supported in traditional Deepstream Application:
+
+| DS Sink Type | Flow API Name |
+| --- | --- |
+| Fakesink | render(mode=RenderMode.DISCARD) |
+| Display | render(mode=RenderMode.DISPLAY) |
+| File | encode("/tmp/sample.mp4") |
+| UDP | encode("udp://localhost:5400") |
+| RTSP | encode("rtsp://localhost:5400") |
+| MsgConvBroker | publish |
+
+    To enable multiple-sink, we can just call fork() to fork the current flow and append various sink functions with it (check the 'fork' function in previous sections).

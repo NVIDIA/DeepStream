@@ -1,0 +1,17 @@
+Property,Meaning,Type and Range,Example
+window_title,Specify window title,string,window_title: DS3D-Lidar-6-Cameras-BEVFusion
+window_width,Specify window width,uint32,window_width: 1920
+window_height,Specify window height,uint32,window_height: 1080
+color_clear,Specify whether to clear up the whole window when new frame arrive,bool,color_clear: true
+render_graph,Specify a list of multiple renders in different views,"List[Dict] ",".. code-block:: text
+
+  render_graph:
+   - texture3d_render:
+      layout: [0, 0, 640, 360]
+      color_clear: false
+      texture_frame_key: DS3D::ColorFrame
+   - lidar3d_render:
+      layout:  [640, 0, 1280, 360]
+      color_clear: false
+      lidar_data_key: DS3D::LidarXYZI
+"

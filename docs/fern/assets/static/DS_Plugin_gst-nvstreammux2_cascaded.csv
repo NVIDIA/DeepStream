@@ -1,0 +1,28 @@
+S.No,Configuration Property,Note
+1,"nvstreammux pad index.
+
+mux.sink_%d
+","Note: The user is responsible for maintaining unique pad_indexes across a single pipeline.
+pad_indexes are assigned by application when requesting sink pads on nvstreammux instances that does raw stream batching.
+
+This unique pad_index (which translates into NvDsFrameMeta->stream_id) is to avoid duplicate pad_indexes and source_ids."
+2,Adaptive-batching,"Note: Adaptive batching (ON by default) need to be turned off for an nvstreammux instance downstream from another instance.
+This can be done with the nvstreammux config-file-path setting when using multiple nvstreammux instances in series (batching batched buffers).
+
+This is because downstream nvstreammux instances does not know how many streams are attached to each of the upstream muxers and we ask user to configure batch-size of the downstream muxer(s) accordingly"
+3,"[property]
+algorithm-type=1
+batch-size=4
+overall-max-fps-n=90
+overall-max-fps-d=1
+overall-min-fps-n=5
+overall-min-fps-d=1
+max-same-source-frames=1
+Adaptive-batching=0","Sample configuration for the nvstreammux instance that is expected to batch already batched buffers
+
+Sample pipeline here (with cascaded nvstreammux instances: m1,m2,m3) is:
+2 sources ->m1
+2 sources ->m2
+m1 -> m3
+m2 -> m3
+m3 -> demux"

@@ -1,0 +1,5 @@
+﻿Feature,Description,Release
+Supports merging NvDsBatchMeta,Merges NvDsBatchMeta from all sink pads to one NvDsBatchMeta.,DS 8.0
+Supports syncing video frame,Syncs video frame based on the frame PTS in NvDsBatchMeta.,DS 8.0
+Supports selecting active sink pad,The video buffer of active sink pad will be sent to the src pad of nvdsmetamux.,DS 8.0
+Supports filting meta data,Filts meta data based on source id and model id.,DS 8.0

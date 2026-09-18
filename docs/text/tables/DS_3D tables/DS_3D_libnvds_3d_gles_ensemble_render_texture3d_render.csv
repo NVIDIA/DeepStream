@@ -1,0 +1,11 @@
+Property,Meaning,Type and Range,Example
+layout,"Specify the view location for [x0, y0, x1, y1]","List[Float] ","layout: [0, 0, 640, 360]
+x0 = 0;
+y0 = 0;
+x1 = 640;
+y1 = 360;"
+color_clear,Indicate whether to clear up this view before new frame came.,bool,color_clear: false
+texture_frame_key,Specify texture image keyname from ``ds3d::datamap``,string,texture_frame_key: DS3D::ColorFrame_1+1
+max_vertex_num,"Specify vertex_num used for the texture drawing, default value 6",uint32,max_vertex_num: 6
+texture_vetex_key,"Specify 3D vertex key name from ``ds3d::datamap``, it's used for the texture drawing, there are 6 values by default.",string,texture_vetex_key: DS3D::TextureVertexKey
+texture_coord_key,"Specify texture coordinate key name from ``ds3d::datamap``, it's used for the texture drawing, there are 6 values by default.",string,texture_coord_key: DS3D::TextureCoordKey

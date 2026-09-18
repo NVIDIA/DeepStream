@@ -1,0 +1,32 @@
+---
+title: "AutoMagicCalib"
+---
+
+## Overview
+
+<Frame>
+  <img src="/assets/images/content/main-ui-2.jpg" alt="Project Setup Step" />
+</Frame>
+
+**Auto Magic Calib Microservice** enables automatic calibration of multi-camera and single-camera systems through a simple, web-based, step-by-step workflow.
+
+It is powered by **AutoMagicCalib (AMC)**, which estimates camera intrinsics and extrinsics to generate accurate projection matrices and lens distortion parameters for 3D and multi-view applications.
+
+Unlike checkerboard-based methods, AMC uses **naturally moving objects** in the scene. With NVIDIA DeepStream detection and tracking, it follows objects (e.g., people) and derives camera parameters from normal operational footage—no setup, no downtime, and supports calibration from archived videos.
+
+The service supports both a **geometry-based approach (AMC)** using object trajectories and geometric relationships, and a **model-based approach (VGGT)** that leverages learned models for higher accuracy and robustness. VGGT is optional, available for **multi-camera** projects only (two or more cameras), and requires the VGGT model on the backend.
+
+<Frame caption="Auto Magic Calib microservice architecture">
+  <img src="/assets/images/content/autocalib_ms_architecture.png" alt="Auto Magic Calib microservice architecture" />
+</Frame>
+
+## Key Features
+
+- **Guided Workflow**: 7-step process with progress tracking and real-time validation at each step
+- **Project Management**: Create and manage multiple projects; track states (INIT, READY, RUNNING, COMPLETED, ERROR); refresh; delete individual projects, **Delete selected**, or **Delete all**; data persistence
+- **Flexible Video Input**: Upload MP4 files **or** time-synchronized RTSP streams  (when VIOS is configured on the server); one camera for single-camera calibration, two or more for multi-camera
+- **Interactive Tools**: Per-camera and **global (layout-map)** ROI drawing, tripwire configuration, manual alignment (camera-to-world), real-time preview; **Export image-mode JSON** for pixel-coordinate ROIs/tripwires without running calibration
+- **Dual Calibration Methods**: AMC (primary) and optional VGGT (Vision-Geometry Graph Transformer); VGGT can complete successfully even if AMC failed after rectification (e.g., during multi-view tracklet matching)
+- **Export Options**: Full export dialog (AMC or VGGT when both available), MV3DT-compatible ZIP (AMC and VGGT), per-camera parameter export, ROI/tripwire world-coordinate verification on BEV
+
+For deployment instructions and detailed AutoMagicCalib documentation, refer to the [DeepStream AutoMagicCalib README](https://gitlab-master.nvidia.com/DeepStreamSDK/deepstream/-/blob/main/tools/auto-magic-calib/README.md?ref_type=heads#quick-start).

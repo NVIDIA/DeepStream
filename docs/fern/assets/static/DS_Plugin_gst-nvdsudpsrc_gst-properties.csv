@@ -1,0 +1,26 @@
+Property,Meaning,Type and Range,Example / Notes,Platforms
+port,The port number to receive the RTP packets from,"Integer, 0 to 65535",Port=5004,"dGPU Jetson"
+address,IP address of the server to receive packets from,String,address=192.168.4.60,"dGPU Jetson"
+uri,Uri of the server in the form of udp://<ip>:<port>,String,uri=udp://192.168.4.60:5004,"dGPU Jetson"
+payload-size,Size of payload in RTP packet,"Integer, 0 to 65535",payload-size=1500,"dGPU Jetson"
+header-size,RTP header size,"Integer, 0 to 65535",header-size=12,"dGPU Jetson"
+num-packets,Number of packets for which memory to allocate,"Integer, 0 to 2147483647",num-packets=10000,"dGPU Jetson"
+local-iface-ip,IP Address associated with network interface through which to receive the data,String,local-iface-ip=192.168.2.20,"dGPU Jetson"
+buffer-size,Size of the kernel receive buffer in bytes,"Integer, 0 to 2147483647",buffer-size=50000,"dGPU Jetson"
+reuse,Enable reuse of the port,Boolean,reuse=1,"dGPU Jetson"
+multicast-iface,The network interface on which to join the multicast group,String,multicast-iface=eth0,"dGPU Jetson"
+auto-multicast,Automatically join/leave multicast groups,Boolean,auto-multicast=1,"dGPU Jetson"
+loop,Used for setting the multicast loop parameter,Boolean,loop=1,"dGPU Jetson"
+source-address,Unicast address to receive the data only from that sender,String,"source-address=""192.168.3.4""","dGPU Jetson"
+gpu-id,GPU device id to allocate the buffers,"Integer, -1 to 32767",gpu-id=0,"dGPU Jetson"
+payload-multiple,Output buffer to be multiple of these number of packets,"Integer, 0 to 65535",payload-multiple=4320,"dGPU Jetson"
+adjust-leap-seconds,Adjust RTP timestamp for leap seconds when calculating running time,Boolean,adjust-leap-seconds=false,"dGPU Jetson"
+ptp-src,IP Address of PTP source,String,"ptp-src=""192.168.2.20""","dGPU Jetson"
+st2022-7-streams,Comma-separated list of IP:port pairs for ST2022-7 redundant streams,String,"st2022-7-streams=""192.168.1.10:5004,192.168.101.10:5004""","dGPU Jetson"
+use-rtp-timestamp,Parse RTP timestamp from rtp-header and attach as buffer PTS and DTS,Boolean,use-rtp-timestamp=false,"dGPU Jetson"
+caps,Caps of the source pad,GObject (GstCaps),,dGPU Jetson
+used-socket (read-only),Socket currently in use for UDP reception; NULL means no socket,GObject (GSocket),,dGPU Jetson
+timeout,Posts a message after this many nanoseconds; 0 disables the timeout,"Integer (uint64),
+0 to 18,446,744,073,709,551,615",timeout=0,dGPU Jetson
+latency-offset,"Offset in nanoseconds to add to buffer PTS/DTS when use-rtp-timestamp is enabled, to account for pipeline latency","Integer (uint64),
+0 to 18,446,744,073,709,551,615",latency-offset=0,dGPU Jetson

@@ -1,0 +1,18 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,"Device ID of the GPU to be used
+(dGPU only)","Integer,
+0 to 4,294,967,295",gpu-id=0
+buffer-copy,"Buffer copy","Boolean. Default: false",buffer-copy=0
+buffer-timestamp-copy,"Buffer copy","Boolean. Default: false",buffer-copy=0
+compute-hw,"Type of computing hardware:
+
+0: Default (GPU for gDPU, CPU for Jetson)
+
+1: VLC( only for Jetson)
+
+2: GPU",enum GstComputeHW,"compute-hw=0
+Default value is 0."
+buffer-timestamp-copy,"Buffer copy","Boolean. Default: false",buffer-copy=0
+meta-serialization-lib,"Meta serialization library name", "String","./lib/serialization.so"
+socket type,"socket type", "enum GUnixSocketAddressType","socket-type=G_UNIX_SOCKET_ADDRESS_PATH,Default value is G_UNIX_SOCKET_ADDRESS_PATH"
+socket path,"Path to the control socket", "String","socket-path=/tmp/test1"

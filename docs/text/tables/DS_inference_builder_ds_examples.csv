@@ -1,0 +1,4 @@
+Name,Description,Models,Backend,Output
+"`ds_app <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/ds_app>`__","examples of building standalone deepstream application", TAO Computer Vision models,Deepstream,command line interface application
+"`tao <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/tao>`__","examples of building inference microservices using deepstream pipeline and fastapi", TAO Computer Vision models,Deepstream,microservice
+

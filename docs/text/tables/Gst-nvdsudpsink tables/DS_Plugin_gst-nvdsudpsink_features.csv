@@ -1,0 +1,14 @@
+Feature,Description,Release
+Supports Rivermax Generic and Media APIs,"By default, it supports generic APIs, but media API can be enabled by setting sdp-file property.",DS 6.1
+"Supports any type of RTP packet (Compressed, Uncompressed, audio etc.) with Generic APIs",No restriction on content of RTP payload in case of Generic APIs.,DS 6.1
+"Supports RTCP packets,In addition to RTP", RTCP packets can also be transmitted.,DS 6.1
+Traffic shaping in case of Uncompressed streams (video and audio),"By using Rivermax media APIs,packet pacing can be enabled for uncompressed video and audio streams.",DS 6.1
+Supports SMPTE 2110-20,Uncompressed SMPTE 2110-20 streams with packet pacing is supported through Rivermax media APIs.,DS 6.1
+Supports SMPTE 2110-30,Uncompressed SMPTE 2110-30 stream with packet pacing is supported through Rivermax media APIs.,DS 6.1
+Supports RTP packetization of uncompressed video,Uncompressed video as input can be converted to RTP packets as per SMPTE 2110-20 before sending to network,DS 6.2
+Supports RTP packetization of uncompressed audio,Uncompressed audio as input can be converted to RTP packets as per SMPTE 2110-30 before sending to network,DS 6.2
+Supports PTP clock,"""In addition to system clock hardware clock from the PTP source (Network card) can be used to generate RTP packet timestamp""",DS 6.2
+Supports render thread affinity, Separate thread to packetize and transmit the data. This thread can be bound to specific CPU core(s),DS 6.2
+Supports GPU-Direct for SMPTE 2110-20 stream,Rivermax media API's will allocate GPU memory to receive the SMPTE 2110-20 stream and this memory is directly accessible by NIC (ConnectX 6 or above required),DS-8.0
+Supports SMPTE 2022-7,"By using Rivermax media API's, can transmit redundant packet streams over independent network paths. SDP file will decide whether it is 2022-7 stream",DS-8.0
+Supports SMPTE 2110-40 ancillary data (RFC 8331),"Transmit SMPTE 291M ancillary data (e.g. CEA-608/708 closed captions) over ST 2110 networks. Accepts meta/x-st-2038 caps and packetizes ST2038 buffers into RFC 8331 RTP payloads. SMPTE 2022-7 redundancy is supported.",DS 9.1

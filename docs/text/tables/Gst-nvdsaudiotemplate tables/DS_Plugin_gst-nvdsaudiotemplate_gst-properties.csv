@@ -1,0 +1,4 @@
+﻿Property,Meaning,Type and Range,Example/Notes,Platforms
+gpu-id,Device ID of GPU to use for decoding.,"Integer, 0 to 4,294,967,295",gpu-id=0,dGPU
+customlib-name,custom library Name to be used,String,Default: null,dGPU
+customlib-props,"Custom Library Properties (key:value) string, can be set multiple times,vector is maintained internally",String,Default: null,dGPU

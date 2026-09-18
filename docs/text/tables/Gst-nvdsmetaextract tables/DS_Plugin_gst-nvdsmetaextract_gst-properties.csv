@@ -1,0 +1,2 @@
+﻿Property,Meaning,Type and Range,Example/Notes,Platforms
+deserialize-lib,Set de-serialization library Name to be used.,String,Default: null,dGPU

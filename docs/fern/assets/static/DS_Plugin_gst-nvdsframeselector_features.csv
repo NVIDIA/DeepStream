@@ -1,0 +1,5 @@
+﻿Feature,Description,Release
+Equidistant frame selection,Selects evenly spaced frames from each cache window (BASIC algorithm),DS 9.2
+SAD-based range selection,Selects frames using sum-of-absolute-differences scoring within each cache window (RANGE_BASED algorithm),DS 9.2
+Optical-flow motion-based selection,Adaptively selects frames favoring higher motion using optical flow analysis (default algorithm),DS 9.2
+Bypass mode,Passes all frames through without selection when enabled,DS 9.2

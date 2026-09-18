@@ -1,0 +1,5 @@
+Property,Meaning,Type and Range,Example
+min_depth,Specify minimum depth value. other values less that it will be removed in rendering,Float,min_depth: 0.3
+max_depth,Specify maximum depth value. other values less that it will be removed in rendering,Float,max_depth: 2.0
+min_depth_color,"Specify minimum depth rendering color in [R, G, B]",List[Uint32],"min_depth_color: [255, 128, 0]"
+max_depth_color,"Specify maximum depth rendering color in [R, G, B]",Float,"max_depth_color: [0, 128, 255]"

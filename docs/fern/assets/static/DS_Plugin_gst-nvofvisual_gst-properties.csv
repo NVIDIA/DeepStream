@@ -1,0 +1,4 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,"Device ID of the GPU to be used
+(dGPU only)","Integer,
+0 to 4,294,967,295",gpu-id=0

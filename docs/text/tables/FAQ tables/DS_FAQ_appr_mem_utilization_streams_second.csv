@@ -1,0 +1,3 @@
+Example,Gst-nvstreammux ``width*height`` settings,Gst-nvstreammux GPU memory size
+16 sources at ``1920*1080`` resolution,``1280*720``,``4*(1.5*1280*720)*16 = 84`` MB
+15 sources at ``1280*720`` resolution and one source at ``1920*1080`` resolution,``1280*720``,``4*(1.5*1280*720)*1 = 5.2`` MB

@@ -1,0 +1,76 @@
+---
+title: "Gst-nvvideotestsrc"
+---
+
+The `Gst-nvvideotestsrc` plugin uses CUDA to generate video test data in a variety of formats and patterns that is written directly to GPU output buffers using the video/x-raw(memory:NVMM) data type.
+
+The plugin can also be used to input raw video and generate GPU buffers at the output.
+The plugin provides properties to introduce jitter in buffer latencies which can be used to simulate
+network conditions locally.
+
+<Note>
+The `Gst-nvvideotestsrc` plugin is currently only supported on X86.
+</Note>
+
+## Outputs
+
+This section summarizes the outputs of the `Gst-nvvideotestsrc` plugin.
+
+* Output
+
+  *     Gst Buffer with a test pattern
+  *     Video Format: NV12, I420, RGBA, UYVP, BGRA64_LE, RGB10A2_LE (NVMM)
+
+* Control parameters
+
+  *     gpu-id
+  *     animation-mode
+  *     memtype
+  *     blocksize
+  *     pattern
+
+## Gst Properties
+
+The following tables describes the `Gst` properties of the `Gst-nvvideotestsrc` plugin.
+
+**nvvideotestsrc plugin properties**
+
+| Property | Meaning | Type and Range | Example notes |
+| --- | --- | --- | --- |
+| animation-mode | For animating patterns, the counter that controls the animation. | Enum "GstNvVideoTestSrcAnimationMode" Default: 0, "frames<br />(0): frames           - Frame count<br />(1): wall-time        - Wall clock time<br />(2): running-time     - Running time | animation-mode=0 |
+| blocksize | Size in bytes to read per buffer (-1 = default) | Unsigned Integer. Range: 0 - 4294967295 Default: 4096 | blocksize=4096 |
+| gpu-id | ID of the GPU where the buffers are allocated | Unsigned Integer. Range: 0 - 2147483647 Default: 0 | gpu-id=0 |
+| num-buffers | Number of buffers to output before sending EOS (-1 = unlimited) | Integer. Range: -1 - 2147483647 Default: -1 | num-buffers=300 |
+| pattern | Type of test pattern to generate | Enum "GstNvVideoTestSrcPattern" Default: 0, "smpte<br />(0): smpte            - SMPTE color bars<br />(1): mandelbrot       - Mandelbrot set<br />(2): gradient         - Gradient | pattern=1 |
+| memtype | Type of the memory used for the allocated buffers | Enum "NvBufSurfaceMemType" Default: 2, "Device CUDA memory<br />(1): Host/Pinned CUDA memory - host<br />(2): Device CUDA memory - device<br />(3): Unified CUDA memory - unified | memtype=2 |
+| do-timestamp | Apply current stream time to buffers | Boolean. Default: false | do-timestamp=true |
+| is-live | Whether to act as a live source. Introduces latency based on FPS setting on src caps | Boolean. Default: false | is-live=true |
+| location | File location for raw video file input. When file location is not specified,<br />pattern gets used. | String. Default: NULL | location=test.rgba |
+| file-loop | Loop through the input file until num-buffers (if specified) or infinitely | Boolean. Default: false | file-loop=true |
+| max-jitter | Maximum jitter (in milliseconds) that can be applied to each buffer. Only applicable when is-live=true. A random jitter ranging up to "max-jitter" gets applied to each buffer. | Integer, ≥0 Default: 0 | max-jitter=100 |
+| fixed-jitter | List of fixed jitter values (in milliseconds). The list will be looped through for the entire sequence. Only applicable when is-live=true. If "fixed-jitter" is specified "max-jitter"(if specified) is ignored. | Semicolon delimited integer array. all values ≥0. Default: | fixed-jitter=30;40;100;0;0 |
+| horizontal-speed | Horizontal speed of the SMPTE pattern in pixels per frame. Positive values move to the left; negative to the right | Integer. Default: 0 | horizontal-speed=1 |
+
+## How to test
+
+`nvvideotestsrc` is currently supported for X86 only. support with "Jetson + dGPU" is not yet enabled.
+
+Run following reference `gst-launch-1.0 pipeline` on DGPU setup.
+
+A) Default SMPTE Pattern - 720p 60Hz
+
+  ```text
+  gst-launch-1.0 nvvideotestsrc ! queue ! nveglglessink -e
+  ```
+
+B) Mandelbrot Pattern - 1080p 60Hz
+
+   ```text
+   gst-launch-1.0 nvvideotestsrc pattern=mandelbrot ! 'video/x-raw(memory:NVMM), width=1920, height=1080, framerate=60/1' ! queue ! nveglglessink -e
+   ```
+
+C) Gradient Pattern - 720p 60Hz
+
+  ```text
+  gst-launch-1.0 nvvideotestsrc pattern=2 ! queue ! nveglglessink -e
+  ```

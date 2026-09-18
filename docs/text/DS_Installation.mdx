@@ -1,0 +1,519 @@
+---
+title: "Installation"
+---
+
+NVIDIA <sup>®</sup> DeepStream Software Development Kit (SDK) is an accelerated AI framework to build intelligent video analytics (IVA) pipelines. DeepStream runs on NVIDIA <sup>®</sup> T4, NVIDIA® Hopper, NVIDIA <sup>®</sup> Blackwell, NVIDIA <sup>®</sup> Ampere, NVIDIA <sup>®</sup> ADA, NVIDIA® DGX Spark, and platforms such as NVIDIA <sup>®</sup> Jetson AGX Thor, NVIDIA <sup>®</sup> Jetson Orin and NVIDIA <sup>®</sup> IGX Thor. For dGPU platforms Enterprise GPUs are highly recommended for deployments that are expected to run 24x7. Gaming GPUs are not designed to perform in such type of environments.
+
+## Jetson Setup
+
+This section explains how to prepare a Jetson device before installing the DeepStream SDK.
+
+<Note>
+Steps to install DeepStream SDK locally, assume that `~/.local/bin/` has been added to the `~/.bashrc` or `~/.profile`
+</Note>
+
+### Install Jetson SDK components
+
+Download NVIDIA SDK Manager from https://developer.nvidia.com/embedded/jetpack. You will use this to install JetPack 7.2.1 GA (corresponding to L4T 39.2 release)
+
+- NVIDIA SDK Manager is a graphical application which flashes and installs the JetPack packages.
+- The flashing procedure takes approximately 10-30 minutes, depending on the host system.
+
+### Install Dependencies
+
+#### Install prerequisite packages
+
+Enter the following commands to install the prerequisite packages:
+
+```
+$ sudo apt install \
+libssl3 \
+libssl-dev \
+libcurl4-openssl-dev \
+libgstreamer1.0-0 \
+gstreamer1.0-tools \
+gstreamer1.0-plugins-good \
+gstreamer1.0-plugins-bad \
+gstreamer1.0-plugins-ugly \
+gstreamer1.0-libav \
+libgstreamer-plugins-base1.0-dev \
+libgstrtspserver-1.0-0 \
+libjansson4 \
+libyaml-cpp-dev \
+libmosquitto1
+```
+
+<Note>
+Sometimes with RTSP streams the application gets stuck on reaching EOS. This is because of an issue in rtpjitterbuffer component.
+To fix this issue,
+On baremetal, run a script "update_rtpmanager.sh" at `/opt/nvidia/deepstream/deepstream/`. The script should be executed once user installs packages mentioned under "Install Dependencies" section of Quickstart Guide.
+On docker, users need to run user_additional_install.sh script to use the prebuilt binaries.
+</Note>
+
+##### Install OpenTelemetry
+
+Enter the following commands to install OpenTelemetry:
+
+```
+$ cd ~
+$ mkdir otel_src && cd otel_src && git clone --branch v1.23.0 --recurse-submodules https://github.com/open-telemetry/opentelemetry-cpp
+$ cd opentelemetry-cpp
+$ mkdir build && cd build
+$ sudo apt install cmake
+$ cmake .. -DBUILD_SHARED_LIBS=ON -DWITH_OTLP_GRPC=ON -DWITH_OTLP_HTTP=ON -DBUILD_TESTING=OFF
+$ cmake --build . --parallel $(nproc)
+$ ctest -V (Optional: run tests for verification)
+$ sudo cmake --install .
+```
+
+<Note>
+For more information, refer to the OpenTelemetry C++ installation guide:
+https://github.com/open-telemetry/opentelemetry-cpp/blob/v1.23.0/INSTALL.md
+</Note>
+
+#### Install librdkafka (to enable Kafka protocol adaptor for message broker)
+
+1. Install confluent-platform:
+
+```
+sudo mkdir -p /etc/apt/keyrings
+
+wget -qO - https://packages.confluent.io/deb/8.0/archive.key | gpg \
+--dearmor | sudo tee /etc/apt/keyrings/confluent.gpg > /dev/null
+
+CP_DIST=$(lsb_release -cs)
+echo "Types: deb
+URIs: https://packages.confluent.io/deb/8.0
+Suites: stable
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-by: /etc/apt/keyrings/confluent.gpg
+
+Types: deb
+URIs: https://packages.confluent.io/clients/deb/
+Suites: ${CP_DIST}
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/confluent.gpg" | sudo tee /etc/apt/sources.list.d/confluent-platform.sources > /dev/null
+
+sudo apt-get update && sudo apt-get install confluent-platform
+```
+
+2. Install librdkafka:
+
+```
+sudo apt-get install librdkafka-dev
+```
+
+#### Install latest NVIDIA BSP packages
+
+Installation of JetPack 7.2.1 GA will ensure that latest NVIDIA BSP packages are installed.
+
+### Install the DeepStream SDK
+
+<Note>
+**Recommended for new users:** use **Method 4 (Docker container)** for the
+quickest, dependency-free setup. For native installs, the Debian (Method 3)
+and tar (Method 2) packages are published as GitHub release assets at
+https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0.
+</Note>
+
+- **Method 1**: Using SDK Manager
+
+  Select `DeepStreamSDK` from the `Additional SDKs` section along with JP 7.2.1 GA software components for installation.
+
+- **Method 2**: Using the DeepStream tar package: https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0
+
+   1.	Download the DeepStream 9.2 Jetson tar package `deepstream_sdk_v9.2.0_jetson.tbz2` to the Jetson device.
+
+   2.	Enter the following commands to extract and install the DeepStream SDK:
+
+```
+$  sudo tar -xvf deepstream_sdk_v9.2.0_jetson.tbz2 -C /
+$ cd /opt/nvidia/deepstream/deepstream-9.2
+$ sudo ./install.sh
+$ sudo ldconfig
+```
+
+- **Method 3**: Using the DeepStream Debian package: https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0
+
+  Download the DeepStream 9.2 Jetson Debian package `deepstream-9.2_9.2.0-1_arm64.deb`  to the Jetson device. Enter the following command:
+
+```
+$ sudo apt-get install ./deepstream-9.2_9.2.0-1_arm64.deb
+```
+
+- **Method 4**: Use Docker containers
+
+  DeepStream docker containers are available on NGC. See the [\DS_docker_containers](\DS_docker_containers) section to learn about developing and deploying DeepStream using docker containers.
+
+<Note>
+For scripted or headless downloads of the release assets using `curl` or `wget`, see [DS_Monorepo_FAQ](DS_Monorepo_FAQ).
+</Note>
+
+<Note>
+Verification: Once DeepStream SDK installation is successful, refer to [Expected output (deepstream-app)](/text/DS_Quickstart#expected-output-deepstream-app) for the expected output.
+</Note>
+
+## dGPU Setup for Ubuntu
+
+This section explains how to prepare an `Ubuntu x86_64` system with NVIDIA dGPU devices before installing the DeepStream SDK.
+
+<Note>
+Steps to install DeepStream SDK locally, assume that `~/.local/bin/` has been added to the `~/.bashrc` or `~/.profile`
+</Note>
+
+<Note>
+This document uses the term dGPU (“discrete GPU”) to refer to NVIDIA GPU expansion card products such as NVIDIA |Tesla®| T4, NVIDIA® Hopper, NVIDIA <sup>®</sup> Blackwell, NVIDIA <sup>®</sup> Ampere, NVIDIA <sup>®</sup> ADA, NVIDIA |GeForce®| RTX 2080, NVIDIA |GeForce®| RTX 3080, NVIDIA |GeForce®| RTX 4080, NVIDIA |GeForce®| RTX pro 4500 and |GeForce®|/NVIDIA RTX/QUADRO.
+This version of DeepStream SDK runs on GPUs supported by NVIDIA driver 595.58.03 and NVIDIA TensorRT™ 10.16.0.72 and later versions.
+
+.. |Tesla®| replace:: Tesla\ <sup>®</sup>
+.. |GeForce®| replace:: GeForce\ <sup>®</sup>
+</Note>
+
+### Prerequisites
+
+You must install the following components:
+
+- Ubuntu 24.04
+- GStreamer 1.24.2
+- NVIDIA driver 595.58.03
+- CUDA 13.2
+- TensorRT 10.16.0.72
+
+#### Remove all previous DeepStream installations
+
+Enter the following commands to remove all previous DeepStream 3.0 or prior installations:
+
+```
+$ sudo rm -rf /usr/local/deepstream /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnv* /usr/bin/deepstream* /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libnvdsgst*
+/usr/lib/x86_64-linux-gnu/gstreamer-1.0/deepstream*
+/opt/nvidia/deepstream/deepstream*
+$ sudo rm -rf /usr/lib/x86_64-linux-gnu/libv41/plugins/libcuvidv4l2_plugin.so
+```
+
+To remove DeepStream 4.0 or later installations:
+
+1. Open the `uninstall.sh` file in `/opt/nvidia/deepstream/deepstream/`
+2. Run the following script as `sudo ./uninstall.sh`
+
+### Install Dependencies
+
+#### Install prerequisite packages
+
+Enter the following commands to install the necessary packages before installing the DeepStream SDK:
+
+```
+$ sudo apt install \
+libssl3 \
+libssl-dev \
+libcurl4-openssl-dev \
+libgles2-mesa-dev \
+libgstreamer1.0-0 \
+gstreamer1.0-tools \
+gstreamer1.0-plugins-good \
+gstreamer1.0-plugins-bad \
+gstreamer1.0-plugins-ugly \
+gstreamer1.0-libav \
+libgstreamer-plugins-base1.0-dev \
+libgstrtspserver-1.0-0 \
+libjansson4 \
+libyaml-cpp-dev \
+libjsoncpp-dev \
+protobuf-compiler \
+libmosquitto1 \
+gcc \
+make \
+git \
+python3
+```
+
+<Note>
+Sometimes with RTSP streams the application gets stuck on reaching EOS. This is because of an issue in rtpjitterbuffer component.
+To fix this issue,
+On baremetal, run a script "update_rtpmanager.sh" at `/opt/nvidia/deepstream/deepstream/`. The script should be executed once user installs packages mentioned under "Install Dependencies" section of Quickstart Guide.
+On docker, users need to run user_additional_install.sh script to use the prebuilt binaries.
+</Note>
+
+<Note>
+For OpenTelemetry installation, follow the steps in `Install OpenTelemetry`_
+under `Jetson Setup`_.
+</Note>
+
+#### Install CUDA Toolkit 13.2
+
+Run the following commands (reference, https://developer.nvidia.com/cuda-downloads):
+
+```
+$ sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
+$ sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
+$ sudo apt-get update
+$ sudo apt-get install cuda-toolkit-13-2
+```
+
+<Note>
+If you observe following errors while CUDA installation, refer to https://developer.nvidia.com/blog/updating-the-cuda-linux-gpg-repository-key/.
+
+```text
+W: GPG error: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64 InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY A4B469963BF863CC
+E: The repository 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64 InRelease' is no longer signed.
+```
+
+</Note>
+
+#### Install NVIDIA driver 595.58.03
+
+- Download and install using NVIDIA driver 595.58.03 from NVIDIA Unix drivers page at: https://www.nvidia.com/en-us/drivers/details/266021/
+
+- Run the following commands:
+
+```
+$ chmod 755 NVIDIA-Linux-x86_64-595.58.03.run
+$ sudo ./NVIDIA-Linux-x86_64-595.58.03.run --no-cc-version-check
+```
+
+<Note>
+Ensure gdm, lightdm or Xorg service is stopped while installing nvidia driver
+
+Use command : `sudo service gdm stop` `sudo service lightdm stop` `sudo pkill -9 Xorg`
+</Note>
+
+#### Install TensorRT 10.16.0.72
+
+  Run the following command to install TensorRT 10.16.0.72:
+
+```
+version="10.16.0.72-1+cuda13.2"
+sudo apt-get install libnvinfer-dev=${version} libnvinfer-dispatch-dev=${version} \
+libnvinfer-dispatch10=${version} libnvinfer-headers-dev=${version} libnvinfer-headers-plugin-dev=${version} \
+libnvinfer-safe-headers-dev=${version} libnvinfer-lean-dev=${version} libnvinfer-lean10=${version} \
+libnvinfer-plugin-dev=${version} libnvinfer-plugin10=${version} libnvinfer-vc-plugin-dev=${version} \
+libnvinfer-vc-plugin10=${version} libnvinfer10=${version} libnvonnxparsers-dev=${version} \
+libnvonnxparsers10=${version} tensorrt-dev=${version} \
+libnvinfer-headers-python-plugin-dev=${version} libnvinfer-win-builder-resource10=${version}
+```
+
+<Note>
+* It is assumed, "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/" has been added, as mentioned in CUDA Toolkit 13.2 installation step.
+* libnvparsers are deprecated since TRT 8.0.
+</Note>
+
+#### Install librdkafka (to enable Kafka protocol adaptor for message broker)
+
+1. Install confluent-platform:
+
+```
+sudo mkdir -p /etc/apt/keyrings
+
+wget -qO - https://packages.confluent.io/deb/8.0/archive.key | gpg \
+--dearmor | sudo tee /etc/apt/keyrings/confluent.gpg > /dev/null
+
+CP_DIST=$(lsb_release -cs)
+echo "Types: deb
+URIs: https://packages.confluent.io/deb/8.0
+Suites: stable
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-by: /etc/apt/keyrings/confluent.gpg
+
+Types: deb
+URIs: https://packages.confluent.io/clients/deb/
+Suites: ${CP_DIST}
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/confluent.gpg" | sudo tee /etc/apt/sources.list.d/confluent-platform.sources > /dev/null
+
+sudo apt-get update && sudo apt-get install confluent-platform
+```
+
+2. Install librdkafka:
+
+```
+sudo apt-get install librdkafka-dev
+```
+
+### Install the DeepStream SDK
+
+<Note>
+**Recommended for new users:** use **Method 3 (Docker container)** for the
+quickest, dependency-free setup. For native installs, the Debian (Method 1)
+and tar (Method 2) packages are published as GitHub release assets at
+https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0.
+</Note>
+
+- **Method 1**: Using the DeepStream Debian package
+
+  Download the DeepStream 9.2 dGPU Debian package `deepstream-9.2_9.2.0-1_amd64.deb` : https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0
+
+  Enter the command:
+
+```
+$ sudo apt-get install ./deepstream-9.2_9.2.0-1_amd64.deb
+```
+
+- **Method 2**: Download the DeepStream tar package: https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0
+
+  Navigate to the location of the downloaded DeepStream package to extract and install the DeepStream SDK:
+
+```
+$ sudo tar -xvf deepstream_sdk_v9.2.0_x86_64.tbz2 -C /
+$ cd /opt/nvidia/deepstream/deepstream-9.2/
+$ sudo ./install.sh
+$ sudo ldconfig
+```
+
+- **Method 3**: Use Docker containers
+
+  DeepStream docker containers are available on NGC. See the [\DS_docker_containers](\DS_docker_containers) section to learn about developing and deploying DeepStream using docker containers.
+
+<Note>
+For scripted or headless downloads of the release assets using `curl` or `wget`, see [DS_Monorepo_FAQ](DS_Monorepo_FAQ).
+</Note>
+
+<Note>
+Verification: Once DeepStream SDK installation is successful, refer to [Expected output (deepstream-app)](/text/DS_Quickstart#expected-output-deepstream-app) for the expected output.
+</Note>
+
+## dGPU on ARM Setup for Ubuntu
+
+This section explains how to prepare an `Ubuntu aarch64` system with NVIDIA dGPU devices before installing the DeepStream SDK.
+
+You must install the following components:
+
+- NVIDIA driver 595.58.03
+- Docker
+- Nvidia Container Toolkit
+
+### Install NVIDIA driver 595.58.03
+
+- Download and install using NVIDIA driver 595.58.03 from NVIDIA Unix drivers page at: https://www.nvidia.com/en-us/drivers/details/266021/
+
+- Run the following commands:
+
+```
+$ chmod 755 NVIDIA-Linux-aarch64-595.58.03.run
+$ sudo ./NVIDIA-Linux-aarch64-595.58.03.run --no-cc-version-check
+```
+
+<Note>
+Ensure gdm, lightdm or Xorg service is stopped while installing Nvidia driver
+
+Use command : `sudo service gdm stop` `sudo service lightdm stop` `sudo pkill -9 Xorg`
+</Note>
+
+### Run dGPU on ARM Docker (SBSA)
+
+<Note>
+NVIDIA driver 580.159.03 is required for SBSA. The driver is bundled with the Docker image and does not need to be installed separately.
+</Note>
+
+1. Pull the DeepStream Triton Inference Server docker
+
+```
+docker pull nvcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```
+
+2. Start the docker
+
+```
+sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 nvcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```
+
+<Note>
+`--privileged` is omitted above; add it only if the container needs access to all host devices or low-level driver operations. It grants near-root host access, so on shared or production systems prefer `--device` / `--cap-add` instead.
+</Note>
+
+## DGX Spark Setup for Ubuntu
+
+This section explains how to prepare a [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/)
+system before installing DeepStream SDK. DGX Spark is an aarch64-based desktop AI system
+running Ubuntu with an integrated NVIDIA Grace Blackwell GPU.
+
+<Note>
+Native DeepStream SDK installation on DGX Spark is **not** supported. Use the Docker
+container method described below.
+</Note>
+
+<Note>
+NVIDIA driver 580.159.03 is required for DGX Spark. The driver is bundled with the Docker image and does not need to be installed separately.
+</Note>
+
+Refer [NVIDIA DGX Spark Release Notes](https://docs.nvidia.com/dgx/dgx-spark/release-notes.html#current-software-versions) for stack details.
+
+### Run DGX Spark Docker
+
+1. Pull the DeepStream Triton Inference Server docker
+
+```
+docker pull nvcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```
+
+2. Start the docker
+
+```
+sudo docker run -it --rm --runtime=nvidia --network=host \
+    -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics \
+    --gpus all \
+    -e DISPLAY=:0 \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v /etc/X11:/etc/X11 \
+    nvcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```
+
+<Note>
+* `--privileged` is omitted above; add it only if the container needs access to all host devices or low-level driver operations. It grants near-root host access, so on shared or production systems prefer `--device` / `--cap-add` instead.
+* The triton docker for DGX Spark is based on the SBSA Tritonserver image and has Ubuntu 24.04.
+* When the triton docker is launched for the first time, it might take a few minutes to start since it has to generate compute cache.
+* DGX Spark docker currently supports only nv3dsink for video display. nveglglessink is not supported.
+* VIC is not supported on DGX Spark. Set tiler `compute-hw=1` (GPU) in your application config.
+</Note>
+
+## dGPU Setup for RedHat Enterprise Linux (RHEL)
+
+DeepStream for RHEL is not supported in this release.
+
+## Platform and OS Compatibility
+
+The following table provides information about platform and operating system compatibility in the current and earlier versions of DeepStream.
+
+**Jetson model Platform and OS Compatibility**
+
+| DS release | DS 6.1.1 | DS 6.2 | DS 6.3 | DS 6.4 | DS 7.0 | DS 7.1 | DS 8.0 | DS 9.0 | DS 9.1 | DS 9.2 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Jetson platforms | AGX Xavier, Jetson NX, Jetson Orin | Xavier AGX , Xavier NX,  AGX Orin, Orin NX | Xavier AGX , Xavier NX,  AGX Orin, Orin NX, Orin nano | AGX Orin, Orin NX, Orin nano | AGX Orin, Orin NX, Orin nano | AGX Orin, Orin NX, Orin nano | AGX Thor | AGX Thor | AGX Thor, Jetson Orin | AGX Thor, Jetson Orin, IGX Thor |
+| OS | L4T Ubuntu 20.04 | L4T Ubuntu 20.04 | L4T Ubuntu 20.04 | L4T Ubuntu 22.04 | L4T Ubuntu 22.04 | L4T Ubuntu 22.04 | L4T Ubuntu 24.04 | L4T Ubuntu 24.04 | L4T Ubuntu 24.04 | L4T Ubuntu 24.04 |
+| JetPack release | 5.0.2 GA Revision 1 | 5.1 GA | 5.1.2 GA | 6.0 DP | 6.0 GA | 6.1 GA | 7.0 GA | 7.1 GA | 7.2 GA | 7.2.1 GA |
+| L4T release | 35.1 | 35.2.1 | 35.4 | 36.2 | 36.3 | 36.4 | 38.2 | 38.4 | 39.2 | 39.2 |
+| CUDA release | CUDA 11.4 | CUDA 11.4 | CUDA 11.4 | CUDA 12.2 | CUDA 12.2 | CUDA 12.6 | CUDA 13.0 | CUDA 13.0 | CUDA 13.2 | CUDA 13.2 |
+| cuDNN release | cuDNN 8.4.1.50+ | cuDNN 8.6.0.166+ | cuDNN 8.6.0.166+ | cuDNN 8.9.4.25+ | cuDNN 8.9.4.25+ | cuDNN 9.3.0 | CuDNN 9.12.0 | CuDNN 9.12.0 | CuDNN 9.20.0.46 | CuDNN 9.20.0.48 |
+| TensorRT release | TRT 8.4.1.5 | TRT 8.5.2.2 | TRT 8.5.2.2 | TRT 8.6.2.3 | TRT 8.6.2.3 | TRT 10.3.0.31 | TRT 10.13.2.6 | TRT 10.13.2.6 | TRT 10.16.1.7 | TRT 10.16.1.7 |
+| OpenCV release | OpenCV 4.2.0 | OpenCV 4.2.0 | OpenCV 4.5.4 | OpenCV 4.8.0 | OpenCV 4.8.0 | OpenCV 4.8.0 | OpenCV 4.8.0 | OpenCV 4.8.0 | OpenCV 4.8.0 | OpenCV 4.8.0 |
+| Vision­Works | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA |
+| GStreamer | GStreamer 1.16.2 | GStreamer 1.16.3 | GStreamer 1.16.3 | GStreamer 1.20.3 | GStreamer 1.20.3 | GStreamer 1.20.3 | GStreamer 1.24.2 | GStreamer 1.24.2 | GStreamer 1.24.2 | GStreamer 1.24.2 |
+| Docker image | deepstream-l4t:6.1.1 | deepstream-l4t:6.2 | deepstream-l4t:6.3 | deepstream:6.4 | deepstream:7.0 | deepstream:7.1 | deepstream:8.0 | deepstream:9.0 | deepstream:9.1 | deepstream:9.2 |
+
+**dGPU model Platform and OS Compatibility**
+
+| DS release | DS 6.1.1 | DS 6.2 | DS 6.3 | DS 6.4 | DS 7.0 | DS 7.1 | DS 8.0 | DS 9.0 | DS 9.1 | DS 9.2 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| GPU platforms | T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0) | T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA | T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA | T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA | T4, V100, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA | T4, A2, A10, A30, A100, RTX Ampere (Ax000/RTX30x0), Hopper, ADA | Turing, Ampere, Hopper, ADA, Blackwell | Turing, Ampere, Hopper, ADA, Blackwell | Turing, Ampere, Hopper, ADA, Blackwell | Turing, Ampere, Hopper, ADA, Blackwell |
+| OS | Ubuntu 20.04 | Ubuntu 20.04 | Ubuntu 20.04 | Ubuntu 22.04 | Ubuntu 22.04 | Ubuntu 22.04 | Ubuntu 24.04 | Ubuntu 24.04 | Ubuntu 24.04 | Ubuntu 24.04 |
+| GCC | GCC 9.4.0 | GCC 9.4.0 | GCC 9.4.0 | GCC 11.4.0 | GCC 11.4.0 | GCC 11.4.0 | GCC 11.4.0 | GCC 11.4.0 | GCC 11.4.0 | GCC 11.4.0 |
+| CUDA release | CUDA 11.7.1 | CUDA 11.8 | CUDA 12.1 | CUDA 12.2 | CUDA 12.2 | CUDA 12.6 | CUDA 12.8 | CUDA 13.1 | CUDA 13.2 | CUDA 13.2 |
+| cuDNN release | cuDNN 8.4.1.50+ | cuDNN 8.7.0.84-1+ | cuDNN 8.8.1.3-1+ | cuDNN 8.9.4.25-1+ | cuDNN 8.9.6.50-1+ | cuDNN 9.3.0 | CuDNN 9.7.1 | CuDNN 9.18.0 | CuDNN 9.20.0.48 | CuDNN 9.20.0.48 |
+| TRT release | TRT 8.4.1.5 | TRT 8.5.2.2 | TRT 8.5.3.1 | TRT 8.6.1.6 | TRT 8.6.1.6 | TRT 10.3.0.26 | TRT 10.9.0.34 | TRT 10.14.1.48 | TRT 10.16.0.72 | TRT 10.16.0.72 |
+| Display Driver | R515.65.01 | R525.85.12 | R525.125.06 | R535.104.12 | R535.161.08 | R535.183.06(Data Center GPUs), R560.35.03(RTX GPUs) | R570.133.20 | R590.48.01 | R595.58.03 | R595.58.03 |
+| VideoSDK release | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 | SDK 9.1 |
+| OFSDK release | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 | 2.0.23 |
+| GStreamer release | GStreamer 1.16.2 | GStreamer 1.16.3 | GStreamer 1.16.3 | GStreamer 1.20.3 | GStreamer 1.20.3 | GStreamer 1.20.3 | GStreamer 1.24.2 | GStreamer 1.24.2 | GStreamer 1.24.2 | GStreamer 1.24.2 |
+| OpenCV release | OpenCV 4.2.0 | OpenCV 4.2.0 | OpenCV 4.2.0 | OpenCV 4.5.4 | OpenCV 4.5.4 | OpenCV 4.5.4 | OpenCV 4.6 | OpenCV 4.6 | OpenCV 4.6 | OpenCV 4.6 |
+| Docker image | deepstream:6.1.1 | deepstream:6.2 | deepstream:6.3 | deepstream:6.4 | deepstream:7.0 | deepstream:7.1 | deepstream:8.0 | deepstream:9.0 | deepstream:9.1 | deepstream:9.2 |
+| NVAIE release | NA | NVAIE-3.x | NVAIE-3.x | NVAIE-4.x | NA | NA | NA | NA | NA | NA |
+
+<Note>
+By default, OpenCV has been deprecated. However, OpenCV can be enabled in plugins such as nvinfer (nvdsinfer) and dsexample (gst-dsexample) by setting `WITH_OPENCV=1` in the Makefile of these components. Please refer component README for more instructions.
+
+NA: "Not Applicable"
+</Note>
+
+DeepStream 9.2 support is currently enabled by SBSA triton docker. SBSA category currently supports GH200, GB200, and DGX Spark.

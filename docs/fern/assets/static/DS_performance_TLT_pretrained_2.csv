@@ -1,0 +1,17 @@
+﻿,,,Jetson Nano,"Jetson Xavier
+NX",,,"Jetson 
+AGX 
+Xavier",,,T4,"A100
+PCIe"
+Model Arch,Inference resolution,Precision,"GPU 
+(FPS)","GPU 
+(FPS)",DLA1 (FPS),DLA2 (FPS),"GPU 
+(FPS)",DLA1 (FPS),DLA2 (FPS),"GPU 
+(FPS)","GPU 
+(FPS)"
+YoloV3 – ResNet18,960x544,INT8,8.3,"70",18,18,"135",52,52,513,"2118"
+FasterRCNN – ResNet10,480x272,INT8,1.9,"38",N/A,N/A,"70",N/A,N/A,283,"1488"
+SSD – ResNet18,960x544,INT8,8.9,"80",44,44,"217",60,60,650,"2080"
+DSSD – ResNet18,960x544,INT8,4.6,"70",27,27,"128",32,32,413,"1606"
+RetinaNet – ResNet18,960x544,INT8,8.1,"110",41,41,"197",48,48,562,"1882"
+MaskRCNN – ResNet50,1344x832,INT8,0.6,"5.3",2.9,2.9,"8.5",4.5,4.5,24,"98.85"

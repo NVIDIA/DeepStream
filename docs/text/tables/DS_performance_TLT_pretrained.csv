@@ -1,0 +1,33 @@
+﻿,,,"Jetson
+
+Orin
+
+","Jetson
+
+Xavier
+
+NX
+
+",,,"Jetson
+
+AGX
+
+Xavier",,,T4,"A100
+
+PCIe",A30,A2,A10
+Model Arch,Inference resolution,Precision,"GPU
+ 
+(FPS)","GPU
+ 
+(FPS)","DLA1
+(FPS)",DLA2 (FPS),"GPU
+(FPS)",DLA1 (FPS),DLA2 (FPS),"GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)"
+`PeopleNet- ResNet34 <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_,960x544,INT8,450,74,20,20,128,24,24,451,2171,1395,223,973
+`TrafficCamNet – ResNet18 <https://ngc.nvidia.com/catalog/models/nvidia:tao:trafficcamnet>`_,960x544,INT8,1152,279,82,82,496,111,111,1401,4803,3295,822,2464
+`DashCamNet – ResNet18 <https://ngc.nvidia.com/catalog/models/nvidia:tao:dashcamnet>`_,960x544,INT8,1147,264,80,80,465,114,114,1316,4708,3289,769,2427
+`FaceDetectIR- ResNet18 <https://ngc.nvidia.com/catalog/models/nvidia:tao:facedetectir>`_,384x240,INT8,1147,279,82,82,1980,600,620,2516,5514,4679,2854,3157

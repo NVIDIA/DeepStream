@@ -1,0 +1,26 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,Device ID of the GPU to be used for operation (dGPU only),"Integer,
+0 to 4,294,967,295",gpu-id=0
+display-clock,Indicates whether to display system clock,Boolean,display-clock=0
+display-text,Indicates whether to display text,Boolean,display-text=0
+clock-font,"Name of Pango font to use for the clock for CPU process mode,
+name of TrueType font to use for the clock and other text for GPU process mode",String,clock-font=Arial
+clock-font-size,Font size to use for the clock,"Integer, 0-60",clock-font-size=2
+x-clock-offset,X offset of the clock,"Integer,
+0 to 4,294,967,295",x-clock-offset=100
+y-clock-offset,Y offset of the clock,"Integer,
+0 to 4,294,967,295",y-clock-offset=50
+clock-color,"Color of the clock to be set while display, in the order 0xRGBA","Integer,
+0 to 4,294,967,295","clock-color=0xff0000ff
+(Clock is red with alpha=1)"
+process-mode,"Indicates the mode used to draw the objects
+
+Default mode: GPU mode
+
+0: CPU mode 
+
+1: GPU mode","Integer, 0 to 1",process-mode=0
+display-bbox,Control bounding box drawing,Boolean,display-bbox=1
+display-mask,Controls instance mask drawing,Boolean,display-mask=1
+blur-bbox,Control object blurring(GPU mode only),Boolean,blur-bbox=1
+blur-on-gie-class-ids,Select the object to blur(GPU mode only and the blur-bbox must be 1),Semicolons and commas delimited values,"blur-on-gie-class-ids=0,1;1,0;2,1  format:<gie_id,class_id;gie_id,class_id...>"

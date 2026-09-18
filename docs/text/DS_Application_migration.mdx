@@ -1,0 +1,25 @@
+---
+title: "Application Migration to DeepStream 9.2 from DeepStream 9.1"
+---
+
+## Running DeepStream 9.1 compiled Apps in DeepStream 9.2
+
+To run the old app from DeepStream 9.1 in DeepStream 9.2, create `symlinks` of the libraries so the old application can find them.:
+
+```
+mkdir /opt/nvidia/deepstream/deepstream-9.1
+mkdir /opt/nvidia/deepstream/deepstream-9.1/lib
+ln -s /opt/nvidia/deepstream/deepstream-9.2/lib/* /opt/nvidia/deepstream/deepstream-9.1/lib/
+```
+
+## Compiling DeepStream 9.1 Apps in DeepStream 9.2
+
+Before compiling DeepStream 9.1 applications in DeepStream 9.2, modify the `Makefiles` and set the `NVDS_VERSION` flag to `9.2`.
+There are two options to compile DeepStream 9.1 in DeepStream 9.2:
+
+1. **Option 1**: Replace existing `sources/apps` from DeepStream-9.2 and copy the entire `sources/apps` directory from DeepStream-9.1.
+2. **Option 2** : Individual applications in DeepStream SDK have dependency on sources under `apps-common` directory. Ideally, to compile those applications, you must use the same version of `apps-common`. In case you want to use the latest version, you may need to adjust some application function calls because of a change in application function definitions.
+
+<Note>
+By default, OpenCV is deprecated in DeepStream 6.1. However, you can enable OpenCV in plugins such as `nvinfer` (`nvdsinfer`) and `dsexample` (`gst-dsexample`) by setting `WITH_OPENCV=1` in the Makefile of these components.  Refer to the component README for more instructions.
+</Note>

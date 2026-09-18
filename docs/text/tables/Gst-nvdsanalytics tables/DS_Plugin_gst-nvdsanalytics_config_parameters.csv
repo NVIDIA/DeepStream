@@ -1,0 +1,25 @@
+﻿Property,Applicable Groups,Meaning,Type and Range,Example Notes
+enable, [property] | [<feature>-stream-<n>],Common property to enable or disable the plugin or feature,Boolean,enable=1
+config-width, [property],Width for which the analytics rules are configured,"Integer, >0",config-width=1280
+config-height,[property],Height for which the analytics rules are configured,"Integer, >0",config-height=720
+osd-mode,[property],"0: Disables display of any lines, ROIS and text
+1: Display only lines, rois and static text i.e. labels
+2: Display all info from 1 in addition, information for all the events","Integer0,1,2",osd-mode=2
+display-font-size,[property],Set OSD font size for the analytics data,Integer > 0,display-font-size=12
+roi-<label>,"[roi-filtering-stream-<n>] | 
+[overcrowding-stream-<n>]","The ROI can be specified using roi key followed by its corresponding label (roi-<label>) the value consist of semi-colon delimited coordinates of the polygon (roi-<label>=x1;y1;x2;y2;x3;y3;x4;y4;x5;y5) . The user can specify a simple polygon with > 3 points. The points should be sequentially specified, as the relative position of points is required to check object in polygon.",String,"roi-RF= 295;643;579;634;642;913;56;828
+roi-OC= 295;643;579;634;642;913;56;828"
+inverse-roi,[roi-filtering-stream-<n>],"If the flag set true, it indicates the object outside the configured ROI be attached with the ROI label, and count the objects outside the ROI and send as frame level output",Boolean,inverse-roi=0
+class-id,[<feature>-stream-<n>],The class ID separated by semi-colon for which analytic rules should be applied. | -1 indicate that the rules are to be applied to all the classes,String,"class-id=0;1;2
+or 
+class-id=-1"
+object-threshold,[overcrowding-stream-<n>],The total count after which overcrowding flag should be indicated in the frame metadata.,"Integer, >=0",object-threshold=10
+direction-<label>,[direction-detection-stream-<n>],"The value indicates the direction (x1;y1;x2;y2)  which corresponds to the configured <label>. When object is moving in configured direction, the label of the particular rule is attached to the object as user metadata",String,direction-South=284;840;360;662
+line-crossing-<label>,[line-crossing-stream-<n>],"The value indicates 2 coordinates of direction followed by 2 coordinates of virtual line. These coordinates are delimited using semi-colon (line-crossing-<label>=x1d;y1d;x2d;y2d;x1c;y1c;x2c;y2c). The direction indicates the direction of object in which it should be moving that can be considered for counting, so the object should be in direction x1d,y1d to x2d,y2d, which indicates a direction vector. The line crossing coordinates x1c,y1c and x2c,y2c indicate a virtual line which when an object following a configured direction crosses is then accounted for line crossing. <label> is string identification of the rule. Multiple line-crossings can be defined for a single stream",String,line-crossing-Exit=789;672;1084;900;851;773;1203;732
+extended,[line-crossing-stream-<n>],"Boolean parameter to check crossings only on the configured line or for the extended line covering the video frame. If extended is 0, the line crossing only the configured line would be counted",Boolean,extended=0
+mode,"[line-crossing-stream-<n>]
+","Parameter to allow user configuration of adherence of object direction with configured direction for crossing.
+Possible options 
+strict, balanced, loose. Operate as per name suggestion, where loose will just check if the object has crossed the line and would need the object just to be in same direction with very high tolerance",String,"| mode=loose 
+| mode=strict
+| mode=balanced"

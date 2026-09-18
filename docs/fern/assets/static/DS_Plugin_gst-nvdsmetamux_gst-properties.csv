@@ -1,0 +1,4 @@
+﻿Property,Meaning,Type and Range,Example Notes
+config-file,Absolute pathname of configuration file for the Gst-nvdsmetamux element,String,config-file-path=­metamux_config.txt
+active-pad,Active sink pad whose buffer will be transferred to the src pad,String,active-pad=sink_0
+pts-tolerance,Time-diff tolerance in microseconds used when searching for the same frame of the same source ID across sink pads,Integer (signed 64-bit),pts-tolerance=0

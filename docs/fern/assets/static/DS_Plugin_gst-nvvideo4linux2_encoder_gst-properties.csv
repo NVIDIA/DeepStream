@@ -1,0 +1,120 @@
+Property,"Meaning","Type and Range","Example/Notes","Platforms"
+aq,"Enable spatial AQ and set its strength","Unsigned Integer, 0-15","Default: 0, ""auto""","dGPU"
+bit-packetization,"Whether or not Packet size is based upon Number Of bits","Boolean","Default: false","Jetson"
+bitrate,"Sets bitrate for encoding, in bits/seconds.","Unsigned Integer","Default: 4000000","dGPU
+Jetson"
+capture-io-mode,"Capture I/O mode (matches src pad)
+
+(0): auto - GST_V4L2_IO_AUTO
+
+(2): mmap - GST_V4L2_IO_MMAP
+
+(5): dmabuf-import  - GST_V4L2_IO_DMABUF_IMPORT","Enum ""GstNvV4l2IOMode""","Default: 0, ""auto""","dGPU
+Jetson"
+constqp,"Sets constant QP values for I:P:B frames","String, 1 to 51","Default: null","dGPU"
+copy-meta,"Copies input metadata on output buffer","Boolean","Default: false","dGPU"
+copy-timestamp,"Enabling the flag allows to copy the timestamps from input to the capture stream.","Boolean","Default: false","Jetson"
+control-rate,"Sets rate control mode for v4l2 encoding
+
+(0): variable_bitrate - GST_V4L2_VIDENC_VARIABLE_BITRATE
+
+(1): constant_bitrate - GST_V4L2_VIDENC_CONSTANT_BITRATE
+
+(2): constantQP       - GST_V4L2_VIDENC_CONSTANT_QP
+","Enum ""GstV4l2VideoEncRateControlType"""," Default: 1, ""constant_bitrate""","dGPU
+Jetson"
+cq,"Sets targetQuality (Constant Quality) level for VBR mode","Integer, 0-51","Default: 0, ""auto""","dGPU"
+disable-cabac,"Set Entropy Coding Type CAVLC(TRUE) or CABAC(FALSE)","Boolean","Default: false","Jetson"
+enable-lossless,"Enable lossless encoding for YUV444","Boolean","Default: false","Jetson"
+EnableMVBufferMeta,"Enable Motion Vector Meta data for encoding","Boolean","Default: false","Jetson"
+EnableTwopassCBR,"Enable two pass CBR while encoding","Boolean","Default: false","Jetson"
+extended-colorformat,"Sets extended colorformat pixel values 0 to 255 in VUI Info","Boolean","Default: false","dGPU"
+force-idr,"Force an IDR frame","Boolean","Default: false","dGPU"
+force-intra,"Forces an INTRA frame","Boolean","Default: false","dGPU"
+gpu-id,"Device ID of GPU to used.","Unsigned Integer","Default:0","dGPU"
+idrinterval,"Sets IDR Frame occurrence frequency in encoded stream","Unsigned Integer","Default: 256","dGPU
+Jetson"
+iframeinterval,"Sets encoding intra-frame occurrence frequency.","Unsigned Integer","Default: 30","dGPU
+Jetson"
+initqp,"Set values of initQP in I:P:B order.
+This provides rough hint to encoder to influence the qp difference between I, P and B","String","Default: null","dGPU"
+insert-aud,"Insert H.264 Access Unit Delimiter(AUD)","Boolean","Default: false","Jetson"
+insert-sps-pps,"Insert H.264 SPS, PPS at every IDR frame","Boolean","Default: false","Jetson"
+insert-vui,"Insert H.264 VUI(Video Usability Information) in SPS","Boolean","Default: false","Jetson"
+intra-refresh,"Intra Refresh Parameters. Use string with unsigned integer values of Intra Refresh in enableIntraRefresh,intraRefreshPeriod,intraRefreshCnt in same order to set the property. e.g. 1,30,5","String","Default: null","dGPU"
+maxbitrate,"Set maxbitrate for v4l2 encoder. This mode is specified by setting rateControlMode to VBR","Unsigned Integer","Default: 0","dGPU"
+maxperf-enable,"Enable or Disable Max Performance mode","Boolean","Default: false","Jetson"
+MeasureEncoderLatency,"Enable Measure Encoder latency Per Frame","Boolean","Default: false","Jetson"
+num-B-Frames,"Number of B Frames between two reference frames (not recommended)","Unsigned Integer, 0-2","Default: 0","Jetson"
+num-Ref-Frames,"Number of Reference Frames for encoder","Unsigned Integer, 0-8","Default: 1","Jetson"
+output-io-mode,"Sets output side I/O mode (matches sink pad)
+
+(0): auto - GST_V4L2_IO_AUTO
+
+(2): mmap - GST_V4L2_IO_MMAP
+
+(5): dmabuf-import - GST_V4L2_IO_DMABUF_IMPORT","Enum ""GstNvV4l2IOMode""","Default: 0, ""auto""","dGPU
+Jetson"
+peak-bitrate,"Peak bitrate in variable control-rate. The value must be >= bitrate (1.2*bitrate) is set by default (Default: 0)","Unsigned Integer","Default: 0","Jetson"
+poc-type,"Set Picture Order Count type value","Unsigned Integer, 0-2","Default: 1","Jetson"
+preset-id,"Sets CUVID Preset ID for Encoder","Unsigned Integer,
+1 to 7","Default: 1","dGPU"
+preset-level,"HW preset level for encoder.
+
+(0): DisablePreset    - Disable HW-Preset
+
+(1): UltraFastPreset  - UltraFastPreset for high perf
+
+(2): FastPreset       - FastPreset
+
+(3): MediumPreset     - MediumPreset
+
+(4): SlowPreset       - SlowPreset","Enum ""GstV4L2VideoEncHwPreset"" ","Default: 1, ""UltraFastPreset""","Jetson"
+Profile,"H.264/H.265 encoder profile.
+
+For H.264:
+
+(0): Baseline         - GST_V4L2_H264_VIDENC_BASELINE_PROFILE
+
+(2): Main             - GST_V4L2_H264_VIDENC_MAIN_PROFILE
+
+(4): High             - GST_V4L2_H264_VIDENC_HIGH_PROFILE
+
+(7): High444          - GST_V4L2_H264_VIDENC_HIGH_444_PREDICTIVE
+
+For H.265:
+
+(0): Main             - GST_V4L2_H265_VIDENC_MAIN_PROFILE
+
+(1): Main10           - GST_V4L2_H265_VIDENC_MAIN10_PROFILE
+
+(3): FREXT            - GST_V4L2_H265_VIDENC_FREXT_PROFILE","Enum ""GstV4l2VideoEncProfileType""","For H.264:
+
+Default: 0 (Baseline)
+
+For H.265:
+
+Default: 0 (Main)","dGPU
+Jetson"
+Property,"Meaning","Type and Range","Example/Notes","Platforms"
+qp-range,"Sets quantization parameter range for P, I and B frame","String, 1 to 51","Default: null","dGPU
+Jetson"
+quant-b-frames,"Quantization parameter for B-frames (0xffffffff=component default), use with ratecontrol-enable = 0 and preset-level = 0","Unsigned Integer, 0 - 4294967295","Default: 4294967295","Jetson"
+quant-i-frames,"Quantization parameter for I-frames (0xffffffff=component default), use with ratecontrol-enable = 0","Unsigned Integer, 0 - 4294967295","Default: 4294967295","Jetson"
+quant-p-frames,"Quantization parameter for P-frames (0xffffffff=component default), use with ratecontrol-enable = 0 and preset-level = 0","Unsigned Integer, 0 - 4294967295","Default: 4294967295","Jetson"
+ratecontrol-enable,"Enable or Disable rate control mode","Boolean","Default: true","Jetson"
+slice-header-spacing,"Slice Header Spacing number of macroblocks/bits in one packet","Unsigned Integer64","Default: 0","Jetson"
+SliceIntraRefreshInterval,"Set SliceIntraRefreshInterval","Unsigned Integer","Default: 0","Jetson"
+temporalaq,"Set this to enable adaptive quantization (Temporal).","Boolean","Default: false","dGPU"
+tuning-info-id,"Sets Tuning Info Preset for encoder.
+
+(1): HighQualityPreset - Tuning Preset for High Quality
+
+(2): LowLatencyPreset - Tuning Preset for Low Latency
+
+(3): UltraLowLatencyPreset - Tuning Preset for Low Latency
+
+(4): LosslessPreset   - Tuning Preset for Lossless","Enum ""GstV4L2VideoEncTuingInfoPreset""","Default: 2 (LowLatencyPreset)","dGPU"
+vbvbufsize,"Set VBV buffer size in bits.","Unsigned Integer","Default: 0 (default value by encoder)","dGPU"
+vbvinit,"Set VBV initial delay in bits","Unsigned Integer","Default: 0 (default value by encoder)","dGPU"
+vbv-size,"virtual buffer size","Unsigned Integer","Default: 4000000","Jetson"

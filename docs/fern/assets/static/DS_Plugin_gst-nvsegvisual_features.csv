@@ -1,0 +1,4 @@
+﻿Feature,Description,Release
+Configure GPU selection,Sets the GPU ID to be used for segmentation visualization operations (valid only for dGPU platforms),DS 4.0
+Configure width,Sets width according to the segmentation output size,DS 4.0
+Configure height,Sets height according to the segmentation output size,DS 4.0

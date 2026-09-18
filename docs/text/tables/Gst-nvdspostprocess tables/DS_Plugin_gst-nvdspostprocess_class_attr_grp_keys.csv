@@ -1,0 +1,7 @@
+Property,Meaning,Type and Range,Example
+topk,Keep only top K objects with highest detection scores.,"Integer, >0. -1 to disable",topk: 10
+nms-iou-threshold,Maximum IOU score between two proposals after which the proposal with the lower confidence will be rejected.,"Float, >0.0",nms-iou-threshold: 0.2
+pre-cluster-threshold,Detection threshold to be applied prior to clustering operation,"Float, >0.0",pre-cluster-threshold: 0.5
+post-cluster-threshold,Detection threshold to be applied post clustering operation,"Float, >0.0",post-cluster-threshold: 0.5
+eps,Epsilon values for DBSCAN algorithm,"Float, >0.0",eps: 0.2
+dbscan-min-score,Minimum sum of confidence of all the neighbors in a cluster for it to be considered a valid cluster.,"Float, >0.0",dbscan-min-score: 0.7

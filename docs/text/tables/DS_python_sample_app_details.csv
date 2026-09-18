@@ -1,0 +1,40 @@
+Reference test application,Path inside the GitHub repo,Description
+Simple test application 1,apps/­deepstream-test1,Simple example of how to use DeepStream elements for a single H.264 stream: filesrc |rarr| decode |rarr| nvstreammux |rarr| nvinfer (primary detector) |rarr| nvdsosd |rarr| renderer.
+Simple test application 2,apps/­deepstream-test2,Simple example of how to use DeepStream elements for a single H.264 stream: filesrc |rarr| decode |rarr| nvstreammux |rarr| nvinfer (primary detector) |rarr| nvtracker |rarr| nvinfer (secondary classifier) |rarr| nvdsosd |rarr| renderer.
+Simple test application 3,apps/­deepstream-test3,"Builds on deepstream-test1 (simple test application 1) to demonstrate how to:
+
+* Use multiple sources in the pipeline
+* Use a uridecodebin to accept any type of input (e.g. RTSP/File), any GStreamer supported container format, and any codec
+* Configure Gst-nvstreammux to generate a batch of frames and infer on it for better resource utilization
+* Extract the stream metadata, which contains useful information about the frames in the batched buffer"
+Simple test application 4,apps/­deepstream-test4,"Builds on deepstream-test1 for a single H.264 stream: filesrc, decode, nvstreammux, nvinfer, nvdsosd, renderer to demonstrate how to:
+
+* Use the Gst-nvmsgconv and Gst-nvmsgbroker plugins in the pipeline
+* Create NVDS_META_EVENT_MSG type metadata and attach it to the buffer
+* Use NVDS_META_EVENT_MSG for different types of objects, e.g. vehicle and person
+* Implement “copy” and “free” functions for use if metadata is extended through the extMsg field"
+USB camera source application,apps/­deepstream-test1-usbcam,Simple test application 1 modified to process a single stream from a USB camera.
+RTSP output application,apps/­deepstream-test1-rtsp-out,Simple test application 1 modified to output visualization stream over RTSP.
+Image data access application,apps/­deepstream-imagedata-multistream,"Builds on simple test application 3 to demonstrate how to:
+
+* Access decoded frames as NumPy arrays in the pipeline
+* Check detection confidence of detected objects (DBSCAN or NMS clustering required)
+* Modify frames and see the changes reflected downstream in the pipeline
+* Use OpenCV to annotate the frames and save them to file"
+Optical flow application,apps/deepstream-opticalflow,"Demonstrates how to obtain opticalflow meta data and also demonstrates how to:
+
+* Access optical flow vectors as numpy array 
+* Visualize optical flow using obtained flow vectors and OpenCV"
+Segmentation application,apps/deepstream-segmentation,"Demonstrates how to obtain segmentation meta data and also demonstrates how to:
+
+* Access segmentation masks as numpy array
+* Visualize segmentation using obtained masks and OpenCV"
+Analytics application,apps/deepstream-nvdsanalytics,Demonstrates how to use the nvdsanalytics plugin and obtain analytics metadata
+Runtime source add/delete application,apps/runtime_source_add_delete,Demonstrates how to add and delete input sources at runtime
+Face redaction application,apps/deepstream-imagedata-multistream-redaction,Demonstrates how to access image data and perform face redaction
+RTSP input/output application,apps/deepstream-rtsp-in-rtsp-out,Multi-stream pipeline with RTSP input and output
+Preprocess application,apps/deepstream-preprocess-test,Demonstrates how to use nvdspreprocess plugin and perform custom preprocessing on provided ROIs
+Demuxer application,apps/deepstream-demux-multi-in-multi-out,Builds on deepstream-test3 to demonstrate how to use nvstreamdemux plugin to split batches and output separate buffer/streams.
+CuPy application,apps/deepstream-imagedata-multistream-cupy,Demonstrates how to access GPU buffer in a multistream source as a CuPy array and modify images in place.
+Segmask application,apps/deepstream-segmask,Demonstrates how to extract NvOSD_MaskParams from stream metadata and resize and binarize mask array for interpretable segmentation mask.
+Custom binding application,apps/deepstream-custom-binding-test,Demonstrates how to use NvDsUserMeta to attach and extract custom data structure written in Python bindings to/from the buffer.

@@ -1,0 +1,6 @@
+﻿Feature,Description,Release
+Live accuracy evaluation,"Computes AP@0.5, AP@0.5:0.95, precision, recall, and F1 per model and per class against ground truth over configurable evaluation epochs",DS 9.2
+Mode A / Mode B auto-detection,Auto-detects whether it sits downstream of a single inference model or a Gst-nvmodelmux primary/shadow pair,DS 9.2
+A/B promotion gating,"In Mode B, gates automatic promotion of a shadow model to primary using a minimum AP margin and configurable KPI thresholds (AP@0.5, precision, recall)",DS 9.2
+Ground-truth format auto-detection,Auto-detects the ground-truth format (KITTI directory | NVSchema JSONL | COCO JSON | TAO JSON),DS 9.2
+Per-model / per-class config overrides,"Supports per-model [model-<name>] config-file sections that override GT files, KPI thresholds, and promotion margins",DS 9.2

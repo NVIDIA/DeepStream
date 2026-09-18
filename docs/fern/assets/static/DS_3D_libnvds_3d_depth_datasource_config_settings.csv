@@ -1,0 +1,25 @@
+Property,Meaning,Type and Range,Example
+depth_source,Specify file path for depth source,String,depth_source: depth_uint16_640x480.bin
+color_source,Specify file path for color image source,String,color_source: color_rgba_1920x1080.bin
+depth_scale,Indicate depth unit in meters per each depth value,Float,depth_scale: 0.0010
+depth_datatype,"Indicate depth datatype, only [uint16] is supported for this version","String, Values must be uint16",depth_datatype: uint16
+depth_size,"Indicate depth resolutions in [width, height]","List[Uint32], must be [width, height]","depth_size: [640, 480]"
+color,Indicate color format. only `rgba` is supported,String. Value must be rgba,color: rgba
+color_size,"Indicate color resolutions in [width, height]","List[Uint32], must be [width, height]","color_size: [1920, 1080]"
+depth_intrinsic,Indicate depth sensor intrinsic parameter groups,Intrinsic Configuration Group,"depth_intrinsic:
+  width: 848
+  height: 480
+  centerX: 424.06073
+  centerY: 237.75032
+  fx: 422.513062
+  fy: 422.513062"
+color_intrinsic,Indicate color sensor intrinsic parameter groups,Intrinsic Configuration Group,"color_intrinsic:
+  width: 1920
+  height: 1080
+  centerX: 964.288086
+  centerY: 533.287354
+  fx: 1358.21423
+  fy: 1358.2533"
+depth_to_color_extrinsic,Indicate extrinsic parameters from depth sensor to color sensor,Extrinsic Configuration Group,"depth_to_color_extrinsic:
+  rotation: [1, -0.0068, 0.0010, 0.0068, 1, 0, -0.0010, 0, 1]
+  translation: [0.01481, -0.0001, 0.0002]"

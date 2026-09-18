@@ -1,0 +1,146 @@
+---
+title: "Performance"
+---
+
+DeepStream application is benchmarked across various NVIDIA TAO Toolkit and open source models. The measured performance represents end-to-end performance of the entire video analytic application considering video capture and decode, pre-processing, batching, inference, and post-processing to generate metadata. The output rendering is turned off to achieve peak inference performance. For information on disabling the output rendering, see [DS_ref_app_deepstream](DS_ref_app_deepstream) chapter.
+
+## TAO Pre-trained models
+
+[TAO toolkit](https://developer.nvidia.com/tao-toolkit) has a set of pretrained models listed in the table below. If the models below satisfy your requirement, you should start with one of them. These could be used for various applications in smart city or smart places. If your application is beyond the scope of these models, you may re-train one of the popular model architecture using TAO toolkit. The table below shows the end-to-end performance on highly accurate pre-trained models from TAO toolkit. All models are available on NGC. These models are natively integrated with DeepStream and the instructions to run these models are in `/opt/nvidia/deepstream/deepstream/samples/configs/tao_pretrained_models/`. The following numbers are obtained with `sample_1080p_h265.mp4`.
+
+<Note>
+The `RT-DETR (warehouse)` model used with the MV3DT Tracker is a warehouse-centric variant that differs from the `RT-DETR` model used in the other settings. It is trained for warehouse scenes with classes such as person, forklift and humanoid robots. The model is available on NGC at [RT-DETR 2D Warehouse](https://catalog.ngc.nvidia.com/orgs/nvidia/tao/models/rtdetr_2d_warehouse/deployable_efficientvit_l2_v1.0).
+</Note>
+
+**Jetson - pretrained models**
+
+|  |  |  |  | Jetson AGX Thor | Jetson AGX Orin |
+| --- | --- | --- | --- | --- | --- |
+| Model Arch | Inference resolution | Precision | Tracker | GPU<br />(FPS) | GPU<br />(FPS) |
+| C-RADIO-B | 3*224*224 | FP16 | No Tracker | 1320 | 544 |
+| C-RADIO-L | 3*224*224 | FP16 | No Tracker | 557 | 179 |
+| NV-DinoV2-L | 3*224*224 | FP16 | No Tracker | 451 | 126 |
+| RT-DETR | 3*640*640 | FP16 | No Tracker | 208 | 96 |
+| RT-DETR | 3*640*640 | FP16 | NvDCF Tracker | 189 | 96 |
+| RT-DETR (warehouse) | 3*544*960 | FP16 | MV3DT Tracker | 95 | 39 |
+| Peoplenet 2.6.3 | 3*640*640 | FP16 | MV3DT Tracker | 349 | 147 |
+| PeopleNet Transformer | 3*544*960 | FP16 | MV3DT Tracker | 25 | 16 |
+| Grounding-DINO | 3*544*960 | FP16 | No Tracker | 24 | 13 |
+| MaskGroundingDINOv2 | 3*544*960 | FP16 | No Tracker | 24 | 15 |
+| TrafficCamnet Transformer Lite | 3*544*960 | FP16 | NvDCF Tracker | 153 | 105 |
+| SegFormer | 3*640*640 | FP16 | No Tracker | 256 | 145 |
+| Mask2Former + SWIN | 3*800*800 | FP16 | No Tracker | 26 | 18 |
+
+**Performance dgx-spark - pretrained models**
+
+|  |  |  |  | DGX Spark |
+| --- | --- | --- | --- | --- |
+| Model Arch | Inference resolution | Precision | Tracker | GPU<br />(FPS) |
+| C-RADIO-B | 3*224*224 | FP16 | No Tracker | 1153 |
+| C-RADIO-L | 3*224*224 | FP16 | No Tracker | 414 |
+| NV-DinoV2-L | 3*224*224 | FP16 | No Tracker | 339 |
+| RT-DETR | 3*640*640 | FP16 | No Tracker | 192 |
+| RT-DETR | 3*640*640 | FP16 | NvDCF Tracker | 190 |
+| RT-DETR (warehouse) | 3*544*960 | FP16 | MV3DT Tracker | 106 |
+| Peoplenet 2.6.3 | 3*640*640 | FP16 | MV3DT Tracker | 341 |
+| PeopleNet Transformer | 3*544*960 | FP16 | MV3DT Tracker | 26 |
+| Grounding-DINO | 3*544*960 | FP16 | No Tracker | 24 |
+| MaskGroundingDINOv2 | 3*544*960 | FP16 | No Tracker | 25 |
+| TrafficCamnet Transformer Lite | 3*544*960 | FP16 | NvDCF | 144 |
+| SegFormer | 3*640*640 | FP16 | No Tracker | 226 |
+| Mask2Former + SWIN | 3*800*800 | FP16 | No Tracker | 29 |
+
+**Performance dgpu- pretrained models**
+
+|  |  |  |  |  | RTX PRO 4500 BSE | RTX PRO 6000 WS | RTX PRO 6000 BSE | L40s | B200 | GB200 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Model Arch | Inference resolution | Precision | Inference<br />Engine | Tracker | GPU<br />(FPS) | GPU<br />(FPS) | GPU<br />(FPS) | GPU<br />(FPS) | GPU<br />(FPS) | GPU<br />(FPS) |
+| C-RADIO-B | 3*224*224 | FP16 | TRT | No Tracker | 2182 | 4720 | 4241 | 2969 | 10023 | 11180 |
+| C-RADIO-L | 3*224*224 | FP16 | TRT | No Tracker | 668 | 1542 | 1998 | 1355 | 3841 | 4362 |
+| NV-DinoV2-L | 3*224*224 | FP16 | TRT | No Tracker | 534 | 1369 | 1728 | 1027 | 3666 | 4067 |
+| RT-DETR | 3*640*640 | FP16 | TRT | No Tracker | 380 | 1063 | 1037 | 643 | 1448 | 1541 |
+| RT-DETR | 3*640*640 | FP16 | TRT | NvDCF Tracker | 379 | 1024 | 946 | 642 | 1417 | 1529 |
+| RT-DETR (warehouse) | 3*544*960 | FP16 | TRT | MV3DT Tracker | 259 | 660 | 538 | 267 | 955 | 1238 |
+| Peoplenet 2.6.3 | 3*640*640 | FP16 | TRT | MV3DT Tracker | 741 | 1899 | 1524 | 1114 | 3572 | 3432 |
+| Peoplenet Transformer | 3*544*960 | FP16 | TRT | MV3DT Tracker | 85 | 224 | 205 | 142 | 243 | 279 |
+| Grounding-DINO | 3*544*960 | FP16 | TRT | No Tracker | 69 | 178 | 159 | 107 | 216 | 235 |
+| TrafficCamNet Transformer Lite | 3*544*960 | FP16 | TRT | NvDCF Tracker | 373 | 994 | 920 | 643 | 2104 | 2215 |
+| SegFormer | 3*640*640 | FP16 | TRT | No Tracker | 633 | 1348 | 1291 | 986 | 1290 | 1532 |
+| Mask2Former + SWIN | 3*800*800 | FP16 | TRT | No Tracker | 68 | 118 | 108 | 75 | 116 | 285 |
+| MaskGroundingDINO V2 | 3*544*960 | FP16 | TRT | No Tracker | 69 | 180 | 159 | 107 | 218 | 236 |
+
+## TAO Fine-tuned models
+
+[TAO Toolkit Finetuning Microservice](https://docs.nvidia.com/tao/tao-toolkit/7.0.1/text/overview.html) provides a new interface for accelerating model training and automating model fine-tuning flows. The fine-tuned models can be used by DeepStream SDK 9.2 out-of-the-box via [Inference Builder](/text/DS_Inference_Builder). The table mentioned in the [TAO Pre-trained models](/text/DS_Performance#tao-pre-trained-models) section shows the end-to-end performance on fine-tuned models from TAO toolkit.
+
+## DeepStream reference model and tracker
+
+DeepStream SDK ships with a reference `DetectNet_v2-ResNet10` model and three `ResNet18` classifier models. The detailed instructions to run these models with DeepStream are provided in the next section. DeepStream provides four reference trackers: `IOU`, `NvSORT`, `NvDeepSORT` and `NvDCF`. For more information about trackers, See the [DS_plugin_gst-nvtracker](DS_plugin_gst-nvtracker) section.
+
+## Configuration File Settings for Performance Measurement
+
+To achieve peak performance, make sure the devices are properly cooled. For Turing and Ampere GPUs, make sure you use a server that meets the thermal and airflow requirements.
+Along with the hardware setup, a few other options in the config file need to be set to achieve the published performance. Make the required changes to one of the config files from DeepStream SDK to replicate the peak performance.
+
+**Turn off output rendering, OSD, and tiler**
+
+ OSD (on-screen display) is used to display bounding box, masks, and labels on the screen. If output rendering is disabled, creating bounding boxes is not required unless the output needs to be streamed over RTSP or saved to disk. Tiler is used to display the output in `NxM` tiled grid. It is not needed if rendering is disabled. Output rendering, OSD and tiler use some percentage of compute resources, so it can reduce the inference performance.
+
+ To disable OSD, tiled display and output sink, make the following changes in the DeepStream config file.
+
+  * To disable OSD, change enable to 0
+
+```
+[osd]
+enable=0
+```
+
+  * To disable tiling, change enable to 0
+
+```
+[tiled-display]
+enable=0
+```
+
+  * To turn-off output rendering, change the sink to fakesink.
+
+```
+[sink0]
+enable=1
+#Type - 1=FakeSink 2=EglSink 3=File
+type=1
+sync=0
+```
+
+**Use the max_perf setting for tracker**
+
+ DeepStream SDK 6.2 onwards introduces a new reference low-level tracker library, *NvMultiObjectTracker*, along with a set of configuration files:
+
+ * `config_tracker_IOU.yml`
+ * `config_tracker_NvDCF_max_perf.yml`
+ * `config_tracker_NvDCF_perf.yml`
+ * `config_tracker_NvDCF_accuracy.yml`
+
+To achieve the peak performance shown in the table above when using the NvDCF tracker, make sure the max_perf configuration is used with video frame resolution matched to that of the inference module. If the inference module uses 480x272 resolution, for example, it would be recommended to use a reduced resolution (e.g., 480x288) for the tracker module like the following:
+
+```
+[tracker]
+enable=1
+tracker-width=480
+tracker-height=288
+ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+#ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_IOU.yml
+ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_max_perf.yml
+gpu-id=0
+enable-batch-process=1
+display-tracking-id=1
+```
+
+When the IOU tracker is used, the video frame resolution doesn't matter, and the default `config_tracker_IOU.yml` can be used.
+
+**CudaDeviceScheduleBlockingSync flag is set by default on dGPU**
+
+ * On dGPU only, cudaDeviceScheduleBlockingSync flag is set by default on the GPU where the Deepstream pipeline runs. In general, for pipelines with multiple streams, this helps in reducing the CPU utilization without affecting the performance much.
+ * Setting cudaDeviceScheduleBlockingSync flag when sub batches are enabled in the tracker, results in significant reduction in CPU utilization with similar or negligible dip in performance.
+ * When the environment variable NVDS_DISABLE_CUDADEV_BLOCKINGSYNC is set to 1, cudaDeviceScheduleBlockingSync flag is not set by default.
+ * There is a remote possibility that setting cudaDeviceScheduleBlockingSync flag might affect the pipeline performance negatively when the pipeline already runs with GPU utilization close to 100%. Hence, when the user encounters a situation where a Deepstream pipeline is GPU bound and the GPU utilization does not reach close to 100%, then the user may experiment with setting NVDS_DISABLE_CUDADEV_BLOCKINGSYNC to 1 and check if it helps in improving the performance of the pipeline.

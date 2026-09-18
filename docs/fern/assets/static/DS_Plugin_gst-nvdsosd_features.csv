@@ -1,0 +1,11 @@
+﻿Feature,Description,Release
+Supports drawing oriented bounding boxes (OBB),Rotated rectangles can be drawn by specifying rotation_angle values in NvOSD_RectParams in metadata.,DS 9.0
+Supports blurring detected objects,The object can be blurred according to the parameters configured.,DS 8.0
+"Supports drawing arrows, lines, circles, text in GPU mode",Fill metadata as described in below rows to draw different shapes. (Alpha),DS 6.2
+Supports drawing arrows,Arrows can be drawn by specifying values in NvOSD_ArrowParams in metadata.,DS 5.0
+Supports drawing circles,Circles can be drawn by specifying values in NvOSD_CircleParams in metadata.,DS 5.0
+Support for blending bounding boxes,Blending boxes can be drawn by specifying bg_color values in NvOSD_RectParams in metadata.,DS 4.0
+Supports drawing polygon lines,Lines can be drawn by specifying values in NvOSD_LineParams in metadata.,DS 3.0
+Supports drawing text using Pango and Cairo libraries,Text can be drawn by specifying values in NvOSD_TextParams in metadata.,DS 2.0
+"CPU mode and GPU support for drawing bounding boxes.
+Setting opacity for bounding box borders is not supported in gpu mode.",Bounding boxes can be drawn by specifying values in NvOSD_RectParams in metadata.,DS 2.0

@@ -1,0 +1,4 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,Device ID of the GPU used for the device-to-host copy,"Integer,
+0 to 4,294,967,295",gpu-id=0
+silent,Produces verbose console output when set to FALSE,Boolean,silent=FALSE

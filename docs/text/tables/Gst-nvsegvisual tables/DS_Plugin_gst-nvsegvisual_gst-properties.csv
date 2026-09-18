@@ -1,0 +1,19 @@
+﻿Property,Meaning,Type and Range,Example and Notes
+gpu-id,Device ID of the GPU to be used for decoding,"Integer,
+0 to 4,294,967,295",gpu-id=0
+width,Segmentation output width,"Integer,
+0 to 4,294,967,295",width=512
+height,Segmentation output height,"Integer,
+0 to 4,294,967,295",height=512
+unique-id,Unique ID for the element; can be used to identify the output of the element,"Integer,
+0 to 4,294,967,295",unique-id=15
+batch-size,Maximum batch size for inference,"Integer,
+1 to 4,294,967,295",batch-size=4
+operate-on-seg-meta-id,Visualize segmentation on the seg-metadata with this unique ID; set to -1 to visualize on all metadata,"Integer,
+-1 to 2,147,483,647",operate-on-seg-meta-id=-1
+original-background,Shows the original background instead of the masked background when set,Boolean,original-background=0
+class-id,Class ID of the background; should be set if original-background is TRUE,"Integer,
+0 to 4,294,967,295",class-id=0
+alpha,Alpha value for per-pixel blending,"Float,
+0.0 to 1.0",alpha=1.0
+gpu-on,Switches between device and host memory,Boolean,gpu-on=1

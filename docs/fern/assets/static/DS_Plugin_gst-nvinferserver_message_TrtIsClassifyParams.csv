@@ -1,0 +1,9 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+topk,Specify top k elements need to keep from Triton’s native classification,uint32; >=0,"topk : 1
+Value 0 or empty would keep the top 1 result.","Classifier
+
+Both"
+threshold,Classification score lesser than this threshold would be rejected,float,threshold: 0.5,"Classifier
+
+Both"

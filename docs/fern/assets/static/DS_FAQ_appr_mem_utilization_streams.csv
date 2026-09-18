@@ -1,0 +1,9 @@
+"Batch size
+(Number of streams)",Decode memory,"Gst-nvinfer
+memory","Gst-nvstreammux
+memory"
+1,32 MB,333 MB,0 MB
+2,64 MB,341 MB,0 MB
+4,128 MB,359 MB,0 MB
+8,256 MB,391 MB,0 MB
+16,512 MB,457 MB,0 MB

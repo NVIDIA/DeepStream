@@ -1,0 +1,131 @@
+---
+title: "DeepStream Libraries"
+---
+
+DeepStream Libraries provide [CVCUDA](https://github.com/CVCUDA/CV-CUDA), [NvImageCodec](https://github.com/NVIDIA/nvImageCodec), and [PyNvVideoCodec](https://pypi.org/project/PyNvVideoCodec/) modules as Python APIs to easily integrate into custom frameworks.
+Developers can build complete Python applications with fully accelerated components leveraging intuitive Python APIs.
+Most of the DeepStream Libraries building blocks and their Python APIs are available today as standalone packages. DeepStream Libraries provide a way for Python developers to install these packages with a single installer.
+All these packages are built against the same CUDA version and validated with the specified driver version. Reference applications are provided to demonstrate the usage of Python APIs.
+
+# DeepStream Libraries Repository Setup
+
+Follow these steps to set up your environment for running [sample applications](https://github.com/NVIDIA/DeepStream):
+
+1. Clone Repository
+
+  DeepStream Libraries is hosted as a submodule of the [NVIDIA/DeepStream](https://github.com/NVIDIA/DeepStream) GitHub mono-repo. Clone the mono-repo with submodules and change into the `deepstream_libraries` directory:
+
+  ```text
+  $ git clone --recurse-submodules https://github.com/NVIDIA/DeepStream.git
+  $ cd DeepStream/deepstream_libraries
+  ```
+
+2. Install System Dependencies
+
+  ```text
+  $ sudo sh scripts/install_sys_pkgs.sh
+  ```
+
+3. Download Sample Data
+
+  ```text
+  $ sh scripts/download_data.sh
+  ```
+
+4. Setup Python Virtual Environment
+
+  ```text
+  # Create virtual environment
+  $ python3 -m venv deepstream_libraries_env
+  
+  # Activate virtual environment
+  $ source deepstream_libraries_env/bin/activate
+  
+  # Verify activation
+  $ which python3  # Should point to virtual environment
+  ```
+
+**Note:** Activate the virtual environment for Python dependencies and wheel installation, and in each new terminal session.
+
+5. Install Python Dependencies
+
+  ```text
+  $ sh scripts/install_python_pkgs.sh
+  ```
+
+# DeepStream Libraries Installation
+
+1. Download the DeepStream Libraries wheel file from the GitHub mono-repo release assets.
+
+  - Download the `deepstream_libraries-1.4-cp312-cp312-linux_x86_64.whl` wheel file from this [release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0)
+
+2. Install DeepStream Libraries package.
+
+  ```text
+  $ pip3 install deepstream_libraries-1.4-cp312-cp312-linux_x86_64.whl
+  ```
+
+# Getting Started with DeepStream Libraries APIs
+
+We can use DeepStream Libraries API's to create an application.
+
+Consider the below reference example:
+
+- Read an image from the given file path using NvImageCodec
+- Resize the image with specified dimensions and Cubic interpolation method using CVCUDA
+- Align output dimensions to ensure compatibility with nvImageCodec
+- Save the resized image using NvImageCodec
+
+  ```python
+  # Import necessary libraries
+  import cvcuda
+  from nvidia import nvimgcodec
+  
+  # Create Decoder
+  decoder = nvimgcodec.Decoder()
+  
+  # Read image with nvImageCodec (using CodeStream API)
+  with open("path/to/image.jpg", "rb") as f:
+      image_bytes = f.read()
+  code_stream = nvimgcodec.CodeStream(image_bytes)
+  inputImage = decoder.decode(code_stream)
+  
+  # Pass it to cvcuda using as_tensor
+  nvcvInputTensor = cvcuda.as_tensor(inputImage, "HWC")
+  
+  # Align output dimensions to 32-byte boundaries for nvImageCodec compatibility
+  output_width, output_height, alignment = 320, 240 , 32
+  aligned_width, aligned_height = ((output_width + alignment - 1) // alignment) * alignment , ((output_height + alignment - 1) // alignment) * alignment
+  
+  # Resize with cvcuda using aligned dimensions
+  cvcuda_stream = cvcuda.Stream()
+  with cvcuda_stream:
+      nvcvResizeTensor = cvcuda.resize(nvcvInputTensor,(aligned_height, aligned_width, 3), cvcuda.Interp.CUBIC)
+  
+  # Write with nvImageCodec
+  encoder = nvimgcodec.Encoder()
+  output_image_path = "output.jpg"
+  encoder.write(output_image_path, nvimgcodec.as_image(nvcvResizeTensor.cuda(), cuda_stream = cvcuda_stream.handle))
+  ```
+
+# Sample Applications
+
+**DeepStream Libraries Sample Apps**
+
+| Application | Description |
+| --- | --- |
+| Classification | A CUDA-accelerated image and video classification pipeline integrating PyTorch or TensorRT for efficient processing on NVIDIA GPUs |
+| Object-Detection | GPU accelerated Object detection using CV-CUDA library with TensorFlow or TensorRT |
+| Segmentation | GPU accelerated Semantic segmentation by utilizing the CV-CUDA library with PyTorch or TensorRT |
+| Resize-Image | A sample app that decodes, resizes, and encodes images using the CVCUDA and NvImageCodec Python API's |
+| Decode-Video | Decodes encoded bitstreams using PyNvVideoCodec decode APIs |
+| Encode-Video | Encodes a raw YUV file using PyNvVideoCodec encode APIs |
+| Transcode-Video | Transcodes the video files using PyNvVideoCodec API's |
+
+# Additional References and Applications
+
+For more references and application please refer to the below link:
+
+- [CVCUDA](https://github.com/CVCUDA/CV-CUDA/releases/tag/v0.16.0)
+- [NvImageCodec](https://github.com/NVIDIA/nvImageCodec/releases/tag/v0.8.0)
+- [PyNvVideoCodec](https://pypi.org/project/PyNvVideoCodec/2.1/)

@@ -1,0 +1,13 @@
+Property,Meaning,Type and Range,Example
+src-ids,Source IDs on which this group applies,Semicolon delimited integer array of values >=0,src-ids=0;1;2;3
+custom-input-transformation-function,Name of Custom input transformation function from custom library,String,custom-input-transformation-function=CustomTransformation
+process-on-roi,If enabled process on ROIs else on full-frames (ignored if process-on-frame disabled),Boolean,process-on-roi=1
+roi-params-src-<id>,Roi coordinates for source <id>. for each ROI specify left;top;width;height defining the ROI if process-on-roi enabled.,Semicolon delimited integer array of values >=0,roi-params-0=0;540;900;500;960;0;900;500
+operate-on-class-ids,Preprocessing is done only on the objects belongs to these class-ids (ignored if process-on-frame enabled),Semicolon delimited integer(class-ids) array of values >=0,operate-on-class-ids=0;1
+process-on-all-objects,If enabled process all the objects else process the objects within the roi (ignored if process-on-frame enabled),Boolean,process-on-all-objects=1
+draw-roi,If enabled specified roi's are drawn on display else roi's are not drawn,Boolean,draw-roi=1
+roi-color,Color of roi to be displayed,"Semicolon delimited color components values R;G;B;A",roi_color=0;1;1;1
+input-object-min-width,Minimum width of objects which are to be processed,"Integer, ≥0",input-object-min-width=100
+input-object-min-height,Minimum height of objects which are to be processed,"Integer, ≥0",input-object-min-height=100
+input-object-max-width,Maximum width of objects which are to be processed,"Integer, ≥0",input-object-max-width=500
+input-object-max-height,Maximum height of objects which are to be processed,"Integer, ≥0",input-object-max-height=500

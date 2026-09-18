@@ -1,0 +1,15 @@
+Group/Component name,Parameter update
+Stream specific,Stream addition and removal
+nvdspreprocess,Update ROI for preprocess
+nvv4l2decoder,"""drop-frame-interval"" and ""skip-frame"" property update"
+nvdsinfer,"""interval"" property update"
+nvdsinferserver,"""interval"" property update"
+nvdstracker,"""config_path"" config file with parameters to update"
+nvv4l2encoder,"""force-idr"", ""force-intra"",  “iframeinterval” and ""bitrate"" property update"
+nvstreammux,"""batched-push-timeout"" property update"
+nvvideoconvert,"""src-crop"", ""dest-crop"", ""flip-method"" and ""interpolation-method"" property update"
+nvdsosd,"""process-mode"" property update"
+nvdsanalytics,Reload nvdsanalytics config 
+Application specific,Application quit
+GET requests,"Get stream-info, Get DeepStream readiness info, Get metrics info, Get liveness info, Get startup info"
+nvmodelmux,"Model load/unload/update, stream-to-model routing, model status, and application metadata (see :doc:`DS_plugin_gst-nvmodelmux`)"

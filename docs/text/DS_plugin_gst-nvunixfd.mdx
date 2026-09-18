@@ -1,0 +1,114 @@
+---
+title: "Gst-nvunixfd"
+---
+
+The Gst-nvunixfd plugin performs the hardware video buffers sharing between different processes and pipelines via IPC (inter-process communication). Gst-nvunixfd provides the Gst-nvunixfdsink and Gst-nvunixfdsrc for sending and receiving the hardware video buffers between pipelines to avoid unnecessary memory copy. Gst-nvunixfdsink acts as a server, the NvBufSurfaceMapParams which contains the video buffer information and the IPC sharable FD(File Descriptor) of the video buffer are sent to the Gst-nvunixfdsrc. Gst-nvunixfdsrc then creates a new NvBufSurface with the received data. On Jetson, FD is the bufferDesc in the NvBufSurface structure. On DGPU, FD is a cudaIpcMemHandle_t handle derived from the CUDA memory.
+
+The Gst-nvunixfdsink pipeline can send hardware video buffers to multiple Gst-nvunixfdsrc pipelines, the Gst-nvunixfdsrc pipeline can receive hardware video buffers from multiple Gst-nvunixfdsink pipelines. All the pipelines should work in the same device and the same system. The batched NvBufSurface is not supported.
+
+## Gst-nvunixfdsink
+
+Gst-nvunixfdsink is a Unix file descriptor sink derived from OSS unixfdsink element, which is used on server side.
+
+![Gst-nvunixfd](/assets/images/content/DS_plugin_gst-nvunixfdsink.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Gst no-batched buffer
+
+* Control parameters
+
+  *	gpu-id: selects the GPU ID
+  *	buffer-copy: copy buffer for every client
+  *	buffer-timestamp-copy: copy timestamp of the received Gst buffers
+  *	compute-hw: Compute HW for copy operation
+  *	meta-serialization-lib: Set meta serialization library name to be used
+  *	socket-type: The type of underlying socket
+  *	socket-path: The path to the control socket used to control the shared memory
+
+* Output
+
+  *	After client connects, server passes the NvBufSurface handle, timestamp and other data to client through IPC.
+
+## Features
+
+The following table summarizes the features of the Gst-nvunixfdsink plugin.
+
+**Gst-nvunixfdsink plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Configure GPU selection | Sets the GPU ID to be used for optical flow visualization operations (valid only for dGPU platforms) | DS 8.0 |
+| buffer copy | copy buffer for every client | DS 8.0 |
+| buffer timestamp copy | copy timestamp of received buffer | DS 8.0 |
+| compute HW | Compute HW for copy operation | DS 8.0 |
+| meta serialization lib | Set meta serialization library name to be used | DS 8.0 |
+| socket type | The type of underlying socket | DS 8.0 |
+| socket path | The path to the control socket used to control the shared memory | DS 8.0 |
+
+## Gst-nvunixfdsrc
+
+Gst-nvunixfdsrc is a Unix file descriptor source derived from OSS unixfdsrc element, which is used on client side.
+
+![Gst-nvunixfd](/assets/images/content/DS_plugin_gst-nvunixfdsrc.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	The NvBufSurface handle, timestamp and other data received from server.
+
+* Control parameters
+
+  *	gpu-id: selects the GPU ID
+  *	buffer-copy: copy buffer for every client
+  *	buffer-timestamp-copy: copy timestamp of received buffer
+  *	compute-hw: Compute HW for copy operation
+  *	meta-deserialization-lib: Set meta deserialization library name to be used
+  *	socket-type: The type of underlying socket
+  *	socket-path: The path to the control socket used to control the shared memory
+  *	connection-attempts: Max number of attempts for connection (-1 = unlimited)
+  *	connection-interval: Connection interval between connection attempts in micro seconds
+
+* Output
+
+  *	 Gst no-batched buffer
+
+## Features
+
+The following table summarizes the features of the Gst-nvunixfdsrc plugin.
+
+**Gst-nvunixfdsrc plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Configure GPU selection | Sets the GPU ID to be used for optical flow visualization operations (valid only for dGPU platforms) | DS 8.0 |
+| buffer copy | copy buffer for every client | DS 8.0 |
+| buffer timestamp copy | copy timestamp of received buffer | DS 8.0 |
+| compute HW | Compute HW for copy operation | DS 8.0 |
+| meta deserialization lib | Set meta deserialization library name to be used | DS 8.0 |
+| socket type | The type of underlying socket | DS 8.0 |
+| socket path | The path to the control socket used to control the shared memory | DS 8.0 |
+| connection attempts | Max number of attempts for connection | DS 8.0 |
+| connection interval | connection interval | DS 8.0 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvunixfdsrc plugin.
+
+**Gst-nvunixfdsrc plugin gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU to be used(dGPU only) | Integer,0 to 4,294,967,295 | gpu-id=0 |
+| buffer-copy | Buffer copy | Boolean. Default: false | buffer-copy=0 |
+| buffer-timestamp-copy | Buffer copy | Boolean. Default: false | buffer-copy=0 |
+| compute-hw | Type of computing hardware:<br />0: Default (GPU for gDPU, CPU for Jetson)<br />1: VLC( only for Jetson)<br />2: GPU | enum GstComputeHW | compute-hw=0<br />Default value is 0. |
+| buffer-timestamp-copy | Buffer copy | Boolean. Default: false | buffer-copy=0 |
+| meta-serialization-lib | Meta serialization library name | String | ./lib/serialization.so |
+| socket-type | socket type | enum GUnixSocketAddressType | socket-type=G_UNIX_SOCKET_ADDRESS_PATH,Default value is G_UNIX_SOCKET_ADDRESS_PATH |
+| socket-path | Path to the control socket | String | socket-path=/tmp/test1 |
+| connection-attempts | Max number of attempts for connection (-1 = unlimited) | int | connection-attempts=3,Default: -1 |
+| connection-interval | Path to the control socket | int | connection-interval=3000000,Default: 1000000 |

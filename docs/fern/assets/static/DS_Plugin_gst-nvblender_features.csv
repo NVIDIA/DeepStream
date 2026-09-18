@@ -1,0 +1,4 @@
+﻿Feature,Description,Release
+GPU-accelerated multi-stream blending,Composites multiple input streams into a single output stream on the GPU,DS 9.2
+Per-pad position and size control,Sets X/Y position and width/height independently for each input pad,DS 9.2
+Per-pad alpha and crossfade control,Sets per-pad alpha blending and crossfade ratio,DS 9.2

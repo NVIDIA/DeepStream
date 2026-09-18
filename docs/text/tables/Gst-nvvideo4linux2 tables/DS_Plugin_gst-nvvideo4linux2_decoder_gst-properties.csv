@@ -1,0 +1,77 @@
+﻿Property,Meaning,Type and Range,Example/Notes,Platforms
+capture-io-mode,"Capture I/O mode (matches src pad)
+
+(0): auto             - GST_V4L2_IO_AUTO
+
+(2): mmap          - GST_V4L2_IO_MMAP","On dGPU:
+
+Enum ""GstNvV4l2IOMode""
+
+On Jetson:
+
+Enum ""GstNvV4l2DecCaptureIOMode""",Default: 0,"dGPU
+Jetson"
+capture-buffer-dynamic-allocation,"Set to enable capture buffer dynamic allocation
+
+(0): cap_buf_dyn_alloc_disabled - Capture buffer dynamic allocation disabled
+
+(1): fw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for forward playback
+
+(2): rw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for reverse playback
+
+(3): fw_rw_cap_buf_dyn_alloc_enabled - Capture buffer dynamic allocation enabled for forward and reverse playback","Enum ""CaptureBufferDynamicAllocationModes""",Default: 0,Jetson
+cudadec-memtype,"Memory type for CUDA decoder buffers.
+
+(0): memtype_device   - Memory type Device
+
+(1): memtype_pinned   - Memory type Host Pinned
+
+(2): memtype_unified  - Memory type Unified","Enum ""CudaDecMemType""",Default: 2,dGPU
+disable-dpb,Set to disable DPB buffer for low latency,Boolean,Default: false,Jetson
+drop-frame-interval,"Interval to drop the frames, e.g. a value of 5 means the decoder outputs every fifth frame, and others are dropped.","Integer,
+1 to 30",Default: 0,"dGPU
+Jetson"
+extract-sei-type5-data,Set to extract and attach SEI type5 unregistered data on output buffer (not supported on Thor),Boolean,Default: false,dGPU
+enable-error-check,Set to enable error check (not supported on Thor),Boolean,Default: false,Jetson
+enable-frame-type-reporting,Set to enable frame type reporting (not supported on Thor),Boolean,Default: false,Jetson
+enable-full-frame,Whether or not the data is full framed (not supported on Thor),Boolean,Default: false,Jetson
+enable-max-performance,Set to enable max performance (not supported on Thor),Boolean,Default: false,Jetson
+gpu-id,Device ID of GPU to use for decoding.,Integer,Default:0,dGPU
+low-latency-mode,Set low latency mode for bitstreams having I and IPPP frames with no B frames,Boolean,Default: false,"dGPU 
+Jetson"
+mjpeg,Set to open MJPEG block (not supported on Thor),Boolean,Default: false,Jetson
+num-extra-surfaces,Number of surfaces in addition to min decode surfaces given by the V4L2 driver.,"Integer, 1 to 24","Default: 0 ","dGPU
+Jetson"
+output-io-mode,"Output side I/O mode (matches sink pad)
+
+On dGPU:
+
+(0): auto             - GST_V4L2_IO_AUTO
+
+(2): mmap         - GST_V4L2_IO_MMAP
+
+(5): dmabuf-import    - GST_V4L2_IO_DMABUF_IMPORT
+
+On Jetson:
+
+(0): auto             - GST_V4L2_IO_AUTO
+
+(2): mmap          - GST_V4L2_IO_MMAP
+
+(3): userptr        - GST_V4L2_IO_USERPTR","On dGPU:
+
+Enum ""GstNvV4l2IOMode""
+
+On Jetson:
+
+Enum ""GstNvV4l2DecOutputIOMode""","Default: 0, ""auto""","dGPU
+Jetson"
+sei-uuid,"Set 16 bytes UUID string for SEI Parsing, extract-sei-type5-data should be TRUE",String,Default: null,dGPU
+skip-frames,"Type of frames to skip during decoding.
+
+0 (decode_all): decode all frames
+
+1 (decode_non_ref): skips non-ref frames (Applicable only on Jetson platform)
+
+2 (decode_key): decode key frames","Enum ""SkipFrame""",Default: 0,"dGPU
+Jetson"

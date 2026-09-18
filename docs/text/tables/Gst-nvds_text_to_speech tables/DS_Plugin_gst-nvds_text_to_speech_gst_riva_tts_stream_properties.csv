@@ -1,0 +1,6 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,Must be name: riva_tts_stream
+detail,Node for Riva TTS Steam setting details,Node,detail: encoding: LINEAR_PCM
+encoding,Part of detail node. Specify output audio encoding format. Only LINEAR_PCM is supported,String,encoding: LINEAR_PCM
+language_code,Part of detail node. Specify which language is used for speech synthesis. Currently only en-US is supported,String,language_code: en-US
+voice_name,Part of detail node. Specify the voice name parameter used for speech synthesis,String,voice_name: ljspeech

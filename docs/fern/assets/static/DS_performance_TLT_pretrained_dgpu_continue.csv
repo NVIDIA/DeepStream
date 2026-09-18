@@ -1,0 +1,18 @@
+,,,,,H100,L40,L4,"Quadro
+(A6000)",A4000,L4000
+Model Arch,Inference resolution,Precision,"Inference
+Engine",Tracker,"GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)","GPU
+(FPS)"
+`PeopleNet- ResNet34 (v2.3.4) <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_,960x544,INT8,TRT,No Tracker,6831,4571,1580,2834,1308,1361
+`PeopleNet- ResNet34 (v2.3.4) <https://ngc.nvidia.com/catalog/models/nvidia:tao:peoplenet>`_,960x544,INT8,TRT,NvDCF Tracker,5842,3818,1370,1459,1268,1183
+`PeopleNet- ViT (deployable_v1.1) <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer/files?version=deployable_v1.1>`_,960x544,INT8,TRT,No Tracker,495,362,119,227,106,102
+`PeopleNet- ViT (deployable_v1.1) <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer/files?version=deployable_v1.1>`_,960x544,INT8,TRT,NvDCF Tracker,461,349,116,209,107,73
+YOLOv8s,640x640,INT8,TRT,No Tracker,2993,2213,1123,1845,1175,957
+YOLOv8s,640x640,INT8,TRT,NvDCF Tracker,2826,2248,984,607,1027,844
+YOLOv9t,640x640,FP16,TRT,No Tracker,2688,2260,1019,1660,939,865
+YOLOv9t,640x640,FP16,TRT,NvDCF Tracker,2541,1931,893,1587,852,764

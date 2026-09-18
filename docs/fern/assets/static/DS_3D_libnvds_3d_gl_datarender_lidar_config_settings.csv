@@ -1,0 +1,11 @@
+Property,Meaning,Type and Range,Example
+view_position,"Specify view position [x, y, z]coordinates","List[Float] ","view_position: [0, 0, -1]"
+view_target,"Specify view target [x, y, z]coordinates","List[Float] ","view_target: [0, 0, 1]"
+view_up,"Specify view up direction [x, y, z]coordinates","List[Float] ","view_up: [0, -1.0, 0]"
+near,Specify perspective projection near plane,Float,near: 0.01
+far,Specify perspective projection far plane,Float,far: 10.0
+fov,"Specify perspective projection field of view,  degree angle",Float,fov: 40.0
+lidar_color,Specify lidar data color for display,"List[Uint32] ","lidar_color: [0, 255, 0]"
+element_size,Specify lidar data element size. e.g. 4 for XYZI or 3 for XYZ,Uint32,element_size: 4
+lidar_data_key,"Specify lidar data frame in datamap, default value is DS3D::LidarXYZI",String,lidar_data_key: DS3D::LidarXYZI
+lidar_bbox_key,"Specify lidar 3D bounding box data in datamap, default value is DS3D::Lidar3DBboxRawData",String,lidar_bbox_key: DS3D::Lidar3DBboxRawData

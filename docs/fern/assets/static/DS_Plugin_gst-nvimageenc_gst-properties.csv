@@ -1,0 +1,10 @@
+Property,Meaning,Type and Range,Example and Notes,Platforms
+gpu-id,Device ID of GPU to use for encoding.,"Integer,
+0 to 4,294,967,295 ",gpu-id=0,"dGPU,
+ARM+dGPU"
+quality,Encoder quality,"Integer,
+0 to 100",quality=90,"dGPU,
+ARM+dGPU"
+encoded-size,Encoded size of the output buffer,"Integer,
+0 to 4,294,967,295",encoded-size=4194304,"dGPU,
+ARM+dGPU"

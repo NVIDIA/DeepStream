@@ -1,0 +1,2 @@
+﻿Feature,Description,Release
+Supports toggling buffer pool,plugin can toggle output buffer pool based on use cases,DS 6.4

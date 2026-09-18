@@ -1,0 +1,87 @@
+---
+title: "Gst-nvds3dbridge"
+---
+
+The Gst-nvds3dbridge plugin is a customizable plugin which provides a custom library interface to load component `ds3d::databridge`.
+
+The Plugin is fully configured through YAML format content or file. `sink_caps` and `src_caps` is also configurable.
+
+![Gst-nvds3dbridge](/assets/images/content/DS_plugin_gst-nvds3dbridge.png)
+
+<Note>
+Support for 3D (DS3D data format) to 2D (video/x-raw NVMM) is not provided.
+</Note>
+
+## Gst-nvds3dbridge properties Specifications
+
+**Gst-nvds3dbridge Properties.**
+
+| Properties | Description | Release |
+| --- | --- | --- |
+| config-content | yaml config content | DS 7.0 |
+| config-file | yaml config file path | DS 7.0 |
+
+## Custom library Interfaces
+
+The plugin parse the config file or content and set SinkCaps and SrcCaps. load a custom `ds3d::databridge` from `custom_lib_path`. Create this databridge by `custom_create_function`.
+
+## Supported DS3D Data bridges
+
+| SL | Data bridge | Data bridge custom library |
+| --- | --- | --- |
+| 1 | Video data bridge; wraps NVMM video memory to ds3d/datamap | `libnvds_3d_video_databridge.so` |
+
+Custom low level library: `libnvds_3d_video_databridge.so`
+
+## Custom low level library: `libnvds_3d_video_databridge.so`
+
+### Inputs and Outputs
+
+* Inputs
+
+   * video/x-raw(memory:NVMM)
+   * data format: NvBufSurface
+   * with/without GStreamer metadata (including NvDsBatchMeta)
+
+* Control parameters
+
+  *	config-file
+  *	config-content
+
+* Output
+
+  * ds3d/datamap
+
+* sink_caps
+
+  * parsed from config-file: `in_caps: video/x-raw(memory:NVMM)`.
+
+* src_caps
+
+  * parsed from config-file: `out_caps:` [ds3d/datamap](/text/DS_3D_Custom_Manual#ds3d-data-format-ds3d-datamap).
+
+### Configuration file
+
+Example:
+```
+name: videobridge_2d_to_3d
+type: ds3d::databridge
+in_caps: video/x-raw(memory:NVMM)
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_video_databridge.so
+custom_create_function: createVideoBridge2d3d
+config_body:
+    surface_to_image: True
+    # wrap nvbufsurface into color frame of ds3d::Frame2DGuard
+    output_image_key: DS3D::ColorFrame
+    # convert NvDsObjectMeta into array of ds3d::Object2DBbox with ds3d::FrameGuard
+    output_object2d_key: DS3D::Object2DBboxKey
+```
+
+### Video bridge configuration options
+
+| config-key | Description | Example value |
+| --- | --- | --- |
+| surface_to_image | If True, Output_image_key will be used to add following entries to datamap. a) output_image_key: ds3d::Frame2DGuard (with frame_0 in NvBufSurface->surfaceList[0]) b) output_image_key_%d: ds3d::Frame2DGuard (with frame_i in NvBufSurface->surfaceList[i]) | True / False |
+| output_image_key | The key name to use when generating datamap output. This name will be used to configure the input of downstream ds3d component. | DS3D::ColorFrame |
+| output_object2d_key | The key name to use when generating datamap output. This key name will be used to save NvDsObjectMeta from NvDsBatchMeta as an array of ds3d::Object2DBbox. | DS3D::Object2DBboxKey |

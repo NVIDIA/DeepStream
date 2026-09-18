@@ -1,0 +1,8 @@
+Feature,Description,Release
+Per stream/group of streams ROI processing,Process on the pre-defined ROIs having same processing algorithm inside a group,DS 6.0
+Processing on full frames/ROIs,Enable process-on-roi inside [group-\*] to process on ROIs,DS 6.0
+Custom library interface,Custom functionality using group transformation and tensor preparation functions,DS 6.0
+Custom group transformation function,For each group separate custom transformation functions can be provided from custom lib (e.g. scale & conversion),DS 6.0
+Custom tensor preparation function,Custom tensor preparation function from custom library to prepare raw tensor from already transformed ROIs/full-frames,DS 6.0
+Attach user meta at batch level,User meta (NvDsPreProcessBatchMeta) having raw tensor and Scaled & converted ROIs,DS 6.0
+Support for SGIE Mode,Supports processing on objects detected by PGIE model,DS 6.2

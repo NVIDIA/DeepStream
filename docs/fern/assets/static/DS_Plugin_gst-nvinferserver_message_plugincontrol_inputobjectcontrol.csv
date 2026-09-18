@@ -1,0 +1,10 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs
+| (Primary/Secondary)"
+bbox_filter,Bounding box filter,PluginControl::BBoxFilter,"bbox_filter {
+min_width: 32
+min_height: 32
+}
+see details in BBoxFilter","All 
+
+Secondary"

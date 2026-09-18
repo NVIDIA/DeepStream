@@ -1,0 +1,118 @@
+---
+title: "DeepStream Can Orientation App"
+---
+
+The `deepstream-can-orientation-app` sample application is provided at `app/sample_apps/deepstream-can-orientation-app` for your reference. This example demonstrates can orientation detection for industrial can position and rotation angles. There are several configurations for raw data input, JPEG input and Basler camera emulation input settings. The image below shows the architecture of this reference app.
+
+  ![DeepStream VPI Can Orientation Application Architecture](/assets/images/content/DS_can_orientation.png)
+
+## Getting Started
+
+### Prerequisites
+
+* Go to the folder `sources/apps/sample_apps/deepstream-can-orientation-app`
+* Prepare all test sample images and reference images. Run the following command to un-compress can test and reference images into folder `data`, and generate raw sample image data files.
+  Run command
+
+```
+$ ./prepare_sample_data.sh
+```
+
+  <Note>
+  If there is file permission issues, try with `sudo`.
+  </Note>
+
+* Export DISPLAY environment to correct display. e.g. `export DISPLAY=:0.0`.
+* For Basler camera emulation test, follow instructions in `deepstream-can-orientation-app/README` to install and build all dependencies. This emulation does not require a physical Basler camera.
+* Users can modify and configure their Basler cameras through Pylon Viewer to create new PFS and then use it in this app.
+
+### Run DeepStream Can Orientation Examples
+
+* Run tests for JPEG files with EGL display:
+```
+$ deepstream-can-orientation-app -c ds_can_orientation_jpg.yaml
+```
+
+* Run tests for GREY raw datafile with EGL display:
+```
+$  deepstream-can-orientation-app -c ds_can_orientation_raw.yaml -r data/test_samples_raw.grey
+```
+
+* Run tests for performance tests without display. Update `ds_can_orientation_raw.yaml`.
+```
+sink:
+   egl_display: false
+   sync: false
+ debug:
+   print_result: false
+```
+
+* Run performance tests:
+```
+$ deepstream-can-orientation-app -c ds_can_orientation_raw.yaml -r data/test_samples_raw.grey -l
+```
+
+* Run Basler Camera Emulation tests:
+```
+$ deepstream-can-orientation-app -c ds_can_orientation_basler_cam.yaml
+```
+
+## DeepStream Can Orientation App Configuration Specifications
+
+### deepstream-can-orientation-app settings
+
+The table below indicates the group settings for `ds_can_orientation_jpg.yaml` and `ds_can_orientation_raw.yaml`.
+
+**deepstream can orientation application settings**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| radius | Indicate radius of the can, unit in cm | Float | radius: 3.3 |
+| distance | Indicate distance from camera to can, unit in cm | Float | distance: 12.7 |
+| center | Indicate center of the can in input raw image normalized by width | Float | center: 0.5 |
+| can_width | Indicate width of the can in input raw image normalized by width | Float | can_width: 1.0 |
+| input_width | Indicate width of input raw image, It should be the input image width | Uint32 | input_width: 870 |
+| input_height | Indicate height of input raw image, It should be the input image height | Uint32 | input_height: 1200 |
+| crop_width | Indicate width of dewarped inference image to be used to match with reference image | Uint32 | crop_width: 500 |
+| target_x | Indicate target center in reference image in pixels | Uint32 | target_x: 250 |
+| ref_image | Specify reference image parameters | YAML node |  |
+| ref_image.perimeter | Indicate can circumference in reference image in pixels | Uint32 | ref_image:<br />perimeter: 1689 |
+| ref_image.image_path | Indicate reference image path, must be in color format GREY |  | ref_image:<br />image_path: data/reference_sample.grey |
+| ref_image.image_format | Indicate reference image color format, only GREY supported in this version | String: fourcc | ref_image:<br />image_format: GREY |
+| ref_image.image_width | Indicate reference image width | Uint32 | ref_image:<br />image_width: 2508 |
+| ref_image.image_height | Indicate reference image height | Uint32 | ref_image:<br />image_height: 625 |
+
+Custom lib `libnvds_vpicanmatch.so` Settings for Can Template Matching
+
+### Custom lib `libnvds_vpicanmatch.so` Settings for Can Template Matching
+
+The table below indicates the group settings for `config_video_template_can_match.yaml`.
+
+**deepstream can orientation application settings**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| radius | Indicate radius of the can, unit in cm | Float | radius: 3.3 |
+| distance | Indicate distance from camera to can, unit in cm | Float | distance: 12.7 |
+| center | Indicate center of the can in input raw image normalized by width | Float | center: 0.5 |
+| can_width | Indicate width of the can in input raw image normalized by width | Float | can_width: 1.0 |
+| input_width | Indicate width of input raw image, It should be the input image width | Uint32 | input_width: 870 |
+| input_height | Indicate height of input raw image, It should be the input image height | Uint32 | input_height: 1200 |
+| crop_width | Indicate width of dewarped inference image to be used to match with reference image | Uint32 | crop_width: 500 |
+| target_x | Indicate target center in reference image in pixels | Uint32 | target_x: 250 |
+| ref_image | Specify reference image parameters | YAML node |  |
+| ref_image.perimeter | Indicate can circumference in reference image in pixels | Uint32 | ref_image:<br />perimeter: 1689 |
+| ref_image.image_path | Indicate reference image path, must be in color format GREY |  | ref_image:<br />image_path: data/reference_sample.grey |
+| ref_image.image_format | Indicate reference image color format, only GREY supported in this version | String: fourcc | ref_image:<br />image_format: GREY |
+| ref_image.image_width | Indicate reference image width | Uint32 | ref_image:<br />image_width: 2508 |
+| ref_image.image_height | Indicate reference image height | Uint32 | ref_image:<br />image_height: 625 |
+
+## Build application From Source
+
+* Go to the folder `sources/apps/sample_apps/deepstream-can-orientation-app`.
+* Run the following commands:
+
+```
+$ make
+$ make install
+```

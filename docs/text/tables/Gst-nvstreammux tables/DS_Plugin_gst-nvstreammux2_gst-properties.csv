@@ -1,0 +1,25 @@
+Property,Meaning,Type and Range,"Example
+Notes"
+batch-size,Maximum number of frames in a batch.,"Integer,
+0 to 4,294,967,295",batch-size=30
+batched-push-timeout,Timeout in microseconds to wait after the first buffer is available to push the batch even if a complete batch is not formed.,"Signed integer,
+-1 to 2,147,483,647","batched-push-timeout= 40000
+40 msec"
+num-surfaces-per-frame,"Maximum number of surfaces per frame. Note: This needs to be set > 1 for dewarper usecases; for more info, please check documentation for nvdewarper plugin","Integer,
+0 to 4,294,967,295",num-surfaces-per-frame=1 (Default)
+config-file-path,Absolute or relative (to DS config-file location) path of configuration file for the Gst-nvstreammux element,String,config-file-path=config_mux_source30.txt
+sync-inputs,"Synchronize Inputs. Boolean property to force timestamp synchronization of
+input frames.","Boolean, 0 or 1",sync-inputs=0 (Default)
+max-latency,"The maximum upstream latency in nanoseconds. When sync-inputs=1,
+buffers coming in after max-latency shall be dropped.","Integer, 0 to 
+4,294,967,295",max-latency=0 (Default)
+frame-duration,"Duration of input frames in milliseconds for use in NTP timestamp correction based on frame rate.
+If set to 0, frame duration is inferred automatically from PTS values seen at RTP jitter buffer.
+When there is change in frame duration between the RTP jitter buffer and the nvstreammux,
+this property can be used to indicate the correct frame rate to the nvstreammux,
+for e.g. when there is an audiobuffersplit GstElement before nvstreammux in the pipeline.
+If set to -1 (GST_CLOCK_TIME_NONE), disables frame rate based NTP timestamp correction. (default)","Unsigned Integer64, 0 to 18446744073709551615",frame-duration=10
+drop-pipeline-eos,Boolean property to control EOS propagation downstream from nvstreammux when all the sink pads are at EOS. (Experimental),Boolean,drop-pipeline-eos=0(default) for dGPU/Jetson
+attach-sys-ts,"If TRUE, the system timestamp is attached as the NTP timestamp. If FALSE, the NTP timestamp from rtspsrc, if available, is attached instead",Boolean,attach-sys-ts=1
+frame-num-reset-on-eos,Resets frame numbers to 0 for a source from which EOS is received (for debugging purposes only),Boolean,frame-num-reset-on-eos=0
+frame-num-reset-on-stream-reset,Resets frame numbers to 0 for a source which needs to be reset (for debugging purposes only); must be paired with tracking-id-reset-mode=1 in the tracker config,Boolean,frame-num-reset-on-stream-reset=0

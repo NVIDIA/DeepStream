@@ -1,0 +1,10 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+threshold,Classification score lesser than this threshold would be rejected,float,threshold: 0.5,"Classifier
+
+Both"
+custom_parse_classifier_func,"Name of the custom classifier output parsing function.
+If not specified, Gst-nvinfer uses the internal parsing function with NCHW tensor order for softmax layers. User can reshape other output tensor order to NCHW in Triton config.pbtxt to run internal parsing.
+If specified, also need to set custom_lib to load custom library.",string,parse-classifier-func-name: “parse_bbox_softmax”,"Classifier
+
+Both"

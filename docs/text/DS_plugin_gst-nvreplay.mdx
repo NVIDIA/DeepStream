@@ -1,0 +1,226 @@
+---
+title: "Gst-nvreplay"
+---
+
+The Gst-nvreplay plugin loads pre-generated metadata from external files and injects it into DeepStream pipelines, effectively replacing the actual inference of corresponding plugins. This enables flexible proof-of-concepts, reproducible evaluations, and efficient parameter tuning by decoupling metadata generation from the pipeline.
+
+The plugin currently supports loading detection metadata equivalent to a primary inference engine (PGIE). It reads bounding box annotations from txt files in MOT challenge format and attaches them as NvDsObjectMeta to frames, allowing testing of downstream components (trackers, analytics modules, visualizations) without running computationally expensive inference operations.
+
+**Typical Pipeline Structure:** `source -> decoder -> nvstreammux -> nvreplay -> nvtracker -> nvdsosd -> sink`
+
+## Inputs and Outputs
+
+* Inputs
+
+  * Gst Buffer with NV12/RGBA/I420 format (NVMM memory)
+  * NvDsBatchMeta (must be attached by upstream components)
+  * Detection label files in MOT challenge format
+
+* Output
+
+  * Gst Buffer
+  * NvDsObjectMeta filled with bounding box coordinates, confidence score, and class information
+  * The frame_meta->bInferDone flag is set to TRUE, indicating detection completion
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvreplay plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports MOT detection format | Loads pre-generated detection metadata in MOT challenge format (CSV) to replay inference functionality. | DS 9.0 |
+| External metadata ingestion | Efficiently injects externally-generated metadata into DeepStream pipelines and functions as a drop-in replacement for primary inference engine (PGIE) | DS 9.0 |
+| Supports multiple streams | Can load detection labels from multiple files corresponding to different source streams in a batch. | DS 9.0 |
+| Coordinate scaling | Automatically scales bounding box coordinates from label space to actual frame resolution. | DS 9.0 |
+| Flexible file organization | Supports both flat and nested directory structures for label files. | DS 9.0 |
+| Frame interval control | Supports skipping batches when loading labels, similar to inference interval in nvinfer. | DS 9.0 |
+| Max frame number control | Supports limiting or specifying maximum frame numbers per stream with automatic wrapping. | DS 9.0 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvreplay plugin.
+
+**Gst-nvreplay gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| label-dir | Directory path containing ground truth label files | String | label-dir=/path/to/labels/ |
+| file-names | Semicolon-separated list of label file names corresponding to each source stream. Order must match source order (source0 source1 etc.) | String | file-names=<br />src0_det.txt;<br />src1_det.txt |
+| max-frame-nums | Semicolon-separated list of maximum frame numbers for each stream. If not specified uses maximum frame number from label files. Frames wrap around using modulo when exceeding this value | String | max-frame-nums=100;100;100 |
+| label-width | Frame width in the coordinate system used by ground truth labels. Used to scale coordinates to actual frame width | Integer,<br />0 to 4,294,967,295<br />Default: 1920 | label-width=1920 |
+| label-height | Frame height in the coordinate system used by ground truth labels. Used to scale coordinates to actual frame height | Integer,<br />0 to 4,294,967,295<br />Default: 1080 | label-height=1080 |
+| interval | Number of consecutive batches to skip before adding labels to metadata. 0 means labels are added to every batch | Integer, 0 to 4,294,967,295<br />Default: 0 | interval=0 |
+
+## MOT Detection Format
+
+The plugin expects detection data in the MOT (Multiple Object Tracking) challenge format, which is a CSV format where each line represents one detection. The format is widely used in computer vision research and provides a standardized way to represent object detections.
+
+**Format Specification:**
+
+Each line in the CSV file has the following structure:
+
+`frame_num, object_id, left, top, width, height, confidence`
+
+Where:
+
+* **frame_num**: Frame number (1-indexed in the label file, converted to 0-indexed internally)
+* **object_id**: Always set to -1 for detection
+* **left**: Left coordinate of the bounding box (x-coordinate of top-left corner)
+* **top**: Top coordinate of the bounding box (y-coordinate of top-left corner)
+* **width**: Width of the bounding box
+* **height**: Height of the bounding box
+* **confidence**: Detection confidence score, or valid flag (range: 0.0 to 1.0)
+
+**Example:**
+
+```text
+1,-1,100.5,200.3,50.2,80.1,0.95
+1,-1,300.0,150.0,60.0,90.0,0.88
+2,-1,102.0,201.0,51.0,81.0,0.96
+2,-1,302.5,151.2,60.5,90.5,0.89
+```
+
+This example shows two objects detected in frame 1 and 2 each.
+
+**Important Notes:**
+
+* Frame numbers in label files start from 1, but are converted to 0-indexed internally by DeepStream
+* All coordinates are in the scale defined by `label-width` and `label-height` properties
+* The plugin automatically scales coordinates to match the actual frame resolution
+* If a frame has no detections, it can be omitted from the label file (the plugin handles missing frames)
+
+## Configuration
+
+The Gst-nvreplay plugin can be configured through the DeepStream application configuration file or through GStreamer properties.
+
+**DeepStream Configuration File Example:**
+
+When using the plugin in a DeepStream application, you must disable the primary inference engine and enable the replay plugin:
+
+```ini
+[primary-gie]
+enable=0
+...
+
+[replay]
+enable=1
+label-dir=/path/to/labels/
+file-names=source0_detection.txt;source1_detection.txt;source2_detection.txt;source3_detection.txt
+max-frame-nums=100;100;100;100
+label-width=1920
+label-height=1080
+interval=0
+```
+
+**File Organization:**
+
+The plugin supports two directory structures:
+
+1. **Flat structure** (all files in the label directory):
+
+```
+/path/to/labels/
+    source0_detection.txt
+    source1_detection.txt
+    source2_detection.txt
+    source3_detection.txt
+
+ Configuration:
+```
+
+```ini
+file-names=source0_detection.txt;source1_detection.txt;source2_detection.txt;source3_detection.txt
+```
+
+2. **Nested structure** (files organized in subdirectories):
+
+```
+/path/to/labels/
+    source0/
+        detection.txt
+    source1/
+        detection.txt
+    source2/
+        detection.txt
+    source3/
+        source3_subdir/
+            detection.txt
+
+ Configuration:
+```
+
+```ini
+file-names=source0/detection.txt;source1/detection.txt;source2/detection.txt;source3/source3_subdir/detection.txt
+```
+
+## Metadata Generation
+
+The plugin generates NvDsObjectMeta for each detection in the label files with the following attributes:
+
+* **rect_params**: Bounding box coordinates (scaled to actual frame dimensions)
+
+  * left, top, width, height: Scaled from label coordinates to frame coordinates
+
+* **object_id**: Set to UNTRACKED_OBJECT_ID (default: 0xFFFFFFFFFFFFFFFF)
+
+* **class_id**: Set to LABEL_CLASS (default: 1)
+
+* **obj_label**: Set to "Person" by default
+
+* **confidence**: Detection confidence score from the label file
+
+* **unique_component_id**: Set to 15 (default unique ID for the plugin)
+
+* **text_params**: Display parameters for object label
+
+The plugin also sets `frame_meta->bInferDone = TRUE` to indicate that "inference" (in this case, label loading) has been completed for the frame.
+
+**Coordinate Scaling:**
+
+The plugin automatically handles coordinate scaling between label space and actual frame space:
+
+* **scale_width** = frame_width / label_width
+* **scale_height** = frame_height / label_height
+
+All bounding box coordinates from the label file are multiplied by these scale factors to ensure correct positioning on frames of any resolution.
+
+## Source Code and Compilation
+
+The source code for Gst-nvreplay is located in:
+
+`deepstream/sources/gst-plugins/gst-nvreplay/`
+
+**Key Files:**
+
+* `gstnvreplay.cpp`: Main plugin implementation
+* `gstnvreplay.h`: Plugin header and data structures
+* `gstnvreplay_lib.h`: Library interface header
+* `README`: Detailed usage instructions and examples
+
+**Compilation:**
+
+To compile and install the plugin:
+
+```bash
+cd deepstream/sources/gst-plugins/gst-nvreplay/
+make && sudo -E make install
+```
+
+## Customization
+
+To customize the plugin for specific use cases, you may need to modify the source code:
+
+**Multi-class Support:** Modify `attach_metadata_full_frame()` in `gstnvreplay.cpp` to parse class IDs from label files. The current implementation assigns all objects to the class ID specified by `LABEL_CLASS` (default: 1).
+
+**Object Label Customization:** Change the `LABEL_CLASS` and `LABEL_NAME` constants to customize the default object class ID and label:
+
+   ```cpp
+   #define LABEL_CLASS 1
+   #define LABEL_NAME "Face"
+   ```
+
+**Support for Additional Formats:** Extend `load_replay_data()` function to parse label formats other than MOT (e.g., COCO JSON, KITTI format, or custom formats).
+
+After making modifications, recompile and reinstall the plugin.

@@ -1,0 +1,11 @@
+"Tracker	",GPU computational Load,CPU computational load,Pros,Cons,Best Use Cases
+IOU,X,Very Low,Light-weight,"* No visual features for matching, so prone to frequent tracker ID switches and failures.
+* Not suitable for fast moving scene.","* Objects are sparsely located, with distinct sizes.
+* Detector is expected to run every frame or very frequently (ex. every alternate frame)."
+KLT,X,High,Works reasonably well for simple scenes,"* High CPU utilization.
+* Susceptible to change in the visual appearance due to noise and perturbations, such as shadow, non-rigid deformation, out-of-plane rotation, and partial occlusion.
+* Cannot work on objects with low textures.","* Objects with strong textures and simpler background.
+* Ideal for high CPU resource availability."
+NvDCF,Medium,Low,"* Highly robust against partial occlusions, shadow, and other transient visual changes.
+* Less frequent ID switches.","* Slower than KLT and IOU due to increased computational complexity.
+* Reduces the total number of streams processed.","Multi-object, complex scenes with partial occlusion."

@@ -1,0 +1,50 @@
+Property,Type of Element,Description,Type and Range,Examples 
+addr,Server,The IP address to which a client will connect,"String
+
+Default: 127.0.0.1",addr = 192.168.100.1
+addr,Client,The server IP address,"String
+
+Default: 127.0.0.1",addr = 192.168.100.1
+port,Server,Listening port for connections from clients,"Integer 0 - 66535
+
+Default: 7174",port = 4000 
+port,Client,The server port number,"Integer 0 - 65535
+
+Default: 7174",port = 4000 
+buf-type,All,"Type of data handled by UCX:
+
+0 - video
+
+1 - audio
+
+2 - raw-audio
+
+4 - text
+
+Default: 0",Integer,buf-type = 0 
+gpu-id,Source,GPU ID to use,"Integer 0 - 4294967295
+
+Default: 0",gpu-id=0 
+raw-buf-size,All,Size of raw buffer to allocate,"Integer 0 - 8192
+
+Default: 8192",raw-buf-size=1024 
+nvbuf-memory-type,Source,"Type of NvBufSurface Memory to allocate for output buffers
+
+0 - Default memory
+
+1 - cuda-pinned (Allocate Pinned/Host Cuda Memory)
+
+2 - cuda-device (Allocate Device cuda Memory)
+
+3 - cuda-unified (Allocate unified cuda memory)
+
+Default: 3",Integer,nvbuf-memory-type = 2
+num-nvbuf,Source,The number of Nv Buffers to allocate,"Integer 0 - 10
+
+Default: 4",num-nvbuf = 8 
+nvbuf-batch-size,All,The maximal batch size of a Nv Buffer,"Integer 1 - 2147483647
+
+Default: 1",nvbuf-batch-size = 4
+num-conns, ServerSink, The number of client connections to expect [#f1]_,"Integer 1 - 4
+
+Default: 1",num-conns = 2

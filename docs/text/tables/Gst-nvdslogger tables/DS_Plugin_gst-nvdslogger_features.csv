@@ -1,0 +1,3 @@
+﻿Feature,Description,Release
+Per-stream FPS measurement,Measures and prints per-stream frames-per-second at a configurable interval,DS 9.2
+Frame-level latency measurement,Measures and prints per-frame latency when latency tracking is enabled on the pipeline,DS 9.2

@@ -1,0 +1,88 @@
+---
+title: "Gst-nvdsvideotemplate"
+---
+
+The OSS Gst-nvdsvideotemplate plugin is a template plugin which provides a custom library hooking interface for single/batched video frame(s) processing. Custom lib implementation may have algorithms to transform or process input buffers depending upon the use case. It can support NV12 and RGBA inputs. The plugin accepts batched NVMM HW and RAW SW buffers, and outputs batched NVMM HW buffers.
+
+![Gst-nvdsvideotemplate](/assets/images/content/DS_plugin_gst-nvdsvideotemplate.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+   * NVMM or RAW Gst Buffers. Supported formats are NV12 and RGBA
+
+* Control parameters
+
+  *	customlib-name
+  *	gpu-id
+  *	customlib-props
+
+* Output
+
+  *	Transformed Gst Buffer
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsvideotemplate features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Simplified APIs | Simplified interface to implement custom library to add any algorithm without implementing new plugin | DS 5.1 |
+| Easy Data Accessing | Easy access to GstBuffer and it’s metadata inside custom library | DS 5.1 |
+| Synchronous and Asynchronous Buffer Processing | Buffer_Ok is the responsibility of the plugin to push the buffer downstream.<br />Buffer_Async is the responsibility of the custom library to push the buffer downstream.<br />Buffer_Error and Buffer_Drop are currently not implemented | DS 5.1 |
+| Reference Impl. | Reference implementation of custom library provides transform, transform-ip, metadata handling etc. which can be modified as per the use case. | DS 5.1 |
+| Abstraction APIs | Bufferpool creation, caps handling provided as an abstraction API inside customlib base class | DS 5.1 |
+
+## customlib_impl Interfaces
+
+* SetInitParams => Based on the negotiated caps, this API creates output buffer pool of the negotiated resolution
+* HandleEvent => This API handles standard Gstreamer events as well as custom events such as PAD_ADDED PAD_DELETED etc.
+* GetCompatibleCaps => This API returns the fixated caps to be set on either SINK / SRC pad of the plugin
+* ProcessBuffer => This API passes the GstBuffer to customlib for further processing
+* SetProperty => This API sets the customlib properties that are used by the underlying library for processing
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdsvideotemplate plugin.
+
+**Gst-nvsvideotemplate gst properties**
+
+| Property | Meaning | Type and Range | Example/Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| gpu-id | Device ID of GPU to use for decoding. | Integer, 0 to 4,294,967,295 | gpu-id=0 | dGPU |
+| customlib-name | custom library Name to be used | String | Default: null | dGPU |
+| customlib-props | Custom Library Properties (key:value) string, can be set multiple times,vector is maintained internally | String | Default: null | dGPU |
+| dummy-meta-insert | Set to enable dummy meta data insertion | Boolean | Default: false | dGPU |
+| fill-dummy-batch-meta | Set to fill dummy batch meta data sent from nvstreammux | Boolean | Default: false | dGPU |
+| config-file | Set config file path to load properties from (takes precedence over individual properties) | String | Default: null | dGPU |
+| name | The name of the object | String | Default: "nvdsvideotemplate0 | dGPU |
+| parent | The parent of the object | Object of type "GstObject | Default: null | dGPU |
+| qos | Handle Quality-of-Service events | Boolean | Default: false | dGPU |
+
+## Sample pipelines
+
+**For single stream:**
+
+```
+gst-launch-1.0 filesrc location=/home/nvidia/sample_720p.mp4 ! decodebin ! \
+
+ nvvideoconvert ! nvdsvideotemplate customlib-name="libcustom_impl.so" \
+
+ customlib-props="scale-factor:2.0" ! nveglglessink
+```
+
+**For Multi-stream:**
+
+```
+gst-launch-1.0 filesrc location= ~/sample_720p.mp4 ! decodebin ! m.sink_0 \
+ nvstreammux name=m width=640 height=480 batch-size=4 ! nvinfer config-file-path=config_infer_primary.txt \
+
+ ! nvdsvideotemplate customlib-name="libcustom_impl.so" customlib-props="scale-factor:2.0" \
+
+ ! nvmultistreamtiler ! nvvideoconvert ! "video/x-raw(memory:NVMM),width=320, height=240" ! nvdsosd ! nveglglessink \
+
+ filesrc location= ~/sample_720p.mp4 ! decodebin ! m.sink_1
+```

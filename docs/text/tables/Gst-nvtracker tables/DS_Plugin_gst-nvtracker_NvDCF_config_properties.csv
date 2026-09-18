@@ -1,0 +1,32 @@
+﻿Module,Property,Meaning,Type and Range,Default value,Support Dynamic Updates
+Visual Tracker,visualTrackerType,"Type of visual tracker among { DUMMY=0, NvDCF=1, NvDCF_VPI=2 }
+
+NvDCF_VPI is an Alpha feature. ","Int, [0, 1, 2]",visualTrackerType: 0, False
+,useColorNames,Use ColorNames feature,Boolean,useColorNames: 1, False
+,useHog,Use Histogram-of-Oriented-Gradient (HOG) feature,Boolean,useHog: 0, False
+,featureImgSizeLevel,Size of a feature image,"Integer,
+1 to 5",featureImgSizeLevel: 2, False
+,featureFocusOffsetFactor_y,The offset for the center of hanning window relative to the feature height,"Float,
+-0.5 to 0.5",featureFocusOffsetFactor_y: 0.0, True
+,useHighPrecisionFeature, Whether to use 16 bit high precision feature; otherwise use 8 bit,Boolean,useHighPrecisionFeature: 0, False
+,filterLr,Learning rate for DCF filter in exponential moving average,"Float,
+0.0 to 1.0",filterLr: 0.075, True
+,filterChannelWeightsLr,Learning rate for weights for different feature channels in DCF,"Float,
+0.0 to 1.0",filterChannelWeightsLr: 0.1, True
+,gaussianSigma,Standard deviation for Gaussian for desired response,"Float,
+>0.0",gaussianSigma: 0.75, True
+,vpiBackend4DcfTracker,"Compute backend among {CUDA=1, PVA=2}
+
+Valid when `visualTrackerType: 2`", "Int, [1,2]", vpiBackend4DcfTracker: 1, False
+Target Management,searchRegionPaddingScale,Search region size,"Integer,
+1 to 3",searchRegionPaddingScale: 1, True
+,minTrackerConfidence,Minimum detector confidence for a valid target,"Float,
+0.0 to 1.0",minTrackerConfidence: 0.6, True
+Data Assoicator,"minMatchingScore4
+VisualSimilarity",Min visual similarity score for valid matching,"Float,
+0.0 to 1.0","minMatchingScore4
+VisualSimilarity: 0.0", True
+,"matchingScoreWeight4
+VisualSimilarity",Weight for visual similarity term in matching cost function,"Float,
+0.0 to 1.0","matchingScoreWeight4
+VisualSimilarity: 0.0", True

@@ -1,0 +1,20 @@
+﻿Feature,Description,Release
+Configure number of dewarped surfaces,Supports a maximum of four dewarper surfaces.,DS 3.0
+Configure per-surface projection type,Currently supports FishPushBroom and FishVertRadCyd projections.,DS 3.0
+Configure per-surface projection type,PerspectivePerspective projections,DS 5.0
+Configure per-surface projection type,18 projections,DS 6.2
+Configure per-surface index,Surface index to be set in case of multiple surfaces having same projection type.,DS 3.0
+Configure per-surface width and height,,DS 3.0
+Configure per-surface dewarping parameters,"Per surface configurable yaw, roll, pitch, top angle, bottom angle, and focal length and CUDA address mode dewarping parameters. 
+For PerspectivePerspective projection type, field of view, distortion and principal point can additionally be configured.",DS 3.0
+Configurable dewarper output resolution,Creates a batch of up to four surfaces of a specified output resolution; internally scales all dewarper surfaces to output resolution.,DS 3.0
+Configurable NVDS CUDA memory type,—,DS 3.0
+Multi-GPU support,—,DS 3.0
+Aisle view CSV calibration file support,"If set, properties in the [surface<n>] group are ignored.
+Only supported for FishPushBroom and FishVertRadCyd.",DS 3.0
+Spot view CSV calibration file support,"If set, properties in the [surface<n>] group are ignored.
+Only supported for FishPushBroom and FishVertRadCyd.",DS 3.0
+Configure source id,Sets the source ID information in the NvDewarperSurfaceMeta.,DS 4.0
+Configurable number of output buffers,Number of allocated output dewarper buffers. Each buffer contains four dewarped output surfaces.,DS 4.0
+Configurable number of surfaces per output buffer,Number of dewarped output surfaces per buffer. Maximum allowed value is 4. ,DS 5.0
+Support for advanced configuration parameters, "Fisheye distortion coefficients, destination focal length, destination principal point, rotation axes sequence, rotation matrix", DS 6.2

@@ -1,0 +1,18 @@
+﻿Property,Meaning,Type and Range,Example and Notes,Platforms
+Enableperf,Enable decode time measurement,Boolean,Default: false,dGPU + Jetson
+gpu-id,Set GPU Device ID for operation,"Unsigned Integer
+0 to 4294967295",Default: 0,dGPU + Jetson
+idct-method,The IDCT algorithm to use,"Enum ""GstNvIDCTMethod""
+0: islow (Slow but accurate integer algorithm)
+1: ifast (Faster, less accurate integer method)
+2: float (Floating-point: accurate, fast on fast HW)",Default: 1 (ifast),dGPU + Jetson
+mjpegdecode,Enable mjpeg decoder path for decode operations,Boolean,Default: true,Jetson
+needs-buffer-pool,Needs buffer pool,Boolean,Default: true,Jetson
+nv12output,Enable nv12 output for i420 input,Boolean,Default: false,Jetson
+out-mem-type,Set decoder output memory type,"Enum ""DecMemType""
+0: memtype_default (Memory type Default)
+1: memtype_pinned (Memory type Host Pinned)
+2: memtype_device (Memory type Device)
+4: memtype_surface_array (Memory type Surface Array)",Default: 0 (memtype_default),Jetson
+rgbaoutput,Enable rgba output,Boolean,Default: false,Jetson
+yuy2output,Enable yuy2 output for yuv422 input,Boolean,Default: false,Jetson

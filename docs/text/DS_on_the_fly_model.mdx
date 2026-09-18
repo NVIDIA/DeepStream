@@ -1,0 +1,18 @@
+---
+title: "On the Fly Model Update"
+---
+
+The current DeepStream release supports changing Model on the Fly. This feature assumes that the model being updated has the same network parameters. This is an alpha feature and only supported in `deepstream-test5-app`.
+Currently, `on the fly model update` helps to deploy more accurate, newly trained models without the necessity to stop and re-launch the DeepStream application or container.
+That means, models can be updated with zero DeepStream application downtime.
+The image below shows how on the fly models works currently:
+
+  ![On the Fly Model Update](/assets/images/content/DS_on_the_fly.png)
+
+## Assumptions
+
+The future releases aim to address these listed assumption for on the fly model update:
+
+1. New model must have same network parameter configuration as of previous model (e.g. network resolution, network architecture, number of classes).
+2. Engine file or cache file of new model to be provided by developer.
+3. Other `primary gie` configuration parameters like `group-threshold`, `bbox color`, `gpu-id`, `nvbuf-memory-type` etc., will not have any effect after model switch even if updated parameters are provided in the override file.

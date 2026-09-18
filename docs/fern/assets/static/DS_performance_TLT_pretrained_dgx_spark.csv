@@ -1,0 +1,21 @@
+,,,,"DGX
+
+Spark
+
+"
+Model Arch,Inference resolution,Precision,Tracker,"GPU
+ 
+(FPS)"
+C-RADIO-B,3*224*224,FP16,No Tracker,1153
+C-RADIO-L,3*224*224,FP16,No Tracker,414
+NV-DinoV2-L,3*224*224,FP16,No Tracker,339
+RT-DETR,3*640*640,FP16,No Tracker,192
+RT-DETR,3*640*640,FP16,NvDCF Tracker,190
+RT-DETR (warehouse),3*544*960,FP16,MV3DT Tracker,106
+Peoplenet 2.6.3,3*640*640,FP16,MV3DT Tracker,341
+PeopleNet Transformer,3*544*960,FP16,MV3DT Tracker,26
+Grounding-DINO,3*544*960,FP16,No Tracker,24
+MaskGroundingDINOv2,3*544*960,FP16,No Tracker,25
+TrafficCamnet Transformer Lite,3*544*960,FP16,NvDCF,144
+SegFormer,3*640*640,FP16,No Tracker,226
+Mask2Former + SWIN,3*800*800,FP16,No Tracker,29

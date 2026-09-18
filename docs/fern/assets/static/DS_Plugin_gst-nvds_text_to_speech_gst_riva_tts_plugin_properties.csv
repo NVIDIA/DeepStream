@@ -1,0 +1,6 @@
+Property,Meaning,Type and Range,Example Notes
+name,Unique name,String,Must be name: ds_riva_tts_plugin
+detail,Node DS-Riva TTS library details,Node,detail: output_mode: 0
+output_mode,Part of detail node. Specify output mode. Output mode 0: Default. Outputs audio as received from Riva server. Suitable for non real-time sinks like filesink. Output mode 1: Inserts silence in output when audio from server is not available. Suitable for real-time/live sinks like autoaudiosink.,Integer: 0 or 1,output_mode: 1
+framing_mode,Part of detail node. Specify framing mode. Framing mode 0: Default. Use output chunk size as received from Riva server. Framing mode 1: Splits the audio received from server into chunks of size specified by the frame_size. Last chunk if not padded if less than frame_size samples. Framing mode 1: Splits the audio into chunks of frame_size samples with last chunk padded to frame_size.,Integer: 0 1 2,framing_mode: 2
+frame_size,Part of detail node. Specify output frame size in number of samples. Used with framing mode 1 or 2 or output mode 1.,Integer: 1 to 65535,frame_size: 2205

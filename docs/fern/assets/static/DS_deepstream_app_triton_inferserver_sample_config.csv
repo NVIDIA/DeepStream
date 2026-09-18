@@ -1,0 +1,4 @@
+Configuration File,Description
+config_infer_plan_engine_primary.txt,Primary Object Detector
+config_infer_secondary_plan_engine_vehiclemake.txt,Secondary Vehicle Make Classifier
+config_infer_secondary_plan_engine_vehicletypes.txt,Secondary Vehicle Type Classifier

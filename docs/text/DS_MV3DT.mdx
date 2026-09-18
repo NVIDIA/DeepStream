@@ -1,0 +1,327 @@
+---
+title: "Multi-View 3D Tracking"
+---
+
+Multi-View 3D Tracking (MV3DT), newly introduced in DeepStream 8.0, is a distributed, real-time multi-view multi-target 3D tracking framework designed for large-scale, calibrated camera networks. The framework delivers robust object tracking and identity consistency across complex environments by leveraging camera calibration data as a prerequisite for accurate geometric reasoning. MV3DT supports both scale-out and scale-up deployments through its inherent fully-distributed design and IoT-based cross-camera collaboration. The system can be deployed on embedded devices such as Jetson or data center-grade GPUs, leveraging multi-GPU, multi-node deployments.
+
+## Overview
+
+### Key Benefits
+
+- **Distributed Architecture**: No central coordination required, enabling scalable deployments
+- **Real-time Performance**: Low-latency tracking across multiple camera views
+- **Robust ID Consistency**: Maintains object identity across camera handovers and occlusions
+- **Calibration-driven Accuracy**: Leverages precise camera calibration for accurate 3D positioning
+- **Flexible Deployment**: Supports both edge devices and data center deployments
+
+### Technical Foundation
+
+MV3DT builds on existing robust 2D and single-view 3D tracking technology (see [Single-View 3D Tracking](../text/DS_plugin_gst-nvtracker.html#single-view-3d-tracking)) within the same `NvMultiObjectTracking` library. Each camera performs object detection and single-view 3D tracking (SV3DT) with an optional pose estimation model, estimating global 3D coordinates from 2D image coordinates using its camera calibration matrix and 3D object models. When cameras are calibrated with respect to the same global coordinate system, the 3D localization results from multiple cameras for the same target align at the same global location. MV3DT enables real-time collaboration among cameras with overlapping fields of view (FOVs) to perform the following operations:
+
+**Distributed Global ID and Tracklet Propagation**
+
+- *Decentralized Global ID Assignment*: When a new object appears in the camera network, cameras that detect the object for the first time negotiate and assign a globally unique ID via MQTT-based messaging. A carefully designed protocol ensures that ID assignment among multiple cameras converges.
+- *Continuous ID Propagation*: As objects move across multiple cameras, their global IDs propagate among overlapping (vision neighbor) cameras, maintaining identity through occlusions and handovers. The protocol is fully distributed, requiring no central entity.
+
+**Real-time Multi-View Fusion**
+
+- *Calibration-driven Measurement Sharing*: Each camera uses its internal and external calibration parameters to track objects and publish estimated 3D measurements (position, velocity, confidence) to an MQTT broker. Vision neighbors can subscribe to receive this data. Calibration ensures all measurements map into a common world coordinate system, enabling accurate cross-camera data fusion.
+- *Collaborative Multi-View Fusion*: Cameras fuse their own and neighbors' measurements, weighting by confidence or uncertainty, to produce robust, real-time 3D state estimates. This enables seamless tracking through occlusions and across camera boundaries.
+
+The following figures illustrate MV3DT operations at a high level:
+
+<Frame caption="Use case example of MV3DT for a set of 4 cameras (Cam 1, 38, 48, 74)">
+  <img src="/assets/images/content/DS_NvMultiObjecTracker-MV3DT-WFlow.png" alt="MV3DT use case example" />
+</Frame>
+
+<Frame caption="Real-time ID propagation resulting in unique global ID for the same targets in different cameras. Note: targets are color-coded based on their ID (same targets are marked with the same color across cameras)">
+  <img src="/assets/images/content/DS_NvMultiObjecTracker-MV3DT-TiledS.png" alt="MV3DT Real-time ID Propagation" />
+</Frame>
+
+## Getting Started with MV3DT
+
+This section explains how to set up and run MV3DT using the provided reference repository and sample datasets, as well as how to run MV3DT on custom datasets.
+
+### Prerequisites
+
+Refer to the Prerequisites section in the [DeepStream Tracker 3D Multi-View](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/reference_apps/deepstream-tracker-3d-multi-view) reference repository.
+
+### System Requirements
+
+- **Hardware**: NVIDIA GPU (Jetson or data center-grade)
+- **Software**: DeepStream 9.0 or later
+- **Network**: MQTT broker for inter-camera communication
+- **Calibration**: Camera calibration data for all cameras in the network
+
+### Running Sample Examples
+
+The [DeepStream Tracker 3D Multi-View](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/reference_apps/deepstream-tracker-3d-multi-view) repository provides example workflows using two synthetic warehouse datasets: one with 4 cameras and another with 12 cameras.
+
+After following the prerequisite steps, run the 4-camera example using the following command:
+
+```bash
+sudo xhost + # Grant container access to display
+./scripts/test_4cam_ds.sh
+```
+
+Similarly, run the 12-camera example using the following command:
+
+```bash
+sudo xhost + # Grant container access to display
+./scripts/test_12cam_ds.sh
+```
+
+### Running MV3DT on Custom Datasets
+
+1. **Organize your dataset** with the following structure:
+
+   ```text
+   deepstream-tracker-3d-multi-view/
+   └── your_dataset/
+      ├── videos/
+      │   ├── camera1.mp4
+      │   ├── camera2.mp4
+      │   └── ...
+      ├── camInfo/
+      │   ├── camera1.yml
+      │   ├── camera2.yml
+      │   └── ...
+      ├── map.png            # (optional, for BEV visualization)
+      └── transforms.yml     # (optional, for BEV visualization)
+   ```
+
+2. **Create camera calibration files** following the format of `datasets/mtmc_4cam/camInfo/Warehouse_Synthetic_Cam001.yml`. Replace the `projectionMatrix_3x4_w2p` values with your camera's projection matrix. For more details about these files, refer to the [Single-View 3D Tracking](../text/DS_plugin_gst-nvtracker.html#single-view-3d-tracking) and [The 3x4 Camera Projection Matrix](../text/DS_plugin_gst-nvtracker.html#the-3x4-camera-projection-matrix) sections.
+
+3. **Optional: BEV visualization setup** - Prepare a BEV map image and create a `transforms.yml` file specifying the projection matrix that maps world coordinates (in meters) to BEV image coordinates, following the sample format in `datasets/mtmc_4cam/transforms.yml`.
+
+4. **Generate configurations** using the auto-configurator:
+
+   ```bash
+   export DATASET_DIR=path/to/your_dataset
+   export EXPERIMENT_DIR=path/to/experiment_dir
+   
+   python utils/deepstream_auto_configurator.py \
+       --dataset-dir=$DATASET_DIR \
+       --enable-msg-broker \
+       --enable-osd \
+       --output-dir=$EXPERIMENT_DIR
+   ```
+
+5. **Launch the MV3DT pipeline** using your generated configs:
+
+   ```bash
+   export MODEL_REPO=path/to/your_model_dir
+   
+   docker run -t --rm --net=host --gpus all \
+     -v $MODEL_REPO:/workspace/models \
+     -v $DATASET_DIR:/workspace/inputs \
+     -v $EXPERIMENT_DIR:/workspace/experiments \
+     -v /tmp/.X11-unix/:/tmp/.X11-unix \
+     -e DISPLAY=$DISPLAY \
+     -w /workspace/experiments \
+     <your deepstream docker image, e.g., nvcr.io/nvidia/deepstream:9.2-triton-xx> \
+     deepstream-test5-app -c config_deepstream.txt
+   ```
+
+## Configuration
+
+### The MV3DT Module in the NvMultiObjectTracker Library
+
+MV3DT can be enabled and configured in the `NvMultiObjectTracking` library as an additional feature to existing trackers. To enable MV3DT, specify the `MultiViewAssociator` and `Communicator` sections in the tracker configuration file. Additional details about configuration parameters are provided in the upcoming sections.
+
+The following table summarizes the configuration parameters in the `MultiViewAssociator` section:
+
+**`MultiViewAssociator` Section Parameter Table**
+
+| Parameter name | Type | Default | Definition |
+| --- | --- | --- | --- |
+| maxPeerTrackletSize | Positive integer | 50 | This parameter controls how long a camera retains the target data from peer cameras in terms of the # of frames. Recommended to use a number to store at least 1-2 seconds, e.g. 30-60 for 30 fps streams. |
+| recentlyActiveAge | Positive Integer | 200 | This parameter specifies how long a peer target will be considered for ID match since it gets activated by peer cameras. |
+| minCommonFrames4MatchScore | Positive integer | 2 | This parameter sets a minimum number of frames in time overlap when performing tracklet matching. If tracklets do not have at least this number of overlapped frames in time, the similarity score will be set 0. Recommended [2,10] |
+| maxPeerToPredDistance4Fusion | Positive float | 1.0 | This parameter is used to avoid fusion of measurements from incorrectly associated peer targets. It is a maximum distance for the peer measurement to be included for fusion. The specific value depends on the calibration units and target use case, e.g., for person tracking, [0.2, 1.0] m are typical values. |
+| minPeerVisibility4Fusion | Nonnegative float | 0.25 | This parameter is used to avoid fusion of measurements from targets with low visibility (non-confident measurement). It is a minimum visibility for the peer measurement to be included for fusion. e.g., [0.1, 1.0]. |
+| minPeerTrackletMatchScore | Nonnegative float | 0.5 | This parameter defines the minimum match score needed to consider two tracklets similar, if the score is above this value, the match is considered successful. This is a critical parameter, it needs to be fine tuned. |
+
+The following table summarizes the configuration parameters in the `Communicator` section:
+
+**`Communicator` Section Parameter Table**
+
+| Parameter name | Type | Default | Definition |
+| --- | --- | --- | --- |
+| communicatorType | \{0, 2\} | 0 | Select the communicator. 0: Dummy communicator. No actual communication happens. 2: MQTT Communicator. Multiple DS instances / GPUs / Machines supported. |
+| pubSubInfoConfigPath | String |  | This parameter needs to be specified with the vision neighbor configuration |
+| mqttProtoAdaptorConfigPath | String |  | This parameter needs to be specified with the path to the MQTT message protocol adaptor configuration file. Not needed for the debug communicator |
+| waitForConnInterval | Nonnegative Int | 50 | This parameter controls an interval to wait for a connection to the MQTT message broker. Not needed for the debug communicator |
+| connTimeout | Nonnegative Int | 200 | This parameter controls the maximum wait time to wait for a connection to the MQTT message broker. Not needed for the debug communicator |
+
+## Architecture and Communication
+
+### Cross-stream frame alignment
+
+MV3DT peer tracklet matching assumes that measurements from different cameras can be compared on a common time axis.
+
+Two mechanisms align streams in time:
+
+- `useBatchNumForFrameId`: See [Base Configuration](../text/DS_plugin_gst-nvtracker.html#ds-tracker-base-config). Selects the frame ID source used by the tracker. When `0` (default), the per-source frame number from `nvstreammux` is preserved. When `1`, the tracker's internal batch counter is used for every stream, giving all frames in a batch the same frame ID. Set to `1` for MV3DT when per-source frame numbers cannot be aligned across streams, such as with dynamic stream addition.
+- Peer MQTT payloads carry an NTP-based `messageTimeStamp` derived from frame metadata. The tracker uses these timestamps together with per-stream frame numbers to estimate the frame offset between the ego camera and each peer camera so that tracklet matching and fusion operate on a common timeline even when sources start at different times or run on separate machines.
+
+### Peer-to-Peer Communication
+
+The distributed nature of MV3DT enables scalability but requires efficient data sharing among cameras with overlapping FOVs. Low-latency peer-to-peer communication is essential for collaborative multi-camera tracking in real-time applications.
+
+- **Ego Camera**: The camera of interest whose detections and tracklets are being processed
+- **Peer Cameras**: Other cameras whose fields of view (FOVs) overlap with the ego camera's FOV, also called *Vision Neighbors*
+
+The `communicatorType` parameter in the Communicator section defines the communication method. Currently, only MQTT-based communication is supported. For distributed systems where cameras are located in different physical locations or run on separate machines, a message broker like MQTT (Message Queuing Telemetry Transport) is suitable. MQTT enables asynchronous, lightweight messaging, allowing cameras to publish tracking data and subscribe to data from other cameras. This provides flexibility and scalability for multi-camera deployments over large-scale camera networks. Additional communicator types will be implemented in the future to support various distributed communication scenarios.
+
+Each MQTT payload contains target-specific metadata, including camera ID, target ID, object class ID, an NTP-based message timestamp, frame number, and short 3D tracklet data for the latest frames (length specified by `maxPeerTrackletSize`) with timestamped 3D locations. The NTP timestamp enables cross-camera temporal alignment when streams are not frame-locked to the same counter.
+
+<Note>
+Camera networks may be deployed at large scale, but the number of vision neighbors for a particular camera is typically small, resulting in relatively low traffic density as communication occurs only among vision neighbors. The vision neighbor graph is specified as `pubSubInfoConfigPath`.
+
+The pub/sub configuration file can use either format:
+
+* **Ordered list** (default): `pubBrokerTopicStr` and `subPeerBrokerTopicStrs` are YAML sequences indexed by stream order.
+* **Sensor-name map**: `pubBrokerTopicStr` and `subPeerBrokerTopicStrs` are YAML maps keyed by sensor name. Use this format when streams are added dynamically at runtime through the REST API. The communicator resolves the correct publish and subscribe topics by matching `sensor_name` from `NvDsFrameMeta` against the map keys.
+
+Example sensor-name map format:
+
+```yaml
+pubBrokerTopicStr:
+  camera1: 127.0.0.1:1883;/trck/camera1
+  camera2: 127.0.0.1:1883;/trck/camera2
+  camera3: 127.0.0.1:1883;/trck/camera3
+subPeerBrokerTopicStrs:
+  camera1:
+    - 127.0.0.1:1883;/trck/camera2
+    - 127.0.0.1:1883;/trck/camera3
+  camera2:
+    - 127.0.0.1:1883;/trck/camera1
+    - 127.0.0.1:1883;/trck/camera3
+  camera3:
+    - 127.0.0.1:1883;/trck/camera1
+    - 127.0.0.1:1883;/trck/camera2
+```
+
+</Note>
+
+#### Message types
+
+MV3DT uses several MQTT message types between vision neighbors:
+
+- **TRACKLET**: Publishes a peer target's recent 3D tracklet history when a target becomes active, acquires an ID, or adopts a new ID.
+- **STATES**: Publishes fused 3D state estimates for peer fusion.
+- **ADOPTED_ID**: Published when the ego camera adopts a peer target ID during peer re-association. The payload includes the previous target ID (`targetId`), the newly adopted ID (`adoptedId`), the adopting camera ID, class ID, frame number, NTP message timestamp, and the creation timestamp of the adopted ID (`targetIDTimeStamp`). Vision neighbors update their local peer-target database when they receive this message so that ID propagation stays consistent across the camera network.
+
+## Extending Target Re-Association: Peer-Target Re-Association
+
+Target re-association was introduced for single-view tracking and focuses on matching newly-appeared targets to trajectories of recently-lost targets within a single camera view. It relies on the motion model and often on the ReID model for appearance-based matching. **Peer-target re-association** extends this concept by introducing tracklet matching not only within the camera itself but also beyond it to all vision neighbors.
+
+### Tracklet Matching Among Peer Cameras
+
+This process leverages consistent global coordinates of objects across different views. If an object is detected and tracked by multiple cameras, its global 3D coordinates should align, enabling the system to confirm that different cameras are observing the same physical object. This inter-camera re-association helps maintain consistent object IDs even when objects move between camera fields of view or become occluded in one view.
+
+Tracklets are matched by comparing their 3D foot locations at similar timestamps. A minimum of `minCommonFrames4MatchScore` common points is required for a match to be considered. Tracklet similarity is measured by a match score ranging from 0 to 1. This score is currently calculated based on root mean square distance ($RMSEDistance$) within the world ground plane using the following equation:
+
+$$
+RMSEDistance = \sqrt{\frac{1}{N} \sum_{i=1}^{N} d_i^2}   \;\;\;\;  matchScore = \frac{1}{1 + RMSEDistance}
+$$
+
+Here, $d_i$ is the distance between the two tracklets' 3D measurements at the $i$-th common timestamp. Two tracklets are considered matched if $matchScore >$ `minPeerTrackletMatchScore`.
+
+## Handling Errors in ID Propagation
+
+### LatePeerReAssoc for Missed ID Re-Association
+
+Sometimes, due to communication delays or nearly simultaneous activations of an object in different cameras, a peer association might be missed during initial real-time processing. This can lead to the same object being assigned different IDs in different cameras.
+
+Therefore, we introduce *LatePeerReAssoc*, which allows tracklet matching and ID adoption at a later stage when the target has recently become active. A target is recently active if its age is less than `recentlyActiveAge`.
+
+### ID Correction for Incorrect ID Re-Association
+
+In some cases, such as when multiple targets are close to each other and show similar motion patterns, or when targets remain in the image border for a prolonged period after instantiation and activation, 3D location estimates can have high deviations and uncertainties. Such cases can lead to incorrect associations.
+
+The ID Correction stage detects these incorrect associations by performing tracklet matching between associated targets (with the same target ID). When any associated target no longer meets the matching criteria (i.e., when the tracklet matching score < `minPeerTrackletMatchScore`), the more recently-created target discards the assigned ID and attempts to get a new ID, undergoing the target re-association stages again. If no re-association is successful, the target acquires a new ID.
+
+## Multi-View Measurement Fusion
+
+Once IDs have been propagated, using measurements from multiple cameras is expected to improve overall estimate quality. The system uses measurements from targets visible in different camera views for fusion.
+
+As mentioned earlier, wrong associations are possible. Furthermore, some factors degrade measurement quality, such as low visibility or significant distance from the camera, which causes measurements to have large deviations from actual values, large enough to be considered outliers. Therefore, inlier criteria are defined and applied before fusion.
+
+### Inlier Criteria for Fusion
+
+The large deviations experienced in related cases justify the following criteria applied to peer measurements when considering them for fusion:
+
+- The measurement projects into the ego-cam FOV
+- Its visibility, estimated by SV3DT, is greater than threshold `minPeerVisibility4Fusion`
+- Its distance to the ego target prediction is less than threshold `maxPeerToPredDistance4Fusion`
+
+### Kalman Filtering Fusion
+
+Measurements that meet the inlier criteria are fed into the Kalman estimator jointly with ego-cam measurements to update target states. These measurements from different sources are fused using different noise models (covariance). We introduce a modification to the measurement covariance matrix based on visibility:
+
+- Measurements from a visual tracker have covariance matrix $R_t$
+- Measurements from a feature-based detector have covariance matrix $R_d$
+- Measurements from peer cameras are a combination of peer visual tracker and feature-based detector. Therefore, we introduce a weighted covariance matrix given by:
+
+$$
+R_p = (2-peerVisibility) * R_d
+$$
+
+The Kalman filter runs multiple state updates, one for each available measurement, and then makes the posterior state prediction.
+
+Multi-view fusion also uses additional criteria to guarantee improvements from using peer target measurements:
+
+- The peer target visibility is greater than the ego target visibility
+- The distance from the target to the peer camera is smaller than its distance to the ego camera
+
+## Advanced Features
+
+### Quasi-active Tracking
+
+When no measurements are available in the ego-cam, or measurements from the visual tracker have low confidence, this results in target inactivation, shadow tracking, and tracklet projection for **ReAssocDB**. However, peer measurements may be available instead. Peer target data is used to keep tracking the target. A new tracker state is introduced in these cases, called **quasi-active**.
+
+When tracking in a **quasi-active** state, the target updates states using only peer measurements as long as they meet the inlier criteria. Under these circumstances, it does not create a projected tracklet for **ReAssocDB**. The target can return to active if matched with detection bounding boxes or go directly to termination if not matched and peer measurements no longer meet the inlier criteria.
+
+### See-Through Tracking
+
+See-through (ST) tracking is an MV3DT feature that exploits simultaneous information across vision neighbors to initiate early tracking of targets even if they are completely occluded in the ego-cam. ST uses peer targets in **PeerTargetDB** to initiate new tracks if there is no ego target nearby or if the target ID is not already in use by an ego target. ST targets are initiated in a **quasi-active** state.
+
+## Performance Considerations
+
+### Network Latency
+
+- **MQTT Broker Placement**: Place the MQTT broker close to the camera network to minimize latency
+- **Network Bandwidth**: Ensure sufficient bandwidth for real-time data exchange between cameras
+- **Message Size**: Optimize message payload size by adjusting the `maxPeerTrackletSize` parameter
+
+### Computational Resources
+
+- **GPU Utilization**: MV3DT leverages GPU acceleration for both detection and tracking
+- **Memory Usage**: Consider memory requirements for storing tracklet data and peer measurements
+- **CPU Overhead**: Communication and fusion operations add CPU overhead
+
+### Scalability
+
+- **Camera Density**: The system scales well with the number of cameras due to distributed architecture
+- **Vision Neighbors**: Limit the number of vision neighbors per camera for optimal performance
+- **Message Frequency**: Adjust message publishing frequency based on application requirements
+
+## Troubleshooting
+
+### Common Issues
+
+1. **ID Inconsistency**: Check camera calibration accuracy and network connectivity
+2. **High Latency**: Verify MQTT broker performance and network configuration
+3. **Poor Tracking Quality**: Ensure proper camera calibration and lighting conditions
+4. **Communication Failures**: Check MQTT broker connectivity and message broker configuration
+
+### Debugging Tips
+
+- Enable debug logging to monitor ID propagation and fusion operations
+- Use visualization tools to verify camera calibration and tracking results
+- Monitor network traffic to identify communication bottlenecks
+- Check system resources (GPU, CPU, memory) during operation
+
+For additional support, refer to the DeepStream documentation and community forums.

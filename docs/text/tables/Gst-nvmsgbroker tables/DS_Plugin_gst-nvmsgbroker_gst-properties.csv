@@ -1,0 +1,25 @@
+﻿Property,Meaning,Type and Range,Example Notes,Platforms
+config,Absolute pathname of configuration file required by nvds_msgapi_* interface,String,config=<msgapi_­config.txt>,"dGPU
+Jetson"
+conn-str,Connection string as end point for communication with server,"String
+Format must be <name>;<port>;<specifier>","conn-str= foo.bar.com;80
+;user-id","dGPU
+Jetson"
+proto-lib,Absolute pathname of library that contains the protocol adapter as an implementation of nvds_msgapi_*,String,proto-lib=<libnvds_kafka_proto.so>,"dGPU
+Jetson"
+comp-id,ID of component from which metadata should be processed,"Integer,
+0 to 4,294,967,295","comp-id=3
+Default: plugin processes metadata from any component","dGPU
+Jetson"
+topic,Message topic name,String,topic=dsapp1,"dGPU
+Jetson"
+new-api,To use protocol adapter library apis directly or use new msgbroker library wrapper apis,"Integer
+
+0 : Use adapter api’s directly
+
+1 : msgbroker lib wrapper api’s (Refer to :ref:`message-broker-wrapper-api`)",new-api = 0,"dGPU
+Jetson"
+sleep-time,Sleep time between consecutive do_work calls in milliseconds,"Integer >= 0. 
+For Azure, use value >= 10 depending on IoT Hub service tier message rate limit.
+Warning: Failure is likely with unreasonably high sleep times, e.g. 10000000 ms",sleep-time=10,"dGPU
+Jetson"

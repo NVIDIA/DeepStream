@@ -1,0 +1,73 @@
+---
+title: "FAQ for DeepStream On WSL"
+---
+
+{/` include: <isonum.txt> `/}
+
+## 1. Do we need to install nvidia driver inside Ubuntu Image with WSL?
+
+No. You only need to install the driver in Windows Host Machine for the specific GPU you are using. In fact you should not install nvidia drivers inside ubuntu machine to avoid any potential clashes.
+
+## 2. While installing driver, should you choose 'Clean Installation'?
+
+Although it is not insisted, it is better to choose 'clean installation' with all the available packages in driver by choosing 'Advanced' option during installation to avoid potential issues with different libraries.
+
+## 3. While starting docker, I face error:“docker: Error response from daemon: could not select device driver "" with capabilities: [[gpu]]. What should I do?
+
+Try below steps:
+(Make sure your logged in windows account does not have any limited access before trying this.)
+
+```
+$ sudo apt install --reinstall nvidia-container-toolkit
+$ sudo service docker restart
+```
+
+After the above steps, shutdown WSL and open it again.
+
+```
+$ wsl --shutdown
+$ wsl -d Ubuntu-24.04
+```
+
+## 4. While starting docker, I get error “GPU access blocked by operating system”. What should I do?
+
+Not all GPUs are supported by WSL. Check the below document to see constraints associated with WSL2.
+
+https://docs.nvidia.com/cuda/wsl-user-guide/index.html#wsl-2-support-constraints
+
+## 5. While installing Ubuntu image for WSL2, I get error: "The service cannot be started, either because it is disabled or because it has no enabled devices associated with it". What should I do?
+
+- Open the Services application (services.msc) by searching for it in the Start menu. (Run as administrator)
+- Look for the service named "Windows Update" and make sure its startup type is set to "Manual" or "Automatic." (Automatic is preferred)
+- If it's not running, start the service. (Right click -> start)
+
+## 6. While running deepstream-app for the first time, I get an error: "GLib (gthread-posix.c): Unexpected error from C library during 'pthread_setspecific': Invalid argument.  Aborting.". What should I do?
+
+This is a harmless error and is associated with the glib package in your system. It may not be observed in every system. You can ignore this message.
+
+## 7. There is no video on the screen while running gstreamer or deepstream video pipelines. But pipeline seems to be running in terminal without any error. What is the reason?
+
+Make sure you have not launched WSL instance through ssh sessions (for eg. using Mobaxterm). Use VNC to start and use WSL. In case you have already launched the WSL through ssh, make sure you shutdown
+the WSL instance (you can use command "wsl --shutdown" for this) before opening it again from VNC.
+
+## 8. Warning prints are coming while running deepstream-app for first time after starting docker. For e.g: "deepstream-app --version" shows below warnings. Is that an issue?
+
+  ![Warning during initial deepstream-app run](/assets/images/content/DS_WSL2_warning_faq.png)
+
+## 9. While using pipelines involving 'nveglglessink' or any other display sinks, black screen is coming with "MESA: error: Failed to attach to x11 shm" on terminal.
+
+There is a known issue of rendering using display sink on ubuntu24 based docker, on WSL2. As an alternate option, use filesink to dump the output to a file and verify it using any compatible media player.
+
+## 10. While running a gstreamer or deepstream pipeline, I get errors "Error while setting IOCTL", "Invalid control", "S_EXT_CTRLS for CUDA_GPU_ID failed" followed by a SIGSEGV. What should I do?
+
+This happens when the WSL NVIDIA userspace libraries 'libnvcuvid.so.1' and 'libnvidia-encode.so.1' are not visible inside the container, so the 'nvv4l2decoder' / 'nvv4l2h264enc' plugins fail to access the GPU codec engines. Bind-mount these libraries from the WSL host into the container by adding the following options to the 'docker run' command:
+
+```
+-e NVIDIA_DRIVER_CAPABILITIES=all
+-v /usr/lib/wsl/lib/libnvcuvid.so.1:/usr/lib/x86_64-linux-gnu/libnvcuvid.so.1:ro
+-v /usr/lib/wsl/lib/libnvidia-encode.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1:ro
+```
+
+The container destination paths above ('/usr/lib/x86_64-linux-gnu/') apply to an x86_64 WSL2 host.
+
+The updated 'docker run' command in the 'Run Deepstream Container' section already includes these options.

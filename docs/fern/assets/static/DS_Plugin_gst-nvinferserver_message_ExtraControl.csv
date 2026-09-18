@@ -1,0 +1,15 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs
+| (Primary/Secondary)"
+copy_input_to_host_buffers,"Enable to copy input. If enabled, input tensor would be attached as NvDsInferTensorMeta into GstBuffer with output tensors together tensor data to host buffers.",bool,copy_input_to_host_buffers: false,"All
+
+Both"
+output_buffer_pool_size,"Specify the buffer pool size for each output tensor.
+When infer_config.postprocess.other is specified or output_control.output_tensor_meta is enabled, the output tensor would be attached as NvDsInferTensorMeta into GstBuffer","int32;
+Range [2, 10]",output_buffer_pool_size: 4,"All
+
+Both"
+custom_process_funcion,"custom function to create a specific user-defined processor IInferCustomProcessor.
+The function symbol is loaded by infer_config.custom_lib",String,"path: ""libnvdsinfer_custom_impl_fasterRCNN.so""","All
+
+Both"

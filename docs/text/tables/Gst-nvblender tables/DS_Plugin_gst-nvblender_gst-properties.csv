@@ -1,0 +1,13 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,Device ID of the GPU used for compositing (dGPU only),"Integer,
+0 to 256",gpu-id=0
+background,Background type used to fill areas not covered by any input pad,Enum,background=1
+batched-background,Whether the background is batched,Boolean,batched-background=1
+xpos (per-pad),X position of the pad's picture in the composited output,Integer,xpos=0
+ypos (per-pad),Y position of the pad's picture in the composited output,Integer,ypos=0
+width (per-pad),Width of the pad's picture in the composited output,Integer,width=1280
+height (per-pad),Height of the pad's picture in the composited output,Integer,height=720
+alpha (per-pad),Alpha blending value of the pad's picture,"Double,
+0.0 to 1.0",alpha=1.0
+crossfade-ratio (per-pad),"Crossfade ratio to use while crossfading with the following pad; a value below 0 means no crossfading","Double,
+-1.0 to 1.0",crossfade-ratio=-1.0

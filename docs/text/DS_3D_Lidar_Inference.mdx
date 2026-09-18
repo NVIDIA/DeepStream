@@ -1,0 +1,286 @@
+---
+title: "DeepStream 3D Lidar Inference App"
+---
+
+The `deepstream-lidar-inference-app` sample application is provided at `app/sample_apps/deepstream-lidar-inference-app/` for your reference. The `deepstream_lidar_inference_app` provides an end-to-end inference sample for lidar pointcloud data.
+The sample application reads the point cloud data from dataset files and send the data to Triton Inferencing filter with [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet), the inferencing result is the group of 3D bounding boxes of the objects. The sample application loads different pipelines based on different application config files.
+There are 2 pipelines configured in the sample app.
+
+  1. Lidar Triton inference for 3D objects detection and file dump.
+  2. Lidar Triton inference and 3D objects detection and GLES 3D rendering.
+
+Inside these sample configurations, the inference model is a 3D TAO model based on PointPillar. For more details about PointPillar, see https://arxiv.org/abs/1812.05784.
+
+ <Note>
+TensorRT 8.5 has a bug for FP16 mode when converting this specific TAO model to TensorRT engine file. DeepStream fallback to FP32 mode for this release.
+ </Note>
+
+This is a snapshot for `deepstream-lidar-inference-app` running with lidar data inference objects detection and GLES 3D rendering with 3D bounding box display on screen.
+
+  ![DeepStream Lidar inference for 3D point cloud processing and rendering snapshot](/assets/images/content/DS_3D_lidar_inference_app_snapshot.png)
+
+## Prerequisites
+
+You must have the following development packages installed:
+
+ * GStreamer-1.0
+ * GStreamer-1.0 Base Plugins
+ * X11 client-side library
+ * libyaml-cpp-dev
+
+To install these packages, execute the following command:
+
+```
+sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+libgstrtspserver-1.0-dev libx11-dev libyaml-cpp-dev
+```
+
+## Lidar Point Cloud to 3D Point Cloud Processing and Rendering
+
+The application can be configured as different pipelines according to the application configuration file.
+
+1. Lidar data inference and 3D bounding box dump pipeline:
+
+ This pipeline is from lidar point cloud, 3D point cloud inferencing, to the 3D objects data dump.
+
+  ![DeepStream Lidar inference for 3D point cloud processing overview](/assets/images/content/DS_3D_lidar_inference_pointcloud_process.png)
+
+ * `ds3d::dataloader`  loads custom lib `libnvds_lidarfileread.so` and creates a `dataloader` through the `createLidarFileLoader` function. This specific loader is configured by lidar dataset file list `data_config_file`. `Gst-appsrc` connects the `dataloader` into the deepstream pipeline.
+```
+name: lidarsource
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+```
+
+ * `ds3d::datafilter` loads custom lib `libnvds_tritoninferfilter.so` and creates a lidar point cloud Triton inferencing filter through the `createLidarInferenceFilter` function. For this specific configuration, The Lidar Triton filter inferences the point cloud data with TAO model [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet) and return the 3D bounding boxes around each object.
+
+```
+name: lidarfilter
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+```
+
+  `ds3d::datafilter` is loaded by the `nvds3dfilter` `Gst-plugin` which accepts `in_caps` as `sink_caps` and `out_caps` as `src_caps`. It creates a custom `ds3d::datafilter` instance and processes data as `ds3d/datamap`.
+
+ * `ds3d::datarender` loads custom lib `libnvds_lidarfilewrite.so` to dump the detected 3D bounding boxes to a file.
+
+```
+name: lidarrender
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfilewrite.so
+custom_create_function: createLidarFileDataRender
+```
+
+2. Lidar data inference and Lidar data rendering with 3D bounding box display pipeline:
+
+ This pipeline is from lidar point cloud data file, 3D point cloud inferencing, to the 3D point cloud rendering with colors.
+
+  ![DeepStream Lidar inference for 3D point cloud processing and rendering overview](/assets/images/content/DS_3D_lidar_inference_pointcloud_render.png)
+
+ * `ds3d::dataloader`  loads custom lib `libnvds_lidarfileread.so` and creates a `dataloader` through the `createLidarFileLoader` function. This specific loader is configured by lidar dataset file list `data_config_file`. `Gst-appsrc` connects the `dataloader` into the deepstream pipeline.
+
+```
+name: lidarsource
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+```
+
+ * `ds3d::datafilter` loads custom lib `libnvds_tritoninferfilter.so` and creates a lidar point cloud Triton inferencing filter through the `createLidarInferenceFilter` function. For this specific configuration, The Lidar Triton filter inferences the point cloud data with TAO model [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet) and return the 3D bounding boxes around each object.
+
+```
+name: lidarfilter
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+```
+
+  `ds3d::datafilter` is loaded by the `nvds3dfilter` `Gst-plugin` which accepts `in_caps` as `sink_caps` and `out_caps` as `src_caps`. It creates a custom `ds3d::datafilter` instance and processes data as `ds3d/datamap`.
+
+ * `ds3d::datarender` loads custom lib `libnvds_3d_gl_datarender.so` and creates GLES Lidar point cloud rendering context to display XYZI or XYZ lidar data and 3D bounding boxes with `custom_create_function: createLidarDataRender`.
+
+```
+name: lidarrender
+type: ds3d::datarender
+in_caps: ds3d/datamap
+custom_lib_path: libnvds_3d_gl_datarender.so
+custom_create_function: createLidarDataRender
+```
+
+## Getting Started
+
+### Run Lidar Point Cloud Data File reader, Point Cloud Inferencing filter, and Point Cloud 3D rendering and data dump Examples
+
+1. Prepare [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet) and Triton environment, this app will use Triton to do inference, for more details of Triton Inferencing Server, refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvinferserver.html.
+
+   Follow instructions in deepstream-lidar-inference-app/README to prepare testing resources and Triton CAPI and gRPC environments.
+
+2. Run the lidar point cloud data inference pipeline in 2 modes.
+
+  a. Run lidar data reader, point cloud 3D objects detection inference and 3D data GLES rendering pipeline:
+
+```
+$ deepstream-lidar-inference-app -c configs/config_lidar_source_triton_render.yaml
+```
+
+  b. Run lidar data reader, point cloud 3D objects inference and 3D objects file dump pipeline:
+
+```
+$ deepstream-lidar-inference-app -c configs/config_lidar_triton_infer.yaml
+```
+
+3. This part sets up a lidar point cloud loader `dataloader`. It then streams `ds3d/datamap` to the downstream `datafilter` component `lidarfilter`.
+
+```
+name: lidarsource
+type: ds3d::dataloader
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_lidarfileread.so
+custom_create_function: createLidarFileLoader
+```
+
+4. It streams `ds3d/datamap` to the `nvds3dfilter` `Gst-plugin`  which loads `lidarfilter` to do Triton inferencing on point cloud. For more details on `nvds3dfilter` `Gst-plugin`, See [DS_plugin_gst-nvds3dfilter](DS_plugin_gst-nvds3dfilter).
+
+```
+name: lidarfilter
+type: ds3d::datafilter
+in_caps: ds3d/datamap
+out_caps: ds3d/datamap
+custom_lib_path: libnvds_tritoninferfilter.so
+custom_create_function: createLidarInferenceFilter
+```
+
+* Field of `model_inputs` is the description of the model input layers. Includes layer name, layer data type and layer dimensions.
+
+  ```text
+  model_inputs:
+  - name: points      # name of the 1st layer
+    datatype: FP32    # data type of the 1st layer
+    shape: [1, 204800, 4] # data dimension of the 1st layer
+  - name: num_points  # name of the 2nd layer
+    datatype: INT32   # data type of the 2nd layer
+    shape: [1]        # data dimension of the 2nd layer
+  ```
+
+* Field of `model_outputs` is the description of the model output layers. Includes layer name, layer data type and layer dimensions.
+
+  ```text
+  model_outputs:
+  - name: output_boxes # name of the 1st layer
+    datatype: FP32     # data type of the 1st layer
+    shape: [1, 393216, 9] # data dimension of the 1st layer
+  - name: num_boxes    # name of the 2nd layer
+    datatype: INT32    # data type of the 2nd layer
+    shape: [1]         # data dimension of the 2nd layer
+  ```
+
+* Field of `labels` is the label list of the point cloud inferencing model.
+
+  ```text
+  labels:          # YAML list for object labels
+  - Vehicle
+  - Pedestrian
+  - Cyclist
+  ```
+
+5. Finally the data stream as `ds3d/datamap` is delivered to the render component.
+
+   a. 3D detection file dump component `lidarfiledump`.
+
+   ```text
+   name: lidarfiledump
+   type: ds3d::datarender
+   in_caps: ds3d/datamap
+   custom_lib_path: libnvds_lidarfilewrite.so
+   custom_create_function: createLidarFileDataRender
+   ```
+
+   b. GLES lidar data rendering component `lidardatarender`.
+
+   ```text
+   name: lidardatarender
+   type: ds3d::datarender
+   in_caps: ds3d/datamap
+   custom_lib_path: libnvds_3d_gl_datarender.so
+   custom_create_function: createLidarDataRender
+   ```
+
+Check the `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-lidar-inference-app/README` file for more details.
+
+### DeepStream Lidar Inference App Configuration Specifications
+
+deepstream-lidar-inference-app `[ds3d::userapp]` group settings
+
+#### deepstream-lidar-inference-app `[ds3d::userapp]` group settings
+
+The table below demonstrates the group settings for `config_lidar_triton_infer.yaml` and `config_lidar_source_triton_render.yaml` as the examples.
+
+**point cloud inferencing app user debug supported settings**
+
+| Group | Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- | --- |
+| LidarFileLoader | data_config_file | lidar data list file path | string | data_config_file: lidar_data_list.yaml |
+| LidarFileLoader | points_num | number of the points in pointcloud file | fixed value | points_num: 204800 |
+| LidarFileLoader | lidar_datatype | data type of the dataset | String:FP32 FP16 INT8 INT32 | lidar_datatype: FP32 |
+| LidarFileLoader | mem_type | memory type of process data:just support cpu now | String:gpu cpu | mem_type: cpu |
+| LidarFileLoader | mem_pool_size | Size of the data read pool | Integer: >0 | mem_pool_size: 4 |
+| LidarFileLoader | output_datamap_key | datamap key in lidarsource | string | output_datamap_key: DS3D::LidarXYZI |
+| LidarFileLoader | file_loop | flag for file reading loop | boolean | file_loop: False |
+| LidarInferenceFilter | in_streams | which data type will be processed | fixed value | in_streams: [lidar] |
+| LidarInferenceFilter | mem_pool_size | Size of the input tensor pool | Integer | mem_pool_size: 8 |
+| LidarInferenceFilter | model_inputs | model 's input layers | Array | refer to config_lidar_triton_infer.yaml |
+| LidarInferenceFilter | model_outputs | model 's output layers | Array | refer to config_lidar_triton_infer.yaml |
+| LidarInferenceFilter | input_tensor_mem_type | input tensor memory type after preprocess | String:GpuCuda CpuCuda | input_tensor_mem_type: GpuCuda |
+| LidarInferenceFilter | custom_preprocess_lib_path | preprocessing library path | String | custom_preprocess_lib_path: /opt/nvidia/deepstream/deepstream/lib/libnvds_lidar_custom_preprocess_impl.so |
+| LidarInferenceFilter | custom_preprocess_func_name | customized preprocessing function name | String | custom_preprocess_func_name: CreateInferServerCustomPreprocess |
+| LidarInferenceFilter | labels | label list for the detection model | Array | refer to config_lidar_triton_infer.yaml |
+| LidarInferenceFilter | postprocess_nms_iou_thresh | NMS IOU threshold | Float | postprocess_nms_iou_thresh: 0.01 |
+| LidarInferenceFilter | postprocess_pre_nms_top_n | number of TOPs of NMS | Integer | postprocess_nms_top_n: 4096 |
+| LidarInferenceFilter | config_file | nvinferserver configuration file | String | config_file: triton_mode_CAPI.txt |
+| LidarInferenceFilter | gpu_id | GPU id for the tensor memory(for native Triton Server Inferencing) | Integer | gpu_id: 0 |
+| LidarInferenceFilter | filter_input_datamap_key | input datamap key from lidarsource | String | filter_input_datamap_key: DS3D::LidarXYZI |
+| LidarFileDataRender | frames_save_path | the path of the dump file | String | frames_save_path: ../data/ |
+| LidarFileDataRender | input_datamap_key | input key from the custom_postprocess for inferencing objects | String | input_datamap_key: DS3D::Lidar3DBboxRawData |
+| LidarDataRender | title | the title of the render | String | title: ds3d-lidar-render |
+| LidarDataRender | streams | the stream key(s) for the input to be rendered | List | streams: [lidardata] |
+| LidarDataRender | width | render area width | Integer | width: 1280 |
+| LidarDataRender | height | render area height | Integer | height: 720 |
+| LidarDataRender | block | the flag of enabling block function | Boolean | block: True |
+| LidarDataRender | view_position | the view position for lookat vector | List | view_position: [0, 0, 80] |
+| LidarDataRender | view_target | the view target for lookat vector | List | view_target: [0, 0, 0] |
+| LidarDataRender | view_up | the up vector of the visualizer | List | view_up: [1, 0, 0] |
+| LidarDataRender | near | the near z-plane of the visualizer constants | Float | near: 0.3 |
+| LidarDataRender | far | the far z-plane of the visualizer constants | Float | far: 100 |
+| LidarDataRender | fov | degree for field of view | Integer | fov: 45 |
+| LidarDataRender | lidar_color | the RGB color description of the lidar data | List,lidar_color: [0, 255, 0] |  |
+| LidarDataRender | lidar_data_key | the lidar data key name in datamap | String | lidar_data_key: DS3D::LidarXYZI |
+| LidarDataRender | element_size | the lidar data element size (4, XYZI or 3, XYZ) | Integer | element_size: 4 |
+| LidarDataRender | lidar_bbox_key | the 3D bbox data key name in datamap | String | DS3D::Lidar3DBboxRawData |
+| LidarDataRender | enable_label | Indicate flag to enable labels rendering | Boolean | enable_label: True |
+
+#### DS3D Custom Components Configuration Specifications
+
+See more details in the `DS_3D supported custom components specifications` section in the [DS_3D_Custom_Manual](DS_3D_Custom_Manual).
+
+##### Build application From Source
+
+1. Go to the folder `sources/apps/sample_apps/deepstream-lidar-inference-app`.
+2. Run the following commands:
+
+   ```text
+   $ sudo make
+   $ sudo make install
+   ```
+
+ <Note>
+Check the source code for more details on how to load `dataloader/datarender` through `Gst-appsrc` and `Gst-appsink`. `datafilter` is loaded by the `nvds3dfilter` `Gst-plugin`.
+ </Note>

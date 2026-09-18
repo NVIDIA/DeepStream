@@ -1,0 +1,15 @@
+"TLT 2.0 Model 
+
+Architecture",Location,Reference app,Config files,DS Version
+"YoloV3",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_yolov3.txt``
+``yolov3_labels.txt``",DS5.0 onwards
+"RetinaNet",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_retinanet.txt``
+``retinanet_labels.txt``",DS5.0 onwards
+"SSD",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_ssd.txt``
+``ssd_labels.txt``",DS5.0 onwards
+"DSSD",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_dssd.txt``
+``dssd_labels.txt``",DS5.0 onwards
+"FasterRCNN",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_frcnn.txt``
+``frcnn_labels.txt``",DS5.0 onwards
+"MaskRCNN",`LINK <https://nvidia.box.com/shared/static/8k0zpe9gq837wsr0acoy4oh3fdf476gq.zip>`__,deepstream-app,"``config_infer_primary_mrcnn.txt``
+``mrcnn_labels.txt``",DS5.0 onwards

@@ -1,0 +1,29 @@
+﻿Property,Meaning,Type and Range,Example and Notes
+config-file,Absolute pathname of configuration file for the Gst-nvdewarper element,String,config-file= configs/ deepstream-app/ config_dewarper.txt
+gpu-id,Device ID of the GPU to be used (dGPU only),"Integer,
+0 to 4,294,967,295",
+source-id,"Source ID, e.g. camera ID","Integer,
+0 to 4,294,967,295",source-id=6
+num-batch-buffers,"Number of dewarped output surfaces per buffer, i.e., batch-size of the buffer","Integer,
+0 to 4",num-batch-buffers=4
+num-output-buffers,Number of output buffers,"Integer,
+0 to 4,294,967,295",num-output-buffers=4
+silent,Suppresses console output when set,Boolean,silent=1
+dewarper-lib-version (read-only),Version of the dewarper library in use,String,
+interpolation-method,"Interpolation method used for scaling; see :doc:`DS_plugin_gst-nvvideoconvert` for the shared enum values",Enum,interpolation-method=1
+nvbuf-memory-type,"Type of memory to be allocated.
+For dGPU:
+
+0 (nvbuf-mem-default): Default memory, cuda-device
+
+1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory
+
+2 (nvbuf-mem-cuda-device) Device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory
+
+For Jetson:
+
+0 (nvbuf-mem-default): Default memory, surface array
+
+4 (nvbuf-mem-surface-array): Surface array memory","Integer, 0 to 4",nvbuf-memory-type=3

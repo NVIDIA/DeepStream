@@ -1,0 +1,61 @@
+---
+title: "What is Deepstream Service Maker"
+---
+
+## Overview
+
+Deepstream Service Maker provides a high-level abstraction layer on top of the NVIDIA Deepstream SDK, designed to simplify the development of real-time multimedia processing and AI inference applications. By flattening the learning curve, it dramatically reduces the time required for application development from days to hours. This framework offers both C++ and Python APIs, with a special focus on Python for developers who prefer a more accessible programming language.
+
+Deepstream Service Maker simplifies the complex task of building high-performance, real-time applications by abstracting away low-level operations and offering a robust, object-oriented and declarative approach.
+
+## Key Features
+
+### 1. Object-Oriented C++ API
+
+The Object-Oriented C++ API provided by Deepstream Service Maker abstracts low-level details like GStreamer/GLib mechanics, object lifecycle management, and concurrency issues such as deadlocks. By handling these complexities internally, it allows developers to focus on core business logic, significantly reducing development overhead.
+
+Key Benefits:
+
+* No need to manage low-level GStreamer/GLib APIs.
+* Efficient object lifecycle management through automatic object reference to prevent common runtime memory leak.
+* No risk of deadlocks through robust concurrency management
+
+### 2. High-Level Python Flow API
+
+For Python developers, Deepstream Service Maker offers a high-level Flow API that enables application development in a more intuitive and "pythonic" style. The Flow API abstracts even more technical complexities, making it an ideal choice for those less familiar with the intricacies of the Deepstream SDK, or for those who want to quickly prototype and iterate on solutions.
+
+Key Benefits:
+
+* Pythonic design principles ensure code readability and simplicity.
+* Rapid application development with minimal boilerplate code.
+* Simplified access to real-time multimedia processing and AI inference capabilities.
+
+### 3. Python Pipeline API
+
+The Python Pipeline API is a direct binding of the underlying C++ API, giving developers with knowledge of the Deepstream SDK the full power of its capabilities. This API is more suited for users looking to unlock advanced features of the SDK while retaining the flexibility and simplicity that Python offers.
+
+Key Benefits:
+
+* Direct access to Deepstream SDK's full power via Python.
+* Perfect for developers who need precise control over multimedia pipelines.
+* Provides access to performance-critical features in an easier language syntax.
+
+### 4. Runtime Module Mechanism
+
+Deepstream Service Maker supports custom plugins through a runtime module mechanism, which is fully compatible with standard Deepstream plugins. This feature enables developers to extend the platform's capabilities without losing compatibility with the core system while fully leveraging standard Deepstream plugins, providing flexibility for application-specific customizations.
+
+Key Benefits:
+
+* Seamless integration of custom plugins.
+* Compatibility with standard Deepstream plugins ensures maximum extensibility.
+* Modular design allows easy updates and scalability.
+
+### 5. Unified Error Handling via Exceptions
+
+Error handling is unified across the APIs through the use of exceptions. This simplifies error management, allowing developers to handle errors in a structured and predictable manner, reducing potential issues during runtime.
+
+Key Benefits:
+
+* Simplified error management using exceptions.
+* Predictable handling of errors for all API calls.
+* Cleaner, more maintainable application code

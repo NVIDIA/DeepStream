@@ -1,0 +1,3 @@
+﻿Feature,Description,Release
+Raw frame dump to disk,Writes incoming NVMM buffer frames to raw NV12/RGBA/BGRx files without blocking the pipeline,DS 9.2
+GPU-selectable device-to-host copy,Uses gpu-id to select the CUDA device used to copy the frame from device to host memory,DS 9.2

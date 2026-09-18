@@ -1,0 +1,44 @@
+﻿Reference test application,Path inside `service-maker/sources` directory,Description,Platform
+Sample test application 1,apps/python/pipeline_api/deepstream_test1_app,Sample of how to use DeepStream elements for a single H.264 stream inference using pipelineAPI: filesrc -> decode -> nvstreammux -> nvinfer or nvinferserver (primary detector) -> nvdsosd ->  renderer. This app uses resnet18_trafficcamnet_pruned.onnx for detection.,x86/aarch64
+Sample test application 2,apps/python/pipeline_api/deepstream_test2_app,"Sample of how to use DeepStream elements for a single H.264 stream cascaded inference using pipelineAPI: filesrc -> decode -> nvstreammux -> nvinfer or nvinferserver (primary detector) -> nvtracker -> nvinfer or nvinferserver (secondary classifier) -> nvdsosd -> renderer. This app uses resnet18_trafficcamnet_pruned.onnx for detection and 2 classifier models (i.e., resnet18_vehiclemakenet_pruned.onnx, resnet18_vehicletypenet_pruned.onnx).",x86/aarch64
+Sample test application 3,apps/python/pipeline_api/deepstream_test3_app,"Builds on pipeline_api/deepstream_test1 (sample test application 1) to demonstrate how to:
+
+ * Use multiple sources in the pipeline for inference.
+ * Use a uridecodebin to accept any type of input (e.g. RTSP/File).
+ * Configure nvstreammux to generate a batch of frames and infer on it for better resource utilization.
+ * Extract the stream metadata, which contains useful information about the frames in the batched buffer.
+
+This app uses resnet18_trafficcamnet_pruned.onnx for detection.",x86/aarch64
+Sample test application 4,apps/python/pipeline_api/deepstream_test4_app,"Builds on pipeline_api/deepstream_test1 for a single H.264 stream inference: filesrc, decode, nvstreammux, nvinfer or nvinferserver, nvdsosd, renderer to demonstrate how to:
+
+ * Use the nvmsgconv and nvmsgbroker plugins in the pipeline.
+ * Create NVDS_META_EVENT_MSG type metadata and attach it to the buffer.
+ * Use NVDS_META_EVENT_MSG for different types of objects, e.g. vehicle and person.
+
+This app uses resnet18_trafficcamnet_pruned.onnx for detection.",x86/aarch64
+Sample test application 5,apps/python/pipeline_api/deepstream_test5_app,"Advanced DeepStream Service Maker application demonstrating comprehensive IoT messaging and dynamic source management capabilities:
+
+  • **Multi-stage AI Pipeline**: Primary detection (resnet18_trafficcamnet_pruned.onnx) with secondary classifiers for vehicle type and make classification
+  • **IoT Message Generation**: Custom EventMessageGenerator class creates NVDS_EVENT_MSG_META for downstream processing
+  • **Message Conversion & Brokerage**: nvmsgconv plugin generates DeepStream Schema JSON payloads with configurable formats (PAYLOAD_DEEPSTREAM, PAYLOAD_DEEPSTREAM_MINIMAL, PAYLOAD_DEEPSTREAM_PROTOBUF)
+  • **Kafka Integration**: nvmsgbroker plugin connects to remote Kafka servers as producer/consumer with configurable sync/async modes
+  • **Dynamic Source Management**: nvmultiurisrcbin supports runtime source addition/removal with live streaming capabilities
+  • **Multi-pipeline Support**: Concurrent execution of multiple pipelines with different configurations
+  • **Performance Monitoring**: Built-in latency measurement, KITTI format dumping, and real-time performance metrics
+  • **Element Control**: Runtime enable/disable of pipeline elements for dynamic reconfiguration
+
+Supports static sources (nvurisrcbin), dynamic sources (nvmultiurisrcbin), and camera inputs (camerabin). Includes comprehensive error handling and sensor metadata management.",x86/aarch64
+Appsrc and Appsink example,apps/python/pipeline_api/deepstream_appsrc_test_app,Demonstrates how to create a BufferProvider for a Feeder class and how to create a BufferRetriever for a receiver class. A Feeder with customized BufferProvider can be used to inject user data to the DS pipeline and a receiver with a customized BufferRetriever can be used to extract buffer data from the pipeline.,x86
+Kafka Custom Data example,apps/python/pipeline_api/deepstream_kafka_test_app,Sample of how to use DeepStream elements for a single H.264 stream inference and send custom inference data directly to a kafka server using pipelineAPI: filesrc -> decode -> nvstreammux -> nvinfer or nvinferserver (primary detector) -> nvdsosd ->  renderer. This app uses resnet18_trafficcamnet_pruned.onnx for detection.,x86/aarch64
+3D Action Recognition Example,apps/python/pipeline_api/deepstream_3d_action_recognition_app,"Demonstrates 3D action recognition using Pipeline API with custom preprocessing. Features:
+
+  • 3D and 2D RGB-based action recognition using TAO models
+  • Custom sequence preprocessing with libnvds_custom_sequence_preprocess.so
+  • Support for action classes: push, fall_floor, walk, run, ride_bike
+  • Pipeline: src_bin -> nvstreammux -> nvdspreprocess -> nvinfer -> nvtiler -> nvosd -> display
+  • Custom metadata handling for label display with OSD
+
+This app uses resnet18_3d_rgb_hmdb5_32.onnx and resnet18_2d_rgb_hmdb5_32.onnx models from NGC.",x86/aarch64
+Smart Record Example,apps/python/pipeline_api/deepstream_sr_test_app,"Builds on pipeline_api/deepstream_test1 to demonstrate event-driven smart recording with Kafka integration. Features multi-stream batch processing, inference, and configurable recording parameters. Supports RTSP streams with Kafka message broker for automated recording based on external triggers and custom events. Demonstrates smart recording with configurable cache, directory paths, and event-based recording control.",x86/aarch64
+Audio Inference Example,deepstream_reference_apps/pyservicemaker_sample_apps/pipeline_api/deepstream_audio_test_app,"Demonstrates the lower-level Pipeline API version of the SONYC audio classifier graph. The sample manually links nvurisrcbin audio pads through queue, audioconvert, audioresample, nvstreammux2, an NVMM audio capsfilter, nvinferaudio, and fakesink.",x86/aarch64
+Python Probe Example,apps/python/pipeline_api/deepstream_python_probe_app,"Demonstrates how to use an installed Python probe module with the DeepStream service-maker pipeline API. Uses the sample_video_probe Python probe module, which counts vehicles and persons per frame and overlays the result on the OSD. Other pre-installed Python probe modules (measure_fps_probe, measure_latency_probe, kitti_dump_probe, add_message_meta_probe, resnet_tensor_parser) can be used the same way.",x86/aarch64

@@ -1,0 +1,76 @@
+---
+title: "Gst-nvdsosd"
+---
+
+This plugin draws bounding boxes, text, arrows, lines, circles and region of interest (RoI) polygons. (Polygons are presented as a set of lines.)
+The plugin accepts an RGBA buffer with attached metadata from the upstream component when CPU process mode. It can accept RGBA/NV12 PL/NV12 BL buffers when GPU process mode. It draws bounding boxes (including oriented bounding boxes, OBB), which may be shaded depending on the configuration (e.g. width, color, and opacity) of a given bounding box. It also draws text and RoI polygons at specified locations in the frame. Text and polygon parameters are configurable through metadata.
+
+![Gst-nvdsosd](/assets/images/content/DS_plugin_gst-nvdsosd.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+   * RGBA buffer for CPU process mode. RGBA/NV12 PL/NV12 BL buffer for GPU process mode.
+   * NvDsBatchMeta (holds NvDsFrameMeta consisting of bounding boxes, text parameters, and lines parameters)
+   * NvDsLineMeta (RoI polygon)
+
+* Control parameters
+
+  *	gpu-id (dGPU only)
+  *	display-clock
+  *	display-text
+  *	clock-font
+  *	clock-font-size
+  *	x-clock-offset
+  *	y-clock-offset
+  *	clock-color
+  *	process-mode
+  *	display-bbox
+  *	display-mask
+  *     blur-bbox
+  *     blur-on-gie-class-ids
+
+* Output
+
+  *	RGBA/NV12 PL/NV12 BL buffer modified in place to overlay bounding boxes, texts, and polygons represented in the metadata
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvsosd features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports drawing oriented bounding boxes (OBB) | Rotated rectangles can be drawn by specifying rotation_angle values in NvOSD_RectParams in metadata. | DS 9.0 |
+| Supports blurring detected objects | The object can be blurred according to the parameters configured. | DS 8.0 |
+| Supports drawing arrows, lines, circles, text in GPU mode | Fill metadata as described in below rows to draw different shapes. (Alpha) | DS 6.2 |
+| Supports drawing arrows | Arrows can be drawn by specifying values in NvOSD_ArrowParams in metadata. | DS 5.0 |
+| Supports drawing circles | Circles can be drawn by specifying values in NvOSD_CircleParams in metadata. | DS 5.0 |
+| Support for blending bounding boxes | Blending boxes can be drawn by specifying bg_color values in NvOSD_RectParams in metadata. | DS 4.0 |
+| Supports drawing polygon lines | Lines can be drawn by specifying values in NvOSD_LineParams in metadata. | DS 3.0 |
+| Supports drawing text using Pango and Cairo libraries | Text can be drawn by specifying values in NvOSD_TextParams in metadata. | DS 2.0 |
+| CPU mode and GPU support for drawing bounding boxes.<br />Setting opacity for bounding box borders is not supported in gpu mode. | Bounding boxes can be drawn by specifying values in NvOSD_RectParams in metadata. | DS 2.0 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdsosd plugin.
+
+**Gst-nvsosd gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU to be used for operation (dGPU only) | Integer,<br />0 to 4,294,967,295 | gpu-id=0 |
+| display-clock | Indicates whether to display system clock | Boolean | display-clock=0 |
+| display-text | Indicates whether to display text | Boolean | display-text=0 |
+| clock-font | Name of Pango font to use for the clock for CPU process mode,<br />name of TrueType font to use for the clock and other text for GPU process mode | String | clock-font=Arial |
+| clock-font-size | Font size to use for the clock | Integer, 0-60 | clock-font-size=2 |
+| x-clock-offset | X offset of the clock | Integer,<br />0 to 4,294,967,295 | x-clock-offset=100 |
+| y-clock-offset | Y offset of the clock | Integer,<br />0 to 4,294,967,295 | y-clock-offset=50 |
+| clock-color | Color of the clock to be set while display, in the order 0xRGBA | Integer,<br />0 to 4,294,967,295 | clock-color=0xff0000ff<br />(Clock is red with alpha=1) |
+| process-mode | Indicates the mode used to draw the objects<br />Default mode: GPU mode<br />0: CPU mode<br />1: GPU mode | Integer, 0 to 1 | process-mode=0 |
+| display-bbox | Control bounding box drawing | Boolean | display-bbox=1 |
+| display-mask | Controls instance mask drawing | Boolean | display-mask=1 |
+| blur-bbox | Control object blurring(GPU mode only) | Boolean | blur-bbox=1 |
+| blur-on-gie-class-ids | Select the object to blur(GPU mode only and the blur-bbox must be 1) | Semicolons and commas delimited values | blur-on-gie-class-ids=0,1;1,0;2,1  format:&lt;gie_id,class_id;gie_id,class_id...> |

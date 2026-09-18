@@ -1,0 +1,8 @@
+﻿Property,Meaning,Type and Range,Example Notes
+silent,Suppresses console output when set,Boolean,silent=0
+fps_measurement_interval_sec,Interval in seconds over which buffers are counted for FPS calculation,"Integer,
+0 to 4,294,967,295",fps_measurement_interval_sec=5
+show-fps,Enables or disables FPS display prints,Boolean,show-fps=1
+show-latency,Enables or disables frame-level latency display prints,Boolean,show-latency=1
+latency,Microseconds to delay the initial packet,"Integer,
+0 to 4,294,967,295",latency=0

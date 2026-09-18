@@ -1,0 +1,33 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the tracker.,Boolean,enable=1,"dGPU, Jetson"
+tracker-width,"Frame width at which the tracker will operate, in pixels. (To be a multiple of 32 when tracker config visualTrackerType: 1 or reidType is non-zero with useVPICropScaler: 0)","Integer, ≥0",tracker-width=960,"dGPU, Jetson"
+tracker-height,"Frame height at which the tracker will operate, in pixels. (To be a multiple of 32 when tracker config visualTrackerType: 1 or reidType is non-zero with useVPICropScaler: 0)","Integer, ≥0",tracker-height=544,"dGPU, Jetson"
+gpu-id,GPU to be used by the element in case of multiple GPUs.,"Integer, ≥0",gpu-id=1,dGPU
+ll-config-file,"Configuration file for the low-level library if needed.
+
+A list of configuration files can be specified when the property `sub-batches` is configured.",String,ll-config-file=iou_config.txt,"dGPU, Jetson"
+ll-lib-file,Pathname for the low-level tracker implementation library.,String,ll-lib-file=/usr/-local/deepstream/libnvds_mot_iou.so,"dGPU, Jetson"
+tracking-surface-type,Set surface stream type for tracking. (default value is 0),"Integer, ≥0",tracking-surface-type=0,"dGPU, Jetson"
+display-tracking-id,Enables tracking id display.,Boolean,display-tracking-id=1,"dGPU, Jetson"
+tracking-id-reset-mode,"Allow force-reset of tracking ID based on pipeline event. Once tracking ID reset is enabled and such event happens, the lower 32-bit of the tracking ID will be reset to 0
+
+0: Not reset tracking ID when stream reset or EOS event happens
+
+1: Terminate all existing trackers and assign new IDs for a stream when the stream reset happens (i.e., GST_NVEVENT_STREAM_RESET)
+
+2: Let tracking ID start from 0 after receiving EOS event  (i.e., GST_NVEVENT_STREAM_EOS) (Note: Only the lower 32-bit of tracking ID to start from 0)
+
+3: Enable both option 1 and 2","Integer, 0 to 3",tracking-id-reset-mode=0,"dGPU, Jetson"
+input-tensor-meta,Use the tensor-meta from Gst-nvdspreprocess if available for tensor-meta-gie-id,Boolean,input-tensor-meta=1,"dGPU, Jetson"
+tensor-meta-gie-id,"Tensor Meta GIE ID to be used, property valid only if input-tensor-meta is TRUE","Unsigned Integer, ≥0",tensor-meta-gie-id=5,"dGPU, Jetson"
+sub-batches (Alpha feature),"Configures splitting of a batch of frames in sub-batches","Semicolon delimited integer array.
+
+Must include all values from 0 to (batch-size -1) where batch-size is configured in ``[streammux]``.","sub-batches=0,1;2,3
+
+In this example, a batch size of 4 is split into two sub-batches where the first sub-batch consists of source ids 0 & 1 and second sub-batch consists of source ids 2 & 3","dGPU, Jetson"
+sub-batch-err-recovery-trial-cnt (Alpha feature),"Configure the number of times the plugin can try to recover when the low level tracker in a sub-batch returns with a fatal error.
+
+To recover from the error, the plugin reinitializes the low level tracker library.","Integer,≥-1  where,
+
+-1 corresponds to infinite trials", sub-batch-err-recovery-trial-cnt=3,"dGPU, Jetson"
+user-meta-pool-size,"The size of tracker miscellaneous data buffer pool","Unsigned Integer, >0",user-meta-pool-size=32,"dGPU, Jetson"

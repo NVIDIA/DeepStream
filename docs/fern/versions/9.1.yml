@@ -1,0 +1,270 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+navigation:
+  - page: "NVIDIA DeepStream SDK Developer Guide"
+    path: ../../index.mdx
+  - section: "DeepStream Release notes"
+    contents:
+      - page: "DeepStream SDK 9.1 for NVIDIA dGPU/X86 and Jetson"
+        path: ../../text/DS_Release_notes.mdx
+  - section: "DeepStream Getting Started"
+    contents:
+      - page: "Welcome to the DeepStream Documentation"
+        path: ../../text/DS_Overview.mdx
+      - page: "Migration Guide"
+        path: ../../text/DS_Migration_guide.mdx
+      - page: "Installation"
+        path: ../../text/DS_Installation.mdx
+      - page: "Quickstart Guide"
+        path: ../../text/DS_Quickstart.mdx
+      - page: "Docker Containers"
+        path: ../../text/DS_docker_containers.mdx
+  - section: "DeepStream Samples"
+    contents:
+      - page: "C/C++ Sample Apps Source Details"
+        path: ../../text/DS_C_Sample_Apps.mdx
+      - page: "Python Sample Apps and Bindings Source Details (Deprecated)"
+        path: ../../text/DS_Python_Sample_Apps.mdx
+      - page: "DeepStream Reference Application - deepstream-app"
+        path: ../../text/DS_ref_app_deepstream.mdx
+      - page: "DeepStream Reference Application - deepstream-test5 app"
+        path: ../../text/DS_ref_app_test5.mdx
+      - page: "DeepStream Reference Application - deepstream-nmos app"
+        path: ../../text/DS_ref_app_nmos.mdx
+      - page: "DeepStream Reference Application - deepstream-vllm-plugin"
+        path: ../../text/DS_ref_app_vllm_plugin.mdx
+      - page: "DeepStream Reference Application on GitHub"
+        path: ../../text/DS_ref_app_github.mdx
+      - page: "Sample Configurations and Streams"
+        path: ../../text/DS_sample_configs_streams.mdx
+      - page: "Implementing a Custom GStreamer Plugin with OpenCV Integration Example"
+        path: ../../text/DS_sample_custom_gstream.mdx
+  - section: "TAO Toolkit Integration with DeepStream"
+    contents:
+      - page: "TAO Toolkit Integration with DeepStream"
+        path: ../../text/DS_TAO_integration.mdx
+  - section: "Tutorials and How-to's"
+    contents:
+      - page: "DeepStream-3D Custom Apps and Libs Tutorials"
+        path: ../../text/DS_3D_Custom_Manual.mdx
+  - section: "DeepStream Performance"
+    contents:
+      - page: "Performance"
+        path: ../../text/DS_Performance.mdx
+  - section: "DeepStream Accuracy"
+    contents:
+      - page: "Accuracy Tuning Tools"
+        path: ../../text/DS_Accuracy.mdx
+      - page: "PipeTuner Guide"
+        path: ../../text/Pipetuner-guide.mdx
+  - section: "DeepStream Custom Model"
+    contents:
+      - page: "Using a Custom Model with DeepStream"
+        path: ../../text/DS_using_custom_model.mdx
+  - section: "DeepStream Key Features"
+    contents:
+      - page: "Multi-View 3D Tracking"
+        path: ../../text/DS_MV3DT.mdx
+      - page: "DeepStream-3D Sensor Fusion Multi-Modal Application and Framework"
+        path: ../../text/DS_3D_MultiModal_Lidar_Sensor_Fusion.mdx
+      - page: "DeepStream-3D Multi-Modal BEVFusion Setup"
+        path: ../../text/DS_3D_MultiModal_Lidar_Camera_BEVFusion.mdx
+      - page: "DeepStream-3D Multi-Modal V2XFusion Setup"
+        path: ../../text/DS_3D_MultiModal_Lidar_Camera_V2XFusion.mdx
+      - page: "Smart Video Record"
+        path: ../../text/DS_Smart_video.mdx
+      - page: "IoT"
+        path: ../../text/DS_IoT.mdx
+      - page: "On the Fly Model Update"
+        path: ../../text/DS_on_the_fly_model.mdx
+      - page: "NTP Timestamp in DeepStream"
+        path: ../../text/DS_NTP_Timestamp.mdx
+      - page: "DeepStream With REST API Server"
+        path: ../../text/DS_RestServer.mdx
+      - page: "DeepStream OpenTelemetry Support"
+        path: ../../text/DS_OpenTelemetry.mdx
+      - page: "DeepStream 3D Action Recognition App"
+        path: ../../text/DS_3D_Action.mdx
+      - page: "DeepStream 3D Depth Camera App"
+        path: ../../text/DS_3D_Depth_Camera.mdx
+      - page: "DeepStream 3D Lidar Inference App"
+        path: ../../text/DS_3D_Lidar_Inference.mdx
+      - page: "Networked Media Open Specifications (NMOS) in DeepStream"
+        path: ../../text/DS_library_nvdsnmos.mdx
+      - page: "DeepStream Can Orientation App"
+        path: ../../text/DS_Can_Orientation.mdx
+  - section: "DeepStream Application Migration"
+    contents:
+      - page: "Application Migration to DeepStream 9.2 from DeepStream 9.1"
+        path: ../../text/DS_Application_migration.mdx
+  - section: "DeepStream Plugin Guide"
+    contents:
+      - page: "GStreamer Plugin Overview"
+        path: ../../text/DS_plugin_Intro.mdx
+      - section: "Plugins"
+        contents:
+          - page: "MetaData in the DeepStream SDK"
+            path: ../../text/DS_plugin_metadata.mdx
+          - page: "Gst-nvdspreprocess"
+            path: ../../text/DS_plugin_gst-nvdspreprocess.mdx
+          - page: "Gst-nvinfer"
+            path: ../../text/DS_plugin_gst-nvinfer.mdx
+          - page: "Gst-nvinferserver"
+            path: ../../text/DS_plugin_gst-nvinferserver.mdx
+          - page: "Gst-nvtracker"
+            path: ../../text/DS_plugin_gst-nvtracker.mdx
+          - page: "Gst-nvstreammux"
+            path: ../../text/DS_plugin_gst-nvstreammux.mdx
+          - page: "Gst-nvstreammux New"
+            path: ../../text/DS_plugin_gst-nvstreammux2.mdx
+          - page: "Gst-nvstreamdemux"
+            path: ../../text/DS_plugin_gst-nvstreamdemux.mdx
+          - page: "Gst-nvmultistreamtiler"
+            path: ../../text/DS_plugin_gst-nvmultistreamtiler.mdx
+          - page: "Gst-nvdsosd"
+            path: ../../text/DS_plugin_gst-nvdsosd.mdx
+          - page: "Gst-nvdsmetautils"
+            path: ../../text/DS_plugin_gst-nvdsmetautils.mdx
+          - page: "Gst-nvdsmetamux"
+            path: ../../text/DS_plugin_gst-nvdsmetamux.mdx
+          - page: "Gst-nvdsvideotemplate"
+            path: ../../text/DS_plugin_gst-nvdsvideotemplate.mdx
+          - page: "Gst-nvvideoconvert"
+            path: ../../text/DS_plugin_gst-nvvideoconvert.mdx
+          - page: "Gst-nvdewarper"
+            path: ../../text/DS_plugin_gst-nvdewarper.mdx
+          - page: "Gst-nvof"
+            path: ../../text/DS_plugin_gst-nvof.mdx
+          - page: "Gst-nvofvisual"
+            path: ../../text/DS_plugin_gst-nvofvisual.mdx
+          - page: "Gst-nvsegvisual"
+            path: ../../text/DS_plugin_gst-nvsegvisual.mdx
+          - page: "Gst-nvblender"
+            path: ../../text/DS_plugin_gst-nvblender.mdx
+          - page: "Gst-nvbufsurfacewrite"
+            path: ../../text/DS_plugin_gst-nvbufsurfacewrite.mdx
+          - page: "Gst-nvdsbins"
+            path: ../../text/DS_plugin_gst-nvdsbins.mdx
+          - page: "Gst-nvdsframeselector"
+            path: ../../text/DS_plugin_gst-nvdsframeselector.mdx
+          - page: "Gst-nvdslogger"
+            path: ../../text/DS_plugin_gst-nvdslogger.mdx
+          - page: "Gst-nvdstextembedder"
+            path: ../../text/DS_plugin_gst-nvdstextembedder.mdx
+          - page: "Gst-nvdsvisionencoder-c"
+            path: ../../text/DS_plugin_gst-nvdsvisionencoder-c.mdx
+          - page: "Gst-nvmodelmux"
+            path: ../../text/DS_plugin_gst-nvmodelmux.mdx
+          - page: "Gst-nvinfereval"
+            path: ../../text/DS_plugin_gst-nvinfereval.mdx
+          - page: "Gst-nvvideo4linux2"
+            path: ../../text/DS_plugin_gst-nvvideo4linux2.mdx
+          - page: "Gst-nvjpegdec"
+            path: ../../text/DS_plugin_gst-nvjpegdec.mdx
+          - page: "Gst-nvimagedec"
+            path: ../../text/DS_plugin_gst-nvimagedec.mdx
+          - page: "Gst-nvjpegenc"
+            path: ../../text/DS_plugin_gst-nvjpegenc.mdx
+          - page: "Gst-nvimageenc"
+            path: ../../text/DS_plugin_gst-nvimageenc.mdx
+          - page: "Gst-nvmsgconv"
+            path: ../../text/DS_plugin_gst-nvmsgconv.mdx
+          - page: "Gst-nvmsgbroker"
+            path: ../../text/DS_plugin_gst-nvmsgbroker.mdx
+          - page: "Gst-nvdsanalytics"
+            path: ../../text/DS_plugin_gst-nvdsanalytics.mdx
+          - page: "Gst-nvdsdynamicsrcbin (developer preview)"
+            path: ../../text/DS_plugin_gst-nvdsdynamicsrcbin.mdx
+          - page: "Gst-nvdsudpsrc"
+            path: ../../text/DS_plugin_gst-nvdsudpsrc.mdx
+          - page: "Gst-nvdsudpsink"
+            path: ../../text/DS_plugin_gst-nvdsudpsink.mdx
+          - page: "Gst-nvdspostprocess"
+            path: ../../text/DS_plugin_gst-nvdspostprocess.mdx
+          - page: "Gst-nvds3dfilter"
+            path: ../../text/DS_plugin_gst-nvds3dfilter.mdx
+          - page: "Gst-nvds3dbridge"
+            path: ../../text/DS_plugin_gst-nvds3dbridge.mdx
+          - page: "Gst-nvds3dmixer"
+            path: ../../text/DS_plugin_gst-nvds3dmixer.mdx
+          - page: "Gst-NvDsUcx"
+            path: ../../text/DS_plugin_gst-nvdsucx.mdx
+          - page: "Gst-nvdsxfer"
+            path: ../../text/DS_plugin_gst-nvdsxfer.mdx
+          - page: "Gst-nvvideotestsrc"
+            path: ../../text/DS_plugin_gst-nvvideotestsrc.mdx
+          - page: "Gst-nvmultiurisrcbin"
+            path: ../../text/DS_plugin_gst-nvmultiurisrcbin.mdx
+          - page: "Gst-nvreplay"
+            path: ../../text/DS_plugin_gst-nvreplay.mdx
+          - page: "Gst-nvurisrcbin"
+            path: ../../text/DS_plugin_gst-nvurisrcbin.mdx
+          - page: "Gst-nvunixfd"
+            path: ../../text/DS_plugin_gst-nvunixfd.mdx
+  - section: "DeepStream Troubleshooting and FAQ"
+    contents:
+      - page: "Troubleshooting"
+        path: ../../text/DS_troubleshooting.mdx
+      - page: "Frequently Asked Questions"
+        path: ../../text/DS_FAQ.mdx
+      - page: "FAQ for DeepStream GitHub Mono-repo"
+        path: ../../text/DS_Monorepo_FAQ.mdx
+  - section: "DeepStream On WSL2"
+    contents:
+      - page: "DeepStream On WSL"
+        path: ../../text/DS_on_WSL2.mdx
+      - page: "FAQ for DeepStream On WSL"
+        path: ../../text/DS_WSL2_FAQ.mdx
+  - section: "DeepStream API Guide"
+    contents:
+      - page: "DeepStream API Guides"
+        path: ../../text/DS_API_Guide.mdx
+  - section: "DeepStream Service Maker"
+    contents:
+      - page: "What is Deepstream Service Maker"
+        path: ../../text/DS_service_maker_intro.mdx
+      - page: "Service Maker for C/C++ Developers"
+        path: ../../text/DS_service_maker_cpp.mdx
+      - page: "Service Maker for Python Developers"
+        path: ../../text/DS_service_maker_python.mdx
+      - section: "Python APIs"
+        contents:
+          - page: "Quick Start Guide"
+            path: ../../text/DS_service_maker_python_quick_start.mdx
+          - page: "Introduction to Flow APIs"
+            path: ../../text/DS_service_maker_python_intro_to_flow_api.mdx
+          - page: "Introduction to Pipeline APIs"
+            path: ../../text/DS_service_maker_python_intro_to_pipeline_api.mdx
+          - page: "Advanced Features"
+            path: ../../text/DS_service_maker_python_advanced_features.mdx
+          - page: "Migrating Traditional DeepStream Apps to Service Maker Apps in Python"
+            path: ../../text/DS_service_maker_traditional_app_migration.mdx
+      - page: "What is a DeepStream Service Maker Plugin"
+        path: ../../text/DS_service_maker_plugin.mdx
+  - section: "Nvidia Inference Builder"
+    contents:
+      - page: "Inference Builder Overview"
+        path: ../../text/DS_Inference_Builder.mdx
+  - section: "AI Agent Support"
+    contents:
+      - page: "DeepStream Coding Agent"
+        path: ../../text/DS_AI_Agent.mdx
+      - page: "Inference Builder MCP"
+        path: ../../text/DS_AI_Agent_MCP.mdx
+  - section: "AutoMagicCalib Tool"
+    contents:
+      - page: "AutoMagicCalib"
+        path: ../../text/DS_AutoMagicCalib.mdx
+  - section: "DeepStream Libraries"
+    contents:
+      - page: "DeepStream Libraries"
+        path: ../../text/DS_Libraries.mdx
+  - section: "DeepStream Legal Information"
+    contents:
+      - page: "DeepStream End User License Agreement"
+        path: ../../text/DS_Legal.mdx
+  - section: "DeepStream Feedback"
+    contents:
+      - page: "Feedback form"
+        path: ../../text/DeepStream_Main_Feedback_Form.mdx

@@ -1,0 +1,59 @@
+---
+title: "MetaData in the DeepStream SDK"
+---
+
+Gst Buffer is the basic unit of data transfer in GStreamer. Each Gst Buffer has associated metadata. The DeepStream SDK attaches the DeepStream metadata object, NvDsBatchMeta, described in the following sections.
+To read more about Gst Buffer, refer to [GStreamer documentation](https://gstreamer.freedesktop.org/documentation/gstreamer/gstbuffer.html?gi-language=c).
+
+## NvDsBatchMeta: Basic Metadata Structure
+
+DeepStream uses an extensible standard structure for metadata. The basic metadata structure `NvDsBatchMeta` starts with batch level metadata, created inside the Gst-nvstreammux plugin. Subsidiary metadata structures hold frame, object, classifier, and label data. DeepStream also provides a mechanism for adding user-specific metadata at the batch, frame, or object level.
+DeepStream attaches metadata to a Gst Buffer by attaching an `NvDsBatchMeta` structure and setting `GstNvDsMetaType.meta_type` to `NVDS_BATCH_GST_META` in the Gst-nvstreammux plugin. When your application processes the Gst Buffer, it can iterate over the attached metadata to find NVDS_BATCH_GST_META.
+The function `gst_buffer_get_nvds_batch_meta()` extracts `NvDsBatchMeta` from the Gst Buffer. (See the declaration in `sources/include/gstnvdsmeta.h.`) See the `deepstream-test1` sample application for an example of this function’s usage. For more details, see the DeepStream SDK API reference documentation in [DS_API_Guide](DS_API_Guide).
+
+  ![DeepStream MetaData](/assets/images/content/DS_plugin_metadata.png)
+
+## User/Custom Metadata Addition inside NvDsBatchMeta
+
+To attach user-specific metadata at the batch, frame, or object level within `NvDsBatchMeta`, you must acquire an instance of `NvDsUserMeta` from the user meta pool by calling `nvds_acquire_user_meta_from_pool()`. (See `sources/includes/nvdsmeta.h` for details.) Then you must initialize `NvDsUserMeta`. The members you must set are `user_meta_data`, `meta_type`, `copy_func`, and `release_func`.
+For more details, see the sample application source code in `sources/apps/sample_apps/deepstream-user-metadata-test/deepstream_user_metadata_app.c`.
+
+## Adding Custom Meta in Gst Plugins Upstream from Gst-nvstreammux
+
+The DeepStream SDK creates batch level metadata in the Gst-nvstreammux plugin. It holds `NvDsBatchMeta` metadata in a hierarchy of batches, frames within batches, and objects within frames.
+
+### Adding metadata to the plugin before Gst-nvstreammux
+
+This procedure introduces metadata to the DeepStream pipeline at a plugin before Gst-nvstreammux.
+
+1. Set the plugin’s following members of the plugin’s NvDsMeta structure:
+
+  * copy_func
+  * free_func
+  *	meta_type
+  *	gst_to_nvds_meta_transform_func
+  *	gst_to_nvds_meta_release_func
+
+2. Attach the metadata by calling `gst_buffer_add_nvds_meta()` and set the `meta_type` in the NvDsMeta instance returned by `gst_buffer_add_nvds_meta()`.
+3. The Gst-nvstreammux plugin transforms the input gst-meta created in step 2 from the Gst Buffer into an `NvDsUserMeta` object associated with the corresponding NvDsFrameMeta object. It adds this object to the `frame_user_data` list.
+4. Search the `frame_user_meta_list` in the NvDsFrameMeta object for the `meta_type` that was set in step 2, and access the attached metadata.
+
+See the sample application source code in `sources/apps/sample_apps/deepstream-gst-metadata-test/deepstream_gst_metadata.c` for more details. If gst meta is not attached with `gst_buffer_add_nvds_meta()`, it is not transformed into DeepStream metadata. It is still available in the Gst Buffer.
+
+### New metadata fields
+
+The `NvDsObjectMeta` structure from DeepStream 5.0 GA release has three bbox info and two confidence values:
+
+1. `detector_bbox_info` - Holds bounding box parameters of the object when detected by detector.
+2. `tracker_bbox_info` - Holds bounding box parameters of the object when processed by tracker.
+3. `rect_params` - Holds bounding box coordinates of the object processed by the last module that updates it in the pipeline. These bounding box coordinates are clipped so that they do not fall outside frame boundary.
+
+These bounding box parameters are used to overlay:
+
+4. `confidence` - Holds a confidence value for the object, set by the inference module.
+5. `tracker_confidence` - Holds a confidence value for the object set by NvDCF. Will be `1.0` in the case of the other trackers (e.g., `IOU`, `NvSORT` and `NvDeepSORT`) that do not have visual tracking capability.
+
+As noted in the description above, the bbox coordinates from detector and tracker are stored separately in the newly introduced `detector_bbox_info` and `tracker_bbox_info`, respectively. The bbox info `rect_params` continues to hold the bbox info as in previous DeepStream versions, for backward compatibility. Note that `rect_params` will be deprecated in future release.
+Preexisting `confidence` parameter holds the detector confidence value, while a newly introduced `tracker_confidence` parameter will hold the tracker confidence value.
+
+The segmentation mask for each target can be saved in the `mask_params` field of `NvOSD_MaskParams` class. As defined in `nvll_osd_struct.h`, this structure stores the segmentation mask as a float array with dimensions matching the target's bounding box (rounded to integer values). Set `display-mask=1` in DeepStream OSD config to visualize the masks.

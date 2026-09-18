@@ -1,0 +1,4 @@
+Property,Meaning,Type and Range,Example
+streams,Specify which streams to enable,"List[String],  select from [color, depth]","streams: [color, depth]"
+max_points,Indicate maximum 3d points to allocate,Uint32,max_points: 407040
+mem_pool_size,Indicate max buffer pool size,Uint32,mem_pool_size: 8

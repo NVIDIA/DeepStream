@@ -1,0 +1,53 @@
+---
+title: "Gst-nvdstextembedder"
+---
+
+The Gst-nvdstextembedder plugin is a DeepStream-compatible GStreamer Python plugin that generates text embeddings, designed to work alongside [DS_plugin_gst-nvdsvisionencoder-c](DS_plugin_gst-nvdsvisionencoder-c) for text-to-image search applications. It supports text-to-image search, person-attribute search (e.g. "person wearing red shirt"), zero-shot classification, and semantic search. Texts can be set via the `texts` property, or encoded on demand using a custom GStreamer "embedding" query that returns results synchronously without modifying element properties.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	texts property, or a custom "embedding" GstQuery, containing a JSON array of text strings to encode
+
+* Control parameters
+
+  *	device, model-name, batch-size, use-fp16, verbose
+
+* Output
+
+  *	embeddings property containing a JSON array of computed embedding vectors (or the synchronous query result for on-demand encoding)
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdstextembedder plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Text-to-embedding encoding | Generates text embedding vectors using SigLIP2 Giant (1536-dim, default) or DFN5B-CLIP (1024-dim) models | DS 9.2 |
+| On-demand embedding query | Supports a custom GstQuery for synchronous on-demand text encoding without changing element properties | DS 9.2 |
+| Vision-encoder pairing | Designed to work alongside Gst-nvdsvisionencoder-c so text and image embeddings share a common vector space | DS 9.2 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdstextembedder plugin.
+
+**Gst-nvdstextembedder plugin gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| texts | JSON array of texts to encode (e.g. '["query1", "query2"]') | String | texts='["person wearing red shirt"]' |
+| embeddings (read-only) | JSON array of computed embeddings | String |  |
+| batch-size | Maximum batch size for inference | Integer,<br />1 to 128 | batch-size=64 |
+| verbose | Enables verbose logging | Boolean | verbose=0 |
+| device | Device used for inference (cuda or cpu) | String | device=cuda |
+| use-fp16 | Enables FP16 inference for faster processing | Boolean | use-fp16=1 |
+| model-name | Encoder selection, set from curl/API (e.g. an ONNX model name). Use a name containing "siglip2-giant" or "giant" for SigLIP2 Giant (1536-dim), or "dfn5b-clip" for DFN5B-CLIP (1024-dim) | String | model-name=siglip2-giant |
+| embedding-dim (read-only) | Model embedding dimension | Integer,<br />0 to 65536 |  |
+| num-texts (read-only) | Number of texts currently loaded | Integer,<br />0 to 2,147,483,647 |  |
+| model-loaded (read-only) | Whether the model is loaded and ready | Boolean |  |
+| last-query-result (read-only) | JSON string of the last embedding query result | String |  |
+| onnx-model-path | Path to the DFN-CLIP ONNX model file (used when model-name contains "dfnclip") | String | onnx-model-path=/path/to/model.onnx |
+| tokenizer-dir | Path to the tokenizer directory with tokenizer.json (used when model-name contains "dfnclip") | String | tokenizer-dir=/path/to/tokenizer |

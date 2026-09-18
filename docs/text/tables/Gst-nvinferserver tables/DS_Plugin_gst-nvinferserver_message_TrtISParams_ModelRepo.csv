@@ -1,0 +1,50 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+root,Triton inference model repository directory path ,string, root: “../triton_model_repo”,"| All
+| Both"
+log_level,Triton log output levels,"uint32;
+0, ERROR;
+1, WARNING;
+2, INFO;
+>=3, VERBOSE Level",log_level: 1,"| All
+| Both"
+strict_model_config,"Enable Triton strict model configuration, see details in Triton `Generated Model Configuration <https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md>`_. Suggest setting value true",bool,strict_model_config: true,"| All
+| Both"
+tf_gpu_memory_fraction,"TensorFlow GPU memory fraction per process. Valid for Tensorflow models only.
+Default 0 means no GPU memory limitation. Suggest tuning to a proper value (e.g. in range of [0.2, 0.6]) in case Tensorflow uses up whole GPU memory","float,
+Range (0, 1.0]",tf_gpu_memory_fraction: 0.6,"| All
+| Both"
+tf_disable_soft_placement,Disable TensorFlow soft placement of operators. It’s enabled by default.,bool,tf_disable_soft_placement: false,"| All
+| Both"
+min_compute_capacity,"Specify minimal GPU compute capacity.
+The default value is 6.0 on x86 and 5.0 on Jetson.",,min_compute_capacity: 6.0,"| All
+| Both"
+backend_dir,"Specify Triton backend directory which store Tensorflow/Onnx/Pytorch and custom backends.
+The Default value  is /opt/tritonserver/backends on X86 and opt/nvidia/deepstream/deepstream-x.x/lib/triton_backends on Jetson.",string,backend_dir: /opt/tritonserver/backends/,"| All
+| Both"
+cuda_device_memory,Specify a list of CudaDeviceMem blocks with pre-allocated memory pool. Use Triton's default value if list is empty.,message list,"cuda_device_memory [ {
+  device: 0
+  memory_pool_byte_size: 2000000000
+} ]","| All
+| Both"
+CudaDeviceMem::device,Specify device ID,"uint32;
+>= 0",device: 0,"| All
+| Both"
+CudaDeviceMem::memory_pool_byte_size,Indicate pre-allocated memory pool byte size on according device for Triton runtime,"uint64;
+>= 0",memory_pool_byte_size: 8000000000,"| All
+| Both"
+pinned_memory_pool_byte_size,Indicate pre-allocated Pinned memory on host for Triton runtime. Use Triton's default value (around 256MB) if not set.,"uint64;
+>= 0",pinned_memory_pool_byte_size: 128000000,"| All
+| Both"
+backend_configs,A list of BackendConfig blocks for Tritonserver backend config settings,message list,"backend_configs [ {
+  backend: tensorflow
+  setting: ""allow-soft-placement""
+  value: ""true""
+} ]","| All
+| Both"
+BackendConfig::backend,Specify backend name,string,backend: tensorflow,"| All
+| Both"
+BackendConfig::setting,Specify backend setting name,string,"setting: ""allow-soft-placement""","| All
+| Both"
+BackendConfig::value,Specify backend setting values,string,"value: ""true""","| All
+| Both"

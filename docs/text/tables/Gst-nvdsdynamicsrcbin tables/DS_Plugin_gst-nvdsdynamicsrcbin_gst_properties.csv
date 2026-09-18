@@ -1,0 +1,8 @@
+Property Name,Type,Access,Description,Default Value
+async-handling,Boolean,readable/writable,The bin will handle Asynchronous state changes,false
+current-file,String,readable,Current file being processed,null
+current-id,Integer,readable,Current id of the chunk being processed,-1
+gpu-id,Unsigned Integer,readable/writable,GPU Device ID to use for decoding,0
+message-forward,Boolean,readable/writable,Forwards all children messages,false
+name,String,readable/writable,The name of the object,dynamicsrcbin0
+parent,GstObject,readable/writable,The parent of the object,null

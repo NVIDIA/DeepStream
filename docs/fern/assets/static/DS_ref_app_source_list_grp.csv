@@ -1,0 +1,12 @@
+Key,Meaning,Type and Value,Example,Platforms
+enable,Enables or disables the source.,Boolean,enable=1,"dGPU, Jetson"
+num-source-bins,The total number of source URI's provided with the key list,Integer,num-source-bins=2,"dGPU, Jetson"
+sgie-batch-size,"sgie batch size is number of sources * fair fraction of number of objects detected per frame per source
+the fair fraction of number of object detected is assumed to be 4",Integer,sgie-batch-size=8,"dGPU, Jetson"
+list,The list of URI's separated by semi-colon ';',String,"list=rtsp://ip-address:port/stream1;rtsp://ip-address:port/stream2","dGPU, Jetson"
+sensor-id-list,(Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The list of unique Identifiers identifying each stream separated by semi-colon ';',String,sensor-id-list=UniqueSensorId1;UniqueSensorId2,"dGPU"
+sensor-name-list,(Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The Optional list of sensor names identifying each stream separated by semi-colon ';',String,sensor-name-list=SensorName1;SensorName2,"dGPU"
+use-nvmultiurisrcbin,(Alpha Feature) Boolean if set enable the use of nvmultiurisrcbin with REST API support for dynamic sensor provisioning,Boolean,use-nvmultiurisrcbin=0(default),"dGPU"
+max-batch-size,(Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. Sets the maximum number of sensors that can be streamed using this instance of DeepStream,Integer,max-batch-size=10,"dGPU"
+http-ip,(Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The HTTP Endpoint IP address to use,String,http-ip=localhost (default),"dGPU"
+http-port,(Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The HTTP Endpoint port number to use. Note: User may pass empty string to disable REST API server ,String,http-ip=9001 (default),"dGPU"

@@ -1,0 +1,5 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+path,Pathname that points to a custom library for preload,string,path: “/home/ubuntu/lib_custom_impl.so”,"All
+
+Both"

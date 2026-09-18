@@ -1,0 +1,141 @@
+---
+title: "FAQ for DeepStream GitHub Mono-repo"
+---
+
+{/` include: <isonum.txt> `/}
+
+## 1. Where is the DeepStream GitHub mono-repo located?
+
+   https://github.com/NVIDIA/DeepStream
+
+Starting with DeepStream 9.0, this mono-repo is the unified home for DeepStream source, samples, tools, and skills across x86, Jetson, and SBSA. SDK release packages moved to the mono-repo GitHub release assets in DeepStream 9.1 (see Q3).
+
+## 2. Where can I download the DeepStream SDK packages?
+
+Starting from DeepStream 9.1, all DeepStream SDK packages are available as release assets on the NVIDIA DeepStream GitHub mono-repo:
+
+   https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0
+
+Navigate to the release corresponding to your DeepStream version and download the required package from the **Assets** section.
+
+## 3. Why has DeepStream moved from NGC to GitHub for release packages?
+
+The [NVIDIA/DeepStream](https://github.com/NVIDIA/DeepStream) GitHub mono-repo is the unified platform for all DeepStream releases. DeepStream 9.0 introduced the mono-repo as the release channel, but SDK packages (assets) were still hosted on NGC. Starting from DeepStream 9.1, the mono-repo GitHub releases page is the single place for both the release and all downloadable SDK packages. NGC is no longer used for SDK package distribution.
+
+## 4. What packages are available in the GitHub release assets?
+
+The following packages are available for each DeepStream release:
+
+* **Full DeepStream package** (tar and deb) — complete SDK for x86 and aarch64
+* **deepstream-binaries-x86** (tar and deb) — proprietary binary libraries only, for x86
+* **deepstream-binaries-aarch64** (tar and deb) — proprietary binary libraries only, for aarch64
+* **deepstream-sample-data** (tar and deb) — sample streams, configs, and models
+* **DeepStream Libraries wheel** (`.whl`) — the DeepStream Libraries Python wheel (e.g. `deepstream_libraries-1.4-cp312-cp312-linux_x86_64.whl`), for x86
+
+## 5. What is the difference between the full DeepStream package and the deepstream-binaries package?
+
+* **Full DeepStream package**: Contains the complete SDK — all open-source components and proprietary libraries — for users who want to install DeepStream directly.
+* **deepstream-binaries package**: Contains only the proprietary binary libraries. This is intended for users who build DeepStream from source using the mono-repo and need only the closed-source components to complement their build.
+
+## 6. Where can I find the NVIDIA-AI-IOT GitHub repositories in the GitHub mono-repo?
+
+The table below maps the existing NVIDIA-AI-IOT GitHub repository sources to their location within the GitHub mono-repo:
+
+| NVIDIA-AI-IOT GitHub repo | Location within the GitHub mono-repo |
+| --- | --- |
+| [NVIDIA-AI-IOT/deepstream_tao_apps](https://github.com/NVIDIA-AI-IOT/deepstream_tao_apps) | [NVIDIA/DeepStream/src/apps/tao_apps/](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/tao_apps) |
+| [NVIDIA-AI-IOT/deepstream_reference_apps](https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps) | [NVIDIA/DeepStream/src/apps/reference_apps/](https://github.com/NVIDIA/DeepStream/tree/main/src/apps/reference_apps) |
+| [NVIDIA-AI-IOT/deepstream_tools](https://github.com/NVIDIA-AI-IOT/deepstream_tools) | [NVIDIA/DeepStream/tools/](https://github.com/NVIDIA/DeepStream/tree/main/tools) |
+| [NVIDIA-AI-IOT/DeepStream_Coding_Agent](https://github.com/NVIDIA-AI-IOT/DeepStream_Coding_Agent) | [NVIDIA/DeepStream/skills/](https://github.com/NVIDIA/DeepStream/tree/main/skills) |
+| [NVIDIA-AI-IOT/inference_builder](https://github.com/NVIDIA-AI-IOT/inference_builder) | [NVIDIA/DeepStream/tools/inference_builder/](https://github.com/NVIDIA/DeepStream/tree/main/tools) |
+| [NVIDIA-AI-IOT/auto-magic-calib](https://github.com/NVIDIA-AI-IOT/auto-magic-calib) | [NVIDIA/DeepStream/tools/auto-magic-calib/](https://github.com/NVIDIA/DeepStream/tree/main/tools) |
+| [NVIDIA-AI-IOT/deepstream_dockers](https://github.com/NVIDIA-AI-IOT/deepstream_dockers) | [NVIDIA/DeepStream/deepstream_dockers/](https://github.com/NVIDIA/DeepStream/tree/main/deepstream_dockers) |
+| [NVIDIA-AI-IOT/deepstream_libraries](https://github.com/NVIDIA-AI-IOT/deepstream_libraries) | [NVIDIA/DeepStream/deepstream_libraries/](https://github.com/NVIDIA/DeepStream) |
+
+## 7. Where do I get the DeepStream Libraries Python wheel?
+
+Starting with DeepStream 9.1, the DeepStream Libraries Python wheel is published as a release asset on the mono-repo GitHub releases page, alongside the other SDK packages:
+
+   https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0
+
+Download the wheel (for example `deepstream_libraries-1.4-cp312-cp312-linux_x86_64.whl`) from the **Assets** section and install it with `pip3 install <wheel>`. It was previously distributed on NGC; NGC is no longer used for the DeepStream Libraries wheel. The DeepStream Libraries source and sample applications are hosted as part of the mono-repo at https://github.com/NVIDIA/DeepStream. See [DS_Libraries](DS_Libraries) for full setup and usage details.
+
+## 8. How do I download DeepStream release assets from GitHub using wget or curl?
+
+You can download release assets directly from the command line using `curl` or `wget`.
+
+**Using curl:**
+
+```bash
+$ curl -LO 'https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0/deepstream-9.2_9.2.0-1_amd64.deb'
+```
+
+**Using wget:**
+
+```bash
+$ wget --content-disposition 'https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0/deepstream-9.2_9.2.0-1_amd64.deb'
+```
+
+Replace the filename with the specific asset you want to download from the release page.
+
+## 9. Can I still download DeepStream from NGC?
+
+Starting from DeepStream 9.1, NGC is no longer the distribution channel for DeepStream SDK packages. All packages are now available through the GitHub releases page at https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0.
+
+However, DeepStream Docker containers continue to be available on NGC at https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream.
+
+## 10. Where did the DS 9.1 public tar/deb files go since they are no longer on NGC?
+
+They are now located in the DeepStream mono-repo. See the DS 9.1 release tag:
+
+   https://github.com/NVIDIA/DeepStream/releases/tag/v9.1.0
+
+## 11. The Jetson DS 9.1 containers are not found in the NGC deepstream-l4t repo (https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/deepstream-l4t). Where did they go?
+
+The `deepstream-l4t` container NGC repo will not be updated in future DeepStream releases, though old releases will remain accessible to users.
+
+Starting with the DS 9.1 release, the DeepStream container NGC repo https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/deepstream is the official repo for all containers (Jetson and dGPU).
+
+## 12. Where did the DeepStream Open Source Dockers move to for DS 9.1? (previously https://github.com/NVIDIA-AI-IOT/deepstream_dockers)
+
+   https://github.com/NVIDIA/DeepStream
+
+## 13. Where are DeepStream Skills, auto-magic-calib, and inference-builder located with GitHub Monorepo?
+
+These repos are now also hosted into the mono-repo as listed below:
+
+* **DeepStream Skills**: https://github.com/NVIDIA/DeepStream/tree/main/skills
+* **auto-magic-calib** (Original repo https://github.com/NVIDIA-AI-IOT/auto-magic-calib): https://github.com/NVIDIA/DeepStream/tree/main/tools
+* **inference-builder** (Original repo https://github.com/NVIDIA-AI-IOT/inference_builder): https://github.com/NVIDIA/DeepStream/tree/main/tools
+
+## 14. Are there any proprietary files in the DeepStream mono-repo?
+
+Yes, please refer to the EULA file packaged within the proprietary tar/deb released as
+[GitHub Release assets](https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0).
+
+<Note>
+The open-source components in the mono-repo are licensed under the
+[Apache License 2.0](https://github.com/NVIDIA/DeepStream/blob/main/LICENSE).
+</Note>
+
+## 15. I am observing a warning while launching dockers: "groups: cannot find name for group ID 993" or similar. Where does this come from?
+
+This is just a warning. It was introduced in `nvidia-container-toolkit` 1.19.1-1. For more details, see:
+
+   https://github.com/cncf-tags/container-device-interface/issues/175
+
+This applies to all platforms (x86/Jetson/SBSA).
+
+## 16. How do I build or modify DeepStream components on SBSA / DGX Spark?
+
+DeepStream SDK release assets are **not** published for SBSA/DGX Spark. Use the official NGC Docker container, which ships with DeepStream fully installed and all dependencies pre-configured:
+
+   https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
+
+To modify a specific open-source component, clone the mono-repo inside the container and run `make` only in that component's directory. Since all prerequisites are already present in the container, there is no need to run the full `build/build.sh`:
+
+```bash
+$ git clone https://github.com/NVIDIA/DeepStream.git
+$ cd DeepStream/src/<component-directory>
+$ make && sudo make install
+```

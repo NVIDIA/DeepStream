@@ -1,0 +1,59 @@
+Optimized config for low-latency (example), Optimized config for compute utilization
+"Pipeline example:
+32 X udpsrc ! rtpopus depay ! opusdec ! audiobuffersplit output-buffer-duration=1/50 ! queue ! mux.sink_%d
+nvstreammux name=mux ! queue ! nvdsaudiotemplate ! fakesink
+
+
+[property]
+
+algorithm-type=1
+
+batch-size= **32**
+
+max-fps-control=0
+
+overall-max-fps-n=50
+
+overall-max-fps-d=1
+
+overall-min-fps-n=50
+
+overall-min-fps-d=1 
+
+max-same-source-frames= **2** "," ""Pipeline example:
+32 X udpsrc ! rtpopus depay ! opusdec ! audiobuffersplit output-buffer-duration=1/50 ! queue ! mux.sink_%d
+nvstreammux name=mux ! queue ! nvdsaudiotemplate ! Fakesink
+
+
+
+[property]
+
+algorithm-type=1
+
+batch-size= **32**
+
+max-fps-control=0
+
+overall-max-fps-n=50
+
+overall-max-fps-d=1
+
+overall-min-fps-n= **40**
+
+overall-min-fps-d=1 
+
+max-same-source-frames= **1** "
+"Partial batches possible in this configuration.
+
+Partial batch is when the batched buffer have less number of buffers than the configured batch-size. (batchBuffer->numFilled < batchBuffer->batchSize)"," Configured to create fully formed batch buffers.
+
+Full batch is when the batched buffer have configured batch-size number of buffers batched. (batchBuffer->numFilled ==  batchBuffer->batchSize)"
+CPU load may be higher (as we operate nvstreammux batching algorithm at a higher overall framerate).," ""CPU load optimized for the rate at which input streams into nvstreammux plugin."""
+"Note 1: Here, exact overall-max/min-fps configuration matching input framerate from audiobuffersplit ensure minimum latency inside nvstreammux plugin to create batches.
+
+Note 2: For this reason, if input throughput falls occasionally (possible), Output batch buffer from nvstreammux will still be created at the configured min-fps. However the batch will be partial (batchBuffer->numFilled could be less than batchBuffer->batchSize)."," Note 1: Here, user could use overall-min-fps less than the input framerate from audiobuffersplit. This way, even if input sources (especially when streamed over network) fall short in framerate, nvstreammux still gets more time to create full-batch (batchBuffer->numFilled == batchBuffer->batchSize)."
+"Note 3: Users are encouraged to use max-same-source-frames > 1 when input is from the network to control jitter and allow nvstreammux to batch multiple frames from one source when others may fall short during jitter.
+
+Note 4: User may have to confirm the behavior of plugins that consume batches with max-same-source-frames > 1.
+
+Example: Certain plugins could introduce additional latency. In such cases, user may configure max-same-source-frames=1.", Note 2: max-same-source-frames=1 is a good config.max-same-source-frames > 1 can still be used to lower the impact of jitter with network sources.

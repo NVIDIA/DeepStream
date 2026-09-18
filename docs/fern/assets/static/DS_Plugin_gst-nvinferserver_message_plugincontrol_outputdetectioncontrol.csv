@@ -1,0 +1,21 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+default_filter,default detection filter for output controls,PluginControl::DetectClassFilter,"default_filter {
+bbox_filter {
+min_width: 32
+min_height: 32
+}
+}
+see details in DetectClassFilter","All
+
+Both"
+specific_class_filters,specifies detection filters per class to replace default filter,"map<uint32, DetectClassFilter>","specific_class_filters: [
+{ key: 1, value {...} },
+{ key: 2,
+value {...} }
+]","All
+
+Both"
+filter_out_class_ids,Filter out detected objects belonging to specified class-ids,"An array of comma-separated integers (class-ids)","filter_out_class_ids: [1, 2]","All
+
+Both"

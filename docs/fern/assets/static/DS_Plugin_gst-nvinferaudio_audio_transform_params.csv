@@ -1,0 +1,20 @@
+Audio Transform parameters,Description
+audio-transform,"Options:
+melsdb"
+fft_length,FFT length (unsigned int)
+hop_size,Hop size (unsigned int)
+num_frequencies,Number of frequency bins for specified FFT length (unsigned int)
+dsp_window,"DSP Window type (char*) 
+Options:
+none
+hann
+hamming"
+num_mels,Number of mel bins (unsigned int)
+sample_rate,Sample rate (unsigned int)
+p2db_ref,"DSP parameters for power_to_db
+Reference (float)"
+p2db_min_power,"DSP parameters for power_to_db
+Min power (float)"
+p2db_top_db,"DSP parameters for power_to_db
+Top DB (float)"
+attach-sys-ts,Support pending and shall be added with future releases.

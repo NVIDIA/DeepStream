@@ -1,0 +1,45 @@
+---
+title: "Gst-nvimagedec"
+---
+
+The Gst-nvimagedec plugin decodes images on dGPU and (ARM + dGPU) platforms like arm-sbsa.
+This plugin is based on the `libnvjpeg` library which part of the CUDA toolkit.
+The plugin accepts a JPEG encoded bitstream and produces RGB output.
+`jpegparse` plugin should be used to parse the encoded frame before `nvimagedec`,
+since it does not have an internal bitstream parser.
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Elementary JPEG
+
+* Control parameters
+
+  *	gpu-id
+  *	needs-pool
+
+* Output
+
+  *	Gst Buffer with decoded output in RGB format.
+
+## Features
+
+The following table summarizes the features of the Gst-nvimagedec plugin.
+
+**Gst-nvimagedec plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports toggling buffer pool | plugin can toggle output buffer pool based on use cases | DS 6.4 |
+
+## Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvimagedec plugin.
+
+**Gst-nvimagedec plugin gst properties**
+
+| Property | Meaning | Type and Range | Example and Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| gpu-id | Device ID of GPU to use for decoding. | Integer,<br />0 to 4,294,967,295 | gpu-id=0 | dGPU,<br />ARM+dGPU |
+| needs-pool | Enabling / Disabling output buffer pool | Boolean,<br />0 or 1 | needs-pool=1 | dGPU,<br />ARM+dGPU |

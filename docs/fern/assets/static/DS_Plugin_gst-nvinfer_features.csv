@@ -1,0 +1,53 @@
+Feature,Description,Release
+Explicit Full Dimension Network Support,Refer to https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#work_dynamic_shapes for more details.,DS 5.0
+Non-maximum Suppression (NMS),New bounding box clustering algorithm.,DS 5.0
+On-the-fly model update (Engine file only),Update the model-engine-file on-the-fly in a running pipeline.,DS 5.0
+Configurable frame scaling params,Configurable options to select the compute hardware and the filter to use while scaling frame/object crops to network resolution,DS 5.0
+TAO toolkit encoded model support,—,DS 4.0
+Gray input model support,Support for models with single channel gray input,DS 4.0
+Tensor output as meta,Raw tensor output is attached as meta data to Gst Buffers and flowed through the pipeline,DS 4.0
+Segmentation model,Supports segmentation model,DS 4.0
+Maintain input aspect ratio,Configurable support for maintaining aspect ratio when scaling input frame to network resolution,DS 4.0
+Custom cuda engine creation interface,Interface for generating CUDA engines from TensorRT INetworkDefinition and IBuilder APIs instead of model files,DS 4.0
+ONNX Model support,—,DS 3.0
+Multiple modes of operation,Support for cascaded inferencing,DS 2.0
+Asynchronous mode of operation for secondary inferencing,Infer asynchronously for secondary classifiers,DS 2.0
+Grouping using CV::Group rectangles,For detector bounding box clustering,DS 2.0
+Configurable batch-size processing,User can configure batch size for processing,DS 2.0
+No Restriction on number of output blobs,Supports any number of output blobs,DS 3.0
+Configurable number of detected classes (detectors),Supports configurable number of detected classes,DS 3.0
+Support for Classes: configurable (> 32),Supports any number of classes,DS 3.0
+Application access to raw inference output,Application can access inference output buffers for user specified layer,DS 3.0
+Support for single shot detector (SSD),—,DS 3.0
+Secondary GPU Inference Engines (GIEs) operate as detector on primary bounding box,Supports secondary inferencing as detector,DS 2.0
+Multiclass secondary support,Supports multiple classifier network outputs,DS 2.0
+Grouping using DBSCAN,For detector bounding box clustering,DS 3.0
+Loading an external lib containing IPlugin implementation for custom layers (IPluginCreator & IPluginFactory),Supports loading (dlopen()) a library containing IPlugin implementation for custom layers,DS 3.0
+Multi GPU,Select GPU on which we want to run inference,DS 2.0
+Detection width height configuration,Filter out detected objects based on min/max object size threshold,DS 2.0
+Allow user to register custom parser,Supports final output layer bounding box parsing for custom detector network,DS 2.0
+Bounding box filtering based on configurable object size,Supports inferencing in secondary mode objects meeting min/max size threshold,DS 2.0
+Configurable operation interval,Interval for inferencing (number of batched buffers skipped),DS 2.0
+Select Top and bottom regions of interest (RoIs),Removes detected objects in top and bottom areas,DS 2.0
+Operate on Specific object type (Secondary mode),Process only objects of define classes for secondary inferencing,DS 2.0
+Configurable blob names for parsing bounding box (detector),Support configurable names for output blobs for detectors,DS 2.0
+Allow configuration file input,Support configuration file as input (mandatory in DS 3.0),DS 2.0
+Allow selection of class id for operation,Supports secondary inferencing based on class ID,DS 2.0
+Support for Full Frame Inference: Primary as a classifier,Can work as classifier as well in primary mode,DS 2.0
+Multiclass secondary support,Support multiple classifier network outputs,DS 2.0
+"Secondary GIEs operate as detector on primary bounding box 
+Support secondary inferencing as detector",—,DS 2.0
+"Supports FP16, FP32 and INT8 models
+FP16 and INT8 are platform dependent",—,DS 2.0
+Supports TensorRT Engine file as input,—,DS 2.0
+"Inference input layer initialization
+Initializing non-video input layers in case of more than one input layers",—,DS 3.0
+Support for FasterRCNN,—,DS 3.0
+Support for Yolo detector (YoloV3/V3-tiny/V2/V2-tiny),—,DS 4.0
+Support for yolov3-spp detector,—,DS 5.0
+Support Instance segmentation with MaskRCNN,Support for instance segmentation using MaskRCNN. It includes output parser and attach mask in object metadata.,DS 5.0
+Support for NHWC network input,—,DS 6.0
+Added support for TAO ONNX model,—,DS 6.0
+Support for input tensor meta,"Inferences using already preprocessed raw tensor from input tensor meta (attached as user meta at batch level) and skips preprocessing in nvinfer. In this mode, the batch-size of nvinfer must be equal to the sum of ROIs set in the gst-nvdspreprocess plugin config file.",DS 6.0
+Support for clipping bounding boxes to ROI boundary,—,DS 6.2
+Support for oriented bounding boxes (OBB),Supports rotation angle in inference for rotated rectangles.,DS 9.0

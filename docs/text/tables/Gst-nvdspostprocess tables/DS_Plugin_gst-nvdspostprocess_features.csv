@@ -1,0 +1,6 @@
+Feature,Description,Release
+Detection output parsing,Parses detector tensor data  and attaches the results as object metadata,DS 6.1
+Classification output parsing,Parses Classification tensor data and attaches the result as classifier attributes in metadata,DS 6.1
+Yolo detector (YoloV3/V3-tiny/V2/V2-tiny) parsing,Support for parsing of Yolo detector output,DS 6.1
+FasterRCNN output parsing,---,DS 6.1
+Single Shot Detector (SSD) output parsing,---,DS 6.1

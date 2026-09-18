@@ -1,0 +1,337 @@
+---
+title: "Gst-nvdsdynamicsrcbin (developer preview)"
+---
+
+The Gst-nvdsdynamicsrcbin plugin is a custom GStreamer element designed for high decoder throughput scenarios. It creates a single pipeline that keeps the decoder active at all times, eliminating decoder initialization overhead when switching between multiple video streams.
+
+The plugin accepts video files as input sources and dynamically manages them through signals. The Gst-nvdsdynamicsrcbin plugin performs dynamic source management, enabling seamless switching between multiple video streams without pipeline reconstruction.
+
+Key Features:
+
+* Single active decoder instance for multiple sources
+* Dynamic source addition and removal via signals
+* Custom events for source change tracking
+* Thread-safe source queue management
+* Hardware decoding with nvv4l2decoder
+
+The plugin maintains internal queues and maps to track active sources and their corresponding file paths, enabling seamless switching between multiple video streams.
+
+## Inputs and Outputs
+
+This section summarizes the inputs, outputs, and communication facilities of the Gst-nvdsdynamicsrcbin plugin.
+
+* Inputs
+
+  * Video files (any format supported by GStreamer parsebin)
+  * Dynamic source addition signals (add-source)
+  * Source removal signals (remove-source)
+  * Termination signals (terminate)
+
+* Control parameters
+
+Gst-nvdsdynamicsrcbin gets control parameters from signals and GObject properties. The following control parameters can be set through GObject properties:
+
+  * GPU ID for hardware decoding
+  * Current file being processed (read-only)
+  * Current source ID being processed (read-only)
+
+* Outputs
+
+  * Gst Buffer with decoded video frames
+  * Custom metadata containing source identification
+  * Custom events for source change tracking
+  * Application messages for dynamic source changes
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsdynamicsrcbin plugin features**
+
+| Feature | Description | Benefit |
+| --- | --- | --- |
+| Single Active Decoder | Maintains one decoder instance for multiple sources | Eliminates decoder initialization overhead |
+| Dynamic Source Management | Add/remove video sources via signals without pipeline reconstruction | Enables real-time source switching |
+| Hardware Decoding | Uses nvv4l2decoder for GPU-accelerated video decoding | Improved performance and throughput |
+| Thread-safe Operations | Protected source operations with mutexes | Concurrent signal handling support |
+| Custom Metadata | Attaches source ID and frame ID to each buffer | Enables source tracking and identification |
+| Custom Events | Stream start and EOS events with source identification | Provides source change notifications |
+| Internal Queue Management | Maintains queues for active and pending sources | Seamless source switching |
+| Application Messages | Posts messages for source change notifications | Enables application-level monitoring |
+| Format Detection | Automatic media format detection via parsebin | Supports various video formats |
+| Performance Optimization | Keeps decoder warm and ready for rapid switching | Reduced latency between streams |
+
+## Element Architecture
+
+The nvdsdynamicsrcbin element contains the following internal elements:
+
+* **filesrc**: Source element for reading video files
+* **queue_filesrc**: Buffering queue for source data
+* **parsebin**: Media format detection and parsing
+* **queue_parsebin**: Buffering queue for parsed data
+* **nvv4l2decoder**: Hardware decoder (kept active throughout)
+
+The element maintains internal queues and maps to track active sources and their corresponding file paths, enabling seamless switching between multiple video streams.
+
+## Supported Signals
+
+The nvdsdynamicsrcbin element supports three key signals for dynamic source management:
+
+1. **add-source Signal**:
+   **Purpose**: Adds a new video source to the dynamic source bin
+   **Parameters**: file_path (string), source_id (integer)
+   **Usage**: g_signal_emit_by_name(dynamicsrcbin, "add-source", "/path/to/video.mp4", source_id);
+   **Behavior**: Validates file path, prevents duplicate source IDs, stores mapping, adds to internal queues, links elements for first source
+
+2. **remove-source Signal**:
+   **Purpose**: Removes a video source from the dynamic source bin
+   **Parameters**: source_id (integer)
+   **Usage**: g_signal_emit_by_name(dynamicsrcbin, "remove-source", source_id);
+   **Behavior**: Sends EOS for active sources, removes from tracking for queued sources, cleans up data structures, posts file change message
+
+3. **terminate Signal**:
+   **Purpose**: Terminates the entire pipeline gracefully
+   **Parameters**: None
+   **Usage**: g_signal_emit_by_name(dynamicsrcbin, "terminate");
+   **Behavior**: Sends EOS event from decoder, posts termination message, cleans up resources
+
+## Custom Events and Metadata
+
+1. **Custom Stream Start Event**:
+   **Event Name**: "custom-stream-start-event"
+   **Contains**: source-id parameter
+   **Purpose**: Notifies downstream elements when a new source begins processing
+
+2. **Custom EOS Event**:
+   **Event Name**: "custom-eos-event"
+   **Contains**: source-id parameter
+   **Purpose**: Notifies when a source completes processing
+
+3. **Source Metadata**:
+   The element attaches custom metadata to each buffer containing:
+   * **chunk_id**: The source ID that generated the buffer
+   * **frame_id**: Sequential frame counter for the current source
+
+## Gst Properties
+
+The following table describes the Gst-nvdsdynamicsrcbin plugin's Gst properties.
+
+**Gst-nvdsdynamicsrcbin Gst Properties**
+
+| Property Name | Type | Access | Description | Default Value |
+| --- | --- | --- | --- | --- |
+| async-handling | Boolean | readable/writable | The bin will handle Asynchronous state changes | false |
+| current-file | String | readable | Current file being processed | null |
+| current-id | Integer | readable | Current id of the chunk being processed | -1 |
+| gpu-id | Unsigned Integer | readable/writable | GPU Device ID to use for decoding | 0 |
+| message-forward | Boolean | readable/writable | Forwards all children messages | false |
+| name | String | readable/writable | The name of the object | dynamicsrcbin0 |
+| parent | GstObject | readable/writable | The parent of the object | null |
+
+## Performance Benefits
+
+* **Eliminates Decoder Initialization Overhead**: When you add N streams to a traditional pipeline, each stream typically requires its own decoder instance with initialization time. The nvdsdynamicsrcbin element maintains a single active decoder, significantly reducing latency when switching between streams.
+
+* **Improved Throughput**: By keeping the decoder warm and ready, the element can handle rapid stream switching without the performance penalty of repeated decoder initialization.
+
+* **Dynamic Source Management**: The element supports real-time addition and removal of video sources without pipeline reconstruction.
+
+* **Reduced Latency**: Maintains single active decoder instance for improved performance in multi-stream scenarios.
+
+* **Rapid Source Switching**: Enables switching between streams without performance penalty.
+
+## Usage Examples
+
+The following example demonstrates how to use the nvdsdynamicsrcbin element in a GStreamer pipeline:
+
+**Basic Pipeline Setup**:
+
+```c
+// Create pipeline elements
+GstElement *pipeline = gst_pipeline_new("dynamicsrcbin-test");
+GstElement *src = gst_element_factory_make("nvdsdynamicsrcbin", "src");
+GstElement *sink = gst_element_factory_make("fakesink", "sink");
+
+// Add elements to pipeline and link them
+gst_bin_add_many(GST_BIN(pipeline), src, sink, NULL);
+gst_element_link_many(src, sink, NULL);
+
+// Set pipeline to PLAYING state
+gst_element_set_state(pipeline, GST_STATE_PLAYING);
+```
+
+**Dynamic Source Management**:
+
+```c
+// Add sources dynamically
+g_signal_emit_by_name(src, "add-source", "/path/to/video1.mp4", 0);
+g_signal_emit_by_name(src, "add-source", "/path/to/video2.mp4", 1);
+
+// Remove sources
+g_signal_emit_by_name(src, "remove-source", 0);
+
+// Terminate pipeline
+g_signal_emit_by_name(src, "terminate");
+```
+
+**Monitoring Source Changes**:
+
+```c
+// Add probe to monitor frame processing and source changes
+GstPad *sink_pad = gst_element_get_static_pad(sink, "sink");
+gst_pad_add_probe(sink_pad,
+    GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+    sink_input_buffer_callback,
+    NULL,
+    NULL);
+```
+
+**Sink Input Buffer Callback**:
+
+```c
+static GstPadProbeReturn sink_input_buffer_callback(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    if (GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER) {
+        frame_count++;
+        g_print("Frame Number: %d, Current Source ID: %d\n", frame_count, current_source_id);
+    } else if (GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM) {
+        GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+        /* Check for custom stream start event from nvdsdynamicsrcbin */
+        if (GST_EVENT_TYPE(event) == GST_EVENT_CUSTOM_DOWNSTREAM) {
+            const GstStructure *structure = gst_event_get_structure(event);
+            if (structure && gst_structure_has_name(structure, "custom-stream-start-event")) {
+                gint source_id;
+                if (gst_structure_get_int(structure, "source-id", &source_id)) {
+                    g_print("Source change event received for source ID: %d\n", source_id);
+                    current_source_id = source_id;
+                    /* Reset frame count for new source */
+                    frame_count = 0;
+                }
+            }
+        }
+    }
+    return GST_PAD_PROBE_OK;
+}
+```
+
+**Dynamic Source Message Handler**:
+
+```c
+static gboolean handle_dynamic_source_message(GstElement *dynamicsrcbin) {
+    int current_id = -1;
+    gchar *current_file = NULL;
+    GstElement *filesrc = get_element_by_factory_name(GST_BIN(dynamicsrcbin), "filesrc");
+    GstElement *queue = get_element_by_factory_name(GST_BIN(dynamicsrcbin), "queue");
+    GstElement *parsebin = get_element_by_factory_name(GST_BIN(dynamicsrcbin), "parsebin");
+
+    if (!filesrc || !queue || !parsebin) {
+        g_print("One of the elements not found\n");
+    } else {
+        /* Stop and remove old elements */
+        gst_element_set_state(parsebin, GST_STATE_NULL);
+        gst_element_set_state(queue, GST_STATE_NULL);
+        gst_element_set_state(filesrc, GST_STATE_NULL);
+
+        gst_bin_remove(GST_BIN(dynamicsrcbin), filesrc);
+        gst_bin_remove(GST_BIN(dynamicsrcbin), queue);
+        gst_bin_remove(GST_BIN(dynamicsrcbin), parsebin);
+
+        /* Get current file and ID from nvdsdynamicsrcbin */
+        g_object_get(G_OBJECT(dynamicsrcbin), "current-id", &current_id, NULL);
+        g_object_get(G_OBJECT(dynamicsrcbin), "current-file", &current_file, NULL);
+        g_print("Current ID: %d, Current File: %s\n", current_id, current_file);
+
+        if (current_file && current_id) {
+            gboolean ret = load_file(dynamicsrcbin, current_file);
+            g_free(current_file);
+            return ret;
+        }
+
+        /* Schedule retry if file not ready */
+        g_timeout_add(1000, try_load_file, dynamicsrcbin);
+    }
+    return TRUE;
+}
+```
+
+<Note>
+**Important**: The `handle_dynamic_source_message` function is **required** for the nvdsdynamicsrcbin element to work properly. This function handles the cleanup of old elements and loading of new sources when dynamic source changes occur. Without proper implementation of this handler, the element will not function correctly and may cause pipeline failures.
+</Note>
+
+**Bus Message Handling**:
+
+```c
+// Handle dynamic source change messages
+static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
+    switch (GST_MESSAGE_TYPE(msg)) {
+        case GST_MESSAGE_APPLICATION: {
+            const GstStructure *str = gst_message_get_structure(msg);
+            if (gst_structure_has_name(str, "dynamic-src-bin-file-change")) {
+                // Handle source change
+                handle_dynamic_source_message(dynamicsrcbin);
+            }
+            break;
+        }
+        // ... other message types
+    }
+    return TRUE;
+}
+```
+
+## Technical Notes
+
+* The element uses GStreamer's parsebin for automatic format detection
+* Hardware decoding is performed using nvv4l2decoder
+* Custom metadata is attached to buffers for source tracking
+* Thread-safe operations ensure concurrent signal handling
+* The element posts application messages for source change notifications
+* Internal queues and maps track active sources and file paths
+* Mutex protection ensures thread-safe source operations
+
+## Compilation and Installation
+
+To compile and install the plugin:
+
+1. Export or set in Makefile the appropriate CUDA version using CUDA_VER=13.2
+
+2. Run make and sudo make install:
+   ```bash
+   $ sudo make
+   $ sudo make install
+   ```
+
+**Note**: To compile the sources, run make with "sudo" or root permission.
+
+## Testing
+
+Test with Sample Application:
+
+```bash
+$ git clone https://github.com/NVIDIA/DeepStream
+$ cd DeepStream/src/apps/sample_apps/deepstream-dynamicsrcbin-test
+$ sudo make
+$ ./deepstream-dynamicsrcbin-test
+```
+
+The sample application demonstrates:
+
+* Pipeline setup with nvdsdynamicsrcbin and fakesink
+* Dynamic source addition with unique IDs
+* Sequential processing with active decoder
+* Frame processing monitoring
+* Source change tracking
+* Graceful pipeline termination
+
+## Configuration
+
+* Modify `N_CHUNKS` in the source code to change the number of sources
+* Update `VIDEO_FILE` path to use different video files
+* Adjust timing parameters in the signal thread for different test scenarios
+* Configure GPU ID for hardware decoding
+* Set queue buffer sizes for optimal performance
+
+The plugin is particularly useful for:
+* Multi-stream video processing applications
+* Real-time video source switching
+* High-throughput video decoding scenarios
+* Applications requiring minimal latency between stream changes
+* Video streaming services with dynamic content

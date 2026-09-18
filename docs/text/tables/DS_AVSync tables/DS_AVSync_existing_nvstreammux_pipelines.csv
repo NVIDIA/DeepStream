@@ -1,0 +1,72 @@
+﻿Input,Output,Pipelines
+RTMP in,RTMP out,"input1=rtmp://<host ip address:port>/live/test1
+
+input2=rtmp://<host ip address:port>/live/test2 
+
+output=<RTMP url> 
+
+             e.g. rtmp://a.rtmp.youtube.com/live2/<key> For Youtube live 
+
+                    rtmp://<host ip address:port>/live/test For Host 
+
+``gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 max-latency=250000000 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc ! h264parse ! queue ! flvmux name=mux streamable=true !  rtmpsink location=$output async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer  latency=250000000 ! queue ! avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer.  fakesrc num-buffers=0 is-live=1 ! mixer``"
+RTSP in,RTMP out,"input1=<rtsp url>
+
+input2=<rtsp url>
+
+output=<RTMP url>
+
+             e.g. rtmp://a.rtmp.youtube.com/live2/<key> For Youtube live
+
+                    rtmp://<host ip address:port>/live/test For Host
+::
+
+   gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 
+nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! 
+nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc  ! h264parse ! queue ! 
+flvmux name=mux streamable=true !  rtmpsink location=$output async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! 
+nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! 
+avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer.  "
+FILE in,RTSP out,"input1=file:///AV_I_frames_1.mp4
+
+input2=file:///AV_I_frames_2.mp4
+
+       gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=   1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvrtspoutsinkbin name=r uridecodebin3 uri=$input2 name=demux2  ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! r.  demux2. ! queue ! audioconvert ! mixer. fakesrc num-buffers=0 is-live=1 ! mixer. "
+FILE in,RTMP out,"input1=file:///AV_I_frames_1.mp4
+
+input2=file:///AV_I_frames_2.mp4
+
+output=<RTMP url>
+
+             e.g. rtmp://a.rtmp.youtube.com/live2/<key> For Youtube live
+
+                    rtmp://<host ip address:port>/live/test For Host
+
+gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc  ! h264parse ! queue ! flvmux name=mux streamable=true !  rtmpsink location=$output async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer.   fakesrc num-buffers=0 is-live=1 ! mixer. "
+RTMP in,FILE out,"input1=rtmp://<host ip address:port>/live/test1 
+
+input2=rtmp://<host ip address:port>/live/test2 
+
+::
+
+         gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 max-latency=250000000 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc ! h264parse ! queue ! flvmux name=mux streamable=true ! filesink location=out.flv  async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer latency=250000000 name=mixer ! queue ! avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer.  fakesrc num-buffers=0 is-live=1 ! mixer. "
+RTSP in,FILE out,"input1=<rtsp url> 
+
+input2=<rtsp url>
+
+gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc ! h264parse ! queue ! flvmux name=mux streamable=true ! filesink location=out.flv  async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer. "
+FILE in,FILE out,"input1=file:///AV_I_frames_1.mp4
+
+input2=file:///AV_I_frames_2.mp4
+
+gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! nvv4l2h264enc ! h264parse ! queue ! flvmux name=mux streamable=true ! filesink location=out.flv  async=0 qos=0 sync=1 uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! avenc_aac ! aacparse ! queue ! mux. demux2. ! queue ! audioconvert ! mixer. fakesrc num-buffers=0 is-live=1 ! mixer. "
+RTSP in,RTSP out,"input1=<rtsp url> 
+
+input2=<rtsp url>
+
+gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvrtspoutsinkbin name=r uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer name=mixer ! queue ! r.  demux2. ! queue ! audioconvert ! mixer. "
+RTMP in,RTSP out,"input1=rtmp://<host ip address:port>/live/test1 
+
+input2=rtmp://<host ip address:port>/live/test2
+
+gst-launch-1.0 uridecodebin3 uri=$input1 name=demux1 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_0 nvstreammux batch-size=2 batched-push-timeout=33333 width=1920 height=1080 sync-inputs=1 max-latency=250000000 name=mux1 ! queue ! nvmultistreamtiler width=480 height=360 ! nvrtspoutsinkbin name=r uridecodebin3 uri=$input2 name=demux2 ! queue ! nvvideoconvert ! ""video/x-raw(memory:NVMM)"" ! mux1.sink_1 demux1. ! queue ! audioconvert ! mixer.sink_0 audiomixer latency=250000000 name=mixer ! queue ! r.  demux2. ! queue ! audioconvert ! mixer.  fakesrc num-buffers=0 is-live=1 ! mixer. "

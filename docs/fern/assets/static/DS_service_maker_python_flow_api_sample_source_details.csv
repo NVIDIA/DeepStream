@@ -1,0 +1,37 @@
+﻿Reference test application,Path inside `service-maker/sources` directory,Description,Platform
+Sample test application 1,apps/python/flow_api/deepstream_test1_app,Sample of how to use flowAPI methods for a single H.264 stream inference: batch_capture -> infer -> render. This app uses resnet18_trafficcamnet_pruned.onnx for detection.,x86/aarch64
+Sample test application 2,apps/python/flow_api/deepstream_test2_app,"Sample of how to use flowAPI methods for a single H.264 stream cascaded inference: batch_capture -> infer (primary detector) -> track -> infer (secondary classifier) -> render. This app uses resnet18_trafficcamnet_pruned.onnx for detection and 2 classifier models (i.e., resnet18_vehiclemakenet_pruned.onnx, resnet18_vehicletypenet_pruned.onnx).",x86/aarch64
+Sample test application 3,apps/python/flow_api/deepstream_test3_app,"Builds on flow_api/deepstream_test1(sample test application 1) to demonstrate how to:
+
+ * Use multiple sources in the pipeline for inference.
+ * Extract the stream metadata, which contains useful information about the frames in the batched buffer.
+
+This app uses resnet18_trafficcamnet_pruned.onnx for detection.",x86/aarch64
+Sample test application 4,apps/python/flow_api/deepstream_test4_app,Builds on flow_api/deepstream_test1 for a single H.264 stream inference to demonstrate how to use publish method to publish messages to a remote server and fork method to simultaneously render the output. This app uses resnet18_trafficcamnet_pruned.onnx for detection.,x86/aarch64
+Sample test application 5,apps/python/flow_api/deepstream_test5_app,"Comprehensive DeepStream pipeline demonstrating Flow API capabilities with multi-stage inference and analytics. Features:
+
+  • Primary object detection using resnet18_trafficcamnet_pruned.onnx
+  • Object tracking with NvDCF tracker
+  • Vehicle type classification (car, truck, bus, etc.) using resnet18_vehicletypenet_pruned.onnx
+  • Vehicle make/model classification using resnet18_vehiclemakenet_pruned.onnx
+  • Smart recording with event-based video capture and Kafka integration
+  • Message publishing to Kafka with custom metadata
+  • Performance monitoring probes (FPS, latency, OSD object counting)
+  • KITTI format data export
+  • RTSP streaming support
+  • Multi-stream batch processing with configurable batch sizes
+
+This app showcases advanced pipeline orchestration with parallel processing (fork) for simultaneous rendering and message publishing.",x86/aarch64
+3D Action Recognition Example,apps/python/flow_api/deepstream_3d_action_recognition_app,"Demonstrates 3D action recognition using Flow API with custom preprocessing. Features:
+
+  • 3D and 2D RGB-based action recognition using TAO models
+  • Custom sequence preprocessing with libnvds_custom_sequence_preprocess.so
+  • Support for action classes: push, fall_floor, walk, run, ride_bike
+  • Batch capture, preprocessing, inference, and rendering pipeline
+  • Custom metadata handling for label display with OSD
+
+This app uses resnet18_3d_rgb_hmdb5_32.onnx and resnet18_2d_rgb_hmdb5_32.onnx models from NGC.",x86/aarch64
+Smart Record Example,apps/python/flow_api/deepstream_sr_test_app,"Builds on flow_api/deepstream_test1 to demonstrate event-driven smart recording with Kafka integration. Features multi-stream batch processing, inference, and configurable recording parameters. Supports RTSP streams with Kafka message broker for automated recording based on external triggers and custom events.",x86/aarch64
+Inject and Retrieve Example,apps/python/flow_api/deepstream_appsrc_test_app,Demonstrates how to create a BufferRetriever for a retrieve method. The retrieve method with a customized BufferRetriever can be used to extract buffer data from the pipeline.,x86
+Audio Inference Example,deepstream_reference_apps/pyservicemaker_sample_apps/flow_api/deepstream_audio_test_app,"Demonstrates PyServiceMaker Flow API audio support with the SONYC audio classifier. Features audio capture with MediaType.AUDIO, nvstreammux2-backed audio batching, nvinferaudio inference, classifier metadata printing, audio playback/discard/RTSP helper modes, and WAV encoding.",x86/aarch64
+Python Probe Example,apps/python/flow_api/deepstream_python_probe_app,"Demonstrates how to attach a Python probe module using the DeepStream service-maker Flow API. Flow API equivalent of the pipeline_api/deepstream_python_probe_app sample. Uses the sample_video_probe Python probe module, which counts vehicles and persons per frame and overlays the result on the OSD.",x86/aarch64

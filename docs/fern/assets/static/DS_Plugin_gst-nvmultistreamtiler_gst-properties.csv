@@ -1,0 +1,45 @@
+﻿Property,Meaning,Type and Range,Example Notes
+rows,Number of rows in 2D tiled output,"Integer,
+1 to 4,294,967,295",row=2
+columns,Number of columns in 2D tiled output,"Integer,
+1 to 4,294,967,295",columns=2
+width,Width of 2D tiled output in pixels,"Integer,
+1 to 4,294,967,295",width=1920
+height,Height of 2D tiled output in pixels,"Integer,
+1 to 4,294,967,295",height=1080
+show-source,"Scale and show frames from a single source.
+-1: composite and show all sources
+For values ≥0, frames from that source are zoomed.","Signed integer, −1 to 2,147,483,647",show-source=2
+gpu-id,"ID of the GPU on which device/unified memory is to be allocated, and in which buffers are copied or scaled. (dGPU only.)","Integer,
+1 to 4,294,967,295",gpu-id=1
+nvbuf-memory-type,"Type of CUDA memory to be allocated.
+ For dGPU:
+
+0 (nvbuf-mem-default): Default memory, cuda-device
+
+1 (nvbuf-mem-cuda-pinned): Pinned/Host CUDA memory
+
+2 (nvbuf-mem-cuda-device) Device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): 
+Unified CUDA memory
+
+For Jetson:
+
+0 (nvbuf-mem-default): Default memory, surface array
+
+4 (nvbuf-mem-surface-array): Surface array memory","Integer, 0-4",nvbuf-memory-type=1
+custom-tile-config,Custom tile position and resolution. Can be configured programmatically for all or none of the sources.,Values of enum CustomTileConfig,"Reserved for future use.
+Default: null."
+compute-hw,"Compute Scaling HW to use. Applicable only for Jetson. dGPU systems uses GPU by default.
+
+0 (Default): Default, GPU for Tesla, VIC for Jetson
+
+1 (GPU): GPU
+
+2 (VIC): VIC",Integer: 0-2,compute-hw=1
+square-seq-grid,"Enable automatic square tiling according to number of sources.
+The tiles are placed sequentially on the grid with empty tiles at the end",Boolean,square-seq-grid=1
+buffer-pool-size,Size of the nvtiler output buffer pool,"Integer,
+4 to 10",buffer-pool-size=4
+interpolation-method,Interpolation method used for scaling; see :doc:`DS_plugin_gst-nvvideoconvert` for the shared enum values,Enum,interpolation-method=1

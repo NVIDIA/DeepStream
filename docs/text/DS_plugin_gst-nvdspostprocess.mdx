@@ -1,0 +1,156 @@
+---
+title: "Gst-nvdspostprocess"
+---
+
+The `Gst-nvdspostprocess` plugin is a customizable plugin which provides a custom library interface for post processing on Tensor output of inference plugins (`nvinfer/nvinferserver`).
+Currently the plugin supports detection and classification models for parsing. The plugin connects to post processing lib provided as plugin parameter.
+The parsing parameters can be specified via a config file.
+Refer to section [Gst-nvdspostprocess File Configuration Specifications](/text/DS_plugin_gst-nvdspostprocess#gst-nvdspostprocess-file-configuration-specifications) below for more details.
+
+For the plugin to perform parsing of inference tensor output, it is necessary to attach tensor output by setting `output-tensor-meta` as `1` in inference configuration file and disabling
+parsing in the inference plugin by setting `network-type` as `100` i.e. network type other. Similarly, in `Gst-nvinferserver` we can enable the following configs in the configuration file.
+`output_control { output_tensor_meta : true }` and to disable native post processing, update: `infer_config { postprocess { other {} } }`.
+
+Default plugin implementation provides following functionalities.
+
+1.	It parses the tensor meta attached to frame meta or object meta.
+2.	Attaches the output of tensor parsing either to frame meta or object meta.
+
+The default custom library (postprocesslib_impl) provided with the plugin implements these functionalities.
+It can be configured to parse detection and classification networks. For multiple inference plugins in pipeline require multiple post process plugin instances corresponding to them.
+
+![Gst-nvdspostprocess](/assets/images/content/DS_plugin_gst-nvdspostprocess.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  * Input Video Gst Buffers
+  * Metadata (NvDsBatchMeta)
+  * Tensor Meta (NvDsInferTensorMeta)
+
+* Control parameters
+
+  *	postprocesslib-config-file
+  * postprocesslib-name
+  *	gpu-id
+
+* Output
+
+  *	Output Video Gst Buffers
+  * Original Metadata (NvDsBatchMeta) (with addition of Object Meta/Classifier Meta)
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdspostprocess features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Detection output parsing | Parses detector tensor data  and attaches the results as object metadata | DS 6.1 |
+| Classification output parsing | Parses Classification tensor data and attaches the result as classifier attributes in metadata | DS 6.1 |
+| Yolo detector (YoloV3/V3-tiny/V2/V2-tiny) parsing | Support for parsing of Yolo detector output | DS 6.1 |
+| FasterRCNN output parsing | --- | DS 6.1 |
+| Single Shot Detector (SSD) output parsing | --- | DS 6.1 |
+
+## Gst-nvdspostprocess File Configuration Specifications
+
+The Gst-nvdspreprocess configuration file uses a “YAML” format
+Refer to examples like `config_detector.yml, config_classifier_car_color.yml`  located at `/opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvdspostprocess/`.
+The `property` group configures the general behavior of the plugin.
+The `class-attrs-all` group configures parameters for all classes for detector post processor.
+The `class-attrs-<id>` group configures parameters `<id>` specific class for detector post processor.
+
+The following two tables describes the keys supported for `property` groups and `class-attrs-<id>` groups respectively.
+
+**Gst-nvdspostprocess property Group Supported Keys**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| gpu-id | GPU to be used for processing | Integer | gpu-id: 0 |
+| process-mode | Mode of operation Full Frame (Primary 1) or on Object (Secondary 2) | Integer 1=Primary(On Full Frame) ,2=Secondary (On Object) | process-mode: 1 |
+| gie-unique-id | Perform tensor meta parsing on output of gie-unique-id | Integer >0 | gie-unique-id: 1 |
+| num-detected-classes | Number of classes detected by Detector network | Integer >0 | num-detected-classes: 4 |
+| cluster-mode | Clustering mode to be used on detector output | Integer 1=DBSCAN 2=NMS 3=DBSCAN+NMS Hybrid 4=None(No Clustering) | cluster-mode: 2 |
+| output-blob-names | Array of output layer names which are to be parsed | String delimited by semicolon | output-blob-names: conv2d_bbox;conv2d_cov/Sigmoid |
+| network-type | Type of network to be parsed | Integer 0=Detector 1=Classifier | network-type: 1 |
+| labelfile-path | Pathname of a text file containing the labels for the model | String | labelfile-path: /opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt |
+| classifier-threshold | Minimum threshold label probability. The GIE outputs the label having the highest probability if it is greater than this threshold | Float, >0.0 | classifier-threshold: 0.4 |
+| operate-on-gie-id | Unique ID of the GIE on whose metadata (bounding boxes) this GIE is to operate on, applicable for process-mode=2 | Integer >0 | operate-on-gie-id: 1 |
+| parse-classifier-func-name | Name of the custom classifier output parsing function. If not specified, post process lib uses the parsing function for softmax layers. | String | parse-classifier-func-name: NvDsPostProcessClassiferParseCustomSoftmax |
+| parse-bbox-func-name | Name of the custom bounding box parsing function. If not specified, post process lib uses the  function for the resnet model provided by the SDK | String | parse-bbox-func-name: NvDsPostProcessParseCustomResnet |
+
+**`Gst-nvdspostprocess class-attr-<id> Group Supported Keys`**
+
+| Property | Meaning | Type and Range | Example |
+| --- | --- | --- | --- |
+| topk | Keep only top K objects with highest detection scores. | Integer, >0. -1 to disable | topk: 10 |
+| nms-iou-threshold | Maximum IOU score between two proposals after which the proposal with the lower confidence will be rejected. | Float, >0.0 | nms-iou-threshold: 0.2 |
+| pre-cluster-threshold | Detection threshold to be applied prior to clustering operation | Float, >0.0 | pre-cluster-threshold: 0.5 |
+| post-cluster-threshold | Detection threshold to be applied post clustering operation | Float, >0.0 | post-cluster-threshold: 0.5 |
+| eps | Epsilon values for DBSCAN algorithm | Float, >0.0 | eps: 0.2 |
+| dbscan-min-score | Minimum sum of confidence of all the neighbors in a cluster for it to be considered a valid cluster. | Float, >0.0 | dbscan-min-score: 0.7 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvdspostprocess plugin.
+
+**Gst-nvspostprocess gst properties**
+
+| Property | Meaning | Type and Range | Example notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of GPU to use for post-processing (dGPU only) | Integer,0-4,294,967,295 | gpu-id=1 |
+| postprocesslib-name | Low level Post process library to be used for output parsing | string | postprocesslib-name=./postprocesslib_impl/libpostprocess_impl.so |
+| postprocesslib-config-file | Set postprocess yaml config file to be used | string | postprocesslib-config-file= config_detector.yml |
+| preprocessor-support | Enables postprocessor parsing support for custom preprocessor tensors | Boolean | preprocessor-support=0 |
+
+## Sample pipelines
+
+Given below are some sample pipelines, please set appropriate configuration file and library paths.
+
+**For multi-stream detector and classifier (dGPU):**
+
+```
+gst-launch-1.0 uridecodebin \
+ uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 \
+! m.sink_0 nvstreammux name=m width=1920 height=1080 batch-size=2   ! \
+ nvinfer config-file-path=config_infer_primary_post_process.txt  \
+! nvdspostprocess \
+postprocesslib-config-file=config_detector.yml \
+postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+! queue ! nvinfer \
+config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
+! nvdspostprocess \
+postprocesslib-config-file= config_classifier_vehicle_make.yml \
+postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
+! nvdspostprocess  postprocesslib-config-file= \
+config_classifier_vehicle_type.yml  postprocesslib-name= \
+./postprocesslib_impl/libpostprocess_impl.so    ! queue ! nvmultistreamtiler !  nvvideoconvert \
+gpu-id=0 ! nvdsosd ! nveglglessink sync=1 -v  uridecodebin \
+uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1
+```
+
+**For multi-stream detector and classifier (Jetson):**
+
+```
+gst-launch-1.0 uridecodebin \
+ uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 \
+! m.sink_0 nvstreammux name=m width=1920 height=1080 batch-size=2   ! \
+nvinfer config-file-path=config_infer_primary_post_process.txt  \
+! nvdspostprocess \
+postprocesslib-config-file=config_detector.yml \
+postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+! queue ! nvinfer \
+config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
+! nvdspostprocess \
+postprocesslib-config-file=config_classifier_vehicle_make.yml \
+postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
+! nvdspostprocess  postprocesslib-config-file= \
+config_classifier_vehicle_type.yml  postprocesslib-name= \
+./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvmultistreamtiler !  nvvideoconvert \
+gpu-id=0 ! nvdsosd ! nv3dsink sync=1 -v  uridecodebin \
+uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1
+```

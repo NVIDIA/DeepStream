@@ -1,0 +1,16 @@
+Tuning Use-Case or Mux Config Property used,Notes
+nvstreammux/sync-inputs,sync-inputs=1 ensure nvstreammux to queue early buffers. This could be useful in the audio muxer which could be faster than video muxer when reading from files as audio frames are lighter than video frames.
+nvstreammux/config-file-path,"min-overall-fps and max-overall-fps need to be properly set.
+
+a) The min-overall-fps shall be set to the highest framerate of all sources.
+b) max-overall-fps shall be >= min-overall-fps
+Check `Mux Config Properties`_ for more information."
+nvstreammux/max-latency,Please set/tune the latency parameter to a value > than 1/fps of the slowest stream. Applicable only when sync-inputs=1
+Inputs with different frame rates,"Highest frame-rate to be considered for overall-min-fps value. e.g. for 2 inputs with 15fps and 30fps each, overall-min-fps=30"
+Input with varying frame rate,"Individual stream’s frame-rate may vary based on network condition. Highest possible to be considered for overall-min-fps value.e.g. For single stream with varying frame-rate of 15fps to 30fps, overall-min-fps=30"
+Inputs with different bitrates,Nvstreammux will not need specific handling for individual stream bitrates.
+Inputs with different resolutions,Please read the section `Heterogeneous batching`_
+Dynamic addition/removal of input stream,"This is supported by adaptive-batching. With adaptive-batching=1, the Gst application needs to create/destroy sinkpads dynamically for addition/removal respectively."
+flvmux/qtmux/latency,"The latency parameter (Gst-Property on these plugins when used) shall be set/tuned to a value > nvstreammux/max-latency.
+The recommended value is 2 X nvstreammux/max-latency
+User could set “latency=18446744073709551614” (max) to avoid tuning for this parameter."

@@ -1,0 +1,122 @@
+---
+title: "Inference Builder Overview"
+---
+
+Inference Builder is an open-source tool that automates the generation of end-to-end inference pipelines across multiple AI frameworks. It supports seamless integration of custom logic and can package the entire pipeline as a deployable container image.
+
+To generate an inference pipeline, you only need to provide a single YAML configuration file to define the pipeline, including model selection, input/output formats, backend inference engines, and any custom preprocessing or postprocessing code. The output is either a standalone Python application, or a microservice when a server type is appropriately specified and an OpenAPI spec is provided.
+
+<Note>
+This document offers a quick overview for Inference Builder. For detailed information about the usage of Inference Builder, how it works, the features it supports, etc., please refer to the [Inference Builder README](https://github.com/NVIDIA/DeepStream/tree/main/tools) page.
+</Note>
+
+# Inference Builder Setup
+
+The recommended OS for running the Inference Builder is Ubuntu Desktop 24.04 with python 3.12.
+
+## 1. Install prerequisites.
+
+  ```text
+  sudo apt update
+  sudo apt install -y protobuf-compiler python3.12-dev python3.12-venv
+  ```
+
+## 2. Clone the Inference Builder repo.
+
+  ```text
+  git clone https://github.com/NVIDIA-AI-IOT/inference_builder
+  ```
+
+## 3. Create virtual environment and install dependencies.
+
+  ```text
+  cd inference_builder
+  git submodule update --init --recursive
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip3 install -r requirements.txt
+  ```
+
+## 4. Set up Docker environment
+
+Before starting with the examples, you need to have a proper docker environment. Below packages are required to build and run the container images:
+
+- Docker
+- Docker Compose
+- NVIDIA Container Toolkit
+
+Ensure nvidia runtime added to `/etc/docker/daemon.json` to run GPU-enabled containers
+
+```text
+{
+    "runtimes": {
+        "nvidia": {
+            "args": [],
+            "path": "nvidia-container-runtime"
+        }
+    }
+}
+```
+
+The `docker` group must exist in your system, please check if it has been created using "getent group docker". Your current user must belong to the `docker` group, If not, run the command below, then log out and back in for the group change to take effect.
+
+```text
+sudo usermod -aG docker $USER
+```
+
+## 5. Install NGC CLI
+
+Please download and install the NGC CLI from the [NGC page](https://org.ngc.nvidia.com/setup/installers/cli) and and follow the [NGC CLI Guide](https://docs.ngc.nvidia.com/cli/index.html) to set up the tool.
+
+# Getting Started with the Examples
+
+Under [builder/samples/](https://github.com/NVIDIA/DeepStream/tree/main/tools) directory, you can find all the examples to start with. Please refer to the README.md file in each individual directory for detailed instructions.
+
+Some of the models used in the examples are from the [NVIDIA GPU Cloud (NGC)](https://catalog.ngc.nvidia.com/) repository, and certain models from NGC require active subscription.
+
+The examples are organized based on the backend they are using, and the steps to run the examples are different for each backend. Please click on the sample name to see the detailed instructions.
+
+<Note>
+While Inference Builder works with Ampere, Hopper, and Blackwell architectures, the examples’ model and backend choices set the real hardware requirements. For example, Qwen2.5-7B-Instruct model with TensorRT-LLM backend requires very high GPU memory and can only run on H100 and B200.
+</Note>
+
+**DeepStream Backend Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `ds_app <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/ds_app>`__ | examples of building standalone deepstream application | TAO Computer Vision models | Deepstream | command line interface application |
+| `tao <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/tao>`__ | examples of building inference microservices using deepstream pipeline and fastapi | TAO Computer Vision models | Deepstream | microservice |
+
+**Triton Backend Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `changenet <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/changenet>`__ | example of building inference microservices with triton server | Visual ChangeNet | Triton/TensorRT | microservice |
+
+**TensorRT Backend Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `nvclip <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/nvclip>`__ | example of building inference microservices with TensorRT backend | NVCLIP | TensorRT | microservice |
+
+**TensorRT-LLM Backend Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `qwen <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/qwen>`__ | example of building inference microservices with TensorRT-LLM backend for vlm models | Qwen 2.5 VL models | TensorRT-LLM, Pytorch | microservice |
+
+**Multiple Model Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `cradio <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/cradio>`__ | two-stage pipeline: PeopleNet Transformer (detection) then C-RADIOv3-H (per-detection embeddings) | PeopleNet Transformer, C-RADIOv3-H | DeepStream/nvinfer, TensorRT (polygraphy) | command line interface application |
+
+**VLLM Backend Examples**
+
+| Name | Description | Models | Backend | Output |
+| --- | --- | --- | --- | --- |
+| `vllm <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/vllm>`__ | example of building inference microservices with vLLM backend and DeepStream MediaExtractor | Cosmos-Reason2-2B, Qwen3-VL-2B-Instruct | vLLM, DeepStream | microservice |
+
+# Metropolis Computer Vision Inference Microservice
+
+In tao examples, we demonstrate how to build Metropolis Computer Vision Inference Microservices with Inference Builder for TAO CV models, and how to use them to perform inference on images and videos. Please refer to the [HOWTO.md](https://github.com/NVIDIA/DeepStream/tree/main/tools) for detailed instructions.

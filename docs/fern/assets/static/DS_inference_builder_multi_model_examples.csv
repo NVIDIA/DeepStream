@@ -1,0 +1,2 @@
+Name,Description,Models,Backend,Output
+"`cradio <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/cradio>`__","two-stage pipeline: PeopleNet Transformer (detection) then C-RADIOv3-H (per-detection embeddings)","PeopleNet Transformer, C-RADIOv3-H","DeepStream/nvinfer, TensorRT (polygraphy)",command line interface application

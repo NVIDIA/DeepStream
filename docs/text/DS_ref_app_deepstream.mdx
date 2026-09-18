@@ -1,0 +1,555 @@
+---
+title: "DeepStream Reference Application - deepstream-app"
+---
+
+## Application Architecture
+
+The image below shows the architecture of the NVIDIA<sup>®</sup> DeepStream reference application.
+
+  ![DeepStream Reference Application Architecture](/assets/images/content/DS_reference_ds_app.png)
+
+* The Stream Muxer plugin (`Gst-nvstreammux`) to form a batch of buffers from multiple input sources.
+* The Preprocess plugin (`Gst-nvdspreprocess`) for preprocessing on the pre-defined ROIs for primary inferencing.
+* The NVIDIA TensorRT™ based plugin (`Gst-nvinfer`) for primary and secondary (attribute classification of primary objects) detection and classification respectively.
+* The Multi-Object Tracker plugin (`Gst-nvtracker`) for object tracking with unique ID.
+* The Multi Stream Tiler plugin (`Gst-nvmultistreamtiler`) for forming 2D array of frames.
+* The Onscreen Display (OSD) plugin (`Gst-nvdsosd`) to draw shaded boxes, rectangles and text on the composited frame using the generated metadata.
+* The Message Converter (`Gst-nvmsgconv`) and Message Broker (`Gst-nvmsgbroker`) plugins in combination to send analytics data to a server in the Cloud.
+
+## Reference Application Configuration
+
+The NVIDIA DeepStream SDK reference application uses one of the sample configuration files from the `samples/configs/deepstream-app` directory in the DeepStream package to:
+
+* Enable or disable components
+* Change the properties or behavior of components
+* Customize other application configuration settings that are unrelated to the pipeline and its components
+
+The configuration file uses a key file format, based on the freedesktop specifications at:
+https://specifications.freedesktop.org/desktop-entry-spec/latest
+
+### Expected Output for the DeepStream Reference Application (deepstream-app)
+
+The image below shows the expected output with preprocess plugin disabled:
+
+  ![DeepStream Reference Application Architecture](/assets/images/content/DS_reference_ds_app_expected_output_without_preprocess.png)
+
+  ![DeepStream Reference Application Architecture with preprocess](/assets/images/content/DS_reference_ds_app_expected_output_with_preprocess.png)
+
+## Configuration Groups
+
+The application configuration is divided into groups of configurations for each component and application-specific component. The configuration groups are:
+
+**Configuration Groups - deepstream app**
+
+| Group | Configuration Group |
+| --- | --- |
+| `Application Group`_ | Application configurations that are not related to a specific component. |
+| `Tiled-display Group`_ | Tiled display in the application. |
+| `Source Group`_ | Source properties. There can be multiple sources. The groups must be named as: [source0], [source1] … |
+| `Source-list and source-attr-all Groups`_ | Source URI provided as a list. There can be multiple sources. The groups must be named as: [source-list] and [source-attr-all] |
+| `Streammux Group`_ | Specify properties and modify behavior of the streammux component. |
+| `Preprocess Group`_ | Specify properties and modify behavior of the preprocess component. |
+| `Primary GIE and Secondary GIE Group`_ | Specify properties and modify behavior of the primary GIE.<br />Specify properties and modify behavior of the secondary GIE. The groups must be named as: [secondary-gie0], [secondary-gie1] … |
+| `Tracker Group`_ | Specify properties and modify behavior of the object tracker. |
+| `Message Converter Group`_ | Specify properties and modify behavior of the message converter component. |
+| `Message Consumer Group`_ | Specify properties and modify behavior of message consumer components. The pipeline can contain multiple message consumer components. Groups must be named as [message-consumer0], [message-consumer1] … |
+| `OSD Group`_ | Specify properties and modify the on-screen display (OSD) component that overlays text and rectangles on the frame. |
+| `Sink Group`_ | Specify properties and modify behavior of sink components that represent outputs such as displays and files for rendering, encoding, and file saving. The pipeline can contain multiple sinks. Groups must be named as: [sink0], [sink1] … |
+| `Tests Group`_ | Diagnostics and debugging. This group is experimental. |
+| `NvDs-analytics Group`_ | Specify nvdsanalytics plugin configuration file, and to add the plugin in the application |
+
+### Application Group
+
+The application group properties are:
+
+**Application group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable-perf-measurement | Indicates whether the application performance measurement is enabled. | Boolean | enable-perf-measurement=1 | dGPU, Jetson |
+| perf-measurement-interval-sec | The interval, in seconds, at which the performance metrics are sampled and printed. | Integer, >0 | perf-measurement-interval-sec=10 | dGPU, Jetson |
+| gie-kitti-output-dir | Pathname of an existing directory where the application stores primary detector output in a modified KITTI metadata format. | String | gie-kitti-output-dir=­/home/­ubuntu/­kitti_data/ | dGPU, Jetson |
+| kitti-track-output-dir | Pathname of an existing directory where the application stores tracker output in a modified KITTI metadata format. | String | kitti-track-output-dir=­/home/­ubuntu/­kitti_data_tracker/ | dGPU, Jetson |
+| reid-track-output-dir | Pathname of an existing directory where the application stores tracker's Re-ID feature output. Each line's first integer is object id | and the remaining floats are its feature vector. | String | reid-track-output-dir=­/home/­ubuntu/­reid_data_tracker/, dGPU, Jetson |
+| terminated-track-output-dir | Pathname of an existing directory where the application stores terminated tracker output in a modified KITTI metadata format. | String | kitti-track-output-dir=­/home/­ubuntu/­terminated_data_tracker/ | dGPU, Jetson |
+| shadow-track-output-dir | Pathname of an existing directory where the application stores shadow track state output in a modified KITTI metadata format. | String | shadow-track-output-dir=­/home/­ubuntu/­shadow_data_tracker/ | dGPU, Jetson |
+| global-gpu-id | Set Global GPU ID for all the components at once if needed | Integer | global-gpu-id=1 | dGPU, Jetson |
+
+### Tiled-display Group
+
+The tiled-display group properties are:
+
+**Tiled display group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Indicates whether tiled display is enabled.<br />When user sets enable=2, first [sink] group with the key: link-to-demux=1 shall be linked to demuxer's src_[source_id] pad where source_id is the key set in the corresponding [sink] group. | Integer,<br />0 = disabled,<br />1 = tiler-enabled<br />2 = tiler-and-parallel-demux-to-sink-enabled | enable=1 | dGPU, Jetson |
+| rows | Number of rows in the tiled 2D array. | Integer, >0 | rows=5 | dGPU, Jetson |
+| columns | Number of columns in the tiled 2D array. | Integer, >0 | columns=6 | dGPU, Jetson |
+| width | Width of the tiled 2D array, in pixels. | Integer, >0 | width=1280 | dGPU, Jetson |
+| height | Height of the tiled 2D array, in pixels. | Integer, >0 | height=720 | dGPU, Jetson |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=0 | dGPU |
+| nvbuf-memory-type | Type of memory the element is to allocate for output buffers.<br />0 (nvbuf-mem-default): a platform-specific default type<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory<br />2 (nvbuf-mem-cuda-device): device CUDA memory<br />3 (nvbuf-mem-cuda-unified): unified CUDA memory<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) is valid. | Integer, 0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU, Jetson |
+| compute-hw | Compute Scaling HW to use. Applicable only for Jetson. dGPU systems uses GPU by default.<br />0 (Default): Default, GPU for Tesla, VIC for Jetson<br />1 (GPU): GPU<br />2 (VIC): VIC | Integer: 0-2 | compute-hw=1 | Jetson |
+| square-seq-grid | Enable automatic square tiling according to number of sources. The tiles are placed sequentially on the grid with empty tiles at the end | Boolean | square-seq-grid=1 | dGPU, Jetson |
+
+### Source Group
+
+The source group specifies the source properties. The DeepStream application supports multiple simultaneous sources. For each source, a separate group with the group names such as `source%d` must be added to the configuration file. For example:
+
+```
+[source0]
+key1=value1
+key2=value2
+...
+
+[source1]
+key1=value1
+key2=value2
+...
+```
+
+The source group properties are:
+
+**Source group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the source. | Boolean | enable=1 | dGPU, Jetson |
+| type | Type of source; other properties of the source depend on this type.<br />1: Camera (V4L2)<br />2: URI<br />3: MultiURI<br />4: RTSP<br />5: Camera (CSI) (Jetson only) | Integer,<br />1, 2, 3, 4, or 5 | type=1 | dGPU, Jetson |
+| uri | URI to the encoded stream. The URI can be a file, an HTTP URI, or an RTSP live source. Valid when type=2 or 3. With MultiURI, the %d format specifier can also be used to specify multiple sources. The application iterates from 0 to num-sources−1 to generate the actual URIs. | String | uri=file:///home/ubuntu/source.mp4<br />uri=http://127.0.0.1/source.mp4<br />uri=rtsp://127.0.0.1/source1<br />uri=file:///home/ubuntu/source_%d.mp4 | dGPU, Jetson |
+| num-sources | Number of sources. Valid only when type=3. | Integer, ≥0 | num-sources=2 | dGPU, Jetson |
+| intra-decode-enable | Enables or disables intra-only decode. | Boolean | intra-decode-enable=1 | dGPU, Jetson |
+| num-extra-surfaces | Number of surfaces in addition to minimum decode surfaces given by the decoder. Can be used to manage the number of decoder output buffers in the pipeline. | Integer,<br />≥0 and ≤24 | num-extra-surfaces=5 | dGPU, Jetson |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU |
+| camera-id | Unique ID for the input source to be added to metadata. (Optional) | Integer, ≥0 | camera-id=2 | dGPU, Jetson |
+| camera-width | Width of frames to be requested from the camera, in pixels. Valid when type=1 or 5. | Integer, >0 | camera-width=1920 | dGPU, Jetson |
+| camera-height | Height of frames to be requested from the camera, in pixels. Valid when type=1 or 5. | Integer, >0 | camera-height=1080 | dGPU, Jetson |
+| camera-fps-n | Numerator part of a fraction specifying the frame rate requested by the camera, in frames/sec. Valid when type=1 or 5. | Integer, >0 | camera-fps-n=30 | dGPU, Jetson |
+| camera-fps-d | Denominator part of a fraction specifying the frame rate requested from the camera, in frames/sec. Valid when type=1 or 5. | Integer, >0 | camera-fps-d=1 | dGPU, Jetson |
+| camera-v4l2-dev-node | Number of the V4L2 device node. For example, /dev/video&lt;num> for the open source V4L2 camera capture path. Valid when the type setting (type of source) is 1. | Integer, >0 | camera-v4l2-dev-node=1 | dGPU, Jetson |
+| latency | Jitterbuffer size in milliseconds; applicable only for RTSP streams. | Integer, ≥0 | latency=200 | dGPU, Jetson |
+| camera-csi-sensor-id | Sensor ID of the camera module. Valid when the type (type of source) is 5. | Integer, ≥0 | camera-csi-sensor-id=1 | Jetson |
+| drop-frame-interval | Interval to drop frames. For example, 5 means decoder outputs every fifth frame; 0 means no frames are dropped. | Integer, | drop-frame-interval=5 | dGPU, Jetson |
+| cudadec-memtype | Type of CUDA memory element used to allocate for output buffers for source of type 2,3 or 4. Not applicable for CSI or USB camera source<br />0 (memtype_device): Device memory allocated with cudaMalloc().<br />1 (memtype_pinned): host/pinned memory allocated with cudaMallocHost().<br />2 (memtype_unified): Unified memory allocated with cudaMallocManaged(). | Integer,<br />0, 1, or 2 | cudadec-memtype=1 | dGPU |
+| nvbuf-memory-type | Type of CUDA memory the element is to allocate for output buffers of nvvideoconvert, useful for source of type 1.<br />0 (nvbuf-mem-default, a platform-specific default<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory.<br />2 (nvbuf-mem-cuda-device): Device CUDA memory.<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory.<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) is valid. | Integer,<br />0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU,Jetson |
+| select-rtp-protocol | Transport Protocol to use for RTP. Valid when type (type of source) is 4.<br />0: UDP + UDP Multicast + TCP<br />4: TCP only | Integer,<br />0 or 4 | select-rtp-protocol=4 | dGPU, Jetson |
+| rtsp-reconnect-interval-sec | Timeout in seconds to wait since last data was received from an RTSP source before forcing a reconnection. Setting it to 0 will disable the reconnection. Valid when type (type of source) is 4. | Integer, ≥0 | rtsp-reconnect-interval-sec=60 | dGPU, Jetson |
+| rtsp-reconnect-attempts | Maximum number of times a reconnection is attempted. Setting it to -1 means reconnection will be attempted infinitely. Valid when type of source is 4 and rtsp-reconnect-interval-sec is a non-zero positive value. | Integer, ≥-1 | rtsp-reconnect-attempts=2 |  |
+| smart-record | Ways to trigger the smart record.<br />0: Disable<br />1: Only through cloud messages<br />2: Cloud message + Local events | Integer,<br />0, 1 or 2 | smart-record=1 | dGPU, Jetson |
+| smart-rec-dir-path | Path of directory to save the recorded file. By default, the current directory is used. | String | smart-rec-dir-path=/home/nvidia/ | dGPU, Jetson |
+| smart-rec-file-prefix | Prefix of file name for recorded video. By default, Smart_Record is the prefix. For unique file names every source must be provided with a unique prefix. | String | smart-rec-file-prefix=Cam1 | dGPU, Jetson |
+| smart-rec-cache | Size of smart record cache in seconds. | Integer, ≥0 | smart-rec-cache=20 | dGPU, Jetson |
+| smart-rec-container | Container format of recorded video. MP4 and MKV containers are supported. | Integer,<br />0 or 1 | smart-rec-container=0 | dGPU, Jetson |
+| smart-rec-start-time | Number of seconds earlier from now to start the recording.<br />E.g. if t0 is the current time and N is the start time in seconds that means recording will start from t0 – N. Obviously for it to work the video cache size must be greater than the N. | Integer, ≥0 | smart-rec-start-time=5 | dGPU, Jetson |
+| smart-rec-default-duration | In case a Stop event is not generated. This parameter will ensure the recording is stopped after a predefined default duration. | Integer, ≥0 | smart-rec-default-duration=20 | dGPU, Jetson |
+| smart-rec-duration | Duration of recording in seconds. | Integer, ≥0 | smart-rec-duration=15 | dGPU, Jetson |
+| smart-rec-interval | This is the time interval in seconds for SR start / stop events generation. | Integer, ≥0 | smart-rec-interval=10 | dGPU, Jetson |
+| udp-buffer-size | UDP buffer size in bytes for RTSP sources. | Integer, ≥0 | udp-buffer-size=2000000 | dGPU, Jetson |
+| video-format | Output video format for the source. This value is set as the output format of the nvvideoconvert element for the source. | String: NV12, I420, P010_10LE, BGRx, RGBA | video-format=RGBA | dGPU, Jetson |
+
+### Source-list and source-attr-all Groups
+
+The source-list group allows users to provide an initial list of source URI to start streaming with.
+This group along with [source-attr-all] can replace the need for separate [source] groups for each stream.
+
+Also, DeepStream support (Alpha feature) dynamic sensor provisioning via REST API.
+For more details on this feature, please refer to the sample configuration file and deepstream reference application run command [here](/text/DS_ref_app_test5#sensor-provisioning-support-over-rest-api-runtime-sensor-add-remove-capability).
+
+For example:
+
+```
+[source-list]
+num-source-bins=2
+list=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4
+sgie-batch-size=8
+...
+[source-attr-all]
+enable=1
+type=3
+num-sources=1
+gpu-id=0
+cudadec-memtype=0
+latency=100
+rtsp-reconnect-interval-sec=0
+...
+```
+
+**Note**: [source-list] now support REST Server with use-nvmultiurisrcbin=1
+
+For example:
+
+```
+[source-list]
+num-source-bins=2
+list=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4;file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h265.mp4
+use-nvmultiurisrcbin=1
+#sensor-id-list vector is one to one mapped with the uri-list
+#identifies each sensor by a unique ID
+sensor-id-list=UniqueSensorId1;UniqueSensorId2
+#Optional sensor-name-list vector is one to one mapped with the uri-list
+sensor-name-list=UniqueSensorName1;UniqueSensorName2
+max-batch-size=10
+http-ip=localhost
+http-port=9000
+#sgie batch size is number of sources * fair fraction of number of objects detected per frame per source
+#the fair fraction of number of object detected is assumed to be 4
+sgie-batch-size=40
+
+[source-attr-all]
+enable=1
+type=3
+num-sources=1
+gpu-id=0
+cudadec-memtype=0
+latency=100
+rtsp-reconnect-interval-sec=0
+```
+
+The [source-list] group properties are:
+
+**Source List group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the source. | Boolean | enable=1 | dGPU, Jetson |
+| num-source-bins | The total number of source URI's provided with the key list | Integer | num-source-bins=2 | dGPU, Jetson |
+| sgie-batch-size | sgie batch size is number of sources * fair fraction of number of objects detected per frame per source<br />the fair fraction of number of object detected is assumed to be 4 | Integer | sgie-batch-size=8 | dGPU, Jetson |
+| list | The list of URI's separated by semi-colon ';' | String | list=rtsp://ip-address:port/stream1;rtsp://ip-address:port/stream2 | dGPU, Jetson |
+| sensor-id-list | (Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The list of unique Identifiers identifying each stream separated by semi-colon ';' | String | sensor-id-list=UniqueSensorId1;UniqueSensorId2 | dGPU |
+| sensor-name-list | (Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The Optional list of sensor names identifying each stream separated by semi-colon ';' | String | sensor-name-list=SensorName1;SensorName2 | dGPU |
+| use-nvmultiurisrcbin | (Alpha Feature) Boolean if set enable the use of nvmultiurisrcbin with REST API support for dynamic sensor provisioning | Boolean | use-nvmultiurisrcbin=0(default) | dGPU |
+| max-batch-size | (Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. Sets the maximum number of sensors that can be streamed using this instance of DeepStream | Integer | max-batch-size=10 | dGPU |
+| http-ip | (Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The HTTP Endpoint IP address to use | String | http-ip=localhost (default) | dGPU |
+| http-port | (Alpha Feature) Applicable only when use-nvmultiurisrcbin=1. The HTTP Endpoint port number to use. Note: User may pass empty string to disable REST API server | String | http-ip=9001 (default) | dGPU |
+
+The [source-attr-all] group support all properties except uri from the `Source Group`_.
+A sample config file can be found at `/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-test5/configs/test5_config_file_nvmultiurisrcbin_src_list_attr_all.txt`.
+
+### Streammux Group
+
+The [streammux] group specifies and modifies properties of the `Gst-nvstreammux` plugin.
+
+**Streammux group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| gpu-id | GPU element is to use in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU |
+| live-source | Informs the muxer that sources are live. | Boolean | live-source=0 | dGPU, Jetson |
+| buffer-pool-size | Number of buffers in Muxer output buffer pool. | Integer, >0 | buffer-pool-size=4 | dGPU, Jetson |
+| batch-size | Muxer batch size. | Integer, >0 | batch-size=4 | dGPU, Jetson |
+| batched-push-timeout | Timeout in microseconds after to push the batch after the first buffer is available, even if the complete batch is not formed. | Integer, ≥−1 | batched-push-timeout=40000 | dGPU, Jetson |
+| width | Muxer output width in pixels. | Integer, >0 | width=1280 | dGPU, Jetson |
+| height | Muxer output height in pixels. | Integer, >0 | height=720 | dGPU, Jetson |
+| enable-padding | Indicates whether to maintain source aspect ratio when scaling by adding black bands. | Boolean | enable-padding=0 | dGPU, Jetson |
+| nvbuf-memory-type | Type of CUDA memory the element is to allocate for output buffers.<br />0 (nvbuf-mem-default, a platform-specific default<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory.<br />2 (nvbuf-mem-cuda-device): Device CUDA memory.<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory.<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) is valid. | Integer,<br />0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU |
+| attach-sys-ts-as-ntp | For live sources, the muxed buffer shall have associated NvDsFrameMeta->ntp_timestamp set to system time or the server’s NTP time when streaming RTSP.<br />If set to 1, system timestamp will be attached as ntp timestamp.<br />If set to 0, ntp timestamp from rtspsrc, if available, will be attached. | Boolean | attach-sys-ts-as-ntp=0 | dGPU, Jetson |
+| config-file-path | This key is valid only for the new streammux. Please refer the plugin manual section “New Gst-nvstreammux” for more information.<br />Absolute or relative (to DS config-file location) path of mux configuration file. | String | config-file-path=config_mux_source30.txt | dGPU, Jetson |
+| sync-inputs | Time synchronize input frames before batching them. | Boolean | sync-inputs=0 (default) | dGPU, Jetson |
+| max-latency | Additional latency in live mode to allow upstream to take longer to produce buffers for the current position (in nanoseconds). | Integer, ≥0 | max-latency=0 (default) | dGPU, Jetson |
+| drop-pipeline-eos | Boolean property to control EOS propagation downstream from nvstreammux when all the sink pads are at EOS. (Experimental) | Boolean | drop-pipeline-eos=0(default) | dGPU/Jetson |
+
+### Preprocess Group
+
+The `[pre-process]` group is for adding `nvdspreprocess` plugin in the pipeline. Supports preprocessing for only Primary GIE.
+
+**Preprocess group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the plugin. | Boolean | enable=1 | dGPU, Jetson |
+| config-file | Configuration file path for nvdspreprocess plugin | String | config-file=config_preprocess.txt | dGPU, Jetson |
+
+### Primary GIE and Secondary GIE Group
+
+The DeepStream application supports multiple secondary GIEs. For each secondary GIE, a separate group with the name `secondary-gie%d` must be added to the configuration file. For example:
+
+```
+[primary-gie]
+key1=value1
+key2=value2
+...
+
+[secondary-gie1]
+key1=value1
+key2=value2
+...
+```
+
+The primary and secondary GIE configurations are as follows. For each configuration, the Valid for column indicates whether the configuration property is valid for the primary or secondary TensorRT model, or for both models.
+
+**Primary and Secondary GIE* group**
+
+| Key | Meaning | Type and Value | Example | Platforms/ GIEs* |
+| --- | --- | --- | --- | --- |
+| enable | Indicates whether the primary GIE must be enabled. | Boolean | enable=1 | dGPU, Jetson<br />Both GIEs |
+| gie-unique-id | Unique component ID to be assigned to the nvinfer instance. Used to identify metadata generated by the instance. | Integer, >0 | gie-unique-id=2 | Both |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU, Both GIEs |
+| model-engine-file | Absolute pathname of the pre-generated serialized engine file for the mode. | String | model-engine-file=­../../models/­Primary_Detector/­resnet18_trafficcamnet_pruned.onnx_b4_gpu0.engine | Both GIEs |
+| nvbuf-memory-type | Type of CUDA memory element is to allocate for output buffers.<br />0 (nvbuf-mem-default): a platform-specific default<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory<br />2 (nvbuf-mem-cuda-device): Device CUDA memory<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) is valid. | Integer,<br />0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU, Jetson<br />Primary GIE |
+| config-file | Pathname of a configuration file which specifies properties for the Gst-nvinfer plugin. It may contain any of the properties described in this table except config-file itself. Properties must be defined in a group named [property].<br />For more details about parameters see “Gst-nvinfer File Configuration Specifications” in the DeepStream 4.0 Plugin Manual. | String | config-file=¬/home/-ubuntu/-config_infer_resnet.txt<br />For complete examples, see the sample file samples/¬configs/-deepstream-app/-config_infer_resnet.txt or the deepstream-test2 sample application. | dGPU, Jetson<br />Both GIEs |
+| batch-size | The number of frames(P.GIE)/objects(S.GIE) to be inferred together in a batch. | Integer, >0 Integer, >0 | batch-size=2 | dGPU, Jetson<br />Both GIEs |
+| interval | Number of consecutive batches to skip for inference. | Integer, >0 Integer, >0 | interval=2 | dGPU, Jetson<br />Primary GIE |
+| bbox-border-color | The color of the borders for the objects of a specific class ID, specified in RGBA format. The key must be of format bbox-border-color&lt;class-id>. This property can be identified multiple times for multiple class IDs. If this property is not identified for the class ID, the borders are not drawn for objects of that class-id. | R:G:B:A Float,<br />0≤R,G,B,A≤1 | bbox-border-color2=<br />1;0;0;1<br />(Red for class-id 2) | dGPU, Jetson<br />Both GIEs |
+| bbox-bg-color | The color of the boxes drawn over objects of a specific class ID, in RGBA format. The key must be of format bbox-bg-color&lt;class-id>. This property can be used multiple times for multiple class IDs. If it is not used for a class ID, the boxes are not drawn for objects of that class ID. | R:G:B:A Float,<br />0≤R,G,B,A≤1 | bbox-bg-color3=-0;1;0;0.3<br />(Semi-transparent green for class-id 3) | dGPU, Jetson<br />Both GIEs |
+| operate-on-gie-id | A unique ID of the GIE, on whose metadata (NvDsFrameMeta) this GIE is to operate. | Integer, >0 | operate-on-gie-id=1 | dGPU, Jetson Secondary GIE |
+| operate-on-class-ids | Class IDs of the parent GIE on which this GIE must operate. The parent GIE is specified using operate-on-gie-id. | Semicolon separated integer array | operate-on-class-ids=1;2<br />(operate on objects with class IDs 1, 2 generated by parent GIE) | dGPU, Jetson<br />Secondary GIE |
+| infer-raw-output-dir | Pathname of an existing directory in which to dump the raw inference buffer contents in a file. | String | infer-raw-output-dir=­/home/­ubuntu/­infer_raw_out | dGPU, Jetson<br />Both GIEs |
+| labelfile-path | Pathname of the labelfile. | String | labelfile-path=../../models/Primary_Detector/labels.txt | dGPU, Jetson<br />Both GIEs |
+| plugin-type | Plugin to use for inference.<br />0: nvinfer (TensorRT)<br />1: nvinferserver (Triton inference server) | Integer,<br />0 or 1 | plugin-type=1 | dGPU, Jetson<br />Both GIEs |
+| input-tensor-meta | Use preprocessed input tensors attached as metadata by nvdspreprocess plugin instead of preprocessing inside the nvinfer. | Integer, 0 or 1 | input-tensor-meta=1 | dGPU, Jetson, Primary GIE |
+
+<Note>
+\* The GIEs are the GPU Inference Engines.
+</Note>
+
+### Tracker Group
+
+The tracker group properties include the following, and more details can be found in [Gst Properties](/text/DS_plugin_gst-nvtracker#gst-properties):
+
+**Tracker group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the tracker. | Boolean | enable=1 | dGPU, Jetson |
+| tracker-width | Frame width at which the tracker will operate, in pixels. (To be a multiple of 32 when tracker config visualTrackerType: 1 or reidType is non-zero with useVPICropScaler: 0) | Integer, ≥0 | tracker-width=960 | dGPU, Jetson |
+| tracker-height | Frame height at which the tracker will operate, in pixels. (To be a multiple of 32 when tracker config visualTrackerType: 1 or reidType is non-zero with useVPICropScaler: 0) | Integer, ≥0 | tracker-height=544 | dGPU, Jetson |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU |
+| ll-config-file | Configuration file for the low-level library if needed.<br />A list of configuration files can be specified when the property `sub-batches` is configured. | String | ll-config-file=iou_config.txt | dGPU, Jetson |
+| ll-lib-file | Pathname for the low-level tracker implementation library. | String | ll-lib-file=/usr/-local/deepstream/libnvds_mot_iou.so | dGPU, Jetson |
+| tracking-surface-type | Set surface stream type for tracking. (default value is 0) | Integer, ≥0 | tracking-surface-type=0 | dGPU, Jetson |
+| display-tracking-id | Enables tracking id display. | Boolean | display-tracking-id=1 | dGPU, Jetson |
+| tracking-id-reset-mode | Allow force-reset of tracking ID based on pipeline event. Once tracking ID reset is enabled and such event happens, the lower 32-bit of the tracking ID will be reset to 0<br />0: Not reset tracking ID when stream reset or EOS event happens<br />1: Terminate all existing trackers and assign new IDs for a stream when the stream reset happens (i.e., GST_NVEVENT_STREAM_RESET)<br />2: Let tracking ID start from 0 after receiving EOS event  (i.e., GST_NVEVENT_STREAM_EOS) (Note: Only the lower 32-bit of tracking ID to start from 0)<br />3: Enable both option 1 and 2 | Integer, 0 to 3 | tracking-id-reset-mode=0 | dGPU, Jetson |
+| input-tensor-meta | Use the tensor-meta from Gst-nvdspreprocess if available for tensor-meta-gie-id | Boolean | input-tensor-meta=1 | dGPU, Jetson |
+| tensor-meta-gie-id | Tensor Meta GIE ID to be used, property valid only if input-tensor-meta is TRUE | Unsigned Integer, ≥0 | tensor-meta-gie-id=5 | dGPU, Jetson |
+| sub-batches (Alpha feature) | Configures splitting of a batch of frames in sub-batches | Semicolon delimited integer array.<br />Must include all values from 0 to (batch-size -1) where batch-size is configured in `[streammux]`. | sub-batches=0,1;2,3<br />In this example, a batch size of 4 is split into two sub-batches where the first sub-batch consists of source ids 0 & 1 and second sub-batch consists of source ids 2 & 3 | dGPU, Jetson |
+| sub-batch-err-recovery-trial-cnt (Alpha feature) | Configure the number of times the plugin can try to recover when the low level tracker in a sub-batch returns with a fatal error.<br />To recover from the error, the plugin reinitializes the low level tracker library. | Integer,≥-1  where,<br />-1 corresponds to infinite trials | sub-batch-err-recovery-trial-cnt=3 | dGPU, Jetson |
+| user-meta-pool-size | The size of tracker miscellaneous data buffer pool | Unsigned Integer, >0 | user-meta-pool-size=32 | dGPU, Jetson |
+
+### Message Converter Group
+
+Message converter group properties are:
+
+**Message converter group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the message converter. | Boolean | enable=1 | dGPU, Jetson |
+| msg-conv-config | Pathname of the configuration file for the Gst-nvmsgconv element. | String | msg-conv-config=dstest5_msgconv_sample_config.txt | dGPU, Jetson |
+| msg-conv-payload-type | Type of payload.<br />0, PAYLOAD_DEEPSTREAM: Deepstream schema payload.<br />1, PAYLOAD_DEEPSTREAM_MINIMAL: Deepstream schema payload minimal.<br />256, PAYLOAD_RESERVED: Reserved type.<br />257, PAYLOAD_CUSTOM: Custom schema payload. | Integer<br />0, 1, 256, or 257 | msg-conv-payload-type=0 | dGPU, Jetson |
+| msg-conv-msg2p-lib | Absolute pathname of an optional custom payload generation library. This library implements the API defined by sources/libs/nvmsgconv/nvmsgconv.h. | String | msg-conv-msg2p-lib=/opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_msgconv.so | dGPU, Jetson |
+| msg-conv-comp-id | comp-id Gst property of the gst-nvmsgconv element.<br />This is the Id of the component that attaches the NvDsEventMsgMeta which must be processed by gst-nvmsgconv element. | Integer, >=0 | msg-conv-comp-id=1 | dGPU, Jetson |
+| debug-payload-dir | Directory to dump payload | String | debug-payload-dir=&lt;absolute path> Default is NULL | dGPU Jetson |
+| multiple-payloads | Generate multiple message payloads | Boolean | multiple-payloads=1 Default is 0 | dGPU Jetson |
+| msg-conv-msg2p-new-api | Generate payloads using Gst buffer frame/object metadata | Boolean | msg-conv-msg2p-new-api=1 Default is 0 | dGPU Jetson |
+| msg-conv-frame-interval | Frame interval at which payload is generated | Integer, 1 to  4,294,967,295 | msg-conv-frame-interval=25 Default is 30 | dGPU Jetson |
+| msg-conv-dummy-payload | By default payload is generated if NVDS_EVENT_MSG_META is attached to buffer. With this dummy payload can be generated if there is no  NVDS_EVENT_MSG_META attached to buffer | boolean | msg-conv-dummy-payload=true Default is false | dGPU Jetson |
+
+### Message Consumer Group
+
+Message consumer group properties are:
+
+**Message consumer group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the message consumer. | Boolean | enable=1 | dGPU, Jetson |
+| proto-lib | Path to the library having protocol adapter implementation. | String | proto-lib=/opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_kafka_proto.so | dGPU, Jetson |
+| conn-str | Connection string of the server. | String | conn-str=foo.bar.com;80 | dGPU, Jetson |
+| config-file | Path to the file having additional configurations for protocol adapter, | String | config-file=../cfg_kafka.txt | dGPU, Jetson |
+| subscribe-topic-list | List of topics to subscribe. | String | subscribe-topic-list=toipc1;topic2;topic3 | dGPU, Jetson |
+| sensor-list-file | File having mappings from sensor index to sensor name. | String | sensor-list-file=dstest5_msgconv_sample_config.txt | dGPU, Jetson |
+
+### OSD Group
+
+The OSD group specifies the properties and modifies the behavior of the OSD component, which overlays text and rectangles on the video frame.
+
+**OSD group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the On-Screen Display (OSD). | Boolean | enable=1 | dGPU, Jetson |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU |
+| border-width | Border width of the bounding boxes drawn for objects, in pixels. | Integer, ≥0 | border-width=10 | dGPU, Jetson |
+| border-color | Border color of the bounding boxes drawn for objects. | R;G;B;A Float,<br />0≤R,G,B,A≤1 | border-color=0;0;0.7;1 #Dark Blue | dGPU, Jetson |
+| text-size | Size of the text that describes the objects, in points. | Integer, ≥0 | text-size=16 | dGPU, Jetson |
+| text-color | The color of the text that describes the objects, in RGBA format. | R;G;B;A Float,<br />0≤R,G,B,A≤1 | text-color=0;0;0.7;1 #Dark Blue | dGPU, Jetson |
+| text-bg-color | The background color of the text that describes the objects, in RGBA format. | R;G;B;A Float,<br />0≤R,G,B,A≤1 | text-bg-color=0;0;0;0.5 #Semi-transparent black | dGPU, Jetson |
+| clock-text-size | The size of the clock time text, in points. | Integer, >0 | clock-text-size=16 | dGPU, Jetson |
+| clock-x-offset | The horizontal offset of the clock time text, in pixels. | Integer, >0 | clock-x-offset=100 | dGPU, Jetson |
+| clock-y-offset | The vertical offset of the clock time text, in pixels. | Integer, >0 | clock-y-offset=100 | dGPU, Jetson |
+| font | Name of the font for text that describes the objects. | String | font=Purisa | dGPU, Jetson |
+|  | Enter the shell command fc-list to display the names of available fonts. |  |  |  |
+| clock-color | Color of the clock time text, in RGBA format. | R;G;B;A Float,<br />0≤R,G,B,A≤1 | clock-color=1;0;0;1 #Red | dGPU, Jetson |
+| nvbuf-memory-type | Type of CUDA memory the element is to allocate for output buffers.<br />0 (nvbuf-mem-default): a platform-specific default<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory<br />2 (nvbuf-mem-cuda-device): Device CUDA memory<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) is valid. | Integer,<br />0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU |
+| process-mode | NvOSD processing mode.<br />0: CPU<br />1: GPU | Integer,<br />0, 1, or 2 | process-mode=1 | dGPU, Jetson |
+| display-text | Indicate whether to display text | Boolean | display-text=1 | dGPU, Jetson |
+| display-bbox | Indicate whether to bounding box | Boolean | display-bbox=1 | dGPU, Jetson |
+| display-mask | Indicate whether to display instance mask | Boolean | display-mask=1 | dGPU, Jetson |
+
+### Sink Group
+
+The sink group specifies the properties and modifies the behavior of the sink components for rendering, encoding, and file saving.
+
+**Sink group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the sink. | Boolean | enable=1 | dGPU, Jetson |
+| type | Type of sink, to use.<br />1: Fakesink<br />2: EGL based windowed nveglglessink for dGPU and nv3dsink for Jetson<br />3: Encode + File Save (encoder + muxer + filesink)<br />4: Encode + RTSP streaming; Note: sync=1 for this type is not applicable;<br />5: nvdrmvideosink (Jetson only)<br />6: Message converter + Message broker | Integer, 1, 2, 3, 4, 5 or 6 | type=2 | dGPU, Jetson |
+| sync | Indicates how fast the stream is to be rendered.<br />0: As fast as possible<br />1: Synchronously | Integer,<br />0 or 1 | sync=1 | dGPU, Jetson |
+| qos | Indicates whether the sink is to generate Quality-of-Service events, which can lead to the pipeline dropping frames when pipeline FPS cannot keep up with the stream frame rate. | Boolean | qos=0 | dGPU, Jetson |
+| source-id | The ID of the source whose buffers this sink must use. The source ID is contained in the source group name. For example, for group [source1] source-id=1. | Integer, ≥0 | source-id=1 | dGPU, Jetson |
+| gpu-id | GPU to be used by the element in case of multiple GPUs. | Integer, ≥0 | gpu-id=1 | dGPU |
+| container | Container to use for the file save. Only valid for type=3.<br />1: MP4<br />2: MKV | Integer,<br />1 or 2 | container=1 | dGPU, Jetson |
+| codec | The encoder to be used to save the file.<br />1: H.264 (hardware)<br />2: H.265 (hardware) | Integer,<br />1 or 2 | codec=1 | dGPU, Jetson |
+| bitrate | Bitrate to use for encoding, in bits per second. Valid for type=3 and 4. | Integer, >0 | bitrate=4000000 | dGPU, Jetson |
+| iframeinterval | Encoding intra-frame occurrence frequency. | Integer,<br />0≤iv≤MAX_INT | iframeinterval=30 | dGPU, Jetson |
+| output-file | Pathname of the output encoded file. Only valid for type=3. | String | output-file=­/home/­ubuntu/­output.mp4 | dGPU, Jetson |
+| nvbuf-memory-type | Type of CUDA memory the plugin is to allocate for output buffers.<br />0 (nvbuf-mem-default): a platform-specific default<br />1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory<br />2 (nvbuf-mem-cuda-device): Device CUDA memory<br />3 (nvbuf-mem-cuda-unified): Unified CUDA memory<br />For dGPU: All values are valid.<br />For Jetson: Only 0 (zero) Is valid. | Integer,<br />0, 1, 2, or 3 | nvbuf-memory-type=3 | dGPU, Jetson |
+| rtsp-port | Port for the RTSP streaming server; a valid unused port number. Valid for type=4. | Integer | rtsp-port=8554 | dGPU, Jetson |
+| udp-port | Port used internally by the streaming implementation - a valid unused port number. Valid for type=4. | Integer | udp-port=5400 | dGPU, Jetson |
+| conn-id | Connection index. Valid for nvdrmvideosink(type=5). | Integer, >=1 | conn-id=0 | Jetson |
+| width | Width of the renderer in pixels. | Integer, >=1 | width=1920 | dGPU, Jetson |
+| height | Height of the renderer in pixels. | Integer, >=1 | height=1920 | dGPU, Jetson |
+| offset-x | Horizontal offset of the renderer window, in pixels. | Integer, >=1 | offset-x=100 | dGPU, Jetson |
+| offset-y | Vertical offset of the renderer window, in pixels. | Integer, >=1 | offset-y=100 | dGPU, Jetson |
+| plane-id | Plane on which video should be rendered. Valid for nvdrmvideosink(type=5). | Integer, ≥0 | plane-id=0 | Jetson |
+| msg-conv-config | Pathname of the configuration file for the Gst-nvmsgconv element (type=6). | String | msg-conv-config=dstest5_msgconv_sample_config.txt | dGPU, Jetson |
+| msg-broker-proto-lib | Path to the protocol adapter implementation used Gst-nvmsgbroker (type=6). | String | msg-broker-proto-lib= /opt/nvidia/deepstream/deepstream-5.0/lib/libnvds_amqp_proto.so | dGPU, Jetson |
+| msg-broker-conn-str | Connection string of the backend server (type=6). | String | msg-broker-conn-str=foo.bar.com;80;dsapp | dGPU, Jetson |
+| topic | Name of the message topic (type=6). | String | topic=test-ds4 | dGPU, Jetson |
+| msg-conv-payload-type | Type of payload.<br />0, PAYLOAD_DEEPSTREAM: DeepStream schema payload.<br />1, PAYLOAD_DEEPSTREAM\_-MINIMAL: DeepStream schema payload minimal.<br />256, PAYLOAD_RESERVED: Reserved type.<br />257, PAYLOAD_CUSTOM: Custom schema payload (type=6). | Integer 0, 1, 256, or 257 | msg-conv-payload-type=0 | dGPU, Jetson |
+| msg-broker-config | Pathname of an optional configuration file for the Gst-nvmsgbroker element (type=6). | String | msg-broker-config=/home/ubuntu/cfg_amqp.txt | dGPU, Jetson |
+| sleep-time | Sleep time between consecutive do_work calls in milliseconds | Integer >= 0.<br />For Azure, use value >= 10 depending on IoT Hub service tier message rate limit.<br />Warning: failure is likely with unreasonably high sleep times, e.g. 10000000 ms | sleep-time=10 | dGPU<br />Jetson |
+| new-api | use protocol adapter library api’s directly or use new msgbroker library wrapper api’s (type=6) | Integer<br />0 : Use adapter api’s directly<br />1 : msgbroker lib wrapper api’s | new-api = 0 | dGPU, Jetson |
+| msg-conv-msg2p-lib | Absolute pathname of an optional custom payload generation library. This library implements the API defined by sources/libs/nvmsgconv/­nvmsgconv.h.<br />Applicable only when msg-conv-payload-type=257, PAYLOAD_CUSTOM. (type=6) | String | msg-conv-msg2p-lib= /opt/nvidia/deepstream/deepstream-4.0/lib/libnvds_msgconv.so | dGPU, Jetson |
+| msg-conv-comp-id | comp-id Gst property of the nvmsgconv element; ID (gie-unique-id) of the primary/secondary-gie component from which metadata is to be processed. (type=6) | Integer, >=0 | msg-conv-comp-id=1 | dGPU, Jetson |
+| msg-broker-comp-id | comp-id Gst property of the nvmsgbroker element; ID (gie-unique-id) of the primary/secondary gie component from which metadata is to be processed. (type=6) | Integer, >=0 | msg-broker-comp-id=1 | dGPU, Jetson |
+| debug-payload-dir | Directory to dump payload (type=6) | String | debug-payload-dir=&lt;absolute path> Default is NULL | dGPU Jetson |
+| multiple-payloads | Generate multiple message payloads (type=6) | Boolean | multiple-payloads=1 Default is 0 | dGPU Jetson |
+| msg-conv-msg2p-new-api | Generate payloads using Gst buffer frame/object metadata (type=6) | Boolean | msg-conv-msg2p-new-api=1 Default is 0 | dGPU Jetson |
+| msg-conv-frame-interval | Frame interval at which payload is generated (type=6) | Integer, 1 to  4,294,967,295 | msg-conv-frame-interval=25 Default is 30 | dGPU Jetson |
+| disable-msgconv | Only add a message broker component instead of a message converter + message broker. (type=6) | Integer, | disable-msgconv = 1 | dGPU, Jetson |
+| enc-type | Engine to use for encoder<br />0: NVENC hardware engine<br />1: CPU software encoder | Integer,<br />0 or 1 | enc-type=0 | dGPU, Jetson |
+| profile (HW) | Encoder profile for the codec<br />V4L2 H264 encoder(HW):<br />0: Baseline<br />2: Main<br />4: High<br />V4L2 H265 encoder(HW):<br />0: Main<br />1: Main10 | Integer,<br />valid values from the column beside | profile=2 | dGPU, Jetson |
+| udp-buffer-size | UDP kernel buffer size (in bytes) for internal RTSP output pipeline. | Integer, >=0 | udp-buffer-size=100000 | dGPU, Jetson |
+| link-to-demux | A boolean which enables or disables streaming a particular “source-id” alone to this sink. Please check the tiled-display group enable key for more information. | Boolean | link-to-demux=0 | dGPU, Jetson |
+
+### Tests Group
+
+The tests group is for diagnostics and debugging.
+
+**Tests group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| file-loop | Indicates whether input files should be looped infinitely. | Boolean | file-loop=1 | dGPU, Jetson |
+
+### NvDs-analytics Group
+
+The `[nvds-analytics]` group is for adding `nvds-analytics` plugin in the pipeline.
+
+**NvDs-analytics group**
+
+| Key | Meaning | Type and Value | Example | Platforms |
+| --- | --- | --- | --- | --- |
+| enable | Enables or disables the plugin. | Boolean | enable=1 | dGPU, Jetson |
+| config-file | Configuration file path for nvdsanalytics plugin | String | config-file=config_nvdsanalytics.txt | dGPU, Jetson |
+
+<Note>
+See the DeepStream Plugin Guide for plugin-specific configuration file specifications (for the `Gst-nvdspreprocess`, `Gst-nvinfer`, `Gst-nvtracker`, `Gst-nvdewarper`, `Gst-nvmsgconv`, `Gst-nvmsgbroker` and `Gst-nvdsanalytics` plugins).
+</Note>
+
+## Application Tuning for DeepStream SDK
+
+This section provides application tuning tips for the DeepStream SDK using the following parameters in the configuration file.
+
+### Performance Optimization
+
+This section covers various performance optimization steps that you can try for maximum performance.
+
+#### DeepStream best practices
+
+Here are few best practices to optimize DeepStream application to remove bottlenecks in your application:
+
+1. Set the batch size of streammux and primary detector to equal the number of input sources. These settings are under `[streammux]` and `[primary-gie]` group of the config file. This keeps the pipeline running at full capacity. Higher or lower batch size than number of input sources can sometimes add latency in the pipeline.
+2. Set the height and width of streammux to the input resolution. This is set under `[streammux]` group of the config file. This ensures that stream doesn’t go through any unwanted image scaling.
+3. If you are streaming from live sources such as RTSP or from USB camera, set `live-source=1` in `[streammux]` group of config file. This enables proper timestamping for live sources creating smoother playback
+4. Tiling and visual output can take up GPU resource. There are 3 things that you can disable to maximize throughput when you do not need to render the output on your screen. As an example, rendering is not required when you want to run inference on the edge and transmit just the metadata to the cloud for further processing.
+
+  1. Disable OSD or on-screen display. OSD plugin is used for drawing bounding boxes and other artifacts and adding labels in the output frame. To disable OSD set enable=0 in the `[osd]` group of the config file.
+  2. The tiler creates an `NxM` grid for displaying the output streams. To disable the tiled output, set enable=0 in the `[tiled-display]` group of the config file.
+  3. Disable the output sink for rendering: choose `fakesink`, that is, `type=1` in the `[sink]` group of the config file. All the performance benchmark in Performance section are ran with tiling, OSD and output sink disabled.
+
+5. If CPU/GPU utilization is low, then one of the possibilities is that the elements in the pipeline are getting starved for buffers. Then try increasing the number of buffers allocated by the decoder by setting the `num-extra-surfaces` property of the `[source#]` group in the application or the `num-extra-surfaces` property of `Gst-nvv4l2decoder` element.
+6. If you are running the application inside docker console and it delivers low FPS, set `qos=0` in the configuration file’s `[sink0]` group. The issue is caused by initial load. When qos set to 1, as the property’s default value in the `[sink0]` group, `decodebin` starts dropping frames.
+7. If you want to optimize processing pipelines end to end latency you can use latency measurement method in DeepStream.
+
+  •	To enable frame latency measurement, run this command on the console:
+
+```
+$ export NVDS_ENABLE_LATENCY_MEASUREMENT=1
+```
+
+  •	To enable latency for all plugins, run this command on the console:
+
+```
+$ export NVDS_ENABLE_COMPONENT_LATENCY_MEASUREMENT=1
+```
+
+<Note>
+When measuring frame latency using DeepStream latency APIs if large frame latency numbers in the order of `10^12` or `1e12` are observed, modify the latency measurement code (call to `nvds_measure_buffer_latency` API) to
+
+```
+...
+guint num_sources_in_batch = nvds_measure_buffer_latency(buf, latency_info);
+
+if (num_sources_in_batch > 0 && latency_info[0].latency > 1e6) {
+  NvDsBatchMeta *batch_meta = gst_buffer_get_nvds_batch_meta (buf);
+  batch_meta->batch_user_meta_list = g_list_reverse (batch_meta->batch_user_meta_list);
+  num_sources_in_batch = nvds_measure_buffer_latency(buf, latency_info);
+}
+...
+```
+
+</Note>
+
+#### Jetson optimization
+
+1. Ensure that Jetson clocks are set high. Run these commands to set Jetson clocks high.
+
+```
+$ sudo nvpmodel -m 0
+$ sudo jetson_clocks
+```
+
+<Note>
+For **Jetson Orin Nano** modules, use `sudo nvpmodel -m 2` to enable MAXN SUPER mode.
+For all other Jetson Orin modules (including Orin NX), use `-m 0`.
+</Note>
+
+2. On Jetson, use `Gst-nvdrmvideosink` instead of `Gst-nv3dsink` as `nv3dsink` requires GPU utilization.
+
+#### Triton
+
+1. If you are using Triton with DeepStream, tune `tf_gpu_memory_fraction` values for TensorFlow GPU memory usage per process - suggested range [0.2, 0.6]. Too large value  can cause Out-of-memory and too small may cause low perf.
+2. Enable TensorRT optimization when using TensorFlow or ONNX with Triton. Update Triton config file to enable TensorFlow/ONNX TensorRT online optimization. This will take several minutes during initialization each time. Alternatively, you can generate TF-TRT `graphdef/savedmodel` models offline.
+
+#### Inference Throughput
+
+Here are a few steps to help you increase channel density for your application:
+
+1. With DeepStream, users can infer every other frame or every third frame and use a tracker to predict the location in the object. This can be done with a simple config file change. Users can use one of the 3 available trackers to track the object in the frame. In the inference config file, change the interval parameter under `[property]`. This is a skip interval, number of frames to skip between inference. Interval of 0 means infer every frames and interval of 1 means skip 1 frame and infer every other frame. This can effectively double your overall channel throughput by going from interval of 0 to 1.
+2. Choose lower precision such as FP16 or INT8 for inference. If you want to use FP16, no new model is required. This is a simple change in the DS. To change, update the network-mode option in the inference config file. If you want to run INT8, an INT8 calibration cache is required which contains the FP32 to INT8 quantization table.
+3. DeepStream app can also be configured to have cascaded neural network. First network does the detection followed by second network with does some classification on the detection. To enable secondary inference, enable the secondary-gie from the config file. Set the appropriate batch sizes. Batch size will depend on number of objects that are typically sent to the secondary inference from primary inference. You'll have to experiment to see what the appropriate batch size for their use case is. To reduce the number of inferences of the secondary classifier, the objects to infer on can be filtered by setting `input-object-min-width`, `input-object-min-height`, `input-object-max-width`, `input-object-max-height`, `operate-on-gie-id`, `operate-on-class-ids` appropriately.
+
+### Reducing Spurious Detections
+
+**Reducing spurious detections**
+
+| Configuration Parameter | Description | Use Case |
+| --- | --- | --- |
+| threshold | Per-class-threshold of primary detector.<br />Increasing the threshold restricts output to objects with higher detection confidence. | — |
+| roi-top-offset<br />roi-bottom-offset | Per-class top/bottom region of interest (roi) offset.<br />Restricts output to objects in a specified region of the frame. | To reduce spurious detections seen on the dashboard of dashcams |
+| detected-min-w<br />detected-min-h<br />detected-max-w<br />detected-max-h | Per-class min/max object width/height for primary-detector<br />Restricts output to objects of specified size. | To reduce false detections, for example, a tree being detected as a person |

@@ -1,0 +1,12 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+confidence_threshold,Detection score lesser than this threshold would be rejected,float,confidence_threshold:0.5,"Detector
+
+Both"
+iou_threshold,Maximum IOU score between two proposals after which the proposal with the lower confidence will be rejected.,float,iou_threshold: 0.3,"Detector
+
+Both"
+topk,Specify top k detection results to keep after nms,"int32, >= 0","topk: 2;
+value 0, means keep all.","Detector
+
+Both"

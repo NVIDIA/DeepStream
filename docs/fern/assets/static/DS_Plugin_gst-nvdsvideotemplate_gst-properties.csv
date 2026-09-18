@@ -1,0 +1,10 @@
+﻿Property,Meaning,Type and Range,Example/Notes,Platforms
+gpu-id,Device ID of GPU to use for decoding.,"Integer, 0 to 4,294,967,295",gpu-id=0,dGPU
+customlib-name,custom library Name to be used,String,Default: null,dGPU
+customlib-props,"Custom Library Properties (key:value) string, can be set multiple times,vector is maintained internally",String,Default: null,dGPU
+dummy-meta-insert,Set to enable dummy meta data insertion,Boolean,Default: false,dGPU
+fill-dummy-batch-meta,Set to fill dummy batch meta data sent from nvstreammux,Boolean,Default: false,dGPU
+config-file,Set config file path to load properties from (takes precedence over individual properties),String,Default: null,dGPU
+name,The name of the object,String,Default: "nvdsvideotemplate0",dGPU
+parent,The parent of the object,Object of type "GstObject",Default: null,dGPU
+qos,Handle Quality-of-Service events,Boolean,Default: false,dGPU

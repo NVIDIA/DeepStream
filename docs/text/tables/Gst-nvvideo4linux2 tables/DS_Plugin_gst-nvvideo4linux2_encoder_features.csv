@@ -1,0 +1,3 @@
+﻿Feature,Description
+Supports H.264 encode,"8 bit I420/NV12, 8bit YUV444 raw format can be encoded into h264 bitstream"
+Supports H.265 encode,"8/10 bit I420/NV12, 8/10 bit YUV444 raw format can be encoded into h265 bitstream"

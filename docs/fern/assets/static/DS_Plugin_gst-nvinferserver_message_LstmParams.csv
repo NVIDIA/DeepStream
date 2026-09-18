@@ -1,0 +1,10 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+loops,Specify LSTM loops between input and output tensors.,"LstmLoop
+[repeated]","loops [ {
+  input: “init_state”
+  output: “out_state”
+} ]
+See details in LstmParams::LstmLoop","All
+
+Both"

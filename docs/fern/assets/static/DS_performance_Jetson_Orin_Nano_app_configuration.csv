@@ -1,0 +1,13 @@
+﻿Application Configuration,Specification
+N×1080p 30 fps streams,"| ``sample_1080p_h265.mp4`` (provided with the SDK) N=13
+| ``sample_1080p_h264.mp4`` (provided with the SDK) N=8"
+Primary GIE,"* resnet18_trafficcamnet_pruned.onnx
+* Batch Size = N
+* Interval = 0"
+Tracker,"Enabled; processing at 960x544 resolution, IOU tracker enabled."
+2× secondary GIEs,"All batches are size 32. Asynchronous mode enabled.
+
+* Secondary_VehicleTypes (224×224—Resnet18)
+* Secondary_VehicleMake (224×224—Resnet18)"
+OSD/tiled display,Disabled
+Renderer,Disabled

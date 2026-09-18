@@ -1,0 +1,6 @@
+Property,Meaning,Type and Range,Example
+channel-scale-factors,scale factor list for each channel,Semicolon delimited float array,"channel-scale-factors=
+0.007843137;0.007843137;0.007843137"
+channel-mean-offsets,data mean offsets for each channel,Semicolon delimited float array,channel-mean-offsets=127.5;127.5;127.5
+stride,sequence sliding stride for each batched sequence,"Unsigned Integer, value >= 1",stride=1
+subsample,Subsample rates for inference images in each sequence,"Unsigned Integer, value >= 0",subsample=0

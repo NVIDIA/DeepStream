@@ -1,0 +1,10 @@
+﻿Feature,Description,Release
+Simplified APIs ,Simplified interface to implement custom library to add any algorithm without implementing new plugin,DS 5.1
+Easy Data Accessing,Easy access to GstBuffer and it’s metadata inside custom library,DS 5.1
+Synchronous and Asynchronous Buffer Processing,"Buffer_Ok is the responsibility of the plugin to push the buffer downstream.
+
+Buffer_Async is the responsibility of the custom library to push the buffer downstream.
+
+Buffer_Error and Buffer_Drop are currently not implemented",DS 5.1
+Reference Impl.,"Reference implementation of custom library provides transform, transform-ip, metadata handling etc. which can be modified as per the use case.",DS 5.1
+Abstraction APIs ,"Bufferpool creation, caps handling provided as an abstraction API inside customlib base class",DS 5.1

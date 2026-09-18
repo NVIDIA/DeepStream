@@ -1,0 +1,7 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs
+| (Primary/Secondary)"
+is_first_dim_batch,"Boolean indicating whether the preprocessed input tensor has first dimension as batch. Set true for batched input, false otherwise.
+",Boolean,is_first_dim_batch: true,"All
+
+Preprocessed tensor input mode"

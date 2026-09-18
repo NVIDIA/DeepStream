@@ -1,0 +1,49 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+labelfile_path,Pathname of a text file containing the labels for the model,string,labelfile_path: “=/home/ubuntu/model_labels.txt”,"All
+
+Both"
+oneof process_type,"Indicates one of the postprocessing type
+detection;
+classification;
+segmentation;
+other;",None,N/A,"All
+
+Both"
+detection,"Specify detection parameters for the network.
+It must be oneof process_type",DetectionParams,"detection {
+num_detected_classes: 4
+simple_cluster {
+threshold: 0.2
+}
+}
+see details in DetectionParams","Detector
+
+Both"
+classification,"Specify classification parameters for the network
+It is oneof process_type",ClassificationParams,"classification {
+threshold: 0.6
+}
+see details in ClassificationParams","Classifier
+
+Both"
+segmentation,"Specify semantic segmentation parameters for the network
+It is oneof process_type",SegmentationParams,"segmentation {
+threshold: 0.2
+num_segmentation_classes: 2
+}","Segmentation
+
+Both"
+other,"Specify other network parameters.
+This is for user-defined networks and usually coexists with output_control.output_tensor_meta: true. Tensor output data would be attached into GstBuffer. Data can be parsed in application. User can increase extra.output_buffer_pool_size if need to hold metadata longer.
+It is oneof process_type",OtherNetworkParams,"other {}
+see details in OtherNetworkParams","Others
+
+Both"
+triton_classification,"Specify Triton classification parameters for the network
+It is oneof process_type",TritonClassifyParams,"Triton_classification {
+topk: 1
+}
+see details in TritonClassifyParams","Classifier
+
+Both"

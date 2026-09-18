@@ -1,0 +1,40 @@
+﻿Plugin or library,Path inside sources directory,Description
+DsExample GStreamer plugin,gst-plugins/gst-dsexample,Template plugin for integrating custom algorithms into DeepStream SDK graph.
+GStreamer Gst-nvmsgconv plugin,gst-plugins/gst-nvmsgconv,Source code for the GStreamer Gst-nvmsgconv plugin to convert metadata to schema format.
+GStreamer Gst-nvmsgbroker plugin,gst-plugins/gst-nvmsgbroker,Source code for the GStreamer Gst-nvmsgbroker plugin to send data to the server.
+GStreamer Gst-nvdspreprocess plugin,gst-plugins/gst-nvdspreprocess,Source code for the GStreamer Gst-nvdspreprocess plugin for preprocessing on the predefined ROIs.
+GStreamer Gst-nvinfer plugin,gst-plugins/gst-nvinfer,Source code for the GStreamer Gst-nvinfer plugin for inference.
+GStreamer Gst-nvinferserver plugin,gst-plugins/gst-nvinferserver,Source code for the GStreamer Gst-nvinferserver plugin for inference using Triton Inference Server.
+GStreamer Gst-nvdsosd plugin,gst-plugins/gst-nvdsosd,"Source code for the GStreamer Gst-nvdsosd plugin to draw bboxes, text and other objects."
+Gstreamer Gst-nvdewarper plugin,gst-plugins/gst-nvdewarper,Source code for the GStreamer Gst-nvdewarper plugin to dewarp frames
+NvDsInfer library,libs/nvdsinfer,"Source code for the NvDsInfer library, used by the Gst-nvinfer GStreamer plugin."
+NvDsInferServer library,libs/nvdsinferserver,"Source code for the NvDsInferServer library, used by the Gst-nvinferserver GStreamer plugin."
+NvDsNmos library,libs/nvdsnmos,"Source code for the NvDsNmos library, demonstrated by the DeepStream NMOS Application."
+NvMsgConv library,libs/nvmsgsconv,"Source code for the NvMsgConv library, required by the Gst-nvmsgconv GStreamer plugin."
+Kafka protocol adapter,libs/kafka_protocol_adapter,Protocol adapter for Kafka.
+nvds_rest_server library,libs/nvds_rest_server,Source code for the rest server.
+nvds_customhelper,libs/gstnvdscustomhelper,"Source code for ""nvdsmultiurisrcbin helper"" and custom ""gst-events, gst-messages and common configs"" required for rest server."
+nvdsinfer_customparser,libs/nvdsinfer_customparser,Custom model output parsing example for detectors and classifiers.
+Gst-v4l2,See the note below [#f1]_,Source code for v4l2 codecs.
+Gstreamer gst-nvdsvideotemplate plugin,gst-plugins/gst-nvdsvideotemplate,Source code for template plugin to implement video custom algorithms (non Gstreamer based)
+NvDsVideoTemplate custom library,gst-plugins/gst-nvdsvideotemplate/customlib_impl,Source code for custom library to implement video custom algorithms
+Gstreamer gst-nvdsmetautils,gst-plugins/gst-nvdsmetautils,Source code for Gstreamer Gst-nvdsmetainsert and Gst-nvdsmetaextract plugins to process metadata
+NvDsMetaUtils SEI serialization library,gst-plugins/gst-nvdsmetautils/sei_serialization,"Source code for custom meta de/serialization to embed in encoded bitstream as SEI data, required by Gst-nvdsmetautils plugins "
+NvDsMetaUtils Audio serialization library,gst-plugins/gst-nvdsmetautils/audio_metadata_serialization,"Source code for Audio NvDsFrameMeta de/serialization, required by Gst-nvdsmetautils plugins "
+NvDsMetaUtils Video serialization library,gst-plugins/gst-nvdsmetautils/video_metadata_serialization,"Source code for Video NvDsFrameMeta & NvDsObjectMeta de/serialization, required by Gst-nvdsmetautils plugins "
+Gstreamer gst-nvvideotestsrc plugin,gst-plugins/gst-nvvideotestsrc,Source code to generate video test data in a variety of formats and patterns that is written directly to GPU output buffers
+Gstreamer gst-nvdspostprocess plugin,gst-plugins/gst-nvdspostprocess,Source code for the plugin and low level lib to provide a custom library interface for post processing on Tensor output of inference plugins (nvinfer/nvinferserver)
+Gstreamer gst-nvtracker plugin,gst-plugins/gst-nvtracker,Source code for the plugin to track the detected objects with persistent (possibly unique) IDs over time
+Gstreamer gst-nvdsanalytics plugin,gst-plugins/gst-nvdsanalytics,Interface for performing analytics on metadata attached by nvinfer (primary detector) and nvtracker
+Gstreamer gst-nvstreammux New plugin,gst-plugins/gst-nvmultistream2,Source code for the plugin to form a batch of frames from multiple input sources
+DS3D lidar file reader custom lib,libs/ds3d/dataloader/lidarsource,"Source code for DS3D lidar file reader with an implementation of ds3d::dataloader interface, developer could follow it to implement custom lidar device capture,  see lib details in :ref:`DS_3D_Custom_Manual_dataloader_lidar_file_spec`"
+DS3D lidar data reader custom process lib,libs/ds3d/datafilter/lidar_preprocess,Source code for DS3D lidar data processing with an implementation of ds3d::datafilter interface
+DS3D lidar detection postprocess custom lib,libs/ds3d/inference_custom_lib/ds3d_lidar_detection_postprocess,Source code for DS3D lidar and sensor fusion(bevfusion) postprocessing custom lib
+DS3D lidar v2xfusion postprocess custom lib,libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_postprocess,Source code for DS3D lidar and sensor fusion(v2xfusion) postprocessing custom lib
+DS3D lidar v2xfusion preprocess custom lib,ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess,Source code for DS3D sensor fusion(v2xfusion) preprocess custom lib
+Gstreamer Gst-nvurisrcbin plugin,gst-plugins/gst-nvurisrcbin,"Source code for the Gstreamer Gst-nvurisrcbin plugin which is is a wrapper over uridecodebin with additional functionality of the file looping, rtsp reconnection and smart record"
+Gstreamer Gst-nvmultiurisrcbin plugin,gst-plugins/gst-nvmultiurisrcbin,"Source code for the Gstreamer Gst-nvmultiurisrcbin plugin which integrates gstnvurisrcbin, nvstreammux plugin with REST server support enabled by default."
+Gst-nvdssr library,libs/gst-nvdssr,Source code for smart record library
+nvll_osd library,libs/nvll_osd,Source code for osd low level library
+Gstreamer gst-nvimage,gst-plugins/gst-nvimage,Source code for nvimageenc and nvimagedec plugin
+Gstreamer gst-nvdsudp,gst-plugins/gst-nvdsudp,"Source code for nvdsudpsrc, nvdsudpsink plugin"

@@ -1,0 +1,2 @@
+Name,Description,Models,Backend,Output
+"`vllm <https://github.com/NVIDIA-AI-IOT/inference_builder/tree/main/builder/samples/vllm>`__","example of building inference microservices with vLLM backend and DeepStream MediaExtractor","Cosmos-Reason2-2B, Qwen3-VL-2B-Instruct","vLLM, DeepStream",microservice

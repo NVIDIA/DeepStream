@@ -1,0 +1,6 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+name,output tensor name,string,name: “detection_boxes”,"| All
+| Both"
+max_buffer_bytes,output tensor reserved buffer bytes,uint64,max_buffer_bytes: 2048,"| All
+| Both"

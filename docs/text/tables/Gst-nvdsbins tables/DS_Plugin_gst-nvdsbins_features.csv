@@ -1,0 +1,3 @@
+﻿Feature,Description,Release
+Simplified element chains,Wraps commonly used multi-element chains behind a single element with a simplified property set,DS 9.2
+Ready-to-use pipeline building blocks,"Provides 13 pre-built bins covering inference, OSD, dewarping, tiling, tracking, analytics, camera capture, rendering, encoding, RTSP output, message broker publishing, and buffer synchronization",DS 9.2

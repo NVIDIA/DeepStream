@@ -1,0 +1,23 @@
+﻿Property,Meaning,Type and Range,Example Notes
+gpu-id,Device ID of the GPU used for processing,"Integer,
+0 to 4,294,967,295",gpu-id=0
+enable,Enables or disables frame selection,Boolean,enable=1
+cache-size,Number of received frames retained before a selection decision,"Integer,
+1 to 4,294,967,295",cache-size=30
+selection-count,Number of frames selected from each cache window,"Integer,
+1 to 4,294,967,295",selection-count=5
+percentage-threshold,"Percentage threshold for frame filtering (0.0-100.0%, where 100% = max pixel difference of 255)","Double,
+0.0 to 100.0",percentage-threshold=10.0
+averaging-frames,Number of frames to average for normalization,"Integer,
+1 to 4,294,967,295",averaging-frames=5
+exclusion-range,+/- range value for frame exclusion in the selection algorithm,"Integer,
+0 to 4,294,967,295",exclusion-range=2
+frame-selection-algorithm,"Algorithm to use for frame selection: 0=BASIC equidistant, 1=RANGE_BASED SAD, 2=optical flow (default)",Enum,frame-selection-algorithm=2
+bypass-mode,Passes all frames through without selection when enabled,Boolean,bypass-mode=0
+optical-flow-interval,Analyzes every Nth received frame for optical flow; 0 automatically targets an approximately 0.5-second optical-flow interval,"Integer,
+0 to 4,294,967,295",optical-flow-interval=0
+enable-motion-detection,Enables optical-flow-based motion detection for adaptive frame selection,Boolean,enable-motion-detection=1
+source-fps,"Native stream FPS; set when the input has been decimated before this element, so motion is normalized correctly","Double",source-fps=30.0
+of-tighten,"Tighten factor applied to the motion-scaled frame count before the minimum clamp (e.g. 0.5 halves the count, dropping the weakest frames); overridable at runtime via env NVDS_FSELECT_OF_TIGHTEN","Double,
+0.0 to 1.0 (exclusive of 0.0)",of-tighten=0.5
+equidistant-output,"When TRUE, outputs evenly spaced frames from the chunk instead of motion-ranked frames; the count is still determined by the configured selection algorithm",Boolean,equidistant-output=0

@@ -1,0 +1,43 @@
+---
+title: "Gst-nvbufsurfacewrite"
+---
+
+The Gst-nvbufsurfacewrite plugin is an in-place debug utility that writes frames from incoming NVMM NvBufSurface buffers to raw NV12, RGBA, or BGRx files, while allowing the buffer to continue downstream unmodified. It uses gpu-id to select the CUDA device used for the device-to-host copy. Each output file is named from the element's instance name and the frame number, with an extension matching the buffer's format (for example `<element-name><frame-num>.nv12`).
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	GStreamer buffer containing an NVMM NvBufSurface frame (NV12, RGBA, or BGRx)
+
+* Control parameters
+
+  *	gpu-id, selects the GPU used for the device-to-host copy
+  *	silent, suppresses verbose console output
+
+* Output
+
+  *	The same GStreamer buffer, unmodified, passed through to the next element
+  *	One raw image file per frame written to disk
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvbufsurfacewrite plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Raw frame dump to disk | Writes incoming NVMM buffer frames to raw NV12/RGBA/BGRx files without blocking the pipeline | DS 9.2 |
+| GPU-selectable device-to-host copy | Uses gpu-id to select the CUDA device used to copy the frame from device to host memory | DS 9.2 |
+
+## Gst Properties
+
+The following table describes the Gst properties of the Gst-nvbufsurfacewrite plugin.
+
+**Gst-nvbufsurfacewrite plugin gst properties**
+
+| Property | Meaning | Type and Range | Example Notes |
+| --- | --- | --- | --- |
+| gpu-id | Device ID of the GPU used for the device-to-host copy | Integer,<br />0 to 4,294,967,295 | gpu-id=0 |
+| silent | Produces verbose console output when set to FALSE | Boolean | silent=FALSE |

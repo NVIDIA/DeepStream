@@ -1,0 +1,33 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+gpu-id,GPU element is to use in case of multiple GPUs.,"Integer, ≥0",gpu-id=1,dGPU
+live-source,Informs the muxer that sources are live.,Boolean,live-source=0,"dGPU, Jetson"
+buffer-pool-size,Number of buffers in Muxer output buffer pool.,"Integer, >0",buffer-pool-size=4,"dGPU, Jetson"
+batch-size,Muxer batch size.,"Integer, >0",batch-size=4,"dGPU, Jetson"
+batched-push-timeout,"Timeout in microseconds after to push the batch after the first buffer is available, even if the complete batch is not formed.","Integer, ≥−1",batched-push-timeout=40000,"dGPU, Jetson"
+width,Muxer output width in pixels.,"Integer, >0",width=1280,"dGPU, Jetson"
+height,Muxer output height in pixels.,"Integer, >0",height=720,"dGPU, Jetson"
+enable-padding,Indicates whether to maintain source aspect ratio when scaling by adding black bands.,Boolean,enable-padding=0,"dGPU, Jetson"
+nvbuf-memory-type,"Type of CUDA memory the element is to allocate for output buffers.
+
+0 (nvbuf-mem-default, a platform-specific default
+
+1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory.
+
+2 (nvbuf-mem-cuda-device): Device CUDA memory.
+
+3 (nvbuf-mem-cuda-unified): Unified CUDA memory.
+ 
+For dGPU: All values are valid.
+
+For Jetson: Only 0 (zero) is valid.","Integer,
+0, 1, 2, or 3",nvbuf-memory-type=3,dGPU
+attach-sys-ts-as-ntp,"For live sources, the muxed buffer shall have associated NvDsFrameMeta->ntp_timestamp set to system time or the server’s NTP time when streaming RTSP.
+
+If set to 1, system timestamp will be attached as ntp timestamp.
+
+If set to 0, ntp timestamp from rtspsrc, if available, will be attached. ",Boolean,attach-sys-ts-as-ntp=0,"dGPU, Jetson"
+config-file-path,"This key is valid only for the new streammux. Please refer the plugin manual section “New Gst-nvstreammux” for more information.
+Absolute or relative (to DS config-file location) path of mux configuration file.",String,config-file-path=config_mux_source30.txt,"dGPU, Jetson"
+sync-inputs,Time synchronize input frames before batching them.,Boolean,sync-inputs=0 (default),"dGPU, Jetson"
+max-latency,Additional latency in live mode to allow upstream to take longer to produce buffers for the current position (in nanoseconds).,"Integer, ≥0",max-latency=0 (default),"dGPU, Jetson"
+drop-pipeline-eos,Boolean property to control EOS propagation downstream from nvstreammux when all the sink pads are at EOS. (Experimental),"Boolean",drop-pipeline-eos=0(default),dGPU/Jetson

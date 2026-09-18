@@ -1,0 +1,24 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+model_name,Triton inference model name,string,model_name: “ssd_inception_graphdef”,"| All
+| Both"
+version,"Triton model version number.
+-1, latest version number.
+>0, reserved for specific version number in future version
+",int64,version: -1,"| All
+| Both"
+model_repo,"Triton model repository settings.
+Note, all model_repo settings must be same in single process",TritonParams::TritonModelRepo,"model_repo {
+root: “../triton_model_repo”
+log_level: 2
+}
+Refer the details in TritonModelRepo
+","| All
+| Both"
+grpc,"Triton gRPC server settings.",TritonParams::TritonGrpcParams,"grpc {
+url: “localhost:8001”
+enable_cuda_buffer_sharing: false
+}
+Refer the details in TritonGrpcParams
+","| All
+| Both"

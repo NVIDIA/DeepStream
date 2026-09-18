@@ -1,0 +1,52 @@
+---
+title: "Gst-nvjpegdec"
+---
+
+The Gst-nvjpegdec plugin decodes images on both dGPU and Jetson platforms. It is the preferred method for decoding JPEG images.
+On the dGPU platform this plugin is based on the `libnvjpeg` library, part of the CUDA toolkit. On Jetson it uses a platform-specific hardware accelerator.
+The plugin uses an internal software parser to parse JPEG streams. Thus, there is no need to use a `jpegparse` open source plugin separately to parse the encoded frame.
+The plugin accepts a JPEG encoded bitstream. It produces RGB(NVMM) output on the dGPU platform. For Jetson platform, it can produce I420 as (RAW and NVMM) and GRAY8/NV12/YUY2/Y42B/Y444/RGBA as NVMM. This plugin is not applicable
+on (ARM + dGPU) platforms like arm-sbsa. Use nvimagedec plugin instead. OSS nvjpegdec plugin may be listed in these platforms, but don't use that.
+
+<Note>
+As a pre-requisite for Jetson, the library `libnvjpeg.so.13` should be present in the BSP. If the [CUDA Toolkit 13.0](https://developer.nvidia.com/cuda-13-0-0-download-archive) is installed, it will be part of it.
+</Note>
+
+## Inputs and Outputs
+
+* Inputs
+
+  *	Elementary JPEG
+
+* Output
+
+  *	Gst Buffer with decoded output in RGB format for dGPU, and I420/GRAY8/NV12/YUY2/Y42B/Y444/RGBA format for Jetson
+
+## Features
+
+The following table summarizes the features of the Gst-nvjpegdec plugin.
+
+**Gst-nvjpegdec plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports JPEG Decode | — | DS 4.0 |
+| Supports MJPEG Decode | — | DS 4.0 |
+
+## Gst Properties
+
+The following table summarizes the Gst properties of the Gst-nvjpegdec plugin.
+
+**Gst-nvjpegdec plugin gst properties**
+
+| Property | Meaning | Type and Range | Example and Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| Enableperf | Enable decode time measurement | Boolean | Default: false | dGPU + Jetson |
+| gpu-id | Set GPU Device ID for operation | Unsigned Integer<br />0 to 4294967295 | Default: 0 | dGPU + Jetson |
+| idct-method | The IDCT algorithm to use | Enum "GstNvIDCTMethod<br />0: islow (Slow but accurate integer algorithm)<br />1: ifast (Faster, less accurate integer method)<br />2: float (Floating-point: accurate, fast on fast HW) | Default: 1 (ifast) | dGPU + Jetson |
+| mjpegdecode | Enable mjpeg decoder path for decode operations | Boolean | Default: true | Jetson |
+| needs-buffer-pool | Needs buffer pool | Boolean | Default: true | Jetson |
+| nv12output | Enable nv12 output for i420 input | Boolean | Default: false | Jetson |
+| out-mem-type | Set decoder output memory type | Enum "DecMemType<br />0: memtype_default (Memory type Default)<br />1: memtype_pinned (Memory type Host Pinned)<br />2: memtype_device (Memory type Device)<br />4: memtype_surface_array (Memory type Surface Array) | Default: 0 (memtype_default) | Jetson |
+| rgbaoutput | Enable rgba output | Boolean | Default: false | Jetson |
+| yuy2output | Enable yuy2 output for yuv422 input | Boolean | Default: false | Jetson |

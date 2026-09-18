@@ -1,0 +1,46 @@
+---
+title: "Gst-nvdsbins"
+---
+
+The Gst-nvdsbins plugin provides a set of ready-to-use DeepStream bins. Each bin wraps a commonly used element chain behind a single GStreamer element with a simplified property set, so pipelines that only need default behavior can use one element instead of assembling and configuring several. Each bin's simplified properties map onto the properties of the underlying element(s) it wraps; refer to the linked plugin page for the full set of underlying properties and behavior.
+
+## Inputs and Outputs
+
+* Inputs and outputs depend on the individual bin; each bin's inputs/outputs match those of the underlying element(s) it wraps (see the linked plugin pages).
+
+* Control parameters
+
+  *	Each bin exposes a simplified property set covering the most commonly used properties of the element(s) it wraps
+
+## Elements Provided
+
+The following table lists the elements registered by the Gst-nvdsbins plugin.
+
+**Gst-nvdsbins plugin elements**
+
+| Element | Wraps | Description |
+| --- | --- | --- |
+| nvinferbin | :doc:`DS_plugin_gst-nvinfer` | Ready-to-use inference bin using the TensorRT-based nvinfer element for primary/secondary detection or classification. |
+| nvinferserverbin | :doc:`DS_plugin_gst-nvinferserver` | Ready-to-use inference bin using the Triton-based nvinferserver element. |
+| nvosdbin | :doc:`DS_plugin_gst-nvdsosd` | Ready-to-use bin for drawing bounding boxes, text, and other on-screen display overlays. |
+| nvdewarperbin | :doc:`DS_plugin_gst-nvdewarper` | Ready-to-use bin for dewarping fisheye or 360-degree camera input. |
+| nvtilerbin | :doc:`DS_plugin_gst-nvmultistreamtiler` | Ready-to-use bin for tiling multiple streams into a single composited output for display. |
+| nvtrackerbin | :doc:`DS_plugin_gst-nvtracker` | Ready-to-use bin for object tracking across frames. |
+| nvcamerasrcbin | N/A (source bin) | Ready-to-use bin for capturing input from a connected camera source. |
+| nvanalyticsbin | :doc:`DS_plugin_gst-nvdsanalytics` | Ready-to-use bin for ROI filtering, line crossing, direction detection, and overcrowding analytics. |
+| nvvideorenderersinkbin | N/A (sink bin) | Ready-to-use bin for rendering the composited video output to a display. |
+| nvvideoencfilesinkbin | N/A (sink bin) | Ready-to-use bin for encoding video and writing the result to a file. |
+| nvrtspoutsinkbin | N/A (sink bin) | Ready-to-use bin for streaming the pipeline output over RTSP. |
+| nvmsgbrokersinkbin | :doc:`DS_plugin_gst-nvmsgconv` + :doc:`DS_plugin_gst-nvmsgbroker` | Ready-to-use bin for converting and publishing metadata to a message broker. |
+| nvdsbuffersyncbin | N/A (utility bin) | Ready-to-use bin for synchronizing buffers across multiple pipeline branches. |
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsbins plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Simplified element chains | Wraps commonly used multi-element chains behind a single element with a simplified property set | DS 9.2 |
+| Ready-to-use pipeline building blocks | Provides 13 pre-built bins covering inference, OSD, dewarping, tiling, tracking, analytics, camera capture, rendering, encoding, RTSP output, message broker publishing, and buffer synchronization | DS 9.2 |

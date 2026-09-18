@@ -1,0 +1,28 @@
+Feature,dGPU,Jetson,Release
+Gst-nvinferserver Running on Host,No,Yes,DS 5.0
+Running on Docker Image,Yes,Yes(DS 6.0),DS 5.0
+DS Preprocessing: Network input format: RGB/BGR/Gray,Yes,Yes,DS 5.0
+DS Preprocessing: Network input data types FP32/FP16/UINT8/INT8/UINT16/INT16/UINT32/INT32,Yes,Yes,DS 5.0
+"DS Preprocessing: Network input tensor orders
+NCHW / NHWC",Yes,Yes,DS 5.0
+Mem: Cuda(GPU) buf-sharing for Input Tensors,Yes,Yes,DS 5.0
+Mem: Cuda Memory (GPU / CPU-pinned) for output tensors,Yes,Yes,DS 5.0
+Backend: TensorRT runtime (plan engine file),Yes,Yes,DS 5.0
+Backend: Tensorflow Runtime CPU/GPU (graphdef/savedmodel),Yes,Yes,DS 5.0
+Backend: Tensorflow Runtime with TF-TRT acceleration,Yes,Yes,DS 5.0
+Backend: ONNX Runtime,Yes,Yes(DS 6.0),DS 5.0
+Backend: ONNX Runtime with ONNX-TRT acceleration,Yes,Yes(DS 6.0),DS 5.0
+Backend: Pytorch Runtime,Yes,No,DS 5.0
+Postprocessing: DS Detection / Classification/ Segmentation,Yes,Yes,DS 5.0
+Postprocessing: DS Detection cluster method: NMS / GroupRectangle / DBSCan / None,Yes,Yes,DS 5.0
+Postprocessing: custom parsing (NvDsInferParseCustomTfSSD),Yes,Yes,DS 5.0
+Postprocessing: Triton native classification,Yes,Yes,DS 5.0
+Triton Ensemble Mode (Triton preproc/postproc) with specified media-format (RGB/BGR/Gray) with Cuda GPU buffer as inputs,Yes,Yes,DS 5.0
+Postprocessing: Attach Triton raw tensor output in NvDsInferTensorMeta for downstream or application postprocessing,Yes,Yes,DS 5.0
+deepstream-app: pipeline works with PGIE / SGIE / nvtracker,Yes,Yes,DS 5.0
+Sample App: deepstream-infer-tensor-meta-test,Yes,Yes,DS 5.0
+"Basic LSTM features on single batch and single stream (beta version, config file might be changed in future version)",Yes,Yes,DS 5.0
+gRPC: Triton Server running as independent process and plugin communicates through gRPC,Yes,Yes,DS 6.0
+"Custom process interface ``IInferCustomProcessor`` for extra multi-input tensors preprocess, multi-streams LSTM loop process, custom output data postprocess(parsing and metadata attaching). Basic single-stream LSTM could be replaced by custom loop process",Yes,Yes,DS 6.0
+gRPC: CUDA buffer sharing with local Triton server for input tensors,Yes,Yes,DS 6.2
+Postprocessing: Clip object bounding boxes to fit within the ROI,Yes,Yes,DS 6.3

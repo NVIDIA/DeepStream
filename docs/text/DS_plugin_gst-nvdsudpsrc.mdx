@@ -1,0 +1,282 @@
+---
+title: "Gst-nvdsudpsrc"
+---
+
+The Gst-nvdsudpsrc plugin is a source type component which is used to receive the UDP-RTP packets from the network. Internally, the plugin uses `Rivermax` SDK APIs for network communications. NVIDIA Rivermax <sup>®</sup> offers a unique IP-based solution for any media and data streaming use case. For more details, see the [Rivermax Product Page.](https://developer.nvidia.com/networking/rivermax).
+
+Rivermax utilizes the kernel bypass technology and RDMA capabilities to achieve better CPU performance, low latency, and higher bandwidth. On top of `Rivermax` based enhancements, some of memory and buffer management optimization have been implemented to further reduce the CPU utilization in case of high packet rate use cases.
+
+This component also supports RTP header and payload separation. RTP header and payloads can be received in separate memories. Header will always be in system memory while payload can directly be copied to GPU (Pinned) memory. This can avoid memory copies in cases when GPU processing is performed on the RTP payloads. Header and payload separation will happen only if `header-size` property is set to non-zero value and for fixed header size.
+
+High resolution uncompressed video streams have a very high number of RTP packets per second. In such case, OSS de-packetization component (rtpvrawdepay) becomes bottleneck to process stream real-time. To handle such cases, `nvdsudpsrc` has added support for de-packetization of uncompressed video and audio streams as per SMPTE 2110-20/30 specifications. In this mode, nvdsudpsrc will provide GstBuffer having complete video / audio frame as an output instead of RTP packets.
+
+<Note>
+To use de-packetization for uncompressed video and audio payloads within `nvdsudpsrc`, there are certain assumptions regarding input stream.
+
+* Each RTP packet must be of fixed size with fixed header and payload size.
+* There should not be more than one sample row data (SRD) per RTP packet.
+</Note>
+
+With the support for de-packetization, `nvdsudpsrc` can now have five different operating modes based on the value of `caps` property of the component.
+
+**Default mode**
+  nvdsudpsrc will receive RTP packets having any type of payload from the network and push those packets to the downstream depayloader component for de-packetization. In this mode, nvdsudpsrc component is agnostic to content of the RTP packet. This is default mode and the source pad should have “application/x-rtp, ……” as caps.
+
+**Uncompressed video frame as output**
+  nvdsudpsrc will receive RTP packets having uncompressed video as payload and will do de-packetization as per SMPTE 2110-20 specification to form a video frame before sending to downstream components. This mode will be activated when caps property is set with “video/x-raw(memory:NVMM), …..” caps. From DS 8.0, caps can be set to "video/x-raw, ….." as well if required, to get output in software memory.
+
+**Uncompressed audio frame as output**
+  nvdsudpsrc will receive RTP packets having uncompressed audio as payload and will do de-packetization as per SMPTE 2110-30 specification to form an audio frame before sending to downstream components. This mode will be activated when the caps property is set with “audio/x-raw, …..” caps.
+
+**Generic data as output**
+  nvdsudpsrc will receive RTP packets having any type of payload and will do de-packetization to form a frame before sending to downstream components. In this case, the frame boundary is not decided based on the parsing of the RTP / payload header but based on the configurable value of the number of packets. i.e., the value of `payload-multiple` property will decide on how many packets are considered as a frame and nvdsudpsrc will remove the RTP header of those many packets and combine the payloads to form a frame. This mode will be activated when the caps property is set with “application/x-custom, …..” caps.
+
+**SMPTE ST 2110-40 ancillary data as output (RFC 8331)**
+  `nvdsudpsrc` supports reception of SMPTE 291M ancillary (ANC) data — for example, closed captions encoded as CEA-608/708 — over ST 2110 networks as per SMPTE ST 2110-40 / RFC 8331. In this mode, the plugin receives RFC 8331 RTP packets, performs per-packet bit-level extraction of each ANC sub-packet (DID, SDID, data count, user words and checksum) from the 10-bit bit-packed payload, and outputs one `GstBuffer` in ST2038 wire format per ANC packet for downstream processing.
+
+  * This mode is activated by setting `meta/x-st-2038` caps on the source pad.
+  * The RTP marker bit is propagated to downstream as buffer flags so that downstream elements can identify the last ANC packet of a field/frame.
+  * `use-rtp-timestamp` is honoured and the RTP timestamp from the incoming packets is propagated to the buffer PTS, enabling lip-sync between the ANC stream and the corresponding video/audio essence at the receiver.
+  * Output buffers are always allocated in host memory. GPU Direct is not applicable for ancillary streams. If `gpu-id` is set, it is automatically disabled with a warning when `meta/x-st-2038` caps are negotiated.
+  * SMPTE 2022-7 dual-path reception is supported for ANC streams via the `st2022-7-streams` and `local-iface-ip` properties — same semantics as for video/audio streams.
+
+**SMPTE 2022-7 feature support**
+  The plugin supports SMPTE 2022-7 dual path reception.  Its main purpose is to ensure uninterrupted transport of media streams, by listening to redundant stream of RTP packets to safeguard against packet loss or network/interface failures.
+
+  To enable this SMPTE 2022-7 feature, make use of properties "st2022-7-streams" and "local-iface-ip".
+
+  The order you list the streams and IP addresses is important. Each stream in "st2022-7-streams" must be paired, in order, with its matching IP address in "local-iface-ip". It's a strict 1:1 mapping. The first stream goes with the first IP, the second stream with the second IP, and so on
+
+* Example pipeline to receive two duplicate streams (SMPTE 2022-7) of 1920x1080 / 10bit / 4:2:2 / UYVP format / 30fps through two local interfaces:
+
+    ```text
+    gst-launch-1.0 nvdsudpsrc local-iface-ip=<ip address of NIC1>,<ip address of NIC2> st2022-7-streams=<unicast / multicast address for stream1>:<stream1 port>,<unicast / multicast address of stream2>:<stream2 port> caps='video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)UYVP, framerate=30/1' header-size=20 payload-size=1200 gpu-id=0 ! nvvideoconvert ! 'video/x-raw' ! fakesink -v --gst-debug=3
+    ```
+
+**Timestamps in RTP packet headers**
+  - By default, nvdsudpsrc ignores the timestamp in RTP packet and generates buffer pts/dts based on the system clock.
+
+  - If `use-rtp-timestamp` property is set, the plugin will parse the RTP timestamp it received, and use it to calculate the buffer pts / running time.
+    The logic for reconstruction of rtp ticks and converting it to running time is as follows:
+
+    ```text
+    - Get current time from epoch time (real clock)
+    - Convert current time to RTP ticks. (clock rate used for calculation  to rtp ticks)
+    - Mask upper 32 bits out of the above RTP ticks and consider as rtp_tick_base for reconstruction of 64 bit RTP ticks.
+    - Add 32 bit rtp ticks received from RTP packet header to this rtp_tick_base
+      (This will be 64 bit reconstructed rtp ticks)
+    - Convert the 64 bit rtp ticks to RTP time
+      (RTP time = rtp ticks in seconds / clock rate)
+    
+    Buffer PTS/DTS = (RTP time - Base Time Of Pipeline) - LEAP_SECONDS (if enabled "adjust-leap-seconds" is enabled)
+    ```
+
+    We should use CLOCK_REALTIME for the sender and receiver pipeline, in case we want to achieve reconstruction of RTP timestamp (punched from nvdsudpsink/sender) at nvdsudpsrc/receiver component. That is why, when `use-rtp-timestamp` property is enabled the nvdsudpsrc acts as a clock provider to the pipeline based on REALTIME_CLOCK.
+    Also, for the above logic to work, it is important that the systems used are synchronized to same time using some protocols like NTP or PTP.
+
+  -  The `adjust-leap-seconds` property is used to subtract the leap-seconds (37) from the received RTP timestamp in TAI time, so that it matches the UTC time. Use it, if nvdsudpsrc is expected to receive RTP packets in TAI time and your pipeline is using UTC time for buffer PTS/DTS.
+
+     For most scenarios "nvdsudpsink" component will sent TAI time as RTP timestamps, so this property should be enabled. Exception comes when `pass-rtp-timestamp` is employed by `nvdsudpsink` and its upstream component does not provide timestamps in TAI time.
+     It is the user's responsibility to identify if TAI time based timestamps are expected in such cases.
+
+     If `use-rtp-timestamp` is not enabled, then `adjust-leap-seconds` will have no effect.
+
+System can also have Gstreamer provided OSS implementation of udp source (`udpsrc`) component. In that case system would have two implementations for udp source - `udpsrc` and `nvdsudpsrc`.
+`nvdsudpsrc` component can only be used with NVIDIA ConnectX-5 and above cards after having installed `Rivermax` SDK and its license.
+
+* Download and setup the `Rivermax` 1.70.x SDK here: https://developer.nvidia.com/networking/rivermax-getting-started
+
+*  Follow the instruction on the SDK page to obtain `Rivermax` development license.
+
+* To select `nvdsudpsrc` out of two installations, use either `LOCAL_IFACE_IP` environment variable or `local-iface-ip` property. Use the command below to export the environment variable:
+
+     ```text
+     export LOCAL_IFACE_IP=<IP of NIC>
+     ```
+
+* `nvdsudpsrc` component also requires `CAP_NET_RAW` capability. Either run the application that uses `nvdsudpsrc` component with superuser privilege or set the `CAP_NET_RAW` capabilities using the following command.
+
+```
+   sudo setcap CAP_NET_RAW=ep <absolute path of application>
+
+For example:
+
+  ```text
+  sudo setcap CAP_NET_RAW=ep /opt/nvidia/deepstream/deepstream/bin/deepstream-app
+
+  sudo setcap CAP_NET_RAW=ep /usr/bin/gst-launch-1.0
+  ```
+```
+
+![Gst-nvdsudpsrc](/assets/images/content/DS_plugin_gst-nvdsudpsrc.png)
+
+## Inputs and Outputs
+
+* Inputs
+
+  * None
+
+* Control parameters
+
+  *	LOCAL_IFACE_IP ENV flag or local-iface-ip property
+  * caps
+
+* Output
+
+  * GstBufferList having RTP packets as buffer content.
+  * GstBuffer having uncompressed audio or video frame.
+
+## Features
+
+The following table summarizes the features of the plugin.
+
+**Gst-nvdsudpsrc plugin features**
+
+| Feature | Description | Release |
+| --- | --- | --- |
+| Supports header and payload separation | Separate memories can be allocated for RTP header and payload | DS 6.0 |
+| Supports any type of RTP packet (Compressed, Uncompressed, audio etc.) | No restriction on content of RTP payload | DS 6.0 |
+| Supports RTCP packets | In addition to RTP, RTCP packets can also be received | DS 6.0 |
+| Supports RTP payload directly in GPU memory | Content of RTP payload can directly be in GPU memory. This can avoid copy if GPU processing of payload is required | DS 6.0 |
+| Supports de-packetization of uncompressed video | RTP packets having uncompressed video as payload can be depacketized and converted to video frame as per SMPTE 2110-20 specification | DS 6.3 |
+| Supports de-packetization of uncompressed audio | RTP packets having uncompressed audio as payload can be depacketized and converted to audio frame as per SMPTE 2110-30 specification | DS 6.3 |
+| Supports de-packetization of generic payload | RTP packets having fixed header and payload size can be depacketized to form a frame. In this mode headers will be removed and payloads will be combined to form a frame | DS 6.3 |
+| Supports SMPTE 2022-7 | By using Rivermax media API's, can receive redundant packets over independent network paths. | DS-8.0 |
+| Supports SMPTE 2110-40 ancillary data (RFC 8331) | Receive SMPTE 291M ancillary data (e.g. CEA-608/708 closed captions) over ST 2110 networks. Depayloads RFC 8331 RTP packets into ST2038 wire-format buffers (one buffer per ANC packet). Activated by meta/x-st-2038 caps. RTP marker bit and timestamp are propagated to downstream buffers; SMPTE 2022-7 dual-path reception is supported. | DS 9.1 |
+
+## Gst Properties
+
+The following table describes the Gst-nvdsudpsrc plugin’s Gst properties.
+
+**Gst-nvdsudpsrc plugin gst properties**
+
+| Property | Meaning | Type and Range | Example / Notes | Platforms |
+| --- | --- | --- | --- | --- |
+| port | The port number to receive the RTP packets from | Integer, 0 to 65535 | Port=5004 | dGPU Jetson |
+| address | IP address of the server to receive packets from | String | address=192.168.4.60 | dGPU Jetson |
+| uri | Uri of the server in the form of udp://&lt;ip>:&lt;port> | String | uri=udp://192.168.4.60:5004 | dGPU Jetson |
+| payload-size | Size of payload in RTP packet | Integer, 0 to 65535 | payload-size=1500 | dGPU Jetson |
+| header-size | RTP header size | Integer, 0 to 65535 | header-size=12 | dGPU Jetson |
+| num-packets | Number of packets for which memory to allocate | Integer, 0 to 2147483647 | num-packets=10000 | dGPU Jetson |
+| local-iface-ip | IP Address associated with network interface through which to receive the data | String | local-iface-ip=192.168.2.20 | dGPU Jetson |
+| buffer-size | Size of the kernel receive buffer in bytes | Integer, 0 to 2147483647 | buffer-size=50000 | dGPU Jetson |
+| reuse | Enable reuse of the port | Boolean | reuse=1 | dGPU Jetson |
+| multicast-iface | The network interface on which to join the multicast group | String | multicast-iface=eth0 | dGPU Jetson |
+| auto-multicast | Automatically join/leave multicast groups | Boolean | auto-multicast=1 | dGPU Jetson |
+| loop | Used for setting the multicast loop parameter | Boolean | loop=1 | dGPU Jetson |
+| source-address | Unicast address to receive the data only from that sender | String | source-address="192.168.3.4 | dGPU Jetson |
+| gpu-id | GPU device id to allocate the buffers | Integer, -1 to 32767 | gpu-id=0 | dGPU Jetson |
+| payload-multiple | Output buffer to be multiple of these number of packets | Integer, 0 to 65535 | payload-multiple=4320 | dGPU Jetson |
+| adjust-leap-seconds | Adjust RTP timestamp for leap seconds when calculating running time | Boolean | adjust-leap-seconds=false | dGPU Jetson |
+| ptp-src | IP Address of PTP source | String | ptp-src="192.168.2.20 | dGPU Jetson |
+| st2022-7-streams | Comma-separated list of IP:port pairs for ST2022-7 redundant streams | String | st2022-7-streams="192.168.1.10:5004,192.168.101.10:5004 | dGPU Jetson |
+| use-rtp-timestamp | Parse RTP timestamp from rtp-header and attach as buffer PTS and DTS | Boolean | use-rtp-timestamp=false | dGPU Jetson |
+| caps | Caps of the source pad | GObject (GstCaps) |  | dGPU Jetson |
+| used-socket (read-only) | Socket currently in use for UDP reception; NULL means no socket | GObject (GSocket) |  | dGPU Jetson |
+| timeout | Posts a message after this many nanoseconds; 0 disables the timeout | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | timeout=0 | dGPU Jetson |
+| latency-offset | Offset in nanoseconds to add to buffer PTS/DTS when use-rtp-timestamp is enabled, to account for pipeline latency | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | latency-offset=0 | dGPU Jetson |
+
+## Example pipelines
+
+The examples below are organized to match the nvdsudpsink modes. For each nvdsudpsink sender mode, the corresponding nvdsudpsrc receiver pipeline is shown here.
+
+**Mode 1: Receive RTP packets sent via Rivermax Generic API**
+
+nvdsudpsrc receives RTP packets and pushes them to a downstream depayloader for de-packetization. The source pad uses `application/x-rtp` caps.
+
+* Pipeline to receive and display H.264 RTP video stream using hardware decoder:
+
+  ```text
+  gst-launch-1.0 -e nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> payload-size=1400 caps='application/x-rtp, media=(string)video, encoding-name=(string)H264, payload=(int)96, clock-rate=(int)90000' ! rtpjitterbuffer latency=100 ! rtph264depay ! h264parse ! nvv4l2decoder ! nvvideoconvert ! nveglglessink sync=1 -v --gst-debug=3
+  ```
+
+* Pipeline to receive and play Opus encoded 2 channel 48k audio RTP stream:
+
+  ```text
+  gst-launch-1.0 -e nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='application/x-rtp, media=(string)audio, encoding-name=(string)OPUS, payload=(int)97, clock-rate=(int)48000' ! rtpopusdepay ! opusdec ! audioconvert ! audioresample ! 'audio/x-raw, format=(string)S16LE, channels=2, rate=48000' ! autoaudiosink -v --gst-debug=3
+  ```
+
+**Mode 2: Receive RTP packets sent via Rivermax Media API**
+
+nvdsudpsrc receives RTP packets (with traffic shaping on the sender side) and pushes them to a downstream depayloader. The source pad uses `application/x-rtp` caps.
+
+* Pipeline to receive and display 10 bit YUV 4:2:2 1080p30 video stream using depayloader:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> ! 'application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)RAW, sampling=(string)YCbCr-4:2:2, depth=(string)10, width=(string)1920, height=(string)1080, colorimetry=(string)BT709, payload=(int)96' ! rtpjitterbuffer latency=100 ! rtpvrawdepay ! nvvideoconvert ! nveglglessink -v --gst-debug=3
+  ```
+
+* Pipeline to receive and play 24 bit 2 channel 48k audio stream using depayloader:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> ! 'application/x-rtp, media=(string)audio, clock-rate=(int)48000, encoding-name=(string)L24, encoding-params=(string)2, channels=(int)2, payload=(int)97' ! rtpL24depay ! rawaudioparse use-sink-caps=1 ! queue ! autoaudiosink -v --gst-debug=3
+  ```
+
+**Mode 3: Receive uncompressed video / audio frames sent via Rivermax Media API (internal depacketization)**
+
+nvdsudpsrc performs depacketization internally as per SMPTE 2110-20/30 and outputs complete frames. No separate depayloader is needed. Activated by setting `video/x-raw` or `audio/x-raw` caps.
+
+* Pipeline to receive and display 10 bit YUV 4:2:2 1080p60 video stream without additional depayload component:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)UYVP, framerate=60/1' header-size=20 payload-size=1200 ! nvvideoconvert ! nveglglessink -v --gst-debug=3
+  ```
+
+* Pipeline to receive and play 24 bit 2 channel 48k audio stream without additional depayload component:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='audio/x-raw, format=(string)S24BE, layout=(string)interleaved, rate=(int)48000, channels=(int)2' payload-size=288 header-size=12 ! autoaudiosink -v --gst-debug=3
+  ```
+
+* Pipeline to receive and display 10 bit YUV 4:2:2 1080p30 video stream without additional depayload component and using GPU Direct:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)UYVP, framerate=30/1' header-size=20 payload-size=1200 gpu-id=0 ! nvvideoconvert ! nveglglessink -v --gst-debug=3
+  ```
+
+* Pipeline to receive and display 10 bit YUV 4:2:2 1080p30 video stream, which uses RTP header timestamp for buffer PTS/Running time of pipeline:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='video/x-raw(memory:NVMM), format=UYVP, width=1920, height=1080, framerate=30/1' gpu-id=0 header-size=20 payload-size=1200 use-rtp-timestamp=1 adjust-leap-seconds=1 ! nvvideoconvert ! 'video/x-raw(memory:NVMM), width=(int)640, height=(int)480, framerate=(fraction)30/1, format=(string)BGRx' ! queue ! nveglglessink sync=1 max-lateness=50000000 -v --gst-debug=3
+  ```
+
+* Pipeline to receive 10 bit YUV 4:2:2 1080p30 video stream, use RTP header timestamp for buffer PTS/Running time of pipeline and pass the same timestamp to next node using nvdsudpsink:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='video/x-raw(memory:NVMM), format=UYVP, width=1920, height=1080, framerate=30/1' gpu-id=0 header-size=20 payload-size=1200 use-rtp-timestamp=1 adjust-leap-seconds=1 ! nvvideoconvert ! 'video/x-raw, width=(int)1920, height=(int)1080, framerate=(fraction)30/1, format=(string)UYVP' ! queue ! nvdsudpsink host=<ip address> port=<port number> local-iface-ip=<ip addr of NIC> pass-rtp-timestamp=1 payload-size=1220 packets-per-line=4 sdp-file=<sdp file> sync=1 -v --gst-debug=3
+  ```
+
+**Generic data as output**
+
+In this mode, nvdsudpsrc removes RTP headers and combines payloads into frames based on `payload-multiple` count. Activated by setting `application/x-custom` caps.
+
+* Pipeline to receive and depacketize generic payload. Following pipeline receives uncompressed video as generic payload:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> local-iface-ip=<ip addr of NIC> caps='application/x-custom' header-size=20 payload-size=1200 payload-multiple=4320 ! fakesink -v --gst-debug=3
+  ```
+
+**SMPTE ST 2110-40 ancillary data (RFC 8331)**
+
+In this mode, `nvdsudpsrc` depayloads RFC 8331 RTP packets back into ST2038 wire-format buffers (one buffer per ANC packet). No downstream depayloader is required. Activated by setting `meta/x-st-2038` caps. `header-size=20` accounts for the 12-byte RTP header plus the 8-byte RFC 8331 ANC payload header.
+
+* Pipeline to receive an ST 2110-40 ancillary data stream and dump the ANC buffers for inspection:
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> \
+    local-iface-ip=<ip addr of NIC> \
+    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
+    ! identity silent=0 ! fakesink dump=true -v
+  ```
+
+* Pipeline to receive an ST 2110-40 ancillary data stream over redundant paths using SMPTE 2022-7. The `st2022-7-streams` and `local-iface-ip` lists are paired in order (first stream — first NIC, second stream — second NIC):
+
+  ```text
+  gst-launch-1.0 nvdsudpsrc \
+    st2022-7-streams=<address1>:<port1>,<address2>:<port2> \
+    local-iface-ip=<ip addr of NIC1>,<ip addr of NIC2> \
+    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
+    ! identity silent=0 ! fakesink dump=true -v
+  ```

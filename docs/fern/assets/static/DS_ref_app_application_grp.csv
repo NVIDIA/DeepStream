@@ -1,0 +1,9 @@
+﻿Key,Meaning,Type and Value,Example,Platforms
+enable-perf-measurement,Indicates whether the application performance measurement is enabled.,Boolean,enable-perf-measurement=1,"dGPU, Jetson"
+perf-measurement-interval-sec,"The interval, in seconds, at which the performance metrics are sampled and printed.","Integer, >0",perf-measurement-interval-sec=10,"dGPU, Jetson"
+gie-kitti-output-dir,Pathname of an existing directory where the application stores primary detector output in a modified KITTI metadata format.,String,gie-kitti-output-dir=­/home/­ubuntu/­kitti_data/,"dGPU, Jetson"
+kitti-track-output-dir,Pathname of an existing directory where the application stores tracker output in a modified KITTI metadata format.,String,kitti-track-output-dir=­/home/­ubuntu/­kitti_data_tracker/,"dGPU, Jetson"
+reid-track-output-dir, "Pathname of an existing directory where the application stores tracker's Re-ID feature output. Each line's first integer is object id, and the remaining floats are its feature vector.",String,reid-track-output-dir=­/home/­ubuntu/­reid_data_tracker/,"dGPU, Jetson"
+terminated-track-output-dir,Pathname of an existing directory where the application stores terminated tracker output in a modified KITTI metadata format.,String,kitti-track-output-dir=­/home/­ubuntu/­terminated_data_tracker/,"dGPU, Jetson"
+shadow-track-output-dir,Pathname of an existing directory where the application stores shadow track state output in a modified KITTI metadata format.,String,shadow-track-output-dir=­/home/­ubuntu/­shadow_data_tracker/,"dGPU, Jetson"
+global-gpu-id,Set Global GPU ID for all the components at once if needed,Integer,global-gpu-id=1,"dGPU, Jetson"

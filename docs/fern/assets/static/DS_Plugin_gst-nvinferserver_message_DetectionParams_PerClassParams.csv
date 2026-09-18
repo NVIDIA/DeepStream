@@ -1,0 +1,5 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+pre_threshold,Define confidence threshold per class,float,pre_threshold:0.3,"Detector
+
+Both"

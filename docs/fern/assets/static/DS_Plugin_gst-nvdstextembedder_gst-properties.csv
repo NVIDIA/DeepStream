@@ -1,0 +1,17 @@
+﻿Property,Meaning,Type and Range,Example Notes
+texts,"JSON array of texts to encode (e.g. '[""query1"", ""query2""]')",String,"texts='[""person wearing red shirt""]'"
+embeddings (read-only),JSON array of computed embeddings,String,
+batch-size,Maximum batch size for inference,"Integer,
+1 to 128",batch-size=64
+verbose,Enables verbose logging,Boolean,verbose=0
+device,Device used for inference (cuda or cpu),String,device=cuda
+use-fp16,Enables FP16 inference for faster processing,Boolean,use-fp16=1
+model-name,"Encoder selection, set from curl/API (e.g. an ONNX model name). Use a name containing ""siglip2-giant"" or ""giant"" for SigLIP2 Giant (1536-dim), or ""dfn5b-clip"" for DFN5B-CLIP (1024-dim)",String,model-name=siglip2-giant
+embedding-dim (read-only),Model embedding dimension,"Integer,
+0 to 65536",
+num-texts (read-only),Number of texts currently loaded,"Integer,
+0 to 2,147,483,647",
+model-loaded (read-only),Whether the model is loaded and ready,Boolean,
+last-query-result (read-only),JSON string of the last embedding query result,String,
+onnx-model-path,"Path to the DFN-CLIP ONNX model file (used when model-name contains ""dfnclip"")",String,onnx-model-path=/path/to/model.onnx
+tokenizer-dir,"Path to the tokenizer directory with tokenizer.json (used when model-name contains ""dfnclip"")",String,tokenizer-dir=/path/to/tokenizer

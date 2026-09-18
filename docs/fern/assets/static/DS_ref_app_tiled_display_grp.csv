@@ -1,0 +1,32 @@
+Key,Meaning,Type and Value,Example,Platforms
+enable,"Indicates whether tiled display is enabled.
+When user sets enable=2, first [sink] group with the key: link-to-demux=1 shall be linked to demuxer's src_[source_id] pad where source_id is the key set in the corresponding [sink] group.","Integer,
+0 = disabled,
+1 = tiler-enabled
+2 = tiler-and-parallel-demux-to-sink-enabled",enable=1,"dGPU, Jetson"
+rows,Number of rows in the tiled 2D array.,"Integer, >0",rows=5,"dGPU, Jetson"
+columns,Number of columns in the tiled 2D array.,"Integer, >0",columns=6,"dGPU, Jetson"
+width,"Width of the tiled 2D array, in pixels.","Integer, >0",width=1280,"dGPU, Jetson"
+height,"Height of the tiled 2D array, in pixels.","Integer, >0",height=720,"dGPU, Jetson"
+gpu-id,GPU to be used by the element in case of multiple GPUs.,"Integer, ≥0",gpu-id=0,dGPU
+nvbuf-memory-type,"Type of memory the element is to allocate for output buffers.
+
+0 (nvbuf-mem-default): a platform-specific default type
+
+1 (nvbuf-mem-cuda-pinned): pinned/host CUDA memory
+
+2 (nvbuf-mem-cuda-device): device CUDA memory
+
+3 (nvbuf-mem-cuda-unified): unified CUDA memory
+
+For dGPU: All values are valid.
+
+For Jetson: Only 0 (zero) is valid.","Integer, 0, 1, 2, or 3",nvbuf-memory-type=3,"dGPU, Jetson"
+compute-hw,"Compute Scaling HW to use. Applicable only for Jetson. dGPU systems uses GPU by default.
+
+0 (Default): Default, GPU for Tesla, VIC for Jetson
+
+1 (GPU): GPU
+
+2 (VIC): VIC",Integer: 0-2,compute-hw=1,Jetson
+square-seq-grid,Enable automatic square tiling according to number of sources. The tiles are placed sequentially on the grid with empty tiles at the end,Boolean,square-seq-grid=1,"dGPU, Jetson"

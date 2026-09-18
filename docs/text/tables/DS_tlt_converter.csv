@@ -1,0 +1,18 @@
+Platform,Compute,Link
+x86 + GPU,CUDA 10.2 / cuDNN 8.0 / TensorRT 7.1,https://developer.nvidia.com/cuda102-trt71
+x86 + GPU,CUDA 10.2 / cuDNN 8.0 / TensorRT 7.1,https://developer.nvidia.com/cuda102-cudnn80-trt72-0
+x86 + GPU,CUDA 11.0 / cuDNN 8.0 / TensorRT 7.1,https://developer.nvidia.com/cuda110-cudnn80-trt71-0
+x86 + GPU,CUDA 11.0 / cuDNN 8.0 / TensorRT 7.1,https://developer.nvidia.com/cuda110-cudnn80-trt72
+x86 + GPU,CUDA 11.1 / cuDNN 8.0 / TensorRT 7.2,https://developer.nvidia.com/cuda111-cudnn80-trt72-0
+x86 + GPU,CUDA 11.3 / cuDNN 8.0 / TensorRT 8.0,https://developer.nvidia.com/tao-converter-80
+x86 + GPU,CUDA 11.x / cuDNN 8.x / TensorRT 8.2,https://developer.nvidia.com/tao-converter-82
+x86 + GPU,CUDA 11.7 /cuDNN 8.4 / TensorRT 8.4,https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/files?version=v3.22.05_trt8.4_x86
+x86 + GPU,CUDA 11.8 /cuDNN 8.5 / TensorRT 8.5.1.7,https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/files?version=v4.0.0_trt8.5.1.7_x86
+x86 + GPU,CUDA 12.1 /cuDNN 8.6 / TensorRT 8.6,https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/files?version=v5.1.0_8.6.3.1_x86
+Jetson,JetPack 4.4,https://developer.nvidia.com/cuda102-trt71-jp44-0
+Jetson,JetPack 4.5,https://developer.nvidia.com/cuda102-trt71-jp45
+Jetson,Jetpack 4.6,https://developer.nvidia.com/jp46-20210820t231431z-001zip
+Jetson,Jetpack 5.0.1,https://developer.nvidia.com/jp46-20210820t231431z-001zip
+Jetson,Jetpack 5.0.2,https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/files?version=v3.22.05_trt8.4_aarch64
+Jetson,Jetpack 6.0.1,https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/resources/tao-converter/files?version=v5.1.0_jp6.0_aarch64
+Clara AGX,CUDA 11.1 / CuDNN 8.0.5 / TensorRT 7.2.2,https://developer.nvidia.com/tao-converter

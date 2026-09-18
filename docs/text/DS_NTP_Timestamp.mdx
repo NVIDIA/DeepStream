@@ -1,0 +1,53 @@
+---
+title: "NTP Timestamp in DeepStream"
+---
+
+DeepStream 5.0+ supports the setting of NTP timestamps per frame. Calculated NTP timestamp is available in `ntp_timestamp` field of `NvDsFrameMeta`.
+DeepStream calculates NTP timestamps in 2 ways:
+
+1. `Host system time` as NTP timestamp - when the frame is received by the `NvStreamMux` plugin in the DeepStream pipeline.
+
+ This method requires you to synchronize host system to NTP clock.
+ To attach host system time as NTP timestamp, you'll need to set `attach-sys-ts` to `TRUE` on `nvstreammux`.
+ Set the `attach-sys-ts-as-ntp` config parameter to `1` in `[streammux]` group of the application configuration file in the DeepStream reference app.
+
+2. NTP timestamp when attached at RTSP source - supported only if RTSP sources send RTCP Sender Reports (SR).
+
+  To configure the pipeline to attach these timestamps:
+
+  * Set `attach-sys-ts` to `FALSE` on `nvstreammux`. Set the `attach-sys-ts-as-ntp` config parameter to `0` in `[streammux]` group of the application configuration file in the DeepStream reference app.
+  * After creating an `"rtspsrc"` element or an `"uridecodebin"` element, application must call `configure_source_for_ntp_sync()` function and pass the `GstElement` pointer to this API. (Refer to `create_rtsp_src_bin()` in `deepstream_source_bin.c` file.) The API internally configures the pipeline to parse sender report and calculate NTP timestamps for each frame.
+  * Make sure RTSP source can send RTCP Sender Reports.
+
+    Verify this by starting streaming from the source on a host and viewing the packets in a tool like `wireshark` or `tshark` on the same host to confirm the presence of Sender Reports (SR).
+
+    Example method to check if RTSP source sends RTCP sender reports using a tool like `tshark`:
+
+     <Note title="We assume RTSP source has IP address `192.168.1.100`">
+
+     </Note>
+
+     1. Install tshark on a host: `sudo apt-get install tshark`
+
+     2. Find the host network interface that would be receiving the RTP/RTCP packets:
+
+```
+$ sudo tshark -D
+...
+eno1
+...
+```
+
+     3. Start the monitoring using `tshark` tool. Replace the network interface and source IP as applicable:
+
+```
+$ sudo tshark -i eno1 -f "src host 192.168.1.100" -Y "rtcp"
+```
+
+     4. On the same host, start streaming from the RTSP source only after starting the monitoring tool. Any client may be used:
+
+        `$ gst-launch-1.0 rtspsrc location= <RTSP URL e.g. rtsp://192.168.1.100/stream1> ! fakesink`
+
+     5. The output of the `tshark` monitoring tool should have lines containing `"Sender Report   Source description"`. Here is a sample output:
+
+         `6041 10.500649319 192.168.1.100 → 192.168.1.101 RTCP 94 Sender Report   Source description`

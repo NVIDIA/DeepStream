@@ -1,0 +1,5 @@
+﻿Name,Description,Type and Range,Example Notes,"| Network Types /
+| Applicable to GIEs (Primary/Secondary)"
+type_name,Specify a user-defined network name,string; | Optional,type_name: “face”,"Others
+
+Both"

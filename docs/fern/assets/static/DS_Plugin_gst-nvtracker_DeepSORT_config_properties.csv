@@ -1,0 +1,7 @@
+﻿Module,Property,Meaning,Type and Range,Default value
+Data Associator,thresholdMahalanobis,Max Mahalanobis distance based on Chi-square probabilities,"Float,
+>0 considered as set",thresholdMahalanobis: -1.0
+,minMatchingScore4ReidSimilarity,"Min Re-ID threshold to match targets and tentative detection","Float,
+0.0 to 1.0",minMatchingScore4ReidSimilarity: 0.0
+,matchingScoreWeight4ReIDSimilarity,Weight for Re-ID similarity term in matching cost function,"Float,
+0.0 to 1.0",matchingScoreWeight4ReIDSimilarity: 0.0

@@ -1,0 +1,337 @@
+---
+title: "DeepStream-3D Sensor Fusion Multi-Modal Application and Framework"
+---
+
+This `deepstream-3d-lidar-sensor-fusion` sample application showcases multi-modal sensor fusion pipelines for LiDAR and camera data using the DS3D framework. This application with DS3D framework could setup different LiDAR/RADAR/Camera sensor fusion models, late fusion inference pipelines with several key features.
+
+* Camera processing pipeline leveraging DeepStream's generic 2D video pipeline with batchMeta.
+* Custom `ds3d::dataloader` for LiDAR capture with pre-processing options.
+* Custom ds3d::databridge converts DeepStream `NvBufSurface` and `GstNvDsPreProcessBatchMeta` data into shaped based tensor data `ds3d::Frame2DGuard` and `ds3d::FrameGuard` formats, and embeds key-value pairs within `ds3d::datamap`.
+* `ds3d::mixer` for efficient merging of camera, LiDAR and any sensor data into `ds3d::datamap`.
+* `ds3d::datafilter` followed by `libnvds_tritoninferfilter.so` for multi-modal `ds3d::datamap` inference and custom pre/post-processing.
+* `ds3d::datasink` with `ds3d_gles_ensemble_render` for 3D detection result visualization with a multi-view display.
+
+The `deepstream-3d-lidar-sensor-fusion` sample application and source code is located at `app/sample_apps/deepstream-3d-lidar-sensor-fusion/` for your reference.
+
+There are 2 multi-modal sensor fusion pipelines for LiDAR and camera data, enabling 3D detections.
+
+## Example 1. BEVFusion Multi-Modal with 6-Camera Plus 1-LiDAR Data Fusion Pipeline
+
+**Refer to the provided instructions for the setup.** [DS3D BEVFusion Setup with Triton ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+
+- Processes data from 6 cameras and 1 LiDAR.
+- Utilizes pre-trained [PyTroch BEVFusion](https://github.com/mit-han-lab/bevfusion) model, optimized for NVIDIA GPUs using TensorRT and CUDA by [CUDA-BEVFusion](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-BEVFusion).
+- [PyTriton](https://github.com/triton-inference-server/pytriton) multi-modal inference module (`triton-lmm`) simplifies Python model integration, allowing inclusion of any Python inference.
+- The `ds3d::datafilter` based triton inference through gRPC.
+- Visualizes the `ds3d::datamap` through 6 camera views, projecting LiDAR data into each. Additionally, it provides a top view and a front view of the same LiDAR data for easier comprehension.
+
+  ![DS-3D Lidar-Camera BEVFusion pipeline overview](/assets/images/content/DS3D_lidar_sensor_fusion_bevfusion_pipeline.png)
+
+## Example 2. V2XFusion multi-modal batched 4-Camera and 4-LiDAR Inference Pipeline:
+
+**Refer to the provided instructions for the setup.** [DS3D V2XFusion setup ](DS_3D_MultiModal_Lidar_Camera_V2XFusion)
+
+   - Processes data from a single camera and a LiDAR, utilizing a batch size of 4.
+   - Utilizes pre-trained V2XFusion model which is based on BEVFusion and BEVHeight.
+   - Build the V2X ONNX model into TensorRT for GPU acceleration.
+   - Visualizes 4 batched camera and lidar data together into multiviews.
+
+   ![DS-3D Lidar-Camera V2XFusion pipeline overview](/assets/images/content/DS3D_lidar_sensor_fusion_v2xfusion_pipeline.png)
+
+## Quick Start
+
+- The following development packages must be installed.
+
+   * GStreamer-1.0
+   * GStreamer-1.0 Base Plugins
+   * GLES library
+   * libyaml-cpp-dev
+
+- Download and install [DeepStream SDK](https://developer.nvidia.com/deepstream-sdk) locally on the host.
+  Follow instructions at page [Install the DeepStream SDK](/text/DS_Installation#install-the-deepstream-sdk) with method 1 or 2 to install DeepStream SDK locally.
+
+  BEVFusion requires a local installation of DeepStream SDK which includes the scripts to build/run the container, model and dataset for ease of use.
+
+- Prerequisites before starting the container.
+
+  ```bash
+  # run cmdline outside of the container
+  $ export DISPLAY=0.0 # set the correct display number if DISPLAY is not exported
+  $ xhost +
+  $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+  # make directory for dataset and model repo in host, it would be mounted into the container for bevfusion tests
+  $ sudo chmod -R a+rw . # Grant read/write permission for all of the files in this folder
+  $ mkdir -p data bevfusion/model_root
+  ```
+
+If any scripts are run outside of container, or if file read/write permission errors are experienced, please run the commands with `sudo -E`.
+
+<Note>
+Users have to run the following command line on every terminal outside of the container or seeing errors such as `xhost:  unable to open display`
+
+```bash
+$ export DISPLAY=0.0 # set the correct display number if DISPLAY is not exported
+$ xhost +
+```
+
+</Note>
+
+- Bevfusion and V2XFusion Setup difference.
+
+  - BEVFusion would build a new local docker image `deepstream-triton-bevfusion:{xx.xx}` on top of deepstream-triton base image `nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch` to install all CUDA-BEVFusion dependencies, build offline models, and setup triton server for gRPC remote inference on x86 dGPU. and client fusion pipeline could be running on x86 and Jetson.
+
+  - V2XFusion setup instructions inside deepstream-triton base container `nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch` and inference through Triton CAPI(native) locally. It also supports Jetson test on host without container if Triton dependencies installed manually.
+
+  `deepstream-triton-bevfusion:{xx.xx}`, `{xx.xx}` is from deepstream sdk major.minor version number installed on local.
+  `nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch`, `{xx.xx.xx}` is matched from [DeepStream containers](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream) (the same `deepstream` multiarch repository serves both x86 and Jetson)
+
+### BEVFusion pipeline Demo Setup
+
+- Prepare all required containers, inference models, sample dataset.
+  Refer to the detailed provided instructions in [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+
+<Note>
+All the following command line for BEVFusion setup are run outside of the container unless other comments specified
+</Note>
+
+- BEVFusion pipeline Quick start.
+
+  - Option 1:  build bevfusion model container, start triton server and finally run the pipeline.
+
+    Run the following command line to build a local bevfusion model container `deepstream-triton-bevfusion:{DS_VERSION_NUM}` on x86 with dGPU.
+
+    ```bash
+    $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+    $ bevfusion/docker_build_bevfusion_image.sh nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
+    ```
+
+    Download the models from https://nvidia.box.com/shared/static/t1t67uytge97tn4q7xteehtauutaqxz7 directly, then run the following command line to move the model to designated directory and build TensorRT engine files on x86 with dGPU.
+
+    ```bash
+    $ mkdir -p bevfusion/model_root
+    $ sudo cp {PATH TO YOUR model.zip DOWNLOAD} /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/bevfusion/model_root/model.zip
+    $ bevfusion/docker_run_generate_trt_engine_models.sh bevfusion/model_root
+    ```
+
+    Start triton server with the models built from last step on x86 with dGPU.
+
+    ```bash
+    $ bevfusion/docker_run_triton_server_bevfusion.sh bevfusion/model_root
+    ```
+
+    Open another terminal to start deepstream 3d sensor fusion pipeline with bevfusion config on x86.
+
+    ```bash
+    $ export NUSCENE_DATASET_URL="https://github.com/NVIDIA/DeepStream/raw/main/src/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data/nuscene.tar.gz"
+    $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+    # this cmdline is also preparing the dataset for pipeline tests.
+    # this config file would project lidar data back to camera view in display.
+    $ bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh ds3d_lidar_plus_multi_cam_bev_fusion.yaml
+    # OR
+    # this config file would keep clear lidar and camera data in display, meanwhile show labels in each view.
+    $ bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh ds3d_lidar_plus_multi_cam_bev_fusion_with_label.yaml
+    ```
+
+    See more details about the instructions in [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+
+  - Option 2: Once users setup everything ready from Option 1, and keep tritonserver running, and make sure dataset downloaded, then users can run the cmdline inside deepstream-triton container.
+
+    Start deepstream triton container after model and dataset are ready in Option 1. `export DOCKER_GPU_ARG="--runtime nvidia"` for Jetson. see more details how to modify config file to setup Jetson test [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+
+    ```bash
+    $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+    # make directory for dataset and model repo in host, it would be mounted into the container for bevfusion tests
+    $ mkdir -p data bevfusion/model_root
+    
+    $ export DOCKER_GPU_ARG="--gpus all" # for x86
+    # export DOCKER_GPU_ARG="--runtime nvidia" # for Jetson
+    # start the container interactively, and mount dataset and model folder into the container for tests
+    $ docker run $DOCKER_GPU_ARG -it --rm --ipc=host --net=host --privileged -v /tmp/.X11-unix:/tmp/.X11-unix \
+     -e DISPLAY=$DISPLAY \
+     -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion \
+     -v ./data:/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/data \
+     -v ./bevfusion/model_root:/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/bevfusion/model_root \
+     nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
+    ```
+
+    Start deepstream bevfusion pipeline, run cmdline inside of the container.
+
+    ```bash
+    # run cmdline inside of this container
+    $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+    $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_plus_multi_cam_bev_fusion.yaml
+    # Or render with the 3D-bbox labels.
+    $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_plus_multi_cam_bev_fusion_with_label.yaml
+    ```
+
+  - BEVFusion Pipeline rendering results with nuscene dataset(nuscene dataset terms of use [https://www.nuscenes.org/terms-of-use](https://www.nuscenes.org/terms-of-use) )
+
+    ![DS-3D Lidar-Camera BEVFusion Snapshot](/assets/images/content/DS3D_sensor_fusion_bevfusion_snapshot.png)
+
+### V2XFusion pipeline Demo Setup
+
+Refer to the detailed provided instructions in [DS3D V2XFusion Setup ](DS_3D_MultiModal_Lidar_Camera_V2XFusion)
+
+- Start the deepstream-triton base container for V2XFusion tests.
+
+  Skip this step if users have installed Triton dependencies manually on Jetson host.
+
+  ```bash
+  # running cmdline outside of the container
+  $ xhost +
+  # export DOCKER_GPU_ARG="--runtime nvidia --privileged" # for Jetson Orin
+  $ export DOCKER_GPU_ARG="--gpus all" # for x86
+  
+  # start the container interactively
+     $ docker run $DOCKER_GPU_ARG -it --rm --ipc=host --net=host -v /tmp/.X11-unix:/tmp/.X11-unix \
+      -e DISPLAY=$DISPLAY \
+      -w /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion \
+      nvcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch
+  # {xx.xx.xx} is deepstream sdk version number
+  ```
+
+  With this `docker run` container, the following instructions of v2XFusion setup are running inside of this container.
+  If this step skipped on Jetson, the following instructions are running on host directly.
+
+- Install dependencies
+
+  ```bash
+  $ pip install gdown python-lzf # with sudo if running on Jetson host
+  ```
+
+- Prepare all required inference models, optimize the models and sample dataset
+
+  Follow instructions in [Download V2XFusion Models and Build TensorRT Engine Files](/text/DS_3D_MultiModal_Lidar_Camera_V2XFusion#download-v2xfusion-models-and-build-tensorrt-engine-files) to download the original V2X dataset.
+
+  Note: The example dataset is provided by https://air.tsinghua.edu.cn/DAIR-V2X/english/index.html. For each dataset an user elects to use, the user is responsible for checking if the dataset license is fit for the intended purpose.
+
+  ```bash
+  $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion/v2xfusion/scripts
+  $ gdown 1gjOmGEBMcipvDzu2zOrO9ex_OscUZMYY
+  $ ./prepare.sh dataset# with sudo if running on Jetson host
+  ```
+
+- Start V2XFusion pipeline once models and dataset are ready.
+
+  ```bash
+  # run the cmdline inside deepstream-triton container
+  $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+  $ deepstream-3d-lidar-sensor-fusion -c ds3d_lidar_video_sensor_v2x_fusion.yml
+  ```
+
+  - Users could see the pipeline running on display.
+
+## Build application From Source
+
+- To compile the sample app deepstream-3d-lidar-sensor-fusion inside of container:
+
+```bash
+$ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
+$ make
+$ sudo make install
+```
+
+In Docker containers, `sudo` is not required for this install step.
+
+<Note>
+To compile the sources, run make with `sudo -E` or root permission.
+</Note>
+
+## DS3D Components used in this sample application
+
+This section describes the DS3D components used in the deepstream-3d-lidar-sensor-fusion pipeline.
+
+### LiDAR Data Loading
+
+* `ds3d::dataloader` (implemented in `libnvds_lidarfileread.so`)
+
+  * Reads a list of LiDAR point cloud files from disk into a `ds3d::datamap` format.
+  * Source code resides in `/opt/nvidia/deepstream/deepstream/sources/libs/ds3d/dataloader/lidarsource`.
+  * Refer to the README within that directory for compilation and installation instructions.
+  * See more details in DS3D Custom lib specification [Custom Dataloader libnvds_lidarfileread Configuration Specifications](/text/DS_3D_Custom_Manual#custom-dataloader-libnvds-lidarfileread-configuration-specifications)
+
+Video Data Bridging Into DS3D `ds3d::datamap`
+
+### Video Data Bridging Into DS3D `ds3d::datamap`
+
+* `ds3d::databridge` (implemented in `libnvds_3d_video_databridge.so`)
+
+  * Transfers 2D video buffers into the `ds3d::datamap` format.
+  * DeepStream expects the 2D buffer to be in `video/x-raw(memory:NVMM)` format (e.g., output from `nvv4l2decoder`).
+  * See more details in DS3D databridge specification [Configuration file](/text/DS_plugin_gst-nvds3dbridge#configuration-file)
+
+  **Note**: A `ds3d::datamap` is a generic data structure consisting of key-value pairs. It serves as the primary input and output buffer format for components within the DeepStream ds3d framework.
+
+### Data Mixing
+
+* `ds3d::datamixer` (implemented in `libnvds_3d_multisensor_mixer.so`)
+
+  * Combines video data (2D) and LiDAR data (3D) into a single `ds3d::datamap`.
+  * The mixer operates at a user-specified frame rate. The processing speed might be limited by the slowest input source.
+  * See more details in DS3D mixer specification [Configuration file](/text/DS_plugin_gst-nvds3dmixer#configuration-file)
+
+### LiDAR/Camera Data Alignment/Calibration Filtering
+
+* `ds3d::datafilter` (implemented in `libnvds_3d_alignment_datafilter.so`)
+
+  * Applies a series of transformations to align the LiDAR data with the camera image coordinate system.
+  * See more details in DS3D Custom lib specification [Custom `ds3d::datafilter` library: `libnvds_3d_alignment_datafilter.so`](/text/DS_plugin_gst-nvds3dfilter#custom-ds3d-datafilter-library-libnvds-3d-alignment-datafilter-so)
+
+### LiDAR Data V2X Preprocess Filtering
+
+* `ds3d::datafilter` (implemented in `libnvds_3d_lidar_preprocess_datafilter.so`)
+
+  * Preprocess lidar data for v2x sensor fusion model.
+  * See more details in DS3D Custom lib specification [Custom Datafilter libnvds_3d_lidar_preprocess_datafilter Specifications](/text/DS_3D_Custom_Manual#custom-datafilter-libnvds-3d-lidar-preprocess-datafilter-specifications)
+
+* ds3d custom point cloud data to point pillar scatter data conversion (implemented in `libnvds_3d_lidar_preprocess_datafilter.so`)
+
+  * Implement the V2XFusion model pointpillar scatter data conversion function to adapt to ds3d lidar preprocess ds3d::datafilter
+  * Refer to the /opt/nvidia/deepstream/deepstream/sources/libs/ds3d/datafilter/lidar_preprocess/README
+
+### LiDAR/Camera Data GLES Rendering
+
+* `ds3d::datarender` (implemented in `libnvds_3d_gles_ensemble_render.so`)
+
+  * Renders a 3D scene using OpenGL ES (GLES) with various elements (textures, LiDAR points, bounding boxes) within a single window, allowing for flexible layout customization in multi-view mode.
+  * See more details in alignment specification [Custom datarender libnvds_3d_gles_ensemble_render Configuration Specifications](/text/DS_3D_Custom_Manual#custom-datarender-libnvds-3d-gles-ensemble-render-configuration-specifications)
+
+### Data Inference Filtering
+
+* `ds3d::datafilter` (implemented in `libnvds_tritoninferfilter.so`)
+
+  * Executes multi-modal data inference using the Triton Inference Server. Any data element from the `ds3d::datamap` can be forwarded to Triton. It supports both Triton CAPI and gRPC modes. Custom pre-processing and post-processing might be required depending on the specific inference task.
+
+  * See more details in [libnvds_tritoninferfilter Configuration Specifications](/text/DS_3D_Custom_Manual#libnvds-tritoninferfilter-configuration-specifications)
+
+* ds3d custom V2XFusion model inputs preprocessing library (implemented in `libnvds_3d_v2x_infer_custom_preprocess.so`)
+
+  * Prepare and copy constant parameters and data for the tensor inputs of the V2XFusion model
+  * Copy pointpillar scatter data to the model input tensor
+  * Refer to /opt/nvidia/deepstream/deepstream/sources/libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_preprocess/README
+
+### Custom Post-Processing for LiDAR Detection
+
+* ds3d custom postprocessing library (implemented in `libnvds_3d_infer_postprocess_lidar_detection.so`)
+
+  * Performs custom post-processing operations on the sensor fusion results (3D detection objects). The interface inherits from `nvdsinferserver::IInferCustomProcessor`.
+  * Source code resides in `/opt/nvidia/deepstream/deepstream/sources/libs/ds3d/inference_custom_lib/ds3d_lidar_detection_postprocess`.
+  * Refer to the README within that directory for compilation and installation instructions.
+
+* ds3d custom V2XFusion outputs postprocessing library (implemented in `libnvds_3d_v2x_infer_custom_postprocess.so`)
+
+  * Parse the output tensor data from V2XFusion model
+  * Calculate 3D bboxes from the output tensor data
+  * Refer to /opt/nvidia/deepstream/deepstream/sources/libs/ds3d/inference_custom_lib/ds3d_v2x_infer_custom_postprocess/README
+
+### BEVFusion Model Inference with Triton-LMM
+
+* triton_lmm Python module for bevfusion
+
+  * A Python module based on Triton and PyTriton, designed for multi-modal inference. It simplifies the integration of Python-based inference models into the Triton server. This sample application leverages the BEVFusion model (Python version) using this module.
+  * source code resides in `app/sample_apps/deepstream-3d-lidar-sensor-fusion/python/triton_lmm`
+  * Python module license Apache-2.0
+
+## DS3D Custom Components Configuration Specifications
+
+See more details in the `DS_3D supported custom components specifications` section in the [DS_3D_Custom_Manual](DS_3D_Custom_Manual).
