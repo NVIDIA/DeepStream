@@ -53,7 +53,7 @@ export DEEPSTREAM_IMAGE="${DEEPSTREAM_IMAGE:-nvcr.io/nvidia/deepstream:9.1-trito
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
-KAFKA_VERSION="4.2.0"
+KAFKA_VERSION="4.2.1"
 SCALA_VERSION="2.13"
 
 # Standardized paths

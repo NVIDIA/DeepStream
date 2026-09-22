@@ -113,9 +113,9 @@ limitations under the License.
     sudo apt install openjdk-17-jdk 
 
     # Get Kafka
-    wget https://dlcdn.apache.org/kafka/4.2.0/kafka_2.13-4.2.0.tgz
-    tar -xzf kafka_2.13-4.2.0.tgz
-    cd kafka_2.13-4.2.0
+    wget https://dlcdn.apache.org/kafka/4.2.1/kafka_2.13-4.2.1.tgz
+    tar -xzf kafka_2.13-4.2.1.tgz
+    cd kafka_2.13-4.2.1
 
     # Start the Kafka environment
     export KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
@@ -130,7 +130,7 @@ limitations under the License.
     * Create a `mv3dt` topic under broker server `localhost:9092`, and set the message retention to 30 seconds. 
 
     ```bash
-    cd <path to kafka folder, e.g. kafka_2.13-4.2.0>
+    cd <path to kafka folder, e.g. kafka_2.13-4.2.1>
 
     ./bin/kafka-topics.sh --bootstrap-server localhost:9092 \
         --create \
@@ -149,7 +149,7 @@ limitations under the License.
 
     * To stop a Kafka broker running in the background, you can use the following command:
     ```bash
-    cd <path to kafka folder, e.g. kafka_2.13-4.2.0>
+    cd <path to kafka folder, e.g. kafka_2.13-4.2.1>
     bin/kafka-server-stop.sh
     ```
 

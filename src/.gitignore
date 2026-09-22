@@ -4,3 +4,12 @@
 *.pb.cc
 *.pb.h
 .build/
+
+
+
+# Local run builds
+local_build/
+apps/reference_apps/deepstream-tracker-3d-multi-view/datasets/*
+apps/reference_apps/deepstream-tracker-3d-multi-view/experiments/*
+
+apps/reference_apps/deepstream-tracker-3d-multi-view/mv3dt_venv/
