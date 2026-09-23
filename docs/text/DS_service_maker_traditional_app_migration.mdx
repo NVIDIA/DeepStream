@@ -20,23 +20,23 @@ Guidelines for migrating Deepstream applications to Python apps using pipeline A
 
     In Flow APIs, each predefined section for pipeline customization in the configuration file for a traditional Deepstream Application corresponds to its respective function:
 
-| DS Configuration | Flow API Name |
-| --- | --- |
-| primary-gie | infer |
-| secondary-gie | infer |
-| tracker | track |
+    | DS Configuration | Flow API Name |
+    | --- | --- |
+    | primary-gie | infer |
+    | secondary-gie | infer |
+    | tracker | track |
 
 3. Sink management
 
     Flow APIs have corresponding functions for each sink type supported in traditional Deepstream Application:
 
-| DS Sink Type | Flow API Name |
-| --- | --- |
-| Fakesink | render(mode=RenderMode.DISCARD) |
-| Display | render(mode=RenderMode.DISPLAY) |
-| File | encode("/tmp/sample.mp4") |
-| UDP | encode("udp://localhost:5400") |
-| RTSP | encode("rtsp://localhost:5400") |
-| MsgConvBroker | publish |
+    | DS Sink Type | Flow API Name |
+    | --- | --- |
+    | Fakesink | render(mode=RenderMode.DISCARD) |
+    | Display | render(mode=RenderMode.DISPLAY) |
+    | File | encode("/tmp/sample.mp4") |
+    | UDP | encode("udp://localhost:5400") |
+    | RTSP | encode("rtsp://localhost:5400") |
+    | MsgConvBroker | publish |
 
     To enable multiple-sink, we can just call fork() to fork the current flow and append various sink functions with it (check the 'fork' function in previous sections).

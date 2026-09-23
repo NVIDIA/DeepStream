@@ -67,4 +67,4 @@ The following table describes the Gst-nvmultistreamtiler plugin’s Gst properti
 | compute-hw | Compute Scaling HW to use. Applicable only for Jetson. dGPU systems uses GPU by default.<br />0 (Default): Default, GPU for Tesla, VIC for Jetson<br />1 (GPU): GPU<br />2 (VIC): VIC | Integer: 0-2 | compute-hw=1 |
 | square-seq-grid | Enable automatic square tiling according to number of sources.<br />The tiles are placed sequentially on the grid with empty tiles at the end | Boolean | square-seq-grid=1 |
 | buffer-pool-size | Size of the nvtiler output buffer pool | Integer,<br />4 to 10 | buffer-pool-size=4 |
-| interpolation-method | Interpolation method used for scaling; see :doc:`DS_plugin_gst-nvvideoconvert` for the shared enum values | Enum | interpolation-method=1 |
+| interpolation-method | Interpolation method used for scaling; see [Gst-nvvideoconvert](/text/DS_plugin_gst-nvvideoconvert) for the shared enum values | Enum | interpolation-method=1 |

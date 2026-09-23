@@ -120,7 +120,7 @@ retrieve a Python dictionary representation of the audio metadata and labels.
 When creating event messages from audio metadata, use `AudioFrameMetadata` as
 the source metadata object.
 
-For the details of metadata structure in Deepstream, users should refer to [the document](DS_plugin_metadata.html).
+For the details of metadata structure in Deepstream, users should refer to [the document](/text/DS_plugin_metadata).
 
 ## Common Factory
 
@@ -147,19 +147,19 @@ Service maker offers the bindings for two most important messages:
 
 | name | description |
 | --- | --- |
-| old_state | "the last state of the transition" |
-| new_state | "the current state of the transition" |
-| origin | "name of node triggering the message" |
+| old_state | the last state of the transition |
+| new_state | the current state of the transition |
+| origin | name of node triggering the message |
 
 **DynamicSourceMessage** indicates source is added or removed via REST APIs. The message could be generated in case 'nvmultiurisrcbin' is used.
 
 | name | description |
 | --- | --- |
-| source_added | "add or removal" |
-| source_id | "index of the source" |
-| sensor_id | "unique string identifying the sensor" |
-| sensor_name | "a meaningful name of the sensor" |
-| uri | "URI of the sensor" |
+| source_added | add or removal |
+| source_id | index of the source |
+| sensor_id | unique string identifying the sensor |
+| sensor_name | a meaningful name of the sensor |
+| uri | URI of the sensor |
 
 The feature usage has been demonstrated in service-maker/sources/apps/python/pipeline_api/deepstream_test5_app application.
 

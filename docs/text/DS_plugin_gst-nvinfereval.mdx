@@ -2,7 +2,7 @@
 title: "Gst-nvinfereval"
 ---
 
-The Gst-nvinfereval plugin is a pass-through element that evaluates live model accuracy against ground-truth data. It auto-detects whether it is downstream of a single inference model (Mode A) or a [DS_plugin_gst-nvmodelmux](DS_plugin_gst-nvmodelmux) primary/shadow pair (Mode B), and computes AP@0.5, AP@0.5:0.95, precision, recall, and F1 per model, per class, over configurable evaluation epochs. In Mode B, it can gate automatic promotion of a shadow model to primary based on configurable KPI thresholds and a minimum AP margin over the primary. The buffer is never modified; the element only reads `InferenceProvenanceMeta` when present and forwards it to the evaluation engine.
+The Gst-nvinfereval plugin is a pass-through element that evaluates live model accuracy against ground-truth data. It auto-detects whether it is downstream of a single inference model (Mode A) or a [Gst-nvmodelmux](/text/DS_plugin_gst-nvmodelmux) primary/shadow pair (Mode B), and computes AP@0.5, AP@0.5:0.95, precision, recall, and F1 per model, per class, over configurable evaluation epochs. In Mode B, it can gate automatic promotion of a shadow model to primary based on configurable KPI thresholds and a minimum AP margin over the primary. The buffer is never modified; the element only reads `InferenceProvenanceMeta` when present and forwards it to the evaluation engine.
 
 ## Inputs and Outputs
 

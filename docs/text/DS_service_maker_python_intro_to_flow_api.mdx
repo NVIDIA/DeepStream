@@ -19,12 +19,12 @@ Within the service maker a wide range of common operations in the multimedia and
 
 The 'capture' method appends a capture operation to an empty flow. This operation takes a list of URIs as input, from which multiple streams carrying decoded data will be created within the flow. Alternatively, a SourceManager object can be provided to add/remove sources during runtime.
 
-| argument name | description |  |  |
-| --- | --- | --- | --- |
-| inputs | "list of input URIs" |  |  |
-| source_manager | "Source manager object of adding/removing sources during runtime" |  |  |
-| media_types | "requested stream type: MediaType.VIDEO | MediaType.AUDIO | or a tuple containing both" |
-| kwargs | "optional keyword arguments for overriding the standard Deepstream Element properties" |  |  |
+| argument name | description |
+| --- | --- |
+| inputs | list of input URIs |
+| source_manager | Source manager object of adding/removing sources during runtime |
+| media_types | requested stream type: MediaType.VIDEO, MediaType.AUDIO, or a tuple containing both |
+| kwargs | optional keyword arguments for overriding the standard Deepstream Element properties |
 
 ```python
 # Flow for playback a mp4 video
@@ -66,13 +66,13 @@ In addition to overriding the 'generate' method to create buffers, BufferProvide
 
 | member name | description |
 | --- | --- |
-| width | "width of the video frames" |
-| height | "height of the video frames" |
-| format | "format: RGB/I420 for video or a raw audio format such as S16LE" |
-| framerate | "framerate of the video" |
-| media_type | "optional; set to audio for audio buffers" |
-| sample_rate/channels/layout | "audio properties required when media_type is audio" |
-| use_gpu | "boolean value to indicate if the data is in GPU memory" |
+| width | width of the video frames |
+| height | height of the video frames |
+| format | format: RGB/I420 for video or a raw audio format such as S16LE |
+| framerate | framerate of the video |
+| media_type | optional; set to audio for audio buffers |
+| sample_rate/channels/layout | audio properties required when media_type is audio |
+| use_gpu | boolean value to indicate if the data is in GPU memory |
 
 ```python
 from pyservicemaker import Pipeline, Flow, BufferProvider, Buffer
@@ -106,8 +106,8 @@ The 'select' method derives a new flow containing only a subset of the streams i
 
 | argument name | description |
 | --- | --- |
-| media_type | "optional media filter: MediaType.AUDIO or MediaType.VIDEO" |
-| originator | "optional source element name to filter the streams by their originating source" |
+| media_type | optional media filter: MediaType.AUDIO or MediaType.VIDEO |
+| originator | optional source element name to filter the streams by their originating source |
 
 ```python
 from pyservicemaker import Flow, MediaType, Pipeline
@@ -197,10 +197,10 @@ The 'batch_capture' method appends a operation to capture to an empty flow and b
 
 | argument name | description |
 | --- | --- |
-| input | "list of input URIs" |
-| smart_record_config | "optional configuration file for enabling smart record" |
-| media_types | "requested batched stream type: MediaType.VIDEO or MediaType.AUDIO" |
-| kwargs | "optional keyword arguments for overriding the standard Deepstream Element properties" |
+| input | list of input URIs |
+| smart_record_config | optional configuration file for enabling smart record |
+| media_types | requested batched stream type: MediaType.VIDEO or MediaType.AUDIO |
+| kwargs | optional keyword arguments for overriding the standard Deepstream Element properties |
 
 ```python
 uri_list = ["/opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4"]*4
@@ -231,13 +231,13 @@ optional named arguments cover all the standard sink control parameters.
 Invocation of the method result in the end of a flow and no more operation can
 be appended.
 
-| argument name | description |  |  |
-| --- | --- | --- | --- |
-| mode | "render mode: DISPLAY (default) | DISCARD | or STREAM" |
-| enable_osd | "boolean value to enable OSD | True by default" |  |
-| rtsp_mount_point | "the mount point for the rtsp stream | default is 'ds-test' and only valid when mode is STREAM" |  |
-| rtsp_port | "the port number for the rtsp stream | default is 8554 and only valid when mode is STREAM" |  |
-| kwargs | "optional keyword arguments for overriding the standard Deepstream Element properties" |  |  |
+| argument name | description |
+| --- | --- |
+| mode | render mode: DISPLAY (default), DISCARD, or STREAM |
+| enable_osd | boolean value to enable OSD, True by default |
+| rtsp_mount_point | the mount point for the rtsp stream, default is 'ds-test' and only valid when mode is STREAM |
+| rtsp_port | the port number for the rtsp stream, default is 8554 and only valid when mode is STREAM |
+| kwargs | optional keyword arguments for overriding the standard Deepstream Element properties |
 
 ```python
 # discard the video frames
@@ -264,13 +264,13 @@ case of RTSP stream, a port number must appear in the URI. Moreover, optional
 parameters for encoding control are supported too. Audio-only flows support WAV
 file output. Mixed audio/video flows can be encoded into an MP4 container.
 
-| name | description |  |  |  |
-| --- | --- | --- | --- | --- |
-| dest | "destination URI prefixed with 'file://' or 'rtsp://'" |  |  |  |
-| use_sw_codec | "boolean value to indicate if the software codec is used | False by default" |  |  |
-| profile | "profile: 0 for baseline (default) | 1 for constrained baseline | 2 for main | 4 for high" |
-| iframeinterval | "Encoding Intra Frame occurrence frequency | default 10" |  |  |
-| bitrate | "bitrate | default 2000000" |  |  |
+| name | description |
+| --- | --- |
+| dest | destination URI prefixed with 'file://' or 'rtsp://' |
+| use_sw_codec | boolean value to indicate if the software codec is used, False by default |
+| profile | profile: 0 for baseline (default), 1 for constrained baseline, 2 for main, 4 for high |
+| iframeinterval | Encoding Intra Frame occurrence frequency, default 10 |
+| bitrate | bitrate, default 2000000 |
 
 ```python
 # streaming a udp stream via rtsp
@@ -296,11 +296,11 @@ file. For audio streams, `infer` uses `nvinferaudio` and supports audio
 properties such as `audio_framesize`, `audio_hopsize`,
 `audio_transform`, and `audio_caps`.
 
-| argument name | description |  |
-| --- | --- | --- |
-| config | "configuration file for nvinfer" |  |
-| with_triton | "boolean value to indicate if the inference is through triton | False by default" |
-| kwargs | "optional keyword arguments for overriding the standard Deepstream Element properties" |  |
+| argument name | description |
+| --- | --- |
+| config | configuration file for nvinfer |
+| with_triton | boolean value to indicate if the inference is through triton, False by default |
+| kwargs | optional keyword arguments for overriding the standard Deepstream Element properties |
 
 ```python
 pgie_config = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_infer_primary.yml"
@@ -329,10 +329,10 @@ The 'publish' method appends a procedure to the current flow for publishing even
 
 | argument name | description |
 | --- | --- |
-| msg_broker_proto_lib | "The low level library used by the message broker" |
-| msg_broker_conn_str | "The connect string for the server" |
-| topic | "topic name" |
-| msg_conv_config | "The message converter config for source information" |
+| msg_broker_proto_lib | The low level library used by the message broker |
+| msg_broker_conn_str | The connect string for the server |
+| topic | topic name |
+| msg_conv_config | The message converter config for source information |
 
 ```python
 # publish the object data to a kafka server
@@ -356,10 +356,10 @@ Invocation of the method result in the end of a flow and no more operation can b
 
 The 'preprocess' method appends a preprocess operation to the current flow. The operation takes a 'config' parameter for the preprocess configuration file. An optional tensor generator callback can be provided to generate custom tensors alongside the preprocessed images.
 
-| argument name | description |  |
-| --- | --- | --- |
-| config_file | "The preprocess configuration file in YAML format" |  |
-| tensor_generator | "The callback for generating custom tensors | which takes an integer (number of frames in the batch) as input and returns a dictionary of tensors" |
+| argument name | description |
+| --- | --- |
+| config_file | The preprocess configuration file in YAML format |
+| tensor_generator | The callback for generating custom tensors, which takes an integer (number of frames in the batch) as input and returns a dictionary of tensors |
 
 ```python
 preprocess_config = "/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_preprocess.yml"
@@ -376,8 +376,8 @@ The 'attach' method attach a Probe to the current flow. Two parameters required:
 
 | argument name | description |
 | --- | --- |
-| what | "can be a Probe object or name of the probe in a shared library" |
-| name | "the instance name if probe is from shared library" |
+| what | can be a Probe object or name of the probe in a shared library |
+| name | the instance name if probe is from shared library |
 
 ## Fork
 

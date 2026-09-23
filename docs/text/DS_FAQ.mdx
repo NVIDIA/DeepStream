@@ -75,7 +75,7 @@ The FPS number shown on the console when deepstream-app runs is an average of th
 
 ### My DeepStream performance is lower than expected. How can I determine the reason?
 
-See the [\DS_troubleshooting](\DS_troubleshooting) chapter in the *NVIDIA DeepStream Development Guide*.
+See the [Troubleshooting](/text/DS_troubleshooting) chapter in the *NVIDIA DeepStream Development Guide*.
 
 ### How can I specify RTSP streaming of DeepStream output?
 
@@ -120,7 +120,7 @@ Once the Dockerfile is updated, follow README to create a DeepStream based docke
 
 If the host machine is running X, starting VNC is trivial. Otherwise you must start X, then start VNC.
 To determine whether X is running, check the DISPLAY environment variable.
-If X is not running you must start it first, then run DeepStream with GUI, or set type to 1 or 3 under sink groups to select fakesink or save to a file. If you are using an NVIDIA® Tesla® GPU Accelerators (compute-only cards without a display), you can set type to 4 for DeepStream output RTSP streaming. See the NVIDIA DeepStream SDK Development Guide for sink settings or create a virtual display to visualize the output using VNC. Refer to [How to visualize the output if the display is not attached to the system](/text/DS_Quickstart#how-to-visualize-the-output-if-the-display-is-not-attached-to-the-system) in [DS_Quickstart](DS_Quickstart) for more details
+If X is not running you must start it first, then run DeepStream with GUI, or set type to 1 or 3 under sink groups to select fakesink or save to a file. If you are using an NVIDIA® Tesla® GPU Accelerators (compute-only cards without a display), you can set type to 4 for DeepStream output RTSP streaming. See the NVIDIA DeepStream SDK Development Guide for sink settings or create a virtual display to visualize the output using VNC. Refer to [How to visualize the output if the display is not attached to the system](/text/DS_Quickstart#how-to-visualize-the-output-if-the-display-is-not-attached-to-the-system) in [Quickstart Guide](/text/DS_Quickstart) for more details
 
 ### Why does the deepstream-nvof-test application show the error message “Device Does NOT support Optical Flow Functionality” ?
 
@@ -793,7 +793,7 @@ export LD_LIBRARY_PATH=/usr/local/cuda/compat:$LD_LIBRARY_PATH
 ```
 
 <Note>
-Replace x with the CUDA version mentioned in the [DS_Quickstart](DS_Quickstart) Guide.
+Replace x with the CUDA version mentioned in the [Quickstart Guide](/text/DS_Quickstart) Guide.
 </Note>
 
 <Note>
@@ -1037,7 +1037,7 @@ https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/use
 
 ### How to support Triton ensemble model?
 
-See details in **Triton_ensemble-label** in :doc: `\DS_plugin_gst_nvinferserver` section.
+See details in **Triton_ensemble-label** in [Gst-nvinferserver](/text/DS_plugin_gst-nvinferserver) section.
 
 ### Does Gst-nvinferserver support Triton multiple instance groups?
 

@@ -40,7 +40,7 @@ This section summarizes the inputs, outputs, and communication facilities of the
   * `NvDsBatchMeta`
 
     * Includes the detected object info from primary inference module
-    * More details about [NvDsBatchMeta](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_metadata.html?highlight=nvdsbatchmeta/) can be found in the link.
+    * More details about [NvDsBatchMeta](/text/DS_plugin_metadata) can be found in the link.
 
 The color formats supported for the input video frame by the NvTracker plugin are NV12 and RGBA. A separate batch of video frames are created from the input video frames based on the color format and the resolution that is required to the low-level tracker library.
 
@@ -59,7 +59,7 @@ There's no separate data structure for the output. Instead, the tracker plugin j
 <Note>
 If the tracker algorithm does not generate confidence value, then tracker confidence value will be set to the default value (i.e., `1.0`) for tracked objects. For IOU, NvSORT and NvDeepSORT trackers, `tracker_confidence` is set to `1.0` as these algorithms do not generate confidence values for tracked objects. NvDCF tracker, on the other hand, generates confidence for the tracked objects due to its visual tracking capability, and its value is set in `tracker_confidence` field in `NvDsObjectMeta` structure.
 
-Note that there are separate parameters in `NvDsObjectMeta` for detector's confidence and tracker's confidence, which are `confidence` and `tracker_confidence`, respectively. MaskTracker also fills the segmentation mask information in `mask_params` field. More details can be found in [New metadata fields](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_metadata.html?highlight=tracker_confidence#new-metadata-fields)
+Note that there are separate parameters in `NvDsObjectMeta` for detector's confidence and tracker's confidence, which are `confidence` and `tracker_confidence`, respectively. MaskTracker also fills the segmentation mask information in `mask_params` field. More details can be found in [New metadata fields](/text/DS_plugin_metadata#new-metadata-fields)
 
 The `operate-on-class-ids` property allows filtering objects based on their class IDs. When class IDs are specified, only objects with matching class IDs will have tracker metadata. Metadata for other objects will be copied directly to downstream without tracking. If class IDs are not specified or are empty, all classes are tracked by default.
 </Note>
@@ -305,7 +305,7 @@ The `BaseConfig` section defines parameters that apply across multiple tracker m
 The legacy keys `DataAssociator:checkClassMatch` and `TrajectoryManagement:checkClassMatchForReAssoc` are deprecated and ignored with a warning if present.
 </Note>
 
-* `useBatchNumForFrameId`: Selects the frame ID source used by the tracker. When `0` (default), the per-source frame number from `nvstreammux` is preserved. When `1`, the tracker's internal batch counter is used for every stream, giving all frames in a batch the same frame ID. Set to `1` for MV3DT when per-source frame numbers cannot be aligned across streams, such as with dynamic stream addition. For MV3DT messaging and peer tracklet matching, see [Cross-stream frame alignment](../text/DS_MV3DT.html#cross-stream-frame-alignment).
+* `useBatchNumForFrameId`: Selects the frame ID source used by the tracker. When `0` (default), the per-source frame number from `nvstreammux` is preserved. When `1`, the tracker's internal batch counter is used for every stream, giving all frames in a batch the same frame ID. Set to `1` for MV3DT when per-source frame numbers cannot be aligned across streams, such as with dynamic stream addition. For MV3DT messaging and peer tracklet matching, see [Cross-stream frame alignment](/text/DS_MV3DT#cross-stream-frame-alignment).
 
    ```yaml
    BaseConfig:
@@ -599,7 +599,7 @@ An animated image below shows how 3D human models can be fitted into the input d
 
 As a derived metric, the ratio between the bbox for the visible part and the bbox for the projected 3D human model can be considered as an approximated `visibility` of the object, which could be a useful information.
 
-Users can still get access to the corresponding detection bboxes by checking out `detector_bbox_info` in [NvDsObjectMeta](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_metadata.html#new-metadata-fields).
+Users can still get access to the corresponding detection bboxes by checking out `detector_bbox_info` in [NvDsObjectMeta](/text/DS_plugin_metadata#new-metadata-fields).
 
 To enable SV3DT feature, we introduced a new section in tracker config files, `ObjectModelProjection`, like below:
 
@@ -2006,7 +2006,7 @@ Below is a side-by-side comparison of TrafficCamNet with different trackers on a
 
 Tracker sample pipelines demonstrated in above section include lots of detector and tracker parameters optimized for people tracking. When users deploy such pipelines for other scenarios, such as traffic, animals, etc., a pain point is how to find the optimal parameters with the highest accuracy KPI for each use case. Manual parameter tuning requires in-depth knowledge on the tracker algorithm and how each parameter would affect the functionality. Given the large number of parameters, the complexity of such process would increase exponentially.
 
-Starting from DeepStream 7.0, a new tool **PipeTuner** is released to allow automatic accuracy tuning. It efficiently explores the (potentially very high-dimensional) parameter space and automatically finds the optimal parameters for the pipelines, which yields the highest KPI on the dataset. Based on their use case, users can tune the tracker on public multi-object tracking datasets, such as [MOT Challenge](https://motchallenge.net/), [KITTI](https://www.cvlibs.net/datasets/kitti/), or create their own dataset with sample videos and ground truth (bounding box and object ID). Users can select common tracking accuracy metrics including [HOTA](https://link.springer.com/article/10.1007/s11263-020-01375-2), [MOTA](https://link.springer.com/article/10.1155/2008/246309) and [IDF1](https://arxiv.org/abs/1609.01775) as the KPI. Visit [\DS_Accuracy](\DS_Accuracy) on how to setup PipeTuner and start DeepStream tracker accuracy tuning.
+Starting from DeepStream 7.0, a new tool **PipeTuner** is released to allow automatic accuracy tuning. It efficiently explores the (potentially very high-dimensional) parameter space and automatically finds the optimal parameters for the pipelines, which yields the highest KPI on the dataset. Based on their use case, users can tune the tracker on public multi-object tracking datasets, such as [MOT Challenge](https://motchallenge.net/), [KITTI](https://www.cvlibs.net/datasets/kitti/), or create their own dataset with sample videos and ground truth (bounding box and object ID). Users can select common tracking accuracy metrics including [HOTA](https://link.springer.com/article/10.1007/s11263-020-01375-2), [MOTA](https://link.springer.com/article/10.1155/2008/246309) and [IDF1](https://arxiv.org/abs/1609.01775) as the KPI. Visit [Accuracy Tuning Tools](/text/DS_Accuracy) on how to setup PipeTuner and start DeepStream tracker accuracy tuning.
 
 ## How to Implement a Custom Low-Level Tracker Library
 
@@ -2143,7 +2143,7 @@ After initialization is finished, the tracker plugin queries parameters needed f
 
 Once the low-level tracker library creates the tracker context and performs query during the initialization stage, it needs to implement a function to process each frame batch, which is `NvMOT_Process()`. Make sure to set the stream ID properly in the output so that `pParams->frameList[i].streamID` matches with `pTrackedObjectsBatch->list[j].streamID` if they are for the same stream, regardless of `i` and `j`. The method `NvMOTContext::processFrame()` in the sample code below is expected to perform the required multi-object tracking operations with the input data of the video frames and the detector object information, while reporting the tracking outputs in `NvMOTTrackedObjBatch *pTrackedObjectsBatch`.
 
-Users can refer to [Accessing NvBufSurface memory in OpenCV](https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_sample_custom_gstream.html#accessing-nvbufsurface-memory-in-opencv) to know more about how to access the pixel data in the video frames.
+Users can refer to [Accessing NvBufSurface memory in OpenCV](/text/DS_sample_custom_gstream#accessing-nvbufsurface-memory-in-opencv) to know more about how to access the pixel data in the video frames.
 
    ```c++
    NvMOTStatus NvMOT_Process(NvMOTContextHandle contextHandle,

@@ -16,7 +16,7 @@ Multi-View 3D Tracking (MV3DT), newly introduced in DeepStream 8.0, is a distrib
 
 ### Technical Foundation
 
-MV3DT builds on existing robust 2D and single-view 3D tracking technology (see [Single-View 3D Tracking](../text/DS_plugin_gst-nvtracker.html#single-view-3d-tracking)) within the same `NvMultiObjectTracking` library. Each camera performs object detection and single-view 3D tracking (SV3DT) with an optional pose estimation model, estimating global 3D coordinates from 2D image coordinates using its camera calibration matrix and 3D object models. When cameras are calibrated with respect to the same global coordinate system, the 3D localization results from multiple cameras for the same target align at the same global location. MV3DT enables real-time collaboration among cameras with overlapping fields of view (FOVs) to perform the following operations:
+MV3DT builds on existing robust 2D and single-view 3D tracking technology (see [Single-View 3D Tracking](/text/DS_plugin_gst-nvtracker#single-view-3d-tracking)) within the same `NvMultiObjectTracking` library. Each camera performs object detection and single-view 3D tracking (SV3DT) with an optional pose estimation model, estimating global 3D coordinates from 2D image coordinates using its camera calibration matrix and 3D object models. When cameras are calibrated with respect to the same global coordinate system, the 3D localization results from multiple cameras for the same target align at the same global location. MV3DT enables real-time collaboration among cameras with overlapping fields of view (FOVs) to perform the following operations:
 
 **Distributed Global ID and Tracklet Propagation**
 
@@ -90,7 +90,7 @@ sudo xhost + # Grant container access to display
       └── transforms.yml     # (optional, for BEV visualization)
    ```
 
-2. **Create camera calibration files** following the format of `datasets/mtmc_4cam/camInfo/Warehouse_Synthetic_Cam001.yml`. Replace the `projectionMatrix_3x4_w2p` values with your camera's projection matrix. For more details about these files, refer to the [Single-View 3D Tracking](../text/DS_plugin_gst-nvtracker.html#single-view-3d-tracking) and [The 3x4 Camera Projection Matrix](../text/DS_plugin_gst-nvtracker.html#the-3x4-camera-projection-matrix) sections.
+2. **Create camera calibration files** following the format of `datasets/mtmc_4cam/camInfo/Warehouse_Synthetic_Cam001.yml`. Replace the `projectionMatrix_3x4_w2p` values with your camera's projection matrix. For more details about these files, refer to the [Single-View 3D Tracking](/text/DS_plugin_gst-nvtracker#single-view-3d-tracking) and [The 3x4 Camera Projection Matrix](/text/DS_plugin_gst-nvtracker#the-3x4-camera-projection-matrix) sections.
 
 3. **Optional: BEV visualization setup** - Prepare a BEV map image and create a `transforms.yml` file specifying the projection matrix that maps world coordinates (in meters) to BEV image coordinates, following the sample format in `datasets/mtmc_4cam/transforms.yml`.
 
@@ -162,7 +162,7 @@ MV3DT peer tracklet matching assumes that measurements from different cameras ca
 
 Two mechanisms align streams in time:
 
-- `useBatchNumForFrameId`: See [Base Configuration](../text/DS_plugin_gst-nvtracker.html#ds-tracker-base-config). Selects the frame ID source used by the tracker. When `0` (default), the per-source frame number from `nvstreammux` is preserved. When `1`, the tracker's internal batch counter is used for every stream, giving all frames in a batch the same frame ID. Set to `1` for MV3DT when per-source frame numbers cannot be aligned across streams, such as with dynamic stream addition.
+- `useBatchNumForFrameId`: See [Base Configuration](/text/DS_plugin_gst-nvtracker#ds-tracker-base-config). Selects the frame ID source used by the tracker. When `0` (default), the per-source frame number from `nvstreammux` is preserved. When `1`, the tracker's internal batch counter is used for every stream, giving all frames in a batch the same frame ID. Set to `1` for MV3DT when per-source frame numbers cannot be aligned across streams, such as with dynamic stream addition.
 - Peer MQTT payloads carry an NTP-based `messageTimeStamp` derived from frame metadata. The tracker uses these timestamps together with per-stream frame numbers to estimate the frame offset between the ego camera and each peer camera so that tracklet matching and fusion operate on a common timeline even when sources start at different times or run on separate machines.
 
 ### Peer-to-Peer Communication
