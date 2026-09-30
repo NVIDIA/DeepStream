@@ -766,8 +766,8 @@ gst_nvdsudpsrc_class_init (GstNvDsUdpSrcClass * klass)
   base_src_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_nvdsudpsrc_unlock_stop);
   base_src_class->start = GST_DEBUG_FUNCPTR (gst_nvdsudpsrc_start);
   base_src_class->stop = GST_DEBUG_FUNCPTR (gst_nvdsudpsrc_stop);
-  /* Use the provide_clock method to set REALTIME clock as pipeline clock.
-     REALTIME clock is set only when "use_rtp_timestamp" is enabled. */
+  /* Offer the system clock as pipeline clock when "use_rtp_timestamp" is
+     enabled. */
   gstelement_class->provide_clock = GST_DEBUG_FUNCPTR (gst_nvdsudpsrc_provide_clock);
 
   gstpushsrc_class->create = gst_nvdsudpsrc_create;
@@ -2970,10 +2970,20 @@ rtp_ticks_to_running_time(GstNvDsUdpSrc *src, guint32 rtp_tick, guint32 clock_ra
     guint64 extended_rtp_tick=0;
 
     if (src->first_rtp_packet) {
-        //GstClockTime now = get_realtime_in_ns();
-        GstClock *clock = gst_system_clock_obtain();
-        GstClockTime now = gst_clock_get_time (clock);
+        /* Take now in the sender's RTP timescale (TAI with adjust-leap-seconds,
+           else UTC), not from the pipeline clock, which need not be REALTIME
+           and may have started before this element was added. */
+        GstClock *clock = gst_element_get_clock (GST_ELEMENT (src));
+        if (!clock)
+            return GST_CLOCK_TIME_NONE;
+        struct timespec ts;
+        clock_gettime (CLOCK_REALTIME, &ts);
+        GstClockTime clock_now = gst_clock_get_time (clock);
         gst_object_unref (clock);
+        GstClockTime now = GST_TIMESPEC_TO_TIME (ts);
+        if (src->adjust_leap_seconds)
+            now += LEAP_SECONDS * GST_SECOND;
+        src->rtp_clock_offset = GST_CLOCK_DIFF (clock_now, now);
         GST_DEBUG_OBJECT(src, " first_rtp_packet. now in HH:MM:SS.NS: %" GST_TIME_FORMAT,
                         GST_TIME_ARGS(now));
         // Convert current time to RTP ticks
@@ -3006,11 +3016,7 @@ rtp_ticks_to_running_time(GstNvDsUdpSrc *src, guint32 rtp_tick, guint32 clock_ra
     GstClockTime base_time = gst_element_get_base_time(GST_ELEMENT(src));
     // Convert to GstClockTime (nanoseconds)
     GstClockTime rtp_time_in_ns = gst_util_uint64_scale_int(extended_rtp_tick, GST_SECOND, clock_rate);
-    GstClockTime running_time = GST_CLOCK_DIFF(base_time, rtp_time_in_ns);
-    if (src->adjust_leap_seconds) {
-        running_time -= (LEAP_SECONDS*GST_SECOND);
-        GST_DEBUG_OBJECT(src, "Adjusted for leap seconds");
-    }
+    GstClockTime running_time = GST_CLOCK_DIFF(base_time, rtp_time_in_ns) - src->rtp_clock_offset;
 
     // Apply latency offset if configured
     if (src->latency_offset > 0) {
@@ -3772,10 +3778,11 @@ gst_nvdsudpsrc_provide_clock (GstElement * element)
 
   GST_OBJECT_LOCK (src);
   if (src->use_rtp_timestamp) {
+    /* Leave clock-type alone: the system clock is shared by every pipeline
+       in the process. */
     clock = gst_system_clock_obtain();
     if (clock) {
-      g_object_set(G_OBJECT(clock), "clock-type", GST_CLOCK_TYPE_REALTIME, NULL);
-      GST_DEBUG_OBJECT(src, "Providing REALTIME system clock");
+      GST_DEBUG_OBJECT(src, "Providing system clock");
       GST_OBJECT_UNLOCK (src);
       return clock;
     }
