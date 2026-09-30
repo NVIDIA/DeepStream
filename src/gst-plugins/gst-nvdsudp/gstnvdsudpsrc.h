@@ -105,6 +105,7 @@ struct _GstNvDsUdpSrc
   gboolean first_rtp_packet;
   guint64 last_rtp_tick;
   guint64 rtp_tick_base;
+  GstClockTimeDiff rtp_clock_offset; /* sender RTP time minus pipeline clock time */
   guint clock_rate;
   gboolean is_nvmm;
 
