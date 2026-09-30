@@ -60,19 +60,17 @@ With the support for de-packetization, `nvdsudpsrc` can now have five different 
     The logic for reconstruction of rtp ticks and converting it to running time is as follows:
 
     ```text
-    - Get current time from epoch time (real clock)
-    - Convert current time to RTP ticks. (clock rate used for calculation  to rtp ticks)
-    - Mask upper 32 bits out of the above RTP ticks and consider as rtp_tick_base for reconstruction of 64 bit RTP ticks.
-    - Add 32 bit rtp ticks received from RTP packet header to this rtp_tick_base
-      (This will be 64 bit reconstructed rtp ticks)
-    - Convert the 64 bit rtp ticks to RTP time
-      (RTP time = rtp ticks in seconds / clock rate)
-    
-    Buffer PTS/DTS = (RTP time - Base Time Of Pipeline) - LEAP_SECONDS (if enabled "adjust-leap-seconds" is enabled)
+    - Get the current wall-clock time: CLOCK_REALTIME (UTC), plus 37 s (TAI) if "adjust-leap-seconds" is enabled
+    - Convert it to RTP ticks at the stream's clock rate, and keep the upper 32 bits as rtp_tick_base
+    - Add the 32-bit RTP timestamp from the packet header to rtp_tick_base, giving 64-bit RTP ticks
+    - RTP time = 64-bit RTP ticks / clock rate
+
+    Buffer PTS/DTS = RTP time - base wall-clock time + latency-offset
     ```
 
-    We should use CLOCK_REALTIME for the sender and receiver pipeline, in case we want to achieve reconstruction of RTP timestamp (punched from nvdsudpsink/sender) at nvdsudpsrc/receiver component. That is why, when `use-rtp-timestamp` property is enabled the nvdsudpsrc acts as a clock provider to the pipeline based on REALTIME_CLOCK.
-    Also, for the above logic to work, it is important that the systems used are synchronized to same time using some protocols like NTP or PTP.
+    The base wall-clock time is the wall-clock time at the moment the pipeline clock read the pipeline's base time.
+
+    To reconstruct the RTP timestamp that nvdsudpsink sent, the sender and receiver hosts must have their system clocks (CLOCK_REALTIME) synchronized to the same time, normally by PTP, with the system clock on UTC. When `use-rtp-timestamp` is enabled, nvdsudpsrc offers the system clock to the pipeline. It converts between the pipeline clock and CLOCK_REALTIME using an offset taken when the first packet arrives, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
 
   -  The `adjust-leap-seconds` property is used to subtract the leap-seconds (37) from the received RTP timestamp in TAI time, so that it matches the UTC time. Use it, if nvdsudpsrc is expected to receive RTP packets in TAI time and your pipeline is using UTC time for buffer PTS/DTS.
 

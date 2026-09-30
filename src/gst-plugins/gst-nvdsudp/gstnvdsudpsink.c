@@ -2005,6 +2005,14 @@ init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
 
   if (sink->pass_rtp_timestamp && buffer) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (sink));
+    GstClock *clock = gst_element_get_clock (GST_ELEMENT (sink));
+    if (clock) {
+      /* Shift to UTC: the pipeline clock need not be REALTIME. */
+      struct timespec ts;
+      clock_gettime (CLOCK_REALTIME, &ts);
+      base_time += GST_CLOCK_DIFF (gst_clock_get_time (clock), GST_TIMESPEC_TO_TIME (ts));
+      gst_object_unref (clock);
+    }
     sParams->firstPacketTime = base_time + GST_BUFFER_PTS (buffer);
     GST_DEBUG_OBJECT (sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
         GST_TIME_ARGS ((GstClockTime) sParams->firstPacketTime));
