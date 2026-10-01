@@ -619,8 +619,8 @@ FAILED_BUILDS=()
 DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 
 finalize_install() {
-  echo "==> Running install.sh (NVDS_VERSION=$NVDS_VERSION)"
-  run_as_root env NVDS_VERSION="$NVDS_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
+  echo "==> Running install.sh (NVDS_VERSION=$NVDS_FULL_VERSION)"
+  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
 }
 
 # Package the freshly installed tree into a Debian package and/or tarball via
@@ -658,7 +658,7 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
     mkdir -p "$(dirname "$DEPS_STAGE_STATE_FILE")"
     : >"$DEPS_STAGE_STATE_FILE"
   fi
-  run_as_root env NVDS_VERSION="$NVDS_VERSION" PLATFORM="$PLATFORM" \
+  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
     RESUME="$RESUME" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"

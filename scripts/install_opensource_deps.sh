@@ -50,7 +50,14 @@ set -e
 
 export DEBIAN_FRONTEND=noninteractive
 
-NVDS_VERSION=${NVDS_VERSION:-9.1}
+NVDS_VERSION=${NVDS_VERSION:-9.1.1}
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.1.1). MAJOR.MINOR alone is
+# rejected. Install tree still uses MAJOR.MINOR for now (e.g. deepstream-9.1/).
+if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.1.1)" >&2
+  exit 1
+fi
+NVDS_VERSION="${NVDS_VERSION%.*}"
 INSTALL_DIR=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
 BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

@@ -29,15 +29,23 @@ if [ "${TARGET_DEVICE}" = "x86_64" ]; then
     fi
 fi
 
-# DeepStream version to remove. Override via the first argument or the
-# PREV_DS_VER environment variable; defaults to 9.1.
-#   sudo ./uninstall.sh 9.0
-#   sudo PREV_DS_VER=9.0 ./uninstall.sh
-PREV_DS_VER="${1:-${PREV_DS_VER:-9.1}}"
+# DeepStream version to remove. Override via the first argument, PREV_DS_VER,
+# or NVDS_VERSION; defaults to 9.1.1. Must be MAJOR.MINOR.PATCH.
+#   sudo ./uninstall.sh 9.1.1
+#   sudo PREV_DS_VER=9.1.1 ./uninstall.sh
+#   sudo NVDS_VERSION=9.1.1 ./uninstall.sh
+PREV_DS_VER="${1:-${PREV_DS_VER:-${NVDS_VERSION:-9.1.1}}}"
 if [ -z "${PREV_DS_VER}" ]; then
-  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.1)"
+  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.1.1)"
   exit 1
 fi
+if [[ ! "$PREV_DS_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: invalid version '$PREV_DS_VER' (expected MAJOR.MINOR.PATCH, e.g. 9.1.1)" >&2
+  exit 1
+fi
+# Install tree still uses MAJOR.MINOR for now; strip .PATCH so 9.1.1 removes
+# deepstream-9.1/.
+PREV_DS_VER="${PREV_DS_VER%.*}"
 
 if [ ! -d /opt/nvidia/deepstream/deepstream-${PREV_DS_VER} ]; then
     echo "This version of DeepStream is not present in the system."
