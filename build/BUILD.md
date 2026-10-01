@@ -340,10 +340,10 @@ To remove a DeepStream installation from `/opt`:
 # Remove DeepStream 9.1 (default)
 sudo bash scripts/uninstall.sh
 
-# Remove a specific version (e.g. 9.0)
-sudo bash scripts/uninstall.sh 9.0
+# Remove a specific version (MAJOR.MINOR.PATCH)
+sudo bash scripts/uninstall.sh 9.1.1
 # or equivalently:
-sudo PREV_DS_VER=9.0 bash scripts/uninstall.sh
+sudo PREV_DS_VER=9.1.1 bash scripts/uninstall.sh
 ```
 
 `uninstall.sh` removes binaries, libs, samples, and service-maker files from

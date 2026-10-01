@@ -15,12 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NVDS_VERSION=${NVDS_VERSION:-9.1}
-# update-alternatives priority derived from DeepStream major+minor version (e.g. 9.1 -> 91)
+NVDS_VERSION=${NVDS_VERSION:-9.1.1}
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.1.1). Install tree still
+# uses MAJOR.MINOR for now (e.g. deepstream-9.1/); strip the patch for paths.
+if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.1.1)" >&2
+  exit 1
+fi
+# update-alternatives priority: MAJOR*10000 + MINOR*100 + PATCH
+# (zero-pads minor/patch to 2 digits so 9.1.10 != 9.11.0 and 10.0.0 > 9.10.0)
 NVDS_MAJOR=${NVDS_VERSION%%.*}
 NVDS_VERSION_REST=${NVDS_VERSION#*.}
 NVDS_MINOR=${NVDS_VERSION_REST%%.*}
-NVDS_PRIORITY="${NVDS_MAJOR}${NVDS_MINOR}"
+NVDS_PATCH=${NVDS_VERSION##*.}
+NVDS_PRIORITY=$((NVDS_MAJOR * 10000 + NVDS_MINOR * 100 + NVDS_PATCH))
+NVDS_VERSION="${NVDS_VERSION%.*}"
 TARGET_DEVICE=$(uname -m)
 OS=$(cat /etc/os-release | awk -F= '$1=="ID"{print $2}' | sed 's/"//g')
 
