@@ -389,6 +389,12 @@ navigation:
       - page: "DeepStream Libraries"
         path: ../../text/DS_Libraries.mdx
         slug: text/DS_Libraries
+  - section: "Archived documentation"
+    skip-slug: true
+    contents:
+      - page: "Archived documentation"
+        path: ../../text/DS_Archives.mdx
+        slug: text/DS_Archives
   - section: "DeepStream Legal Information"
     skip-slug: true
     contents:
