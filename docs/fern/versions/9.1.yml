@@ -4,267 +4,406 @@
 navigation:
   - page: "NVIDIA DeepStream SDK Developer Guide"
     path: ../../index.mdx
+    slug: /
   - section: "DeepStream Release notes"
+    skip-slug: true
     contents:
       - page: "DeepStream SDK 9.1 for NVIDIA dGPU/X86 and Jetson"
         path: ../../text/DS_Release_notes.mdx
+        slug: text/DS_Release_notes
   - section: "DeepStream Getting Started"
+    skip-slug: true
     contents:
       - page: "Welcome to the DeepStream Documentation"
         path: ../../text/DS_Overview.mdx
+        slug: text/DS_Overview
       - page: "Migration Guide"
         path: ../../text/DS_Migration_guide.mdx
+        slug: text/DS_Migration_guide
       - page: "Installation"
         path: ../../text/DS_Installation.mdx
+        slug: text/DS_Installation
       - page: "Quickstart Guide"
         path: ../../text/DS_Quickstart.mdx
+        slug: text/DS_Quickstart
       - page: "Docker Containers"
         path: ../../text/DS_docker_containers.mdx
+        slug: text/DS_docker_containers
   - section: "DeepStream Samples"
+    skip-slug: true
     contents:
       - page: "C/C++ Sample Apps Source Details"
         path: ../../text/DS_C_Sample_Apps.mdx
+        slug: text/DS_C_Sample_Apps
       - page: "Python Sample Apps and Bindings Source Details (Deprecated)"
         path: ../../text/DS_Python_Sample_Apps.mdx
+        slug: text/DS_Python_Sample_Apps
       - page: "DeepStream Reference Application - deepstream-app"
         path: ../../text/DS_ref_app_deepstream.mdx
+        slug: text/DS_ref_app_deepstream
       - page: "DeepStream Reference Application - deepstream-test5 app"
         path: ../../text/DS_ref_app_test5.mdx
+        slug: text/DS_ref_app_test5
       - page: "DeepStream Reference Application - deepstream-nmos app"
         path: ../../text/DS_ref_app_nmos.mdx
+        slug: text/DS_ref_app_nmos
       - page: "DeepStream Reference Application - deepstream-vllm-plugin"
         path: ../../text/DS_ref_app_vllm_plugin.mdx
+        slug: text/DS_ref_app_vllm_plugin
       - page: "DeepStream Reference Application on GitHub"
         path: ../../text/DS_ref_app_github.mdx
+        slug: text/DS_ref_app_github
       - page: "Sample Configurations and Streams"
         path: ../../text/DS_sample_configs_streams.mdx
+        slug: text/DS_sample_configs_streams
       - page: "Implementing a Custom GStreamer Plugin with OpenCV Integration Example"
         path: ../../text/DS_sample_custom_gstream.mdx
+        slug: text/DS_sample_custom_gstream
   - section: "TAO Toolkit Integration with DeepStream"
+    skip-slug: true
     contents:
       - page: "TAO Toolkit Integration with DeepStream"
         path: ../../text/DS_TAO_integration.mdx
+        slug: text/DS_TAO_integration
   - section: "Tutorials and How-to's"
+    skip-slug: true
     contents:
       - page: "DeepStream-3D Custom Apps and Libs Tutorials"
         path: ../../text/DS_3D_Custom_Manual.mdx
+        slug: text/DS_3D_Custom_Manual
   - section: "DeepStream Performance"
+    skip-slug: true
     contents:
       - page: "Performance"
         path: ../../text/DS_Performance.mdx
+        slug: text/DS_Performance
   - section: "DeepStream Accuracy"
+    skip-slug: true
     contents:
       - page: "Accuracy Tuning Tools"
         path: ../../text/DS_Accuracy.mdx
+        slug: text/DS_Accuracy
       - page: "PipeTuner Guide"
         path: ../../text/Pipetuner-guide.mdx
+        slug: text/Pipetuner-guide
   - section: "DeepStream Custom Model"
+    skip-slug: true
     contents:
       - page: "Using a Custom Model with DeepStream"
         path: ../../text/DS_using_custom_model.mdx
+        slug: text/DS_using_custom_model
   - section: "DeepStream Key Features"
+    skip-slug: true
     contents:
       - page: "Multi-View 3D Tracking"
         path: ../../text/DS_MV3DT.mdx
+        slug: text/DS_MV3DT
       - page: "DeepStream-3D Sensor Fusion Multi-Modal Application and Framework"
         path: ../../text/DS_3D_MultiModal_Lidar_Sensor_Fusion.mdx
+        slug: text/DS_3D_MultiModal_Lidar_Sensor_Fusion
       - page: "DeepStream-3D Multi-Modal BEVFusion Setup"
         path: ../../text/DS_3D_MultiModal_Lidar_Camera_BEVFusion.mdx
+        slug: text/DS_3D_MultiModal_Lidar_Camera_BEVFusion
       - page: "DeepStream-3D Multi-Modal V2XFusion Setup"
         path: ../../text/DS_3D_MultiModal_Lidar_Camera_V2XFusion.mdx
+        slug: text/DS_3D_MultiModal_Lidar_Camera_V2XFusion
       - page: "Smart Video Record"
         path: ../../text/DS_Smart_video.mdx
+        slug: text/DS_Smart_video
       - page: "IoT"
         path: ../../text/DS_IoT.mdx
+        slug: text/DS_IoT
       - page: "On the Fly Model Update"
         path: ../../text/DS_on_the_fly_model.mdx
+        slug: text/DS_on_the_fly_model
       - page: "NTP Timestamp in DeepStream"
         path: ../../text/DS_NTP_Timestamp.mdx
+        slug: text/DS_NTP_Timestamp
       - page: "DeepStream With REST API Server"
         path: ../../text/DS_RestServer.mdx
+        slug: text/DS_RestServer
       - page: "DeepStream OpenTelemetry Support"
         path: ../../text/DS_OpenTelemetry.mdx
+        slug: text/DS_OpenTelemetry
       - page: "DeepStream 3D Action Recognition App"
         path: ../../text/DS_3D_Action.mdx
+        slug: text/DS_3D_Action
       - page: "DeepStream 3D Depth Camera App"
         path: ../../text/DS_3D_Depth_Camera.mdx
+        slug: text/DS_3D_Depth_Camera
       - page: "DeepStream 3D Lidar Inference App"
         path: ../../text/DS_3D_Lidar_Inference.mdx
+        slug: text/DS_3D_Lidar_Inference
       - page: "Networked Media Open Specifications (NMOS) in DeepStream"
         path: ../../text/DS_library_nvdsnmos.mdx
+        slug: text/DS_library_nvdsnmos
       - page: "DeepStream Can Orientation App"
         path: ../../text/DS_Can_Orientation.mdx
+        slug: text/DS_Can_Orientation
   - section: "DeepStream Application Migration"
+    skip-slug: true
     contents:
       - page: "Application Migration to DeepStream 9.2 from DeepStream 9.1"
         path: ../../text/DS_Application_migration.mdx
+        slug: text/DS_Application_migration
   - section: "DeepStream Plugin Guide"
+    skip-slug: true
     contents:
       - page: "GStreamer Plugin Overview"
         path: ../../text/DS_plugin_Intro.mdx
+        slug: text/DS_plugin_Intro
       - section: "Plugins"
+        skip-slug: true
         contents:
           - page: "MetaData in the DeepStream SDK"
             path: ../../text/DS_plugin_metadata.mdx
+            slug: text/DS_plugin_metadata
           - page: "Gst-nvdspreprocess"
             path: ../../text/DS_plugin_gst-nvdspreprocess.mdx
+            slug: text/DS_plugin_gst-nvdspreprocess
           - page: "Gst-nvinfer"
             path: ../../text/DS_plugin_gst-nvinfer.mdx
+            slug: text/DS_plugin_gst-nvinfer
           - page: "Gst-nvinferserver"
             path: ../../text/DS_plugin_gst-nvinferserver.mdx
+            slug: text/DS_plugin_gst-nvinferserver
           - page: "Gst-nvtracker"
             path: ../../text/DS_plugin_gst-nvtracker.mdx
+            slug: text/DS_plugin_gst-nvtracker
           - page: "Gst-nvstreammux"
             path: ../../text/DS_plugin_gst-nvstreammux.mdx
+            slug: text/DS_plugin_gst-nvstreammux
           - page: "Gst-nvstreammux New"
             path: ../../text/DS_plugin_gst-nvstreammux2.mdx
+            slug: text/DS_plugin_gst-nvstreammux2
           - page: "Gst-nvstreamdemux"
             path: ../../text/DS_plugin_gst-nvstreamdemux.mdx
+            slug: text/DS_plugin_gst-nvstreamdemux
           - page: "Gst-nvmultistreamtiler"
             path: ../../text/DS_plugin_gst-nvmultistreamtiler.mdx
+            slug: text/DS_plugin_gst-nvmultistreamtiler
           - page: "Gst-nvdsosd"
             path: ../../text/DS_plugin_gst-nvdsosd.mdx
+            slug: text/DS_plugin_gst-nvdsosd
           - page: "Gst-nvdsmetautils"
             path: ../../text/DS_plugin_gst-nvdsmetautils.mdx
+            slug: text/DS_plugin_gst-nvdsmetautils
           - page: "Gst-nvdsmetamux"
             path: ../../text/DS_plugin_gst-nvdsmetamux.mdx
+            slug: text/DS_plugin_gst-nvdsmetamux
           - page: "Gst-nvdsvideotemplate"
             path: ../../text/DS_plugin_gst-nvdsvideotemplate.mdx
+            slug: text/DS_plugin_gst-nvdsvideotemplate
           - page: "Gst-nvvideoconvert"
             path: ../../text/DS_plugin_gst-nvvideoconvert.mdx
+            slug: text/DS_plugin_gst-nvvideoconvert
           - page: "Gst-nvdewarper"
             path: ../../text/DS_plugin_gst-nvdewarper.mdx
+            slug: text/DS_plugin_gst-nvdewarper
           - page: "Gst-nvof"
             path: ../../text/DS_plugin_gst-nvof.mdx
+            slug: text/DS_plugin_gst-nvof
           - page: "Gst-nvofvisual"
             path: ../../text/DS_plugin_gst-nvofvisual.mdx
+            slug: text/DS_plugin_gst-nvofvisual
           - page: "Gst-nvsegvisual"
             path: ../../text/DS_plugin_gst-nvsegvisual.mdx
+            slug: text/DS_plugin_gst-nvsegvisual
           - page: "Gst-nvblender"
             path: ../../text/DS_plugin_gst-nvblender.mdx
+            slug: text/DS_plugin_gst-nvblender
           - page: "Gst-nvbufsurfacewrite"
             path: ../../text/DS_plugin_gst-nvbufsurfacewrite.mdx
+            slug: text/DS_plugin_gst-nvbufsurfacewrite
           - page: "Gst-nvdsbins"
             path: ../../text/DS_plugin_gst-nvdsbins.mdx
+            slug: text/DS_plugin_gst-nvdsbins
           - page: "Gst-nvdsframeselector"
             path: ../../text/DS_plugin_gst-nvdsframeselector.mdx
+            slug: text/DS_plugin_gst-nvdsframeselector
           - page: "Gst-nvdslogger"
             path: ../../text/DS_plugin_gst-nvdslogger.mdx
+            slug: text/DS_plugin_gst-nvdslogger
           - page: "Gst-nvdstextembedder"
             path: ../../text/DS_plugin_gst-nvdstextembedder.mdx
+            slug: text/DS_plugin_gst-nvdstextembedder
           - page: "Gst-nvdsvisionencoder-c"
             path: ../../text/DS_plugin_gst-nvdsvisionencoder-c.mdx
+            slug: text/DS_plugin_gst-nvdsvisionencoder-c
           - page: "Gst-nvmodelmux"
             path: ../../text/DS_plugin_gst-nvmodelmux.mdx
+            slug: text/DS_plugin_gst-nvmodelmux
           - page: "Gst-nvinfereval"
             path: ../../text/DS_plugin_gst-nvinfereval.mdx
+            slug: text/DS_plugin_gst-nvinfereval
           - page: "Gst-nvvideo4linux2"
             path: ../../text/DS_plugin_gst-nvvideo4linux2.mdx
+            slug: text/DS_plugin_gst-nvvideo4linux2
           - page: "Gst-nvjpegdec"
             path: ../../text/DS_plugin_gst-nvjpegdec.mdx
+            slug: text/DS_plugin_gst-nvjpegdec
           - page: "Gst-nvimagedec"
             path: ../../text/DS_plugin_gst-nvimagedec.mdx
+            slug: text/DS_plugin_gst-nvimagedec
           - page: "Gst-nvjpegenc"
             path: ../../text/DS_plugin_gst-nvjpegenc.mdx
+            slug: text/DS_plugin_gst-nvjpegenc
           - page: "Gst-nvimageenc"
             path: ../../text/DS_plugin_gst-nvimageenc.mdx
+            slug: text/DS_plugin_gst-nvimageenc
           - page: "Gst-nvmsgconv"
             path: ../../text/DS_plugin_gst-nvmsgconv.mdx
+            slug: text/DS_plugin_gst-nvmsgconv
           - page: "Gst-nvmsgbroker"
             path: ../../text/DS_plugin_gst-nvmsgbroker.mdx
+            slug: text/DS_plugin_gst-nvmsgbroker
           - page: "Gst-nvdsanalytics"
             path: ../../text/DS_plugin_gst-nvdsanalytics.mdx
+            slug: text/DS_plugin_gst-nvdsanalytics
           - page: "Gst-nvdsdynamicsrcbin (developer preview)"
             path: ../../text/DS_plugin_gst-nvdsdynamicsrcbin.mdx
+            slug: text/DS_plugin_gst-nvdsdynamicsrcbin
           - page: "Gst-nvdsudpsrc"
             path: ../../text/DS_plugin_gst-nvdsudpsrc.mdx
+            slug: text/DS_plugin_gst-nvdsudpsrc
           - page: "Gst-nvdsudpsink"
             path: ../../text/DS_plugin_gst-nvdsudpsink.mdx
+            slug: text/DS_plugin_gst-nvdsudpsink
           - page: "Gst-nvdspostprocess"
             path: ../../text/DS_plugin_gst-nvdspostprocess.mdx
+            slug: text/DS_plugin_gst-nvdspostprocess
           - page: "Gst-nvds3dfilter"
             path: ../../text/DS_plugin_gst-nvds3dfilter.mdx
+            slug: text/DS_plugin_gst-nvds3dfilter
           - page: "Gst-nvds3dbridge"
             path: ../../text/DS_plugin_gst-nvds3dbridge.mdx
+            slug: text/DS_plugin_gst-nvds3dbridge
           - page: "Gst-nvds3dmixer"
             path: ../../text/DS_plugin_gst-nvds3dmixer.mdx
+            slug: text/DS_plugin_gst-nvds3dmixer
           - page: "Gst-NvDsUcx"
             path: ../../text/DS_plugin_gst-nvdsucx.mdx
+            slug: text/DS_plugin_gst-nvdsucx
           - page: "Gst-nvdsxfer"
             path: ../../text/DS_plugin_gst-nvdsxfer.mdx
+            slug: text/DS_plugin_gst-nvdsxfer
           - page: "Gst-nvvideotestsrc"
             path: ../../text/DS_plugin_gst-nvvideotestsrc.mdx
+            slug: text/DS_plugin_gst-nvvideotestsrc
           - page: "Gst-nvmultiurisrcbin"
             path: ../../text/DS_plugin_gst-nvmultiurisrcbin.mdx
+            slug: text/DS_plugin_gst-nvmultiurisrcbin
           - page: "Gst-nvreplay"
             path: ../../text/DS_plugin_gst-nvreplay.mdx
+            slug: text/DS_plugin_gst-nvreplay
           - page: "Gst-nvurisrcbin"
             path: ../../text/DS_plugin_gst-nvurisrcbin.mdx
+            slug: text/DS_plugin_gst-nvurisrcbin
           - page: "Gst-nvunixfd"
             path: ../../text/DS_plugin_gst-nvunixfd.mdx
+            slug: text/DS_plugin_gst-nvunixfd
   - section: "DeepStream Troubleshooting and FAQ"
+    skip-slug: true
     contents:
       - page: "Troubleshooting"
         path: ../../text/DS_troubleshooting.mdx
+        slug: text/DS_troubleshooting
       - page: "Frequently Asked Questions"
         path: ../../text/DS_FAQ.mdx
+        slug: text/DS_FAQ
       - page: "FAQ for DeepStream GitHub Mono-repo"
         path: ../../text/DS_Monorepo_FAQ.mdx
+        slug: text/DS_Monorepo_FAQ
   - section: "DeepStream On WSL2"
+    skip-slug: true
     contents:
       - page: "DeepStream On WSL"
         path: ../../text/DS_on_WSL2.mdx
+        slug: text/DS_on_WSL2
       - page: "FAQ for DeepStream On WSL"
         path: ../../text/DS_WSL2_FAQ.mdx
+        slug: text/DS_WSL2_FAQ
   - section: "DeepStream API Guide"
+    skip-slug: true
     contents:
       - page: "DeepStream API Guides"
         path: ../../text/DS_API_Guide.mdx
+        slug: text/DS_API_Guide
   - section: "DeepStream Service Maker"
+    skip-slug: true
     contents:
       - page: "What is Deepstream Service Maker"
         path: ../../text/DS_service_maker_intro.mdx
+        slug: text/DS_service_maker_intro
       - page: "Service Maker for C/C++ Developers"
         path: ../../text/DS_service_maker_cpp.mdx
+        slug: text/DS_service_maker_cpp
       - page: "Service Maker for Python Developers"
         path: ../../text/DS_service_maker_python.mdx
+        slug: text/DS_service_maker_python
       - section: "Python APIs"
+        skip-slug: true
         contents:
           - page: "Quick Start Guide"
             path: ../../text/DS_service_maker_python_quick_start.mdx
+            slug: text/DS_service_maker_python_quick_start
           - page: "Introduction to Flow APIs"
             path: ../../text/DS_service_maker_python_intro_to_flow_api.mdx
+            slug: text/DS_service_maker_python_intro_to_flow_api
           - page: "Introduction to Pipeline APIs"
             path: ../../text/DS_service_maker_python_intro_to_pipeline_api.mdx
+            slug: text/DS_service_maker_python_intro_to_pipeline_api
           - page: "Advanced Features"
             path: ../../text/DS_service_maker_python_advanced_features.mdx
+            slug: text/DS_service_maker_python_advanced_features
           - page: "Migrating Traditional DeepStream Apps to Service Maker Apps in Python"
             path: ../../text/DS_service_maker_traditional_app_migration.mdx
+            slug: text/DS_service_maker_traditional_app_migration
       - page: "What is a DeepStream Service Maker Plugin"
         path: ../../text/DS_service_maker_plugin.mdx
+        slug: text/DS_service_maker_plugin
   - section: "Nvidia Inference Builder"
+    skip-slug: true
     contents:
       - page: "Inference Builder Overview"
         path: ../../text/DS_Inference_Builder.mdx
+        slug: text/DS_Inference_Builder
   - section: "AI Agent Support"
+    skip-slug: true
     contents:
       - page: "DeepStream Coding Agent"
         path: ../../text/DS_AI_Agent.mdx
+        slug: text/DS_AI_Agent
       - page: "Inference Builder MCP"
         path: ../../text/DS_AI_Agent_MCP.mdx
+        slug: text/DS_AI_Agent_MCP
   - section: "AutoMagicCalib Tool"
+    skip-slug: true
     contents:
       - page: "AutoMagicCalib"
         path: ../../text/DS_AutoMagicCalib.mdx
+        slug: text/DS_AutoMagicCalib
   - section: "DeepStream Libraries"
+    skip-slug: true
     contents:
       - page: "DeepStream Libraries"
         path: ../../text/DS_Libraries.mdx
+        slug: text/DS_Libraries
+  - section: "Archived documentation"
+    skip-slug: true
+    contents:
+      - page: "Archived documentation"
+        path: ../../text/DS_Archives.mdx
+        slug: text/DS_Archives
   - section: "DeepStream Legal Information"
+    skip-slug: true
     contents:
       - page: "DeepStream End User License Agreement"
         path: ../../text/DS_Legal.mdx
+        slug: text/DS_Legal
   - section: "DeepStream Feedback"
+    skip-slug: true
     contents:
       - page: "Feedback form"
         path: ../../text/DeepStream_Main_Feedback_Form.mdx
+        slug: text/DeepStream_Main_Feedback_Form

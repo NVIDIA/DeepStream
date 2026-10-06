@@ -35,7 +35,7 @@ pipeline.add("nvstreammux", "mux", "batch-size", 1, "width", 1280, "height", 720
 
 The 'add' method is used to incorporate all necessary element nodes into a pipeline instance. This method takes the element's registration name and node name as parameters, followed by a dictionary specifying the element's properties. The node name given to an element during addition can be used to refer to the element within the pipeline.
 
-For detailed insights into how each property affects the respective element, [DS Plugin Overview](DS_plugin_Intro.html) serves as the primary and most comprehensive resource. Developers can also run gst-inspect-1.0 with element registration name to check its technical specification, e.g. after looking up the [nvstreammux](DS_plugin_gst-nvstreammux.html) from the plugin manual, we know the element is for batching buffers from multiple input and it requires "batch-size", "width" and "height" to be set.
+For detailed insights into how each property affects the respective element, [DS Plugin Overview](/text/DS_plugin_Intro) serves as the primary and most comprehensive resource. Developers can also run gst-inspect-1.0 with element registration name to check its technical specification, e.g. after looking up the [nvstreammux](/text/DS_plugin_gst-nvstreammux) from the plugin manual, we know the element is for batching buffers from multiple input and it requires "batch-size", "width" and "height" to be set.
 
 After the element nodes are added into the pipeline, the 'link' method accomplishes the construction of the streaming path. This method offers two variations:
 

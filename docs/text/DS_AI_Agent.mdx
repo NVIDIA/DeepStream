@@ -10,7 +10,7 @@ DeepStream offers two complementary AI agent integrations:
 
 - **DeepStream Agentic Skills** — A suite of structured knowledge packages, each targeting a specific DeepStream workflow. Skills cover `pyservicemaker` (DeepStream's Python pipeline API) code generation, `gst-launch` pipeline building, stack/RTSP compatibility diagnostics, config generation and auditing, Nsight Systems profiling, vision-model onboarding and fine-tuning, MV3DT reference-app operations, SOP microservice development, WSL2 setup, declarative YAML inference-pipeline generation, and AutoMagicCalib camera calibration. The full skill catalog, install instructions, and example prompts are in the [DeepStream GitHub repository](https://github.com/NVIDIA/DeepStream/tree/main/skills).
 
-- **Inference Builder MCP** — A Model Context Protocol server that connects [Inference Builder](/text/DS_Inference_Builder) directly to AI coding agents. Through natural‑language prompts, the agent can generate inference pipeline configurations, build Docker images, and run smoke tests — all without leaving the conversation. See [DS_AI_Agent_MCP](DS_AI_Agent_MCP) for details.
+- **Inference Builder MCP** — A Model Context Protocol server that connects [Inference Builder](/text/DS_Inference_Builder) directly to AI coding agents. Through natural‑language prompts, the agent can generate inference pipeline configurations, build Docker images, and run smoke tests — all without leaving the conversation. See [Inference Builder MCP](/text/DS_AI_Agent_MCP) for details.
 
 Together, these integrations compress the path from idea to running pipeline, letting developers focus on application logic while the agent handles boilerplate, configuration, and SDK plumbing.
 
@@ -23,7 +23,7 @@ Code generated with AI coding assistants is a development starting point. All ge
 The [DeepStream GitHub repository](https://github.com/NVIDIA/DeepStream) ships a suite of agentic skills under the `skills/` directory. Each skill follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and Codex, and can be installed at the user level (available across all projects) or at the workspace level (scoped to a single project).
 
 <Note>
-The six DeepStream pipeline skills require only an AI coding assistant — no GPU, DeepStream SDK installation, or special hardware is needed. The AutoMagicCalib skills additionally require an NVIDIA GPU, Docker, NVIDIA Container Toolkit, and NGC image access on the host where the calibration stack runs. DeepStream SDK is only required on the system where you run the generated code; see [DS_Installation](DS_Installation) for setup instructions.
+The six DeepStream pipeline skills require only an AI coding assistant — no GPU, DeepStream SDK installation, or special hardware is needed. The AutoMagicCalib skills additionally require an NVIDIA GPU, Docker, NVIDIA Container Toolkit, and NGC image access on the host where the calibration stack runs. DeepStream SDK is only required on the system where you run the generated code; see [Installation](/text/DS_Installation) for setup instructions.
 </Note>
 
 To install a skill, clone the repository and copy the skill directory into your tool's skills folder:
@@ -54,7 +54,7 @@ See the [GitHub README](https://github.com/NVIDIA/DeepStream/tree/main/skills) f
 | `deepstream-setup-on-wsl` | Consent-first setup and verification | Set up and verify DeepStream in Docker inside WSL2 on a supported local or remote Windows workstation, with secure remote access and GPU compatibility gates. |
 | `inference-builder` | Declarative pipeline generation | Generate deployable GPU inference pipelines and containers from YAML for DeepStream, Triton, vLLM, TensorRT-LLM, or PyTorch backends. |
 
-**AutoMagicCalib camera calibration skills** (see [AutoMagicCalib ](DS_AutoMagicCalib)):
+**AutoMagicCalib camera calibration skills** (see [AutoMagicCalib](/text/DS_AutoMagicCalib)):
 
 | Skill | Mode | Use when you want to… |
 | --- | --- | --- |

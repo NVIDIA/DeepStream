@@ -41,7 +41,7 @@ The following table summarizes the supported REST APIs:
 | nvdsanalytics | Reload nvdsanalytics config |
 | Application specific | Application quit |
 | GET requests | Get stream-info, Get DeepStream readiness info, Get metrics info, Get liveness info, Get startup info |
-| nvmodelmux | Model load/unload/update, stream-to-model routing, model status, and application metadata (see :doc:`DS_plugin_gst-nvmodelmux`) |
+| nvmodelmux | Model load/unload/update, stream-to-model routing, model status, and application metadata (see [Gst-nvmodelmux](/text/DS_plugin_gst-nvmodelmux)) |
 
 ## nvds_rest_server
 
@@ -867,7 +867,7 @@ d. interpolation-method
 ### Model Mux
 
 <Note>
-These endpoints control the [DS_plugin_gst-nvmodelmux](DS_plugin_gst-nvmodelmux) element's MODEL plane and STREAM-ROUTING plane. All bodies use the `{"key": "model"|"stream", "value": {...}}` envelope.
+These endpoints control the [Gst-nvmodelmux](/text/DS_plugin_gst-nvmodelmux) element's MODEL plane and STREAM-ROUTING plane. All bodies use the `{"key": "model"|"stream", "value": {...}}` envelope.
 </Note>
 
 a. Load a model

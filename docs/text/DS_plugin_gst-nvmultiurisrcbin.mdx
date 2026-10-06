@@ -6,7 +6,7 @@ title: "Gst-nvmultiurisrcbin"
 The DeepStream 6.2 onwards support nvmultiurisrcbin with REST API support for dynamic sensor add/remove capability.
 </Note>
 
-This bin integrates three major DeepStream components viz. [nvds_rest_server](/text/DS_RestServer#nvds-rest-server), nvurisrcbin, and nvstreammux (**\DS_plugin_gst-nvstreammux**) into a single GstBin.
+This bin integrates three major DeepStream components viz. [nvds_rest_server](/text/DS_RestServer#nvds-rest-server), nvurisrcbin, and nvstreammux ([Gst-nvstreammux](/text/DS_plugin_gst-nvstreammux)) into a single GstBin.
 For more details on `nvurisrcbin`, please run `gst-inspect-1.0 nvurisrcbin` on a machine/docker container with DeepStream installed.
 
 The bin allows users to create simple gstreamer pipelines for AI multimedia analytics.
@@ -15,7 +15,9 @@ A sensor is defined as a streaming entity with a valid unique Sensor ID, and URI
 
 The below High Level Overview diagram and table illustrate how nvmultiurisrcbin integrates nvds_rest_server, nvurisrcbin, and nvstreammux.
 
-![Gst-nvmultiurisrcbin High Level Overview](/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_high_level_overview.png)
+<div style={{backgroundColor: "#ffffff", padding: "12px", borderRadius: "8px"}}>
+  <img src="/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_high_level_overview.png" alt="Gst-nvmultiurisrcbin High Level Overview" />
+</div>
 
 **Gst-nvmultiurisrcbin High Level Overview of integrated components**
 
@@ -78,7 +80,9 @@ uri-list=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h
 
 Below diagram illustrates a similar pipeline (with different plugins like nvinfer, nvmsgconv, and nvmsgbroker downstream).
 
-![Gst-nvmultiurisrcbin sample video pipeline](/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_sample_video_pipeline.png)
+<div style={{backgroundColor: "#ffffff", padding: "12px", borderRadius: "8px"}}>
+  <img src="/assets/images/content/DS_plugin_gst-nvmultiurisrcbin_sample_video_pipeline.png" alt="Gst-nvmultiurisrcbin sample video pipeline" />
+</div>
 
 ### REST API payload definitions and sample curl commands for reference
 

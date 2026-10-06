@@ -17,7 +17,7 @@ There are 2 multi-modal sensor fusion pipelines for LiDAR and camera data, enabl
 
 ## Example 1. BEVFusion Multi-Modal with 6-Camera Plus 1-LiDAR Data Fusion Pipeline
 
-**Refer to the provided instructions for the setup.** [DS3D BEVFusion Setup with Triton ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+**Refer to the provided instructions for the setup.** [DS3D BEVFusion Setup with Triton](/text/DS_3D_MultiModal_Lidar_Camera_BEVFusion)
 
 - Processes data from 6 cameras and 1 LiDAR.
 - Utilizes pre-trained [PyTroch BEVFusion](https://github.com/mit-han-lab/bevfusion) model, optimized for NVIDIA GPUs using TensorRT and CUDA by [CUDA-BEVFusion](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-BEVFusion).
@@ -29,7 +29,7 @@ There are 2 multi-modal sensor fusion pipelines for LiDAR and camera data, enabl
 
 ## Example 2. V2XFusion multi-modal batched 4-Camera and 4-LiDAR Inference Pipeline:
 
-**Refer to the provided instructions for the setup.** [DS3D V2XFusion setup ](DS_3D_MultiModal_Lidar_Camera_V2XFusion)
+**Refer to the provided instructions for the setup.** [DS3D V2XFusion setup](/text/DS_3D_MultiModal_Lidar_Camera_V2XFusion)
 
    - Processes data from a single camera and a LiDAR, utilizing a batch size of 4.
    - Utilizes pre-trained V2XFusion model which is based on BEVFusion and BEVHeight.
@@ -88,7 +88,7 @@ $ xhost +
 ### BEVFusion pipeline Demo Setup
 
 - Prepare all required containers, inference models, sample dataset.
-  Refer to the detailed provided instructions in [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+  Refer to the detailed provided instructions in [DS3D BEVFusion setup](/text/DS_3D_MultiModal_Lidar_Camera_BEVFusion)
 
 <Note>
 All the following command line for BEVFusion setup are run outside of the container unless other comments specified
@@ -132,11 +132,11 @@ All the following command line for BEVFusion setup are run outside of the contai
     $ bevfusion/docker_run_ds3d_sensor_fusion_bevfusion_pipeline.sh ds3d_lidar_plus_multi_cam_bev_fusion_with_label.yaml
     ```
 
-    See more details about the instructions in [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+    See more details about the instructions in [DS3D BEVFusion setup](/text/DS_3D_MultiModal_Lidar_Camera_BEVFusion)
 
   - Option 2: Once users setup everything ready from Option 1, and keep tritonserver running, and make sure dataset downloaded, then users can run the cmdline inside deepstream-triton container.
 
-    Start deepstream triton container after model and dataset are ready in Option 1. `export DOCKER_GPU_ARG="--runtime nvidia"` for Jetson. see more details how to modify config file to setup Jetson test [DS3D BEVFusion setup ](DS_3D_MultiModal_Lidar_Camera_BEVFusion)
+    Start deepstream triton container after model and dataset are ready in Option 1. `export DOCKER_GPU_ARG="--runtime nvidia"` for Jetson. see more details how to modify config file to setup Jetson test [DS3D BEVFusion setup](/text/DS_3D_MultiModal_Lidar_Camera_BEVFusion)
 
     ```bash
     $ cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/deepstream-3d-lidar-sensor-fusion
@@ -170,7 +170,7 @@ All the following command line for BEVFusion setup are run outside of the contai
 
 ### V2XFusion pipeline Demo Setup
 
-Refer to the detailed provided instructions in [DS3D V2XFusion Setup ](DS_3D_MultiModal_Lidar_Camera_V2XFusion)
+Refer to the detailed provided instructions in [DS3D V2XFusion Setup](/text/DS_3D_MultiModal_Lidar_Camera_V2XFusion)
 
 - Start the deepstream-triton base container for V2XFusion tests.
 
@@ -334,4 +334,4 @@ Video Data Bridging Into DS3D `ds3d::datamap`
 
 ## DS3D Custom Components Configuration Specifications
 
-See more details in the `DS_3D supported custom components specifications` section in the [DS_3D_Custom_Manual](DS_3D_Custom_Manual).
+See more details in the `DS_3D supported custom components specifications` section in the [DeepStream-3D Custom Apps and Libs Tutorials](/text/DS_3D_Custom_Manual).

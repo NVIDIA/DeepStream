@@ -120,7 +120,7 @@ custom_create_function: createLidarDataRender
 
 ### Run Lidar Point Cloud Data File reader, Point Cloud Inferencing filter, and Point Cloud 3D rendering and data dump Examples
 
-1. Prepare [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet) and Triton environment, this app will use Triton to do inference, for more details of Triton Inferencing Server, refer to https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvinferserver.html.
+1. Prepare [PointPillarNet model](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/pointpillarnet) and Triton environment, this app will use Triton to do inference, for more details of Triton Inferencing Server, refer to [Gst-nvinferserver](/text/DS_plugin_gst-nvinferserver).
 
    Follow instructions in deepstream-lidar-inference-app/README to prepare testing resources and Triton CAPI and gRPC environments.
 
@@ -148,7 +148,7 @@ custom_lib_path: libnvds_lidarfileread.so
 custom_create_function: createLidarFileLoader
 ```
 
-4. It streams `ds3d/datamap` to the `nvds3dfilter` `Gst-plugin`  which loads `lidarfilter` to do Triton inferencing on point cloud. For more details on `nvds3dfilter` `Gst-plugin`, See [DS_plugin_gst-nvds3dfilter](DS_plugin_gst-nvds3dfilter).
+4. It streams `ds3d/datamap` to the `nvds3dfilter` `Gst-plugin`  which loads `lidarfilter` to do Triton inferencing on point cloud. For more details on `nvds3dfilter` `Gst-plugin`, See [Gst-nvds3dfilter](/text/DS_plugin_gst-nvds3dfilter).
 
 ```
 name: lidarfilter
@@ -269,7 +269,7 @@ The table below demonstrates the group settings for `config_lidar_triton_infer.y
 
 #### DS3D Custom Components Configuration Specifications
 
-See more details in the `DS_3D supported custom components specifications` section in the [DS_3D_Custom_Manual](DS_3D_Custom_Manual).
+See more details in the `DS_3D supported custom components specifications` section in the [DeepStream-3D Custom Apps and Libs Tutorials](/text/DS_3D_Custom_Manual).
 
 ##### Build application From Source
 
