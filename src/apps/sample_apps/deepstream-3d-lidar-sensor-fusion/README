@@ -96,7 +96,7 @@ $ NVDS_VERSION=xx bevfusion/docker_build_bevfusion_image.sh ghcr.io/nvidia/deeps
 Note: {xx.xx.xx} >= 9.0
 The latest base image ghcr.io/nvidia/deepstream:{xx.xx.xx}-triton-multiarch can be
 found from
-https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
+https://github.com/orgs/NVIDIA/packages/container/package/deepstream
 
 Usage:
     bevfusion/docker_build_bevfusion_image.sh [BASE_IMAGE] [TARGET_IMAGE] [COMMIT_ID] [SPCONV_CUDA_VERSION]

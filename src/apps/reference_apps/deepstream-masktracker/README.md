@@ -22,7 +22,7 @@ This sample application demonstrates using MaskTracker with DeepStream SDK. Mask
 
 ## Prerequisites
 Users need to use an x86 system with dGPUs supported by DeepStream. Jetson devices may not support running the entire SAM2 network due to resource limitation. Check [here](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers#prerequisites) for DeepStream container setup.
-1. Download the latest DeepStream container image from NGC (e.g., DS 9.2 in the example below)
+1. Download the latest DeepStream container image from GHCR (e.g., DS 9.2 in the example below)
     ```bash
     export DS_IMG_NAME="ghcr.io/nvidia/deepstream:9.2-triton-multiarch"
     docker pull $DS_IMG_NAME

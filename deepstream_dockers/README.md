@@ -138,7 +138,7 @@ See [Cuda Install Guide for Linux](https://docs.nvidia.com/cuda/archive/13.2.0/c
 
 ## 2.1 x86 Docker Pre-requisites
 
-Please refer to the Prerequisites section at DeepStream NGC page [NVIDIA NGC](https://ngc.nvidia.com/catalog/containers/nvidia:deepstream) to build and run deepstream containers.
+Please refer to the [Prerequisites section of the DeepStream Docker Containers documentation](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers#prerequisites) to build and run deepstream containers. Images are available on [GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream).
 
 
 ### 2.1.1 Prerequisites; Mandatory; (DeepStreamSDK package and terminology)
@@ -224,7 +224,7 @@ sudo docker build --network host --progress=plain -t deepstream:9.2.0-samples-lo
 
 Must be built on a x86 Linux machine.
 
-Please refer to the Prerequisites section at DeepStream NGC page [NVIDIA NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream) to run deepstream containers.
+Please refer to the [Prerequisites section of the DeepStream Docker Containers documentation](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers#prerequisites) to run deepstream containers. Images are available on [GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream).
 
 Download DeepStreamSDK tarball from [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0) Jetson tarball and place it locally
 in the ``$ROOT/`` folder of this repository.
@@ -308,7 +308,7 @@ therefore needs the NVIDIA Jetson Linux Driver Package (BSP) in addition to the 
 
 ### 5.1 Pre-requisites
 
-Please refer to the Prerequisites section at DeepStream NGC page [NVIDIA NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream) to run deepstream containers.
+Please refer to the [Prerequisites section of the DeepStream Docker Containers documentation](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers#prerequisites) to run deepstream containers. Images are available on [GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream).
 
 Requires Docker version 29 or later.
 

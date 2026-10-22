@@ -101,7 +101,7 @@ DeepStream lidar sample application could be deployed as 2 different modes: Trit
 Inference or Triton gRPC Remote Inference Client. Users can follow below instructions
 to run the 2 modes.
 For x86 platforms, This app must run inside deepstream-triton containers.
-Follow tags in  https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream to get
+Follow tags in  https://github.com/orgs/NVIDIA/packages/container/package/deepstream to get
 latest version.
 
 $ export DS_TRITON_IMG=ghcr.io/nvidia/deepstream:9.2-triton-multiarch

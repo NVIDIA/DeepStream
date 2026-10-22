@@ -32,7 +32,7 @@ Before building from source, the NVIDIA compute stack must be installed on the h
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
-> **Docker users:** NVIDIA NGC provides pre-built DeepStream 9.2 containers with the full compute stack pre-installed. If using a container, skip this section and proceed directly to the [Build and Install](#build-and-install) section below (after cloning the repo and running `git lfs install`).
+> **Docker users:** NVIDIA provides pre-built DeepStream 9.2 containers on GHCR (`ghcr.io/nvidia/deepstream`) with the full compute stack pre-installed. If using a container, skip this section and proceed directly to the [Build and Install](#build-and-install) section below (after cloning the repo and running `git lfs install`).
 
 ---
 

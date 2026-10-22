@@ -44,7 +44,7 @@ The application uses Triton Inference Server, so Triton Inference Server must be
 
 For dGPU:
 Docker is recommended.
-Use deepstream:x.x-triton-multiarch from NGC(https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
+Use deepstream:x.x-triton-multiarch from GHCR (https://github.com/orgs/NVIDIA/packages/container/package/deepstream)
 
 For Jetson:
 Go to samples directory and run the following command to set up the Triton Server and backends.

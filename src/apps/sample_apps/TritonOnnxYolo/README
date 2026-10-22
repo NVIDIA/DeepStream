@@ -46,7 +46,7 @@ Sample contents for DeepStream Triton:
 ===============================================================================
 Pre-requisites:
 - For X86 platform, please follow instructions from
-  https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream
+  https://github.com/orgs/NVIDIA/packages/container/package/deepstream
   to download deepstream-triton image.
   $ docker pull ghcr.io/nvidia/deepstream:[version]-triton-multiarch
    [version] means deepstream version numbers e.g. 9.0.0

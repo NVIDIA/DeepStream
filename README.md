@@ -125,7 +125,7 @@ cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app-triton
 deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 ```
 
-**Prerequisites:** Docker (`docker-ce`), the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), NVIDIA driver 595+, and an NGC API key. Triton sample model repos ship under `/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/`. For gRPC-backed Triton, use `samples/configs/deepstream-app-triton-grpc/` instead.
+**Prerequisites:** Docker (`docker-ce`), the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and NVIDIA driver 595+. Triton sample model repos ship under `/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/`. For gRPC-backed Triton, use `samples/configs/deepstream-app-triton-grpc/` instead.
 
 ## Running with Triton Inference Server on Jetson (bare metal)
 
@@ -162,7 +162,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 | [Overview & Architecture](https://docs.nvidia.com/deepstream/9.2/text/DS_Overview) | What DeepStream is, key features, and the GStreamer-based pipeline architecture. |
 | [Release Notes](https://docs.nvidia.com/deepstream/9.2/text/DS_Release_notes) | What's new in this release, supported platforms, and known issues. |
 | [Installation](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation) | Step-by-step installation of the NVIDIA compute stack and DeepStream SDK on x86 and Jetson. |
-| [Docker Containers](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers) | Available DeepStream NGC container images (incl. Triton variants) and how to pull and run them. |
+| [Docker Containers](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers) | Available DeepStream container images (incl. Triton variants) and how to pull and run them. |
 | [DeepStream Samples](https://docs.nvidia.com/deepstream/9.2/text/DS_C_Sample_Apps) | Reference walkthroughs of the bundled C/C++ sample applications and what each one demonstrates. |
 | [Reference Applications](https://docs.nvidia.com/deepstream/9.2/text/DS_ref_app_github) | Advanced GitHub-hosted reference apps demonstrating specialized end-to-end pipelines. |
 | [TAO Apps](https://docs.nvidia.com/deepstream/9.2/text/DS_TAO_integration) | DeepStream sample apps integrating TAO-trained models (detection, classification, segmentation, pose, LPR). |
@@ -308,11 +308,18 @@ wget --content-disposition 'https://github.com/NVIDIA/DeepStream/releases/downlo
 
 > **NOTE:** Replace `deepstream-9.2_9.2.0-1_amd64.deb` with the name of the asset you want to download.
 
-## Docker Images (NGC)
+## Docker Images
 
-DeepStream Docker images are released through NGC. Browse and pull the images from the [DeepStream NGC container catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/deepstream/-?_lr=1).
+DeepStream Docker images are available from two registries, depending on the release:
 
-> **NOTE:** For `docker login` and `docker pull` command details, along with the full list of available image tags, refer to the [DeepStream NGC container catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/deepstream/-?_lr=1).
+- DeepStream 9.2.0 and future releases: [GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream) (`ghcr.io/nvidia/deepstream`)
+- DeepStream 9.1.0 and previous releases: [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
+
+For example, to pull the DeepStream 9.2 Triton image from GHCR:
+
+```bash
+docker pull ghcr.io/nvidia/deepstream:9.2-triton-multiarch
+```
 
 # Contribution Guidelines
 This project is currently not accepting contributions. The product roadmap is managed internally by NVIDIA.
@@ -336,7 +343,9 @@ Join the DeepStream community to ask questions, share feedback, and report issue
 
 # References
 
-- [DeepStream NGC container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream) — prebuilt runtime image (also bundles Triton).
+- DeepStream container — prebuilt runtime image (also bundles Triton).
+  - DeepStream 9.2.0 and future releases: [GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream)
+  - DeepStream 9.1.0 and previous releases: [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
 - [NVIDIA TAO Toolkit](https://developer.nvidia.com/tao-toolkit) — model training/optimization, source of the TAO sample apps.
 - [GStreamer documentation](https://gstreamer.freedesktop.org/documentation/) — underlying framework.
 
