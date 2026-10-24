@@ -13,67 +13,61 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-%YAML:1.0
 
 BaseConfig:
-  minDetectorConfidence: 0.4249794671414514
-  checkClassMatch: 1
+  minDetectorConfidence: 0.027087304322979212
+  checkClassMatch: 0
 TargetManagement:
   enableBboxUnClipping: 1
-  preserveStreamUpdateOrder: 1
+  preserveStreamUpdateOrder: 0
   maxTargetsPerStream: 200
-  minIouDiff4NewTarget: 0.38243687471903276
-  minTrackerConfidence: 0.741735665044422
-  probationAge: 9
-  maxShadowTrackingAge: 25
-  earlyTerminationAge: 8
+  minIouDiff4NewTarget: 0.22656630527418112
+  minTrackerConfidence: 0.6957540479571296
+  probationAge: 5
+  maxShadowTrackingAge: 162
+  earlyTerminationAge: 1
   maxTrajectoryBufferLength: -1
   outputTerminatedTracks: 0
 TrajectoryManagement:
   useUniqueID: 0
   enableReAssoc: 1
-  minMatchingScore4Overall: 0.935
-  minTrackletMatchingScore: 0.294
+  minMatchingScore4Overall: 0.9349462651721144
+  minTrackletMatchingScore: 0.2940
   minMatchingScore4ReidSimilarity: 0
-  matchingScoreWeight4TrackletSimilarity: 0.798
+  matchingScoreWeight4TrackletSimilarity: 0.7981
   matchingScoreWeight4ReidSimilarity: 0
   minTrajectoryLength4Projection: 34
   prepLength4TrajectoryProjection: 58
   trajectoryProjectionLength: 33
   maxAngle4TrackletMatching: 67
-  minSpeedSimilarity4TrackletMatching: 0.057
-  minBboxSizeSimilarity4TrackletMatching: 0.101
+  minSpeedSimilarity4TrackletMatching: 0.0574
+  minBboxSizeSimilarity4TrackletMatching: 0.1013
   maxTrackletMatchingTimeSearchRange: 27
-  trajectoryProjectionProcessNoiseScale: 0.010
+  trajectoryProjectionProcessNoiseScale: 0.0100
   trajectoryProjectionMeasurementNoiseScale: 100
-  trackletSpacialSearchRegionScale: 0.010
+  trackletSpacialSearchRegionScale: 0.0100
   reidExtractionInterval: 0
 DataAssociator:
   dataAssociatorType: 0
   associationMatcherType: 1
-  minMatchingScore4Overall: 0.3302893671614782
-  minMatchingScore4Iou: 0.24954038423337854
-  minMatchingScore4SizeSimilarity: 0.7113775241492641
-  minMatchingScore4VisualSimilarity: 0.3
-  minMatchingScore4ReidSimilarity: 0.5
-  matchingScoreWeight4Iou: 0.7917115752543623
-  matchingScoreWeight4SizeSimilarity: 0.153194768090538
-  matchingScoreWeight4VisualSimilarity: 0.9123026990374454
-  matchingScoreWeight4ReidSimilarity: 0.1
-  tentativeDetectorConfidence: 0.8847552837432789
-  minMatchingScore4TentativeIou: 0.4499128093756385
-  minMatchingScore4PeerAssocIou: 0.8239182971090612
+  minMatchingScore4Overall: 0.4
+  minMatchingScore4SizeSimilarity: 0.4
+  minMatchingScore4Iou: 0.1393522182207021
+  minMatchingScore4VisualSimilarity: 0.0520394823204932
+  matchingScoreWeight4SizeSimilarity: 0.104589699500018
+  matchingScoreWeight4Iou: 0.7844652139368062
+  matchingScoreWeight4VisualSimilarity: 0.9294872869302965
+  tentativeDetectorConfidence: 0.70167245554449
+  minMatchingScore4TentativeIou: 0.1768733030811293
+  minMatchingScore4PeerAssocIou: 0.2
 StateEstimator:
   stateEstimatorType: 3
-  processNoiseVar4Loc: 580.1268780450512
-  processNoiseVar4Size: 4804.018474713682
-  processNoiseVar4Vel: 435.8294162749178
-  measurementNoiseVar4Detector: 9370.665057327513
-  measurementNoiseVar4Tracker: 7510.009244259698
-
+  processNoiseVar4Loc: 6497.75224242603
+  processNoiseVar4Vel: 8035.858212054732
+  measurementNoiseVar4Detector: 100.0000
+  measurementNoiseVar4Tracker: 883.5847350922555
 ObjectModelProjection:
-  objectModelType: 0
-  minPoseConfidence: 0.9840686678221622
+  minPoseConfidence: 0.925
   outputFootLocation: 1
   outputVisibility: 1
   outputConvexHull: 0
@@ -82,6 +76,7 @@ ObjectModelProjection:
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam002.yml
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam003.yml
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam004.yml
+  objectModelType: 0
 VisualTracker:
   visualTrackerType: 2
   useColorNames: 1
@@ -91,19 +86,18 @@ VisualTracker:
   filterLr: 0.025008995723548734
   filterChannelWeightsLr: 0.09460260509799209
   gaussianSigma: 0.44967391866177786
-
 MultiViewAssociator:
   multiViewAssociatorType: 1
   enableLatePeerReAssoc: 1
-  enableIDCorrection: 0
+  enableIDCorrection: 1
   enableSeeThrough: 1
   enableMsgSync: 1
-  maxPeerTrackletSize: 30
-  recentlyActiveAge: 554
-  minCommonFrames4MatchScore: 5
-  minPeerTrackletMatchScore: 0.4979019568226545
-  minPeerVisibility4Fusion: 0.39809962133314714
-  maxPeerToPredDistance4Fusion: 1.5012866693280356
+  maxPeerTrackletSize: 50
+  recentlyActiveAge: 178
+  minCommonFrames4MatchScore: 2
+  maxPeerToPredDistance4Fusion: 1.35
+  minPeerVisibility4Fusion: 0.15
+  minPeerTrackletMatchScore: 0.48
   maxTrackletMatchingTimeSearchRange: 1
   maxPeerFrameDiff4NoDet: 2
   communicatorInitSleepTime: 0

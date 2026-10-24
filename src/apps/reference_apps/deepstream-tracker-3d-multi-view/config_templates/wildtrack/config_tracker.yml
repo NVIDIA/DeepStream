@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+BaseConfig:
+  checkClassMatch: 1
+  minDetectorConfidence: 0.8101026598507798
+TargetManagement:
+  outputVisibility: 1
+  debugVerboseLevel: 0
+  enableBboxUnClipping: 0
+  preserveStreamUpdateOrder: 1
+  maxTargetsPerStream: 200
+  minIouDiff4NewTarget: 0.7
+  minTrackerConfidence: 0.8969431616239922
+  probationAge: 4
+  maxShadowTrackingAge: 24
+  earlyTerminationAge: 1
+  maxTrajectoryBufferLength: -1
+  outputTerminatedTracks: 0
+TrajectoryManagement:
+  useUniqueID: 0
+  enableReAssoc: 0
+  minMatchingScore4Overall: 0.03727149521701215
+  minTrackletMatchingScore: 0.2940
+  minMatchingScore4ReidSimilarity: 0
+  matchingScoreWeight4TrackletSimilarity: 0.7981
+  matchingScoreWeight4ReidSimilarity: 0
+  minTrajectoryLength4Projection: 34
+  prepLength4TrajectoryProjection: 58
+  trajectoryProjectionLength: 33
+  maxAngle4TrackletMatching: 67
+  minSpeedSimilarity4TrackletMatching: 0.0574
+  minBboxSizeSimilarity4TrackletMatching: 0.1013
+  maxTrackletMatchingTimeSearchRange: 27
+  trajectoryProjectionProcessNoiseScale: 0.0100
+  trajectoryProjectionMeasurementNoiseScale: 100
+  trackletSpacialSearchRegionScale: 0.0100
+  reidExtractionInterval: 10
+  dumpTrajectoryIntoFile: 1
+  dumpDetectorBboxes: 1
+  dumpTrajectoryTentative: 1
+  dumpTrajectoryQuasiActive: 1
+  dumpTrajectoryInactive: 0
+  minVisibility4TrajDump: 0.15
+  trajectoryDumpFileName: /workspace/experiments/trajDumps/trajDump_Stream_
+DataAssociator:
+  dataAssociatorType: 0
+  associationMatcherType: 1
+  minMatchingScore4Overall: 0.06545885636104744
+  minMatchingScore4SizeSimilarity: 0.5363698817532048
+  minMatchingScore4Iou: 0.05798448000219461
+  minMatchingScore4VisualSimilarity: 0.7
+  matchingScoreWeight4VisualSimilarity: 0.07842149635995141
+  matchingScoreWeight4SizeSimilarity: 0.0861312723861953
+  matchingScoreWeight4Iou: 0.9698553985000123
+  tentativeDetectorConfidence: 0.23525868223500837
+  minMatchingScore4TentativeIou: 0.5
+StateEstimator:
+  stateEstimatorType: 3
+  processNoiseVar4Loc: 9403.847687977943
+  processNoiseVar4Vel: 9434.772238163547
+  measurementNoiseVar4Detector: 100.0000
+  measurementNoiseVar4Tracker: 49.64360419796745
+VisualTracker:
+  visualTrackerType: 0
+  useColorNames: 1
+  useHog: 1
+  featureImgSizeLevel: 5
+  featureFocusOffsetFactor_y: -0.4627418054102874
+  filterLr: 0.3602440743598715
+  filterChannelWeightsLr: 0.09195822015950103
+  gaussianSigma: 0.7105526232544371
+ReID:
+  debugVerboseLevel: 0
+  reidType: 0
+  batchSize: 64
+  workspaceSize: 1000
+  reidFeatureSize: 1280
+  reidHistorySize: 100
+  inferDims: [3, 256, 128]
+  networkMode: 0
+  inputOrder: 0
+  colorFormat: 0
+  offsets: [127.5, 127.5, 127.5]
+  netScaleFactor: 0.007843
+  keepAspc: 0
+  useVPICropScaler: 1
+  outputReidTensor: 1
+  addFeatureNormalization: 1
+  minVisibility4GalleryUpdate: 0.6
+  onnxFile: /workspace/models/ClipReID/reid_model.onnx
+  tltModelKey: "nvidia_tao"
+  modelEngineFile: /workspace/models/ClipReID/reid_model.onnx_b64_gpu0_fp32.engine
+ReIDService:
+  debugVerboseLevel: 0
+  reidServiceType: 0
+  enableBlocking: 0
+  minVisibility4ReidServiceQuery: 0.7
+  maxClusterVariance: 0.0001
+  serviceAddress: "127.0.0.1"
+  servicePort: 8000
+  operateOnClassIds: []
+  topK: 4
+  maxGroupCount: 16
+  minTopClusterConfidence: 0.75
+  minSecondClusterConfidence: 0.5
+  enableIDCorrection: 0
+PoseEstimator:
+  poseEstimatorType: 0
+  batchSize: 1
+  workspaceSize: 1000
+  inferDims: [3, 256, 192]
+  networkMode: 1
+  inputOrder: 0
+  colorFormat: 1
+  offsets: [123.6750, 116.2800, 103.5300]
+  netScaleFactor: 0.00392156
+  onnxFile: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.onnx
+  modelEngineFile: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.onnx_b1_gpu0_fp16.engine
+  poseInferenceInterval: 0
+  saveFrameViz: 0
+ObjectModelProjection:
+  waistHeightRatio: 0.5
+  useDefaultModelHeight: 1.8
+  useDefaultModelRadius: 0.15
+  outputFootLocation: 1
+  outputConvexHull: 0
+  cameraModelFilepath:
+    - /workspace/inputs/camInfo/000.yml
+    - /workspace/inputs/camInfo/001.yml
+    - /workspace/inputs/camInfo/002.yml
+    - /workspace/inputs/camInfo/003.yml
+    - /workspace/inputs/camInfo/004.yml
+    - /workspace/inputs/camInfo/005.yml
+    - /workspace/inputs/camInfo/006.yml
+  objectModelType: 0
+MultiViewAssociator:
+  debugVerboseLevel: 0
+  multiViewAssociatorType: 1
+  enableLatePeerReAssoc: 1
+  enableMsgSync: 1
+  enableIDCorrection: 0
+  enableSeeThrough: 0
+  maxPeerTrackletSize: 30
+  recentlyActiveAge: 40
+  minCommonFrames4MatchScore: 10
+  maxPeerToPredDistance4Fusion: 0.0
+  minPeerVisibility4Fusion: 0.4532760488978539
+  minPeerTrackletMatchScore: 0.65
+  maxTrackletMatchingTimeSearchRange: 1
+  maxPeerFrameDiff4NoDet: 6
+  communicatorInitSleepTime: 0
+Communicator:
+  debugVerboseLevel: 0
+  communicatorType: 1
+  pubSubInfoConfigPath: /workspace/experiments/pub_sub_info_config_0.yml

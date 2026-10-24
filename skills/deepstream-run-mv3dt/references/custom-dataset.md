@@ -57,11 +57,11 @@ Ask the user to confirm detector choice before a long custom-data run. If they d
 
 Detector config:
 
-| Detector | `DETECTOR_MODEL` | Config |
+| Detector | `DETECTOR_MODEL` | Profile |
 |---|---|---|
-| Default people detector | `PeopleNetTransformer` | `config_pgie.txt` |
-| Warehouse multi-class detector | `RTDETR` | `config_pgie_rt_detr.txt` |
-| PeopleNet v2.6.3 | `PeopleNet2.6.3` | `config_pgie_peoplenet.txt` |
+| Default people detector | `PeopleNetTransformer` | `mtmc_4cam_pnt` |
+| Warehouse multi-class detector | `RTDETR` | `mtmc_4cam_detr` |
+| PeopleNet v2.6.3 | `PeopleNet2.6.3` | `mtmc_4cam_pn2` |
 
 Tracker config:
 
@@ -207,7 +207,7 @@ sudo chown -R "$(id -u):$(id -g)" \
 - `deepstream-test5-app` starts and eventually prints `App run successful`; during long runs, provide progress every 30-60 seconds with elapsed time and the latest useful log line or artifact check.
 - OSD shows the camera grid when display is enabled, or `${EXPERIMENT_DIR}/outVideos/tiled_display_raw.mp4` exists in headless mode.
 - Kafka topic `mv3dt` receives tracking metadata when `--enable-msg-broker` is used. In headless mode, the BEV capture log reports nonzero parsed messages and frames from the current run when BEV map files are present.
-- For `DETECTOR_MODEL=RTDETR`, `App run successful` alone is not enough; require nonzero non-empty inference and tracker dump counts, plus Kafka and BEV activity when those outputs are enabled. If RTDETR produces zero detections on a Blackwell-based GPU, rerun config generation so `strongly-typed=1` is applied to the RTDETR detector template and the stale RTDETR TensorRT engine cache is rebuilt.
+- For `DETECTOR_MODEL=RTDETR`, `App run successful` alone is not enough; require nonzero non-empty inference and tracker dump counts, plus Kafka and BEV activity when those outputs are enabled. If RTDETR produces zero detections on a Blackwell-based GPU, rerun config generation so `strongly-typed=1` is applied to the generated RTDETR config with a separate engine cache.
 
 ## Troubleshooting
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,23 +14,43 @@
 # limitations under the License.
 
 import os
-import argparse
+import re
+import io
+import sys
+import cv2
 import math
 import glob
-import re
-import shutil
-import subprocess
 import yaml
-import cv2
+import shutil
+import argparse
+import subprocess
+import configparser
+
 from pathlib import Path
-from typing import List, Tuple, Dict
+
+PROFILES = ('scout_pnt', 'scout_pn2', 'wildtrack', 'mtmc_4cam_pnt', 'mtmc_4cam_pn2', 'mtmc_4cam_detr', 'mtmc_12cam_pnt', 'mtmc_12cam_pn2', 'mtmc_12cam_detr')
+
 
 class DeepStreamAutoConfigurator:
-    def __init__(self, dataset_dir: str, output_dir: str):
+    def __init__(self, dataset_dir: str, output_dir: str, profile: str = 'mtmc_4cam_pnt'):
         self.dataset_dir = Path(dataset_dir)
         self.output_dir = Path(output_dir)
+        self.template_dir = Path(__file__).resolve().parents[1] / 'config_templates'
+        self.profile_dir = self.template_dir / profile
+        if profile not in PROFILES or not self.profile_dir.is_dir():
+            raise ValueError(f'Unknown configuration profile: {profile}')
+
+    def template_path(self, filename: str) -> Path:
+        """Find a profile template, shared template, or explicit file path."""
+        path = Path(filename)
+        if (path.is_absolute() or len(path.parts) > 1) and path.is_file():
+            return path
+        for candidate in (self.profile_dir / path, self.template_dir / 'common' / path, self.template_dir / path):
+            if candidate.is_file():
+                return candidate
+        raise FileNotFoundError(f'Template not found in {self.profile_dir} or common: {filename}')
     
-    def compute_grid_layout(self, num_videos: int) -> Tuple[int, int]:
+    def compute_grid_layout(self, num_videos: int) -> tuple[int, int]:
         if num_videos <= 1: return 1, 1
         elif num_videos == 2: return 1, 2
         elif num_videos <= 4: return 2, 2
@@ -43,7 +62,7 @@ class DeepStreamAutoConfigurator:
             side = math.ceil(math.sqrt(num_videos))
             return side, side
     
-    def get_video_resolution(self, video_path: str) -> Tuple[int, int]:
+    def get_video_resolution(self, video_path: str) -> tuple[int, int]:
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise RuntimeError(f"Could not open video file: {video_path}")
@@ -57,7 +76,7 @@ class DeepStreamAutoConfigurator:
     
     def get_engine_file_from_detector_config(self, detector_config: str, num_videos: int) -> str:
         """Extract onnx-file from detector config and generate engine file path."""
-        config_path = Path("config_templates") / detector_config
+        config_path = self.template_path(detector_config)
         if not config_path.exists():
             return None
         
@@ -70,8 +89,8 @@ class DeepStreamAutoConfigurator:
                     return engine_file
         return None
     
-    def generate_deepstream_config(self, video_files: List[str], enabled_sinks: List[str], detector_config: str = None) -> str:
-        template_path = Path("config_templates/config_deepstream.txt")
+    def generate_deepstream_config(self, video_files: list[str], enabled_sinks: list[str], detector_config: str | None = None, tracker_config: str = '') -> str:
+        template_path = self.template_path('config_deepstream.txt')
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_path}")
         
@@ -84,6 +103,9 @@ class DeepStreamAutoConfigurator:
         # Detect video resolution from the first video file
         first_video_path = self.dataset_dir / "videos" / video_files[0]
         video_width, video_height = self.get_video_resolution(first_video_path)
+        tracker = yaml.safe_load('\n'.join(line for line in tracker_config.splitlines() if not line.startswith('%YAML:'))) or {}
+        alignment = 32 if tracker.get('VisualTracker', {}).get('visualTrackerType', 0) in (1, 2) else 1
+        profile_resolution = (self.profile_dir / 'config_deepstream.txt').is_file()
         
         print(f"Detected video resolution: {video_width}x{video_height}")
         
@@ -120,14 +142,56 @@ class DeepStreamAutoConfigurator:
             elif stripped.startswith('height=') and current_section == 'streammux':
                 lines[i] = f"height={video_height}"
             # Update tracker section resolution
-            elif stripped.startswith('tracker-width=') and current_section == 'tracker':
-                lines[i] = f"tracker-width={video_width}"
-            elif stripped.startswith('tracker-height=') and current_section == 'tracker':
-                lines[i] = f"tracker-height={video_height}"
+            elif stripped.startswith('tracker-width=') and current_section == 'tracker' and not profile_resolution:
+                lines[i] = f"tracker-width={(video_width + alignment - 1) // alignment * alignment}"
+            elif stripped.startswith('tracker-height=') and current_section == 'tracker' and not profile_resolution:
+                lines[i] = f"tracker-height={(video_height + alignment - 1) // alignment * alignment}"
         
         return '\n'.join(lines)
+
+    def configure_replay(self, content: str, video_files: list[str], label_dir: str) -> str:
+        """Replace detector inference with cached MOT detections inside the dataset."""
+        labels = Path(label_dir).resolve(strict=True)
+        relative = labels.relative_to(self.dataset_dir.resolve())
+        filenames = [f'{index:03d}.txt' for index in range(len(video_files))]
+        for filename in filenames:
+            if not (labels / filename).is_file():
+                raise FileNotFoundError(f'Missing replay detections: {labels / filename}')
+        frames = []
+        for filename in video_files:
+            video = cv2.VideoCapture(str(self.dataset_dir / 'videos' / filename))
+            frames.append(int(video.get(cv2.CAP_PROP_FRAME_COUNT)))
+            video.release()
+        if any(count <= 0 for count in frames):
+            raise ValueError('Replay requires a valid frame count for every source video')
+        width, height = self.get_video_resolution(self.dataset_dir / 'videos' / video_files[0])
+        config = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=('#',))
+        config.read_string(content)
+        config['primary-gie']['enable'] = '0'
+        config['replay'] = {'enable': '1', 'label-dir': f'/workspace/inputs/{relative.as_posix()}/',
+                            'file-names': ';'.join(filenames), 'max-frame-nums': ';'.join(map(str, frames)),
+                            'label-width': str(width), 'label-height': str(height), 'interval': '0'}
+        output = io.StringIO()
+        config.write(output, space_around_delimiters=False)
+        return output.getvalue()
     
-    def _update_sources(self, content: str, video_files: List[str]) -> str:
+    def configure_reid_service(self, configs: dict[str, str]) -> dict[str, str]:
+        """Enable service-backed CLIP ReID without changing the selected tracker recipe."""
+        if self.profile_dir.name not in ('scout_pnt', 'scout_pn2'):
+            raise ValueError('--enable-reid-service currently supports only SCOUT profiles')
+        tracker = yaml.safe_load(configs['config_tracker.yml'])
+        overrides = yaml.safe_load(self.template_path('override_reid_service.yml').read_text())
+        for section, values in overrides.items():
+            tracker.setdefault(section, {}).update(values)
+        pipeline = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=('#',))
+        pipeline.read_string(configs['config_deepstream.txt'])
+        pipeline['sink3']['enable'] = '1'
+        output = io.StringIO()
+        pipeline.write(output, space_around_delimiters=False)
+        return {**configs, 'config_tracker.yml': yaml.safe_dump(tracker, sort_keys=False),
+                'config_deepstream.txt': output.getvalue()}
+
+    def _update_sources(self, content: str, video_files: list[str]) -> str:
         lines = content.split('\n')
         result = []
         i = 0
@@ -173,7 +237,7 @@ class DeepStreamAutoConfigurator:
         
         return '\n'.join(result)
     
-    def generate_msgconv_config(self, video_files: List[str]) -> str:
+    def generate_msgconv_config(self, video_files: list[str]) -> str:
         """Generate message converter configuration based on video files."""
         lines = []
         
@@ -197,10 +261,10 @@ class DeepStreamAutoConfigurator:
         
         return '\n'.join(lines)
 
-    def generate_tracker_config(self, video_files: List[str], calib_files: List[str], config_overrides: str = None, tracker_config: str = None) -> str:
+    def generate_tracker_config(self, video_files: list[str], calib_files: list[str], config_overrides: str | None = None, tracker_config: str | None = None) -> str:
         # Use specified tracker config or default to config_tracker.yml
         tracker_template = tracker_config or "config_tracker.yml"
-        template_path = Path("config_templates") / tracker_template
+        template_path = self.template_path(tracker_template)
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_path}")
         
@@ -266,12 +330,12 @@ class DeepStreamAutoConfigurator:
         
         return '\n'.join(lines)
     
-    def extract_camera_ids(self, video_files: List[str]) -> List[int]:
+    def extract_camera_ids(self, video_files: list[str]) -> list[int]:
         """Extract camera IDs by using sorted index + 1."""
         sorted_files = sorted(video_files)
         return [i + 1 for i in range(len(sorted_files))]
     
-    def generate_deployment_config(self, cam_ids: List[int]) -> str:
+    def generate_deployment_config(self, cam_ids: list[int]) -> str:
         """Generate deployment config file for production mode."""
         deployment_config = {
             'mqtt_broker_per_instance': ["127.0.0.1:1883"],
@@ -281,6 +345,7 @@ class DeepStreamAutoConfigurator:
         }
         
         # Save to temporary file
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         deployment_config_path = self.output_dir / "deployment_config.yml"
         with open(deployment_config_path, 'w') as f:
             yaml.dump(deployment_config, f, default_flow_style=False)
@@ -294,27 +359,21 @@ class DeepStreamAutoConfigurator:
             'ObjectModelProjection:', 'MultiViewAssociator:', 'Communicator:'
         ])
     
-    def _load_section_overrides(self, override_file: str) -> Dict:
+    def _load_section_overrides(self, override_file: str) -> dict:
         """Load section overrides from a YAML file."""
         if not override_file:
             return {}
         
-        override_path = Path(override_file)
-        if not override_path.exists():
-            # Try relative to config_templates directory
-            override_path = Path("config_templates") / override_file
-            if not override_path.exists():
-                print(f"Warning: Override file not found: {override_file}")
-                return {}
+        override_path = self.template_path(override_file)
         
         try:
             with open(override_path, 'r') as f:
                 return yaml.safe_load(f) or {}
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             print(f"Error loading override file {override_path}: {e}")
             return {}
     
-    def _apply_section_overrides(self, content: str, overrides: Dict) -> str:
+    def _apply_section_overrides(self, content: str, overrides: dict) -> str:
         """Apply section overrides to the config content."""
         if not overrides:
             return content
@@ -364,7 +423,7 @@ class DeepStreamAutoConfigurator:
         
         return '\n'.join(result_lines)
     
-    def _add_multiview_sections(self, content: str, calib_files: List[str]) -> str:
+    def _add_multiview_sections(self, content: str, calib_files: list[str]) -> str:
         """Add ObjectModelProjection, MultiViewAssociator, Communicator, and PoseEstimator sections to 2D config."""
         lines = content.split('\n')
         
@@ -466,7 +525,7 @@ class DeepStreamAutoConfigurator:
         
         return '\n'.join(lines)
     
-    def _find_matching_calib_file(self, video_file: str, calib_files: List[str], index: int) -> str:
+    def _find_matching_calib_file(self, video_file: str, calib_files: list[str], index: int) -> str:
         """Find the corresponding calibration file for a video file."""
         # Remove extension from video file to get base name
         video_base = os.path.splitext(video_file)[0]
@@ -508,31 +567,33 @@ class DeepStreamAutoConfigurator:
         print(f"    Warning: Generated fallback calibration filename {expected_file}")
         return expected_file
     
-    def generate_pub_sub_config(self, dataset_dir: str, video_files: List[str], num_vision_neighbor: int = 3, use_debug_communicator: bool = False):
-        """Generate pub_sub_info_config_0.yml using the existing script."""
+    def generate_pub_sub_config(self, dataset_dir: str, video_files: list[str], num_vision_neighbor: int = 3, use_debug_communicator: bool = False):
+        """Generate in-memory peers or MQTT deployment subscriptions."""
         cam_ids = self.extract_camera_ids(video_files)
+        if use_debug_communicator:
+            peers = {'camIds': list(map(str, cam_ids)),
+                     'subToCamIds': [[str(peer) for peer in cam_ids if peer != camera] for camera in cam_ids]}
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            (self.output_dir / 'pub_sub_info_config_0.yml').write_text(yaml.safe_dump(peers, sort_keys=False))
+            return
         cam_subset = ','.join([str(cam_id) for cam_id in cam_ids])
         
         # Check if the script exists
-        script_path = Path("utils/generate_pub_sub_configs.py")
+        script_path = Path(__file__).with_name('generate_pub_sub_configs.py')
         if not script_path.exists():
             print(f"Error: Script not found at {script_path}")
             print(f"Current working directory: {os.getcwd()}")
             return
         
         command = [
-            "python", str(script_path),
+            sys.executable, str(script_path),
             "--cam_info_path", os.path.join(dataset_dir, "camInfo"),
             "--neighbor_criteria", f"top_N:{num_vision_neighbor}",
             "--output_path", str(self.output_dir)
         ]
         
-        if use_debug_communicator:
-            command.extend(["--use_debug_communicator", "--cam_subset", cam_subset])
-        else:
-            # Generate deployment config for production mode
-            deployment_config_path = self.generate_deployment_config(cam_ids)
-            command.extend(["--deployment_config_path", deployment_config_path])
+        deployment_config_path = self.generate_deployment_config(cam_ids)
+        command.extend(["--deployment_config_path", deployment_config_path])
         
         try:
             print(f"Generating pub_sub config for cameras: {cam_subset} (vision neighbors: {num_vision_neighbor})")
@@ -551,10 +612,10 @@ class DeepStreamAutoConfigurator:
             print(f"Error: Failed to generate pub_sub config: {e}")
             print(f"Command output: {e.stdout}")
             print(f"Command error: {e.stderr}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Unexpected error during pub_sub generation: {e}")
     
-    def generate_configs(self, enabled_sinks: List[str] = None, config_overrides: str = None, tracker_config: str = None, detector_config: str = None) -> Dict[str, str]:
+    def generate_configs(self, enabled_sinks: list[str] | None = None, config_overrides: str | None = None, tracker_config: str | None = None, detector_config: str | None = None, replay_dir: str | None = None) -> dict[str, str]:
         if enabled_sinks is None:
             enabled_sinks = ['sink0']
         
@@ -571,26 +632,32 @@ class DeepStreamAutoConfigurator:
         # Generate pub_sub config (will be called from main with num_peers)
         # Note: num_peers will be passed from main function
         
+        tracker = self.generate_tracker_config(video_files, calib_files, config_overrides, tracker_config)
+        pipeline = self.generate_deepstream_config(video_files, enabled_sinks, detector_config, tracker)
+        if replay_dir is not None:
+            pipeline = self.configure_replay(pipeline, video_files, replay_dir)
         return {
-            'config_deepstream.txt': self.generate_deepstream_config(video_files, enabled_sinks, detector_config),
-            'config_tracker.yml': self.generate_tracker_config(video_files, calib_files, config_overrides, tracker_config),
+            'config_deepstream.txt': pipeline,
+            'config_tracker.yml': tracker,
             'config_msgconv.txt': self.generate_msgconv_config(video_files)
         }
     
-    def save_configs(self, configs: Dict[str, str]):
+    def save_configs(self, configs: dict[str, str]):
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        for folder in ('tracker-kitti-dump', 'infer-kitti-dump', 'outVideos', 'trajDumps'):
+            (self.output_dir / folder).mkdir(exist_ok=True)
         for filename, content in configs.items():
             path = self.output_dir / filename
             with open(path, 'w') as f:
                 f.write(content)
             print(f"Generated: {path}")
     
-    def copy_static_configs(self, detector_config: str = None):
+    def copy_static_configs(self, detector_config: str | None = None):
         """Copy static config files from templates to output directory."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # copy mqtt config
-        src_path = Path('config_templates') / 'config_mqtt.txt'
+        src_path = self.template_path('config_mqtt.txt')
         dst_path = self.output_dir / 'config_mqtt.txt'
         if src_path.exists():
             shutil.copy2(src_path, dst_path)
@@ -599,7 +666,7 @@ class DeepStreamAutoConfigurator:
             print(f"Warning: Template file not found: {src_path}")
         
         # copy detector config
-        src_path = Path('config_templates') / detector_config
+        src_path = self.template_path(detector_config or 'config_pgie.txt')
         dst_path = self.output_dir / 'config_pgie.txt'
         if src_path.exists():
             shutil.copy2(src_path, dst_path)
@@ -612,32 +679,40 @@ def main():
     parser = argparse.ArgumentParser(description='DeepStream Auto-Configurator')
     parser.add_argument('--dataset-dir', default='datasets/mtmc_4cam', help='Dataset directory with videos/ and camInfo/')
     parser.add_argument('--output-dir', default='temp_outputs', help='Output directory')
+    parser.add_argument('--profile', choices=PROFILES, default='mtmc_4cam_pnt', help='Configuration folder under config_templates/')
     parser.add_argument('--enable-osd', action='store_true', help='Enable OSD sink (sink1 - EglSink)')
     parser.add_argument('--enable-file-output', action='store_true', help='Enable video file output (sink2 - MP4)')
     parser.add_argument('--enable-msg-broker', action='store_true', help='Enable message broker output (sink3 - Kafka)')
+    parser.add_argument('--enable-reid-service', action='store_true', help='Enable SCOUT CLIP embeddings, Kafka output, and queries to a separately deployed ReID service')
+    parser.add_argument('--replay', type=Path, help='MOT detection folder inside the dataset, containing 000.txt, 001.txt, ...')
     parser.add_argument('--num_vision_neighbor', type=int, default=None, help='Number of vision neighbors per camera')
     parser.add_argument('--use_debug_communicator', action='store_true', help='Use debug communicator for pub_sub config')
-    parser.add_argument('--config-overrides', type=str, help='YAML file with section overrides (e.g., override_tracker_4cam.yml, override_tracker_12cam.yml)')
+    parser.add_argument('--config-overrides', type=str, help='Profile override filename or explicit YAML path')
     parser.add_argument('--tracker-config', type=str, default='config_tracker.yml', help='Tracker configuration template (e.g., config_tracker_2d.yml)')
-    parser.add_argument('--detector-config', type=str, default='config_pgie.txt', help='Detector configuration template (e.g., config_pgie.txt, config_pgie_rt_deter.txt)')
+    parser.add_argument('--detector-config', type=str, default='config_pgie.txt', help='Detector template filename or explicit path (default: config_pgie.txt)')
 
     args = parser.parse_args()
     
     enabled_sinks = ['sink0']  # sink0 always enabled (fake sink, type=1)
     if args.enable_osd: enabled_sinks.append('sink1')  # sink1 (OSD/EglSink, type=2)
     if args.enable_file_output: enabled_sinks.append('sink2')  # sink2 (MP4 file output, type=3)
-    if args.enable_msg_broker: enabled_sinks.append('sink3')  # sink3 (Kafka message broker, type=6)
+    if args.enable_msg_broker or args.enable_reid_service: enabled_sinks.append('sink3')  # sink3 (Kafka message broker, type=6)
     
     try:
-        configurator = DeepStreamAutoConfigurator(args.dataset_dir, args.output_dir)
-        
+        configurator = DeepStreamAutoConfigurator(args.dataset_dir, args.output_dir, args.profile)
+
+        configs = configurator.generate_configs(enabled_sinks, args.config_overrides, args.tracker_config, args.detector_config, args.replay)
+        if args.enable_reid_service:
+            configs = configurator.configure_reid_service(configs)
+        if args.use_debug_communicator:
+            configs['config_tracker.yml'] = configurator._apply_section_overrides(configs['config_tracker.yml'], {'Communicator': {'communicatorType': 1}})
+        tracker = yaml.safe_load('\n'.join(line for line in configs['config_tracker.yml'].splitlines() if not line.startswith('%YAML:')))
+        in_memory = tracker.get('Communicator', {}).get('communicatorType') == 1
         # Get video files for pub_sub generation
         video_files = sorted([os.path.basename(f) for f in glob.glob(str(Path(args.dataset_dir) / "videos" / "*.mp4"))])
         if args.num_vision_neighbor is None:
             args.num_vision_neighbor = len(video_files) - 1
-        configurator.generate_pub_sub_config(args.dataset_dir, video_files, args.num_vision_neighbor, args.use_debug_communicator)
-        
-        configs = configurator.generate_configs(enabled_sinks, args.config_overrides, args.tracker_config, args.detector_config)
+        configurator.generate_pub_sub_config(args.dataset_dir, video_files, args.num_vision_neighbor, in_memory)
         configurator.save_configs(configs)
         configurator.copy_static_configs(args.detector_config)
         
@@ -656,11 +731,11 @@ def main():
         print(f"   - pub_sub_info_config_0.yml (communication config)")
         print(f"\n🚀 Run with DeepStream container using the generated configs")
         
-    except Exception as e:
+    except (OSError, ValueError, KeyError, RuntimeError, yaml.YAMLError) as e:
         print(f"❌ Error: {e}")
         return 1
     
     return 0
 
 if __name__ == "__main__":
-    exit(main())
+    raise SystemExit(main())

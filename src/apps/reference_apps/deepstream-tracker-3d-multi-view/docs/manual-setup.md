@@ -22,37 +22,40 @@ limitations under the License.
     ```bash
     docker pull ghcr.io/nvidia/deepstream:9.2-triton-multiarch
     ```
-2. Git clone the current `deepstream_reference_apps` repository to the host machine and enter `deepstream-tracker-3d-multi-view` directory
+2. Set the checkout path, clone DeepStream, and enter the app directory. Reuse `DS_DIR` if already set in the [prerequisites](../README.md#prerequisites).
     ```bash
     # Install Git LFS
     sudo apt install git-lfs
     git lfs install
 
-    git clone https://github.com/NVIDIA-AI-IOT/deepstream_reference_apps.git
-    cd deepstream_reference_apps/deepstream-tracker-3d-multi-view
+    export DS_DIR="/path/to/your/deepstream" # e.g., export DS_DIR="$HOME/Documents/deepstream"
+    MV3DT_DIR="$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+    git clone https://github.com/NVIDIA/deepstream.git "$DS_DIR"
+    cd "$MV3DT_DIR"
     git lfs pull  # In case repo is already cloned before installing git-lfs
     ```
 
 3. Unzip the datasets.zip managed by Git LFS
     ```bash
-    unzip assets/datasets.zip
+    unzip -n -q assets/datasets.zip
     ```
 
 
-4. Download the `PeopleNetTransformer`, `RTDETR`, `PeopleNet v2.6.3`, and `BodyPose3DNet` models from NGC, and build custom parsers
-    * Download the models ([PeopleNetTransformer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2), [RT-DETR 2D Warehouse](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse), [PeopleNet v2.6.3](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet), and [BodyPose3DNet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/bodypose3dnet))
+4. Prepare models and build custom parsers
+
+    Download [PeopleNet Transformer](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2), [RT-DETR 2D Warehouse](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse), [PeopleNet 2.6.3](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet), and [BodyPose3DNet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/bodypose3dnet), and export [CLIP ReID](https://github.com/Syliz517/CLIP-ReID):
+
     ```bash
-    wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer_v2/deployable_v1.0/files?redirect=true&path=dino_fan_small_astro_delta.onnx' -O 'models/PeopleNetTransformer/peoplenet_transformer_model_op17.onnx'
-    wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/rtdetr_2d_warehouse/deployable_efficientvit_l2_v1.0/files?redirect=true&path=rtdetr_warehouse_v1.0.fp16.onnx' -O 'models/RTDETR/rtdetr_warehouse_v1.0.fp16.onnx'
-    wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet/deployable_quantized_onnx_v2.6.3/files?redirect=true&path=resnet34_peoplenet.onnx' -O 'models/PeopleNet2.6.3/resnet34_peoplenet.onnx'
-    wget --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/bodypose3dnet/deployable_accuracy_onnx_1.0/files?redirect=true&path=bodypose3dnet_accuracy.onnx' -O 'models/BodyPose3DNet/bodypose3dnet_accuracy.onnx'
+    bash scripts/setup_models.sh
     ```
+
+    Existing nonempty models are reused. The first CLIP ReID export requires GPU access and pulls `nvcr.io/nvidia/vss-core/reid-embed:3.3.0` for its PyTorch environment. Set `CLIP_REID_IMAGE` to use another compatible image. No ReID service is started. The pinned [NVIDIA converter](https://github.com/NVIDIA-AI-Blueprints/video-search-and-summarization/blob/3420e4e96c3fcc1b1635938df08969dcf3d43eb0/deploy/docker/services/rtvi/reid-embed/convert_clipreid_to_onnx.py) verifies the author's Market-1501 checkpoint before export. Source, checkpoint, and converter are cached under `experiments/model-setup/`.
 
     * Build the custom parsers for both PeopleNetTransformer and RTDETR
     ```bash
     # Build PeopleNetTransformer custom parser
     docker run --privileged --rm --net=host --runtime=nvidia \
-        -v $PWD/models:/workspace/models \
+        -v "$MV3DT_DIR/models:/workspace/models" \
         -w /workspace/models/PeopleNetTransformer \
         --entrypoint /bin/bash \
         ghcr.io/nvidia/deepstream:9.2-triton-multiarch \
@@ -61,7 +64,7 @@ limitations under the License.
 
     # Build RTDETR custom parser
     docker run --privileged --rm --net=host --runtime=nvidia \
-        -v $PWD/models:/workspace/models \
+        -v "$MV3DT_DIR/models:/workspace/models" \
         -w /workspace/models/RTDETR \
         --entrypoint /bin/bash \
         ghcr.io/nvidia/deepstream:9.2-triton-multiarch \
@@ -113,7 +116,7 @@ limitations under the License.
     sudo apt install openjdk-17-jdk 
 
     # Get Kafka
-    wget https://dlcdn.apache.org/kafka/4.2.0/kafka_2.13-4.2.0.tgz
+    wget https://archive.apache.org/dist/kafka/4.2.0/kafka_2.13-4.2.0.tgz -O kafka_2.13-4.2.0.tgz
     tar -xzf kafka_2.13-4.2.0.tgz
     cd kafka_2.13-4.2.0
 
@@ -157,17 +160,17 @@ limitations under the License.
 7. Install the required Python dependencies. Note that the scripts in this repo expect a virtual environment named `mv3dt_venv` located under the root of the repo. Please make sure to follow the following instructions exactly for quick start. 
 
     ```bash
-    cd <path to current repo, i.e. deepstream-tracker-3d-multi-view>
+    cd "$MV3DT_DIR"
 
     # Install required deb packages
     sudo apt update
     sudo apt install python3-tk python3.12-venv python3.12-dev
 
-    # Create a python virtual enviornment named `mv3dt_venv` and install required python packages
+    # Create a Python virtual environment and install runtime and evaluation dependencies
     python3 -m venv mv3dt_venv
     source mv3dt_venv/bin/activate
 
-    pip install -r requirements.txt
+    bash scripts/setup_evaluation.sh
     ```
     * Check the virtual environment. If any specific package fails, please install it manually with `pip install <package-name>`.
     ```bash
@@ -185,7 +188,7 @@ limitations under the License.
     repository root, enter the component:
 
     ```bash
-    cd tools/inference_builder
+    cd "$DS_DIR/tools/inference_builder"
     ```
     * Create a virtual environment for Inference Builder and install prerequisites. The MV3DT app uses `mv3dt_venv`; Inference Builder uses `tools/inference_builder/.venv`.
 
