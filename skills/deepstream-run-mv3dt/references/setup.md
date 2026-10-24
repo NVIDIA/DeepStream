@@ -4,7 +4,7 @@ Load this reference when the user asks to install, prepare, or validate MV3DT De
 
 ## What Setup Covers
 
-The repo script is the source of truth. It checks the OS, NVIDIA driver, Docker GPU runtime, pulls the DeepStream container, extracts `assets/datasets.zip`, downloads models, builds custom parsers, installs or starts Mosquitto and Kafka, creates the Kafka topic `mv3dt`, and creates `mv3dt_venv`.
+The repo script is the source of truth. It checks the OS, NVIDIA driver, Docker GPU runtime, pulls the DeepStream container, extracts `assets/datasets.zip` (the 4-camera and 12-camera synthetic samples only), downloads models, builds custom parsers, installs or starts Mosquitto and Kafka, creates the Kafka topic `mv3dt`, and creates `mv3dt_venv`.
 
 Default setup is DeepStream Container only. If the user asks for Inference Builder, consult the app checkout’s `docs/step-by-step-inference-builder.md` outside this operational workflow.
 
@@ -130,7 +130,8 @@ Then rerun the topic check above before launching DeepStream.
 | Symptom | First action |
 |---|---|
 | Docker GPU test fails | Fix NVIDIA Container Toolkit or Docker runtime before launching samples |
-| Dataset directories missing | Confirm `assets/datasets.zip` is materialized, not a Git LFS pointer; install `git-lfs` and run `git lfs pull` if needed, then rerun setup |
+| `mtmc_4cam` or `mtmc_12cam` directories missing | Confirm `assets/datasets.zip` is materialized, not a Git LFS pointer; install `git-lfs` and run `git lfs pull` if needed, then rerun setup |
+| `datasets/scout` or `datasets/wildtrack` missing | Optional. Generate them with `bash scripts/setup_datasets.sh --dataset wildtrack --download` or `--dataset scout`, see the app README Datasets section |
 | Model download fails | Check network access and retry setup |
 | Parser build fails | Capture the Docker build output and confirm the DeepStream image can run |
 | Kafka topic missing | Restart setup or create `mv3dt` using the Kafka commands in `docs/manual-setup.md` |

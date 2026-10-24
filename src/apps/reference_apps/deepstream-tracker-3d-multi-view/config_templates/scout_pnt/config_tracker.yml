@@ -1,0 +1,190 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+BaseConfig:
+  debugVerboseLevel: 1
+  minDetectorConfidence: 0.5059449892544273
+  checkClassMatch: 1
+TargetManagement:
+  debugVerboseLevel: 0
+  enableBboxUnClipping: 1
+  preserveStreamUpdateOrder: 1
+  maxTargetsPerStream: 200
+  minIouDiff4NewTarget: 0.6801632135980716
+  minTrackerConfidence: 0.6400160750578312
+  probationAge: 10
+  maxShadowTrackingAge: 5
+  earlyTerminationAge: 2
+  maxTrajectoryBufferLength: -1
+  outputTerminatedTracks: 0
+  outputVisibility: 1
+  terminatedTrackFilename: /workspace/experiments/trajDumps/trackDump_Stream_
+TrajectoryManagement:
+  debugVerboseLevel: 0
+  useUniqueID: 0
+  enableReAssoc: 0
+  enable3DReAssoc: 1
+  maxWorldDist4ArchiveReAssoc: 1.5
+  maxWorldDist4ArchiveReAssocCS: 2.0
+  maxWorldDist4ArchiveReAssocWS: 2.0
+  maxNmCascadeWorldDist: 0.0
+  nmCascadeMinCosSim: 0.59
+  nmCascadeMaxCosSim: 0.85
+  nmCascadeDecayRate: 2.12
+  minBboxSizeSimilarity4ReAssocCS: 0.25
+  maxWsExt25WorldDist: 2.0
+  maxFrameGap4WorldDistReAssoc: 50
+  minMatchingScore4Overall: 0.7480416546465518
+  minTrackletMatchingScore: 0.821448591986918
+  minMatchingScore4ReidSimilarity: 0.9791035039447235
+  matchingScoreWeight4TrackletSimilarity: 0.3300899215058031
+  matchingScoreWeight4ReidSimilarity: 0.48344536233925817
+  minTrajectoryLength4Projection: 16
+  prepLength4TrajectoryProjection: 48
+  trajectoryProjectionLength: 105
+  maxAngle4TrackletMatching: 75
+  minSpeedSimilarity4TrackletMatching: 0.28730592005811195
+  minBboxSizeSimilarity4TrackletMatching: 0.1264326787080957
+  maxTrackletMatchingTimeSearchRange: 11
+  trajectoryProjectionProcessNoiseScale: 0.7294795517747802
+  trajectoryProjectionMeasurementNoiseScale: 157.51676007873192
+  trackletSpacialSearchRegionScale: 0.9221625489888863
+  reidExtractionInterval: 5
+  dumpTrajectoryIntoFile: 1
+  dumpDetectorBboxes: 1
+  dumpTrajectoryTentative: 1
+  dumpTrajectoryQuasiActive: 0
+  dumpTrajectoryInactive: 0
+  minVisibility4TrajDump: 0.0000
+  trajectoryDumpFileName: /workspace/experiments/trajDumps/trajDump_Stream_
+  maxAge4TrackletArchiving: 100
+DataAssociator:
+  debugVerboseLevel: 0
+  dataAssociatorType: 0
+  associationMatcherType: 1
+  minMatchingScore4Overall: 0.1790121345642672
+  minMatchingScore4Iou: 0.1878313127159558
+  minMatchingScore4SizeSimilarity: 0.7087501650975979
+  minMatchingScore4VisualSimilarity: 0.1598709113738031
+  minMatchingScore4ReidSimilarity: 0.21748019103840988
+  matchingScoreWeight4Iou: 0.6771439611609806
+  matchingScoreWeight4SizeSimilarity: 0.40118632419519545
+  matchingScoreWeight4VisualSimilarity: 0.47351366924215244
+  matchingScoreWeight4ReidSimilarity: 0.12975650601762512
+  tentativeDetectorConfidence: 0.7250106742140872
+  minMatchingScore4TentativeIou: 0.2861045340632649
+  minMatchingScore4PeerAssocIou: 0.5585367815095453
+  maxWorldDist4ActiveIouRescue: 0.6
+  minMatchingScore4TentativeIouInactive: 0.20
+  maxWorldDist4PrimaryAssoc: 3.0  # world-distance gate (meters); 0=disabled
+StateEstimator:
+  debugVerboseLevel: 0
+  stateEstimatorType: 4
+  processNoiseVar4Loc: 103.07799121710174
+  processNoiseVar4Size: 921.558669828222
+  processNoiseVar4Vel: 448.5370832060047
+  measurementNoiseVar4Detector: 86.06624831581186
+  measurementNoiseVar4Tracker: 45.94708448280327
+VisualTracker:
+  debugVerboseLevel: 0
+  visualTrackerType: 0
+  useColorNames: 1
+  useHog: 1
+  featureImgSizeLevel: 3
+  featureFocusOffsetFactor_y: -0.1054
+  filterLr: 0.0767
+  filterChannelWeightsLr: 0.0339
+  gaussianSigma: 0.5687
+ReID:
+  debugVerboseLevel: 0
+  reidType: 2
+  batchSize: 64
+  workspaceSize: 1000
+  reidFeatureSize: 1280
+  reidHistorySize: 100
+  inferDims: [3, 256, 128]
+  networkMode: 0
+  inputOrder: 0
+  colorFormat: 0
+  offsets: [127.5, 127.5, 127.5]
+  netScaleFactor: 0.007843
+  keepAspc: 0
+  useVPICropScaler: 1
+  outputReidTensor: 1
+  addFeatureNormalization: 1
+  minVisibility4GalleryUpdate: 0.6
+  onnxFile: /workspace/models/ClipReID/reid_model.onnx
+  tltModelKey: "nvidia_tao"
+  modelEngineFile: /workspace/models/ClipReID/reid_model.onnx_b64_gpu0_fp32.engine
+ReIDService:
+  debugVerboseLevel: 0
+  reidServiceType: 0
+  enableBlocking: 1
+  minVisibility4ReidServiceQuery: -1
+  maxClusterVariance: 0.0003
+  serviceAddress: "localhost"
+  servicePort: 8088
+  operateOnClassIds: [1]
+PoseEstimator:
+  debugVerboseLevel: 0
+  poseEstimatorType: 0
+  batchSize: 1
+  workspaceSize: 1000
+  inferDims: [3, 256, 192]
+  networkMode: 1
+  inputOrder: 0
+  colorFormat: 1
+  offsets: [123.6750, 116.2800, 103.5300]
+  netScaleFactor: 0.00392156
+  tltEncodedModel: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.etlt
+  modelEngineFile: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.etlt_b1_gpu0_fp16.engine
+  tltModelKey: tlt_encode
+  poseInferenceInterval: 9
+  saveFrameViz: 0
+ObjectModelProjection:
+  debugVerboseLevel: 0
+  objectModelType: 0
+  waistHeightRatio: 0.6623361311612872
+  useDefaultModelHeight: 1.3937852918797642
+  useDefaultModelRadius: 0.38848459704466515
+  minPoseConfidence: 0.8424109089805079
+  outputFootLocation: 1
+  outputConvexHull: 1
+  cameraModelFilepath:
+    - /workspace/inputs/camInfo/cam_0.yml
+MultiViewAssociator:
+  debugVerboseLevel: 0
+  multiViewAssociatorType: 1
+  enableLatePeerReAssoc: 0
+  enableIDCorrection: 0
+  enableSeeThrough: 1
+  enableMsgSync: 1
+  maxPeerTrackletSize: 100  # 2×maxFrameGap4WorldDistReAssoc
+  recentlyActiveAge: 100
+  minCommonFrames4MatchScore: 10
+  minPeerTrackletMatchScore: 0.020346922265860573
+  minPeerVisibility4Fusion: 0.6314948511336685
+  minMatchingScore4PartialOverlap: 0.8
+  maxSeqBridgeDist: 2.0
+  maxPeerToPredDistance4Fusion: 1.0
+  maxTrackletMatchingTimeSearchRange: 1
+  maxPeerFrameDiff4NoDet: 2
+  communicatorInitSleepTime: 0
+Communicator:
+  debugVerboseLevel: 0
+  communicatorType: 1
+  pubSubInfoConfigPath: /workspace/experiments/pub_sub_info_config_0.yml
+  saveLog2File: 1
+  mqttProtoAdaptorConfigPath: /workspace/experiments/config_mqtt.txt

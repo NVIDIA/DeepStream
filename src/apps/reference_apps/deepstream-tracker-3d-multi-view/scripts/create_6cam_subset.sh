@@ -18,7 +18,9 @@
 
 set -e
 
-DATASET_DIR="datasets"
+DS_DIR="${DS_DIR:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+MV3DT_DIR="$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+DATASET_DIR="$MV3DT_DIR/datasets"
 SOURCE_DIR="$DATASET_DIR/mtmc_12cam"
 TARGET_DIR="$DATASET_DIR/mtmc_6cam"
 

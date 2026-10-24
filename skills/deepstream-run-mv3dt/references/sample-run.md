@@ -66,25 +66,25 @@ export DETECTOR_MODEL="${DETECTOR_MODEL:-PeopleNetTransformer}"
 export MODEL_REPO="${REPO_ROOT}/models"
 export RUN_STARTED_AT="$(date +%s)"
 export MV3DT_RUN_MODE="${MV3DT_RUN_MODE:-headless}"
+export TRACKER_CONFIG=config_tracker.yml
 case "$SAMPLE_CAMERAS" in
   4)
     export DATASET_DIR="${REPO_ROOT}/datasets/mtmc_4cam"
     export EXPERIMENT_DIR="${EXPERIMENT_DIR:-${REPO_ROOT}/experiments/deepstream/4cam}"
-    export TRACKER_CONFIG=config_tracker.yml
     export CONFIG_OVERRIDES=override_tracker_4cam.yml
     ;;
   12)
     export DATASET_DIR="${REPO_ROOT}/datasets/mtmc_12cam"
     export EXPERIMENT_DIR="${EXPERIMENT_DIR:-${REPO_ROOT}/experiments/deepstream/12cam}"
     unset CONFIG_OVERRIDES
-    case "$DETECTOR_MODEL" in
-      PeopleNetTransformer) export TRACKER_CONFIG=config_tracker_tuned_12cam.yml ;;
-      RTDETR) export TRACKER_CONFIG=config_tracker_tuned_12cam_rt_detr.yml ;;
-      PeopleNet2.6.3) export TRACKER_CONFIG=config_tracker.yml ;;
-      *) echo "ERROR: unsupported detector"; exit 1 ;;
-    esac
     ;;
   *) echo "ERROR: SAMPLE_CAMERAS must be 4 or 12"; exit 1 ;;
+esac
+case "$DETECTOR_MODEL" in
+  PeopleNetTransformer) export CONFIG_PROFILE="mtmc_${SAMPLE_CAMERAS}cam_pnt" ;;
+  RTDETR) export CONFIG_PROFILE="mtmc_${SAMPLE_CAMERAS}cam_detr" ;;
+  PeopleNet2.6.3) export CONFIG_PROFILE="mtmc_${SAMPLE_CAMERAS}cam_pn2" ;;
+  *) echo "ERROR: unsupported detector"; exit 1 ;;
 esac
 ```
 
@@ -187,7 +187,7 @@ printf 'non-empty tracker dump files: '
 find "${EXPERIMENT_DIR}/tracker-kitti-dump" -type f -size +0c | wc -l
 ```
 
-For the 12-camera sample, use `DATASET_DIR="${REPO_ROOT}/datasets/mtmc_12cam"`, `EXPERIMENT_DIR="${REPO_ROOT}/experiments/deepstream/12cam"`, and unset `CONFIG_OVERRIDES` unless intentionally applying a custom override. Mirror the DeepStream repo `scripts/test_12cam_ds.sh` detector-specific tracker defaults: `PeopleNetTransformer` uses `TRACKER_CONFIG=config_tracker_tuned_12cam.yml`; `RTDETR` uses `TRACKER_CONFIG=config_tracker_tuned_12cam_rt_detr.yml`; `PeopleNet2.6.3` uses `TRACKER_CONFIG=config_tracker.yml`. Do not run the 12-camera sample automatically after the default 4-camera run; offer it as the next run in the final report.
+For the 12-camera sample, use `DATASET_DIR="${REPO_ROOT}/datasets/mtmc_12cam"`, `EXPERIMENT_DIR="${REPO_ROOT}/experiments/deepstream/12cam"`, and unset `CONFIG_OVERRIDES` unless intentionally applying a custom override. Select `CONFIG_PROFILE=mtmc_12cam_pnt`, `mtmc_12cam_detr`, or `mtmc_12cam_pn2` for PeopleNet Transformer, RT-DETR, or the PeopleNet 2.6.3 baseline. All use `TRACKER_CONFIG=config_tracker.yml` and `DETECTOR_CONFIG=config_pgie.txt`. Do not run the 12-camera sample automatically after the default 4-camera run; offer it as the next run in the final report.
 
 ## Display Expected Output
 
@@ -212,6 +212,6 @@ Headless success indicators:
 - `timeout "${KAFKA_CLIENT_TIMEOUT:-15s}" python utils/kafka_client.py --broker localhost:9092 --topic mv3dt` prints decoded JSON messages, or Kafka offsets advance during the run.
 - `${EXPERIMENT_DIR}/bev_outputs/trajectory_video_<timestamp>.mp4` exists and the BEV capture log reports nonzero parsed messages and frames from the current run.
 
-For `DETECTOR_MODEL=RTDETR`, `App run successful` alone is not enough. Require nonzero non-empty inference and tracker dump counts, and require Kafka offsets/messages plus BEV messages/frames when message broker and BEV capture are expected. If RTDETR produces zero detections on a Blackwell-based GPU, rerun the shared config-generation step so `strongly-typed=1` is applied to the RTDETR detector template and the stale RTDETR TensorRT engine cache is rebuilt.
+For `DETECTOR_MODEL=RTDETR`, `App run successful` alone is not enough. Require nonzero non-empty inference and tracker dump counts, and require Kafka offsets/messages plus BEV messages/frames when message broker and BEV capture are expected. If RTDETR produces zero detections on a Blackwell-based GPU, rerun the shared config-generation step so `strongly-typed=1` is applied to the generated RTDETR config with a separate engine cache.
 
 Use `visualization-metadata.md` to inspect Kafka, run headless BEV capture, or debug blank BEV/OSD output. If the sample was not specified and the default 4-camera sample was run, close by saying the shipped 12-camera sample is also available and can be run next.
