@@ -1589,12 +1589,12 @@ set_thread_affinity (gchar *coreList)
   int ret = 0;
   cpu_set_t *cpu_set;
   size_t cpu_alloc_size;
-  cpu_set = CPU_ALLOC (RMAX_CPU_SETSIZE);
+  cpu_set = CPU_ALLOC (CPU_SETSIZE);
   if (!cpu_set) {
     g_print ("failed to allocate cpu_set\n");
     return FALSE;
   }
-  cpu_alloc_size = CPU_ALLOC_SIZE (RMAX_CPU_SETSIZE);
+  cpu_alloc_size = CPU_ALLOC_SIZE (CPU_SETSIZE);
   CPU_ZERO_S (cpu_alloc_size, cpu_set);
 
   gchar **tokens = g_strsplit (g_strstrip (coreList), ",", 0);
@@ -1602,7 +1602,7 @@ set_thread_affinity (gchar *coreList)
   gint cpuCore = 0;
   while (*tmp) {
     cpuCore = atoi (*tmp);
-    if (cpuCore >= 0 && cpuCore < RMAX_CPU_SETSIZE) {
+    if (cpuCore >= 0 && cpuCore < CPU_SETSIZE) {
       CPU_SET_S (cpuCore, cpu_alloc_size, cpu_set);
     }
     tmp++;
