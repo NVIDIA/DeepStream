@@ -24,8 +24,8 @@
  * `attach-perf-metric` config flag (the caller owns the gate; this module is pure mechanism).
  *
  * THREADING CONTRACT (important):
- *   - modelmux_perf_mark_infer_in()  : HOT PATH (nvinfer sink probe), lock-free. Single writer per ModelMuxPerf.
- *   - modelmux_perf_mark_infer_out() : HOT PATH (nvinfer src/provenance probe), lock-free. Single writer
+ *   - modelmux_perf_mark_bin_in()  : HOT PATH (bin-head probe), lock-free. Single writer per ModelMuxPerf.
+ *   - modelmux_perf_mark_bin_out() : HOT PATH (bin-tail/provenance probe), lock-free. Single writer
  *                                per ModelMuxPerf and per source_id (one bin/one shard serves a source).
  *                                Only INCREMENTS monotonic 64-bit counters (atomic load/store on the
  *                                target arch) -- never mutates container structure.
@@ -76,7 +76,7 @@ typedef struct
  */
 typedef struct _MmPerf
 {
-  gint64        t_enter_us;                      /**< nvinfer-sink batch arrival (single writer) */
+  gint64        t_enter_us;                      /**< bin-head batch arrival (single writer)      */
   ModelMuxPerfCounter agg;                             /**< bin aggregate (model throughput/latency)   */
   ModelMuxPerfCounter by_source[MM_PERF_MAX_SOURCES];  /**< per source_id                              */
 } ModelMuxPerf;
@@ -106,19 +106,19 @@ void modelmux_perf_counter_clear (ModelMuxPerfCounter * c);
 ModelMuxPerf *modelmux_perf_new (void);
 void    modelmux_perf_free (ModelMuxPerf * p);
 
-/** HOT PATH: stamp the batch arrival time at the nvinfer sink. */
+/** HOT PATH: stamp the batch arrival time at the BIN's inference head. */
 static inline void
-modelmux_perf_mark_infer_in (ModelMuxPerf * p, gint64 now_us)
+modelmux_perf_mark_bin_in (ModelMuxPerf * p, gint64 now_us)
 {
   if (p)
     p->t_enter_us = now_us;
 }
 
-/** HOT PATH: called once per output frame at the nvinfer src. Derives the batch latency
+/** HOT PATH: called once per output frame at the BIN's inference tail. Derives the batch latency
  *  (now - t_enter, identical for every frame of the batch) and records it into the aggregate
  *  and the frame's per-source counter. `now_us` should be sampled ONCE per batch by the caller
  *  and passed unchanged for every frame of that batch. */
-void modelmux_perf_mark_infer_out (ModelMuxPerf * p, gint64 now_us, gint source_id);
+void modelmux_perf_mark_bin_out (ModelMuxPerf * p, gint64 now_us, gint source_id);
 
 /** Caller-locked: tick the aggregate + every active per-source counter. */
 void modelmux_perf_tick (ModelMuxPerf * p, gint64 now_us);

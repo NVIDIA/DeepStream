@@ -214,5 +214,13 @@ ll-config-file=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/
 gpu-id=0
 display-tracking-id=1
 
+[secondary-gie0]
+enable=0
+gpu-id=0
+plugin-type=4
+# streams reaching this stage: 2N when the primary runs A/B (2 cameras -> 4).
+batch-size=2
+config-file=config_modelmux_sgie_vehicletypes.txt
+
 [tests]
 file-loop=1

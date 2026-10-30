@@ -150,15 +150,21 @@ cfg_parse_per_version (ModelMuxConfig * config, GKeyFile * kf)
   for (gi = 0; groups && groups[gi]; gi++) {
     const gchar *grp = groups[gi], *rest, *dash;
     gchar *name = NULL, *ver = NULL, *eng = NULL, *conf = NULL;
-    gint gpu = -1;
+    gint gpu = -1, vgie = -1;
     guint vbatch = 0;
     ModelVersionArtifact *v;
 
     if (!g_str_has_prefix (grp, PFX))
       continue;
     rest = grp + strlen (PFX);                       /* "<name>-<version>" (or "name-<idx>") */
-    if (g_str_has_prefix (rest, "name-") && modelmux_version_is_int (rest + 5))
-      continue;                                      /* catalog-index block -> handled elsewhere */
+    /* Concede EVERY [model-name-*] group to cfg_parse_catalog, which claims them all on the
+     * prefix alone. Testing the suffix with modelmux_version_is_int() instead would disagree
+     * with it at index 0 -- versions are positive by definition, catalog indices start at 0 --
+     * so the [model-name-0] every config opens with fell through here and was mis-read as a
+     * per-version block for a model called "name". The keyword 'name' is reserved (documented
+     * above), which is what makes this split unambiguous. */
+    if (g_str_has_prefix (rest, "name-"))
+      continue;                                      /* catalog block -> handled elsewhere */
     dash = strrchr (rest, '-');                      /* split at the LAST dash: name | version */
     if (!dash || dash == rest || !*(dash + 1))
       continue;                                      /* not a per-version block shape */
@@ -178,6 +184,11 @@ cfg_parse_per_version (ModelMuxConfig * config, GKeyFile * kf)
     eng  = cfg_str (kf, grp, "engine", NULL);
     conf = cfg_str (kf, grp, "config", NULL);
     gpu  = cfg_int (kf, grp, "gpu", -1);
+    vgie = cfg_int (kf, grp, "gie-unique-id", -1);  /* -1 = inherit the base config's */
+    if (vgie == 0) {
+      CFG_WARN ("[%s] gie-unique-id=0 is nvinfer's 'unset' -- ignoring", grp);
+      vgie = -1;
+    }
     vbatch = cfg_uint (kf, grp, "batch-size", 0);   /* 0 = inherit name/global */
     if (vbatch > MM_MAX_BATCH) {
       CFG_WARN ("[%s] batch-size %u exceeds max %u -- clamping", grp, vbatch,
@@ -198,9 +209,10 @@ cfg_parse_per_version (ModelMuxConfig * config, GKeyFile * kf)
       CFG_WARN ("[%s] config not found: '%s' -- ignoring it (using base config)", grp, conf);
       g_free (conf); conf = NULL;
     }
-    if (!eng && !conf && gpu < 0 && !vbatch) {
-      CFG_WARN ("[%s] per-version block has no usable engine=, config=, gpu= or "
-          "batch-size= -- ignored (version would just reuse the model's base config)", grp);
+    if (!eng && !conf && gpu < 0 && !vbatch && vgie < 0) {
+      CFG_WARN ("[%s] per-version block has no usable engine=, config=, gpu=, "
+          "gie-unique-id= or batch-size= -- ignored (version would just reuse the "
+          "model's base config)", grp);
       goto skip;
     }
     if (config->num_versions >= G_N_ELEMENTS (config->versions)) {
@@ -211,14 +223,125 @@ cfg_parse_per_version (ModelMuxConfig * config, GKeyFile * kf)
     v = &config->versions[config->num_versions++];
     v->name = name; v->version = ver; v->engine = eng; v->config = conf;  /* ownership transferred */
     v->gpu = gpu;                      /* optional gpu= placement (-1 = config's device) */
+    v->gie = vgie;                     /* optional gie-unique-id (-1 = base config's) */
     v->batch = vbatch;                 /* optional per-version batch (0 = inherit) */
-    CFG_INFO ("per-version artifact: '%s@%s'  engine=%s  config=%s  gpu=%d  batch=%u", name, ver,
-        eng ? eng : "(base)", conf ? conf : "(base)", gpu, vbatch);
+    CFG_INFO ("per-version artifact: '%s@%s'  engine=%s  config=%s  gpu=%d  gie=%d  batch=%u",
+        name, ver, eng ? eng : "(base)", conf ? conf : "(base)", gpu, vgie, vbatch);
     continue;
 skip:
     g_free (name); g_free (ver); g_free (eng); g_free (conf);
   }
   g_strfreev (groups);
+}
+
+/* Compile a config-key regex ONCE, process-wide.
+ *
+ * These readers are reached from the REST/query thread (model/load and model/update at
+ * a secondary run the whole admission inline on a civetweb worker), which arrives here
+ * roughly 130 GStreamer query-forwarding frames deep on a worker stack far smaller than
+ * the main thread's. g_regex_new -> pcre2_compile wants a big frame and used to blow
+ * straight through the guard page: a SIGSEGV inside pcre2_compile, nowhere near any
+ * modelmux pointer. Compiling on first use (the pipeline thread, at build) keeps the
+ * REST path allocation-light and cheap. A GRegex is refcounted and immutable once
+ * built, and g_regex_match allocates its own match data, so sharing one across threads
+ * is safe -- never unref these. */
+static GRegex *
+cfg_key_regex (GRegex ** slot, const gchar * pattern)
+{
+  static GMutex lock;
+  g_mutex_lock (&lock);
+  if (!*slot)
+    *slot = g_regex_new (pattern, G_REGEX_MULTILINE, 0, NULL);
+  g_mutex_unlock (&lock);
+  return *slot;
+}
+
+/* Read `process-mode` out of a model's infer config -- the same file, and the same
+ * technique, as the gpu reader below. A leading '#' is rejected so a commented-out
+ * example does not produce a bogus value. Returns -1 when the key is absent or the
+ * file cannot be read. */
+gint
+modelmux_config_file_process_mode (const gchar * config_file)
+{
+  static GRegex *cached = NULL;
+  gchar *content = NULL;
+  gint mode = -1;
+  GRegex *re;
+  GMatchInfo *mi = NULL;
+  if (!config_file || !g_file_get_contents (config_file, &content, NULL, NULL))
+    return -1;
+  re = cfg_key_regex (&cached,
+      "^[ \\t]*process[-_]mode[ \\t]*[:=][ \\t]*(\\d+)");
+  if (re && g_regex_match (re, content, 0, &mi)) {
+    gchar *num = g_match_info_fetch (mi, 1);
+    if (num)
+      mode = (gint) g_ascii_strtoll (num, NULL, 10);
+    g_free (num);
+  }
+  if (mi)
+    g_match_info_free (mi);
+  g_free (content);
+  return mode;
+}
+
+/* The gie-unique-id a model's infer config DECLARES. This is the identity nvinfer
+ * stamps into every object it produces, and therefore the id a downstream secondary
+ * names in `operate-on-gie-id`. Reading it here lets a modelmux stage adopt the
+ * CONFIGURED id instead of an internally-allocated one, so the nvinfer contract
+ * ("declare 1, then operate-on-gie-id=1") holds unchanged when a modelmux replaces a
+ * plain nvinfer. Returns -1 when absent; the caller then falls back to the monotonic
+ * allocator. Same file and technique as the process-mode/gpu readers above. */
+gint
+modelmux_config_file_gie_id (const gchar * config_file)
+{
+  static GRegex *cached = NULL;
+  gchar *content = NULL;
+  gint gie = -1;
+  GRegex *re;
+  GMatchInfo *mi = NULL;
+  if (!config_file || !g_file_get_contents (config_file, &content, NULL, NULL))
+    return -1;
+  re = cfg_key_regex (&cached,
+      "^[ \\t]*gie[-_]unique[-_]id[ \\t]*[:=][ \\t]*(\\d+)");
+  if (re && g_regex_match (re, content, 0, &mi)) {
+    gchar *num = g_match_info_fetch (mi, 1);
+    if (num)
+      gie = (gint) g_ascii_strtoll (num, NULL, 10);
+    g_free (num);
+  }
+  if (mi)
+    g_match_info_free (mi);
+  g_free (content);
+  return gie > 0 ? gie : -1;                 /* 0 is nvinfer's "unset", not an id */
+}
+
+/* The gie-unique-id a SECONDARY's infer config says it operates ON -- nvinfer's
+ * `operate-on-gie-id`. This is the input filter: the classifier only sees objects whose
+ * unique_component_id matches, so it is also the only honest answer to "which stage's
+ * output did this model actually consume". -1 = absent, which is nvinfer's default
+ * meaning EVERY GIE. Same file and technique as the readers above. */
+gint
+modelmux_config_file_operate_on_gie (const gchar * config_file)
+{
+  static GRegex *cached = NULL;
+  gchar *content = NULL;
+  gint gie = -1;
+  GRegex *re;
+  GMatchInfo *mi = NULL;
+  if (!config_file || !g_file_get_contents (config_file, &content, NULL, NULL))
+    return -1;
+  re = cfg_key_regex (&cached,
+      "^[ \\t]*operate[-_]on[-_]gie[-_]id[ \\t]*[:=][ \\t]*(-?\\d+)");
+  if (re && g_regex_match (re, content, 0, &mi)) {
+    gchar *num = g_match_info_fetch (mi, 1);
+    if (num)
+      gie = (gint) g_ascii_strtoll (num, NULL, 10);
+    g_free (num);
+  }
+  if (mi)
+    g_match_info_free (mi);
+  g_free (content);
+  return gie;                        /* -1 (explicit or absent) = all GIEs */
 }
 
 /* Device a model CONFIG FILE pins its inference to: nvinfer keyfile "gpu-id=N"
@@ -228,14 +351,15 @@ skip:
 gint
 modelmux_config_file_gpu (const gchar * config_file)
 {
+  static GRegex *cached = NULL;
   gchar *content = NULL;
   gint gpu = -1;
   GRegex *re;
   GMatchInfo *mi = NULL;
   if (!config_file || !g_file_get_contents (config_file, &content, NULL, NULL))
     return -1;
-  re = g_regex_new ("^\\s*gpu[-_]ids?\\s*[:=]\\s*\\[?\\s*(\\d+)\\s*(,?)",
-      G_REGEX_MULTILINE, 0, NULL);
+  re = cfg_key_regex (&cached,
+      "^\\s*gpu[-_]ids?\\s*[:=]\\s*\\[?\\s*(\\d+)\\s*(,?)");
   if (re && g_regex_match (re, content, 0, &mi)) {
     gchar *num = g_match_info_fetch (mi, 1);
     gchar *more = g_match_info_fetch (mi, 2);
@@ -249,8 +373,6 @@ modelmux_config_file_gpu (const gchar * config_file)
   }
   if (mi)
     g_match_info_free (mi);
-  if (re)
-    g_regex_unref (re);
   g_free (content);
   return gpu;
 }
@@ -265,7 +387,7 @@ modelmux_config_resolve_version_cfg (const ModelMuxConfig * config, const gchar 
   const ModelCatalogEntry *def;
   const gchar *base, *ver = (version && *version) ? version : MM_MODEL_VERSION_DEFAULT;
   gchar *v_engine = NULL, *v_config = NULL, *ret = NULL;
-  gint v_gpu = -1;
+  gint v_gpu = -1, v_gie = -1;
   gboolean found = FALSE;
   guint i;
 
@@ -283,6 +405,7 @@ modelmux_config_resolve_version_cfg (const ModelMuxConfig * config, const gchar 
       v_engine = g_strdup (config->versions[i].engine);
       v_config = g_strdup (config->versions[i].config);
       v_gpu = config->versions[i].gpu;
+      v_gie = config->versions[i].gie;
       found = TRUE;
       break;
     }
@@ -292,12 +415,12 @@ modelmux_config_resolve_version_cfg (const ModelMuxConfig * config, const gchar 
   def = modelmux_config_find_model (config, name);
   base = v_config ? v_config : (def ? def->config_file : NULL);
   if (base) {
-    if (v_engine || v_gpu >= 0) {
-      gchar *derived = modelmux_config_derive (base, v_engine, v_gpu, name, ver);
+    if (v_engine || v_gpu >= 0 || v_gie > 0) {
+      gchar *derived = modelmux_config_derive (base, v_engine, v_gpu, v_gie, name, ver);
       if (derived) {
         ret = derived;
       } else if (v_gpu < 0 &&
-          modelmux_detect_model_type (base) == MODEL_INFERSERVER) {
+          !modelmux_backend (modelmux_detect_model_type (base))->engine_file) {
         /* inferserver cannot swap an engine via config rewrite (documented
          * limitation, warned inside derive) -- the base config IS still the
          * correct artifact, so this is a legitimate fallback, not a failure. */
@@ -418,6 +541,148 @@ cfg_parse_model_spec (const gchar * spec, const gchar * role_default,
   return TRUE;
 }
 
+/* SECONDARY-stage config check. A secondary is a much smaller thing than a primary:
+ * one model over all streams, no A/B, no per-stream routing. Everything the primary
+ * path needs and it does not -- unified-batch, sharding, idle compaction, the [muxer]
+ * geometry, shadow-model, [stream-model-*] bindings -- is simply IGNORED here rather
+ * than rejected, so one config file can be moved between positions unchanged.
+ *
+ * Only what would leave the stage broken or ambiguous is an error:
+ *   - no serving model at all (a secondary cannot run without one),
+ *   - a primary-model naming something the catalog does not declare.
+ * The ignored keys are named once at INFO so the omission is diagnosable. */
+static gboolean
+modelmux_config_validate_sgie (GstNvModelMux * self, ModelMuxConfig * config,
+    GKeyFile * kf)
+{
+  GString *ignored = g_string_new (NULL);
+
+  if (!config->default_primary || !*config->default_primary) {
+    GST_ELEMENT_ERROR (self, RESOURCE, SETTINGS,
+        ("no serving model configured for this secondary stage"),
+        ("set 'primary-model=<name>[;<version>]' naming one of the [model-name-N] "
+         "entries -- a secondary serves exactly one model and cannot start without it"));
+    g_string_free (ignored, TRUE);
+    return FALSE;
+  }
+  if (!modelmux_config_find_model (config, config->default_primary)) {
+    GST_ELEMENT_ERROR (self, RESOURCE, SETTINGS,
+        ("primary-model '%s' is not in the catalog", config->default_primary),
+        ("declare it in a [model-name-N] entry of this config"));
+    g_string_free (ignored, TRUE);
+    return FALSE;
+  }
+
+  /* A backend this position cannot host is a CONFIG error, not a load-time surprise.
+   * Caught here for the same reason template uniqueness is: discovering it at the
+   * first model/load produces a confusing partial success -- the pipeline ran, the
+   * stage came up, and one request failed for a reason that was decided long before
+   * anyone sent it. The runtime path checks too (a load brings its own config_file,
+   * so its backend is not knowable from the catalog alone). */
+  {
+    guint i;
+    for (i = 0; i < config->num_models; i++) {
+      ModelType t = config->models[i].type;
+      if (modelmux_backend_at_position (t, MM_PROCESS_MODE_SGIE))
+        continue;
+      GST_ELEMENT_ERROR (self, RESOURCE, SETTINGS,
+          ("model '%s' uses %s, which cannot run at a secondary stage",
+              config->models[i].name, modelmux_backend (t)->element),
+          ("its config '%s' declares that backend. Move this model to the PRIMARY "
+           "stage's catalog, or point the entry at a config whose backend a "
+           "secondary supports", config->models[i].config_file
+              ? config->models[i].config_file : "(none)"));
+      g_string_free (ignored, TRUE);
+      return FALSE;
+    }
+  }
+
+  /* Keys that describe machinery a secondary does not have. Reported from the
+   * KEYFILE, not from the parsed struct: every one of them has a default, so the
+   * struct cannot tell "the operator set this" from "nobody did" -- and reporting a
+   * default back would be noise on every correct config.
+   *
+   * Worth saying out loud rather than ignoring quietly: the obvious way to write a
+   * secondary config is to copy the primary's and edit it, which is how the staged
+   * sample acquired its own silent defects. An operator who sets per-model-batch-size
+   * here has every reason to think it took effect. */
+  {
+    static const gchar *const pgie_only[] = {
+      "model-sharding",                   /* sharding is stream-count triggered; a
+                                           * secondary's load is object-driven      */
+      "compact-idle-models-across-pools", /* pools exist for primary/shadow roles   */
+      "per-model-batch-size",             /* sizes the per-model mux; there is none */
+      "buffer-copy-mode",                 /* configures the A/B copy lane           */
+      "copy-buffer-pool-size",            /* likewise                               */
+      "unified-batch",                    /* meaningless without two lanes          */
+      NULL
+    };
+    guint i;
+    for (i = 0; pgie_only[i]; i++)
+      if (kf && g_key_file_has_key (kf, "multimodel", pgie_only[i], NULL))
+        g_string_append_printf (ignored, " %s", pgie_only[i]);
+    if (kf && g_key_file_has_group (kf, "muxer"))
+      g_string_append (ignored, " [muxer]");
+  }
+
+  if (config->default_shadow)
+    g_string_append (ignored, " shadow-model");
+  if (config->num_bindings)
+    g_string_append (ignored, " [stream-model-*]");
+  if (ignored->len)
+    GST_INFO_OBJECT (self, "secondary stage: ignoring pgie-only config --%s "
+        "(a secondary serves one model over all streams, with no A/B and no "
+        "per-stream routing)", ignored->str);
+  g_string_free (ignored, TRUE);
+  return TRUE;
+}
+
+/* Catalog gie-unique-id collision check.
+ *
+ * A model that DECLARES gie-unique-id=d occupies TWO ids at this stage: d for its
+ * primary lane and d+MM_SHADOW_GIE_OFFSET for its A/B twin. Two models therefore
+ * collide when their declared ids are equal OR exactly one offset apart -- and a
+ * collision means two live models stamp the same identity into the object meta, so
+ * downstream attribution and any `operate-on-gie-id` become ambiguous.
+ *
+ * A collision does NOT fail the config -- reusing one stock nvinfer config across
+ * several catalog entries is normal, and those all declare the same id. Instead the
+ * whole stage falls back to the monotonic allocator, exactly as it behaved before
+ * configured ids existed, and says so once. Models that declare nothing are skipped:
+ * they cannot collide by construction. */
+static void
+modelmux_config_resolve_gie_ids (GstNvModelMux * self, ModelMuxConfig * config)
+{
+  gint ids[MM_MAX_MODELS];
+  guint i, j;
+
+  for (i = 0; i < config->num_models; i++)
+    ids[i] = modelmux_config_file_gie_id (config->models[i].config_file);
+
+  for (i = 0; i < config->num_models; i++) {
+    if (ids[i] < 0)
+      continue;
+    for (j = i + 1; j < config->num_models; j++) {
+      gint d;
+      if (ids[j] < 0)
+        continue;
+      d = ABS (ids[i] - ids[j]);
+      if (d != 0 && d != MM_SHADOW_GIE_OFFSET)
+        continue;
+      GST_WARNING_OBJECT (self, "gie-unique-id: '%s' declares %d and '%s' declares %d "
+          "-- a model occupies both <id> and <id>+%d (its A/B shadow lane), so these "
+          "OVERLAP. Falling back to internally-allocated gie ids for this stage "
+          "(read them from GET /api/v1/model/status). To make them config-knowable "
+          "again, give the models ids at least %d apart",
+          config->models[i].name, ids[i], config->models[j].name, ids[j],
+          MM_SHADOW_GIE_OFFSET, MM_SHADOW_GIE_OFFSET + 1);
+      config->gie_ids_from_config = FALSE;
+      return;
+    }
+  }
+  config->gie_ids_from_config = TRUE;
+}
+
 gboolean
 gst_modelmux_parse_config_file (GstNvModelMux * self, const gchar * cfg_file)
 {
@@ -468,13 +733,13 @@ gst_modelmux_parse_config_file (GstNvModelMux * self, const gchar * cfg_file)
       config->unified_batch = self->unified_batch;
     else
       self->unified_batch = config->unified_batch = cfg_bool (kf, SEC, "unified-batch", TRUE);
-    /* block PLAYING until the configured default(s) are warmed (defaults infer on
-     * every frame). Default TRUE; property overrides the config-file value. */
-    if (self->is_prop_set[PROP_WAIT_FOR_DEFAULT_MODELS])
-      config->wait_for_default_models = self->wait_for_default_models;
+    /* position: 1 = pgie, 2 = sgie. The element property wins -- deepstream-app sets
+     * it from the section the element was built in, which is authoritative. */
+    if (self->is_prop_set[PROP_PROCESS_MODE])
+      config->process_mode = self->process_mode;
     else
-      self->wait_for_default_models = config->wait_for_default_models =
-          cfg_bool (kf, SEC, "wait-for-default-models", TRUE);
+      self->process_mode = config->process_mode =
+          cfg_int (kf, SEC, "process-mode", 1);
     /* auto-compact under-full shards back into fewer shards as streams drain
      * (zero-drop, make-before-break). Default ON. No matching property. */
     config->shard_compact = cfg_bool (kf, SEC, "shard-compact", TRUE);
@@ -615,6 +880,9 @@ gst_modelmux_parse_config_file (GstNvModelMux * self, const gchar * cfg_file)
      * validate; consulted at instantiation by defaults / per-sensor / load. */
     cfg_parse_per_version (config, kf);
 
+    /* the catalog is complete: decide whether the DECLARED gie ids are usable. */
+    modelmux_config_resolve_gie_ids (self, config);
+
     /* default PRIMARY model REF (OPTIONAL): "name;version" into the catalog. Every stream
      * runs it unless overridden. When none resolves, no model is preloaded (zero VRAM) and
      * any stream that resolves to no model is PASSED THROUGH the display mux without
@@ -753,6 +1021,14 @@ gst_modelmux_parse_config_file (GstNvModelMux * self, const gchar * cfg_file)
     g_strfreev (groups);
   }
 
+  /* BEFORE the keyfile is freed: the check reports which pgie-only keys were
+   * actually written, which only the keyfile knows. */
+  if (config->process_mode == MM_PROCESS_MODE_SGIE
+      && !modelmux_config_validate_sgie (self, config, kf)) {
+    g_key_file_free (kf);
+    return FALSE;
+  }
+
   g_key_file_free (kf);
 
   GST_INFO ("primary='%s' shadow='%s', max-batch=%u, per-model-max=%u",
@@ -778,27 +1054,268 @@ modelmux_config_find_model (const ModelMuxConfig * config, const gchar * name)
  * disables the DEFAULT shadow -- the shadow lane stays available, so a control
  * path (e.g. an extended REST add/update carrying a model name + config-file)
  * can register a model here and then attach/update a stream to use it. */
+/* ================================================================== */
+/* Backend registry -- the one place a per-backend fact is written.     */
+/* See the ModelBackendInfo comment in gstnvmodelmux_priv.h.            */
+/* ================================================================== */
+
+/* Config-file markers, most-specific first. A marker is matched as a line PREFIX
+ * against the first decisive non-comment line (see modelmux_detect_model_type), so
+ * each backend lists every grammar its config can be written in. */
+static const gchar *const mm_markers_infer[] = {
+  "[property]",                 /* INI  section  */
+  "property:",                  /* YAML mapping  */
+  NULL
+};
+static const gchar *const mm_markers_inferserver[] = {
+  "infer_config",               /* protobuf 'infer_config {' OR YAML 'infer_config:' */
+  NULL
+};
+static const gchar *const mm_markers_visionencoder[] = {
+  "[visionencoder]",            /* INI  section -- deepstream-app's own group name */
+  "visionencoder:",             /* YAML mapping                                    */
+  NULL
+};
+
+/* Indexed by ModelType -- keep the rows in enum order.
+ *
+ * nvinferserver is PGIE-ONLY here, and that is a scope decision rather than a
+ * technical limit: a secondary stage runs one model over an already-formed batch,
+ * and every secondary capability this plugin needs (in-place OTA, an engine
+ * artifact per version, plugin-side placement) is exactly what Triton delegates to
+ * its own model repository. Declaring the restriction in the table makes it a
+ * config-time rejection with a reason instead of a runtime failure inside a stage
+ * that cannot honour the request. The vision encoder will be the mirror image --
+ * SGIE-only -- and lands here as one more row. */
+static const ModelBackendInfo modelmux_backends[MODEL_BACKEND_N] = {
+  [MODEL_INFER] = {
+        .element = "nvinfer",
+        .markers = mm_markers_infer,
+        .positions = MM_BACKEND_AT_PGIE | MM_BACKEND_AT_SGIE,
+        .engine_file = TRUE,      /* model-engine-file swaps a checkpoint in     */
+        .version_artifact = TRUE, /* a new version must bring config or engine   */
+        .inplace_reload = TRUE,   /* nvinfer's native hot-swap backs model/update */
+        .owns_placement = FALSE,  /* the plugin pins gpu-id, so status can say so */
+        .multi_gpu_scale = TRUE,  /* gpus[] instance groups are ours to build    */
+        .gpu_ids_list = FALSE,    /* scalar `gpu-id` in the property section     */
+        .config_prop = "config-file-path",
+        .config_group = NULL,     /* nvinfer reads its own config file           */
+        .engine_prop = "model-engine-file",
+        .gie_id = TRUE,
+        .cfg_section = "property",
+        .gpu_key = "gpu-id",
+      },
+  [MODEL_INFERSERVER] = {
+        .element = "nvinferserver",
+        .markers = mm_markers_inferserver,
+        .positions = MM_BACKEND_AT_PGIE,
+        .engine_file = FALSE,     /* Triton's model repository owns checkpoints  */
+        .version_artifact = FALSE,/* a bare (name, version) is the correct form  */
+        .inplace_reload = FALSE,  /* reload happens in Triton, not here          */
+        .owns_placement = TRUE,   /* multi-gpu gpu_ids = Triton's own scheduling */
+        .multi_gpu_scale = FALSE, /* scale via the repo's instance_group         */
+        .gpu_ids_list = TRUE,     /* `gpu_ids: [N]` inside `infer_config`        */
+        .config_prop = "config-file-path",
+        .config_group = NULL,
+        .engine_prop = NULL,      /* checkpoints live in the Triton repository   */
+        .gie_id = TRUE,
+        .cfg_section = "infer_config",
+        .gpu_key = "gpu_ids",
+      },
+  /* nvdsvisionencoder: object embeddings at a SECONDARY position.
+   *
+   * It differs from the two inference backends in three ways that the rest of the
+   * plugin now asks about by name rather than by type:
+   *   - it has NO config-file-path. It is configured entirely through GObject
+   *     properties, so its "model config" is a [visionencoder] group whose keys ARE
+   *     the property names (config_group instead of config_prop).
+   *   - it has NO unique-id and NO operate-on-gie-id, so it cannot be scoped to one
+   *     detector's output nor attributed downstream (gie_id = FALSE). It embeds every
+   *     object it is handed, filtered only by min-crop-size / embedding-classes.
+   *   - it consumes colour-converted RGB surfaces, so the chain wraps it in
+   *     colour-converted surfaces -- which it cannot get at a secondary, see
+   *     the note on the row below. */
+  [MODEL_VISION_ENCODER] = {
+        .element = "nvdsvisionencoder",
+        .markers = mm_markers_visionencoder,
+        .positions = MM_BACKEND_AT_SGIE,
+        .engine_file = TRUE,      /* tensorrt-engine is a real artifact          */
+        .version_artifact = TRUE, /* a new version brings its own engine         */
+        .inplace_reload = TRUE,   /* tensorrt-engine is MUTABLE_PLAYING          */
+        .owns_placement = FALSE,  /* honours gpu-id (cudaSetDevice per thread)   */
+        .multi_gpu_scale = FALSE, /* no instance groups                          */
+        .gpu_ids_list = FALSE,
+        .config_prop = NULL,      /* no config-file-path property exists         */
+        .config_group = "visionencoder",
+        .engine_prop = "tensorrt-engine",
+        .gie_id = FALSE,
+        .cfg_section = "visionencoder",
+        .gpu_key = "gpu-id",
+        /* wrapped in nvvideoconvert on both sides, RGB on the way in -- the same
+         * shape deepstream-app builds around its own encoder. (That bin picks RGBA
+         * on Thor for VIC; this is the dGPU/Jetson format.) */
+        /* NOTE, a hard constraint on ANY element placed in a secondary chain:
+         *
+         * An element that produces a NEW buffer copies the metas onto it, and
+         * gst_nvds_meta_transform() (gst-nvdsmeta/gstnvdsmeta.c:84) answers
+         * GST_META_TRANSFORM_IS_COPY for NVDS_BATCH_GST_META by calling
+         * nvds_batch_meta_copy_func -- a DEEP copy. Everything downstream of such an
+         * element then writes to a CLONE of NvDsBatchMeta, and a secondary chain ends
+         * in a fakesink, so the clone is dropped: the stage's embeddings, and its
+         * overlay line, never reach the display or anything else that reads the
+         * original batch.
+         *
+         * deepstream-app can wrap its own encoder in nvvideoconvert because that bin
+         * sits INLINE -- its converted buffer is what continues downstream, so the
+         * clone is the buffer everyone reads. A secondary on a tee branch has no such
+         * luxury: it must consume the batch IN PLACE, exactly as nvinfer does. */
+      },
+};
+
+const ModelBackendInfo *
+modelmux_backend (ModelType type)
+{
+  /* clamp rather than assert: @type can arrive from a config sniff of an operator's
+   * file, and MODEL_INFER is that sniff's own back-compat default. Returning a valid
+   * row unconditionally is what lets every call site dereference without a check. */
+  if (type < 0 || type >= MODEL_BACKEND_N)
+    return &modelmux_backends[MODEL_INFER];
+  return &modelmux_backends[type];
+}
+
+/* Apply one key as the property of the same name, converting by the property's OWN
+ * GParamSpec type rather than by guessing from the string. GKeyFile has no type
+ * information, so the element's introspection is the only authority on whether
+ * "8" is a uint, a float or a string. */
+static void
+cfg_apply_one_property (GstElement * element, GKeyFile * kf, const gchar * group,
+    const gchar * key)
+{
+  GParamSpec *ps = g_object_class_find_property (G_OBJECT_GET_CLASS (element), key);
+  gchar *raw;
+
+  if (!ps) {
+    /* SKIP, never fail: a config written for a newer element must not stop a
+     * pipeline running an older one. Named loudly so a typo is still findable --
+     * a misspelt key is indistinguishable from a newer one, and both land here. */
+    CFG_WARN ("config: '%s' has no property '%s' -- ignored (misspelt, or a key this "
+        "build's element does not have)", GST_ELEMENT_NAME (element), key);
+    return;
+  }
+  raw = g_key_file_get_string (kf, group, key, NULL);
+  if (!raw)
+    return;
+  g_strstrip (raw);
+
+  switch (G_TYPE_FUNDAMENTAL (ps->value_type)) {
+    case G_TYPE_BOOLEAN:
+      /* accept 1/0 as well as true/false: DS configs use the integer form */
+      g_object_set (G_OBJECT (element), key,
+          (g_ascii_strcasecmp (raw, "true") == 0 || g_strcmp0 (raw, "1") == 0), NULL);
+      break;
+    case G_TYPE_INT:
+      g_object_set (G_OBJECT (element), key, (gint) g_ascii_strtoll (raw, NULL, 10), NULL);
+      break;
+    case G_TYPE_UINT:
+      g_object_set (G_OBJECT (element), key, (guint) g_ascii_strtoull (raw, NULL, 10), NULL);
+      break;
+    case G_TYPE_INT64:
+      g_object_set (G_OBJECT (element), key, g_ascii_strtoll (raw, NULL, 10), NULL);
+      break;
+    case G_TYPE_UINT64:
+      g_object_set (G_OBJECT (element), key, g_ascii_strtoull (raw, NULL, 10), NULL);
+      break;
+    case G_TYPE_FLOAT:
+      g_object_set (G_OBJECT (element), key, (gfloat) g_ascii_strtod (raw, NULL), NULL);
+      break;
+    case G_TYPE_DOUBLE:
+      g_object_set (G_OBJECT (element), key, g_ascii_strtod (raw, NULL), NULL);
+      break;
+    case G_TYPE_STRING:
+      /* An EMPTY string is meaningful, not absent: embedding-classes="" is
+       * "every class". Pass it through rather than treating it as unset. */
+      g_object_set (G_OBJECT (element), key, raw, NULL);
+      break;
+    case G_TYPE_ENUM:
+      g_object_set (G_OBJECT (element), key, (gint) g_ascii_strtoll (raw, NULL, 10), NULL);
+      break;
+    default:
+      CFG_WARN ("config: property '%s' has type %s, which this reader cannot set from "
+          "a config key -- ignored", key, g_type_name (ps->value_type));
+      break;
+  }
+  g_free (raw);
+}
+
+gboolean
+modelmux_config_apply_properties (GstElement * element, const gchar * config_file,
+    const gchar * group)
+{
+  GKeyFile *kf;
+  gchar **keys;
+  gsize n = 0, i;
+  GError *err = NULL;
+
+  if (!element || !config_file || !*config_file || !group)
+    return FALSE;
+
+  kf = g_key_file_new ();
+  if (!g_key_file_load_from_file (kf, config_file, G_KEY_FILE_NONE, &err)) {
+    CFG_WARN ("config: cannot read '%s': %s", config_file,
+        err ? err->message : "unknown error");
+    g_clear_error (&err);
+    g_key_file_free (kf);
+    return FALSE;
+  }
+  keys = g_key_file_get_keys (kf, group, &n, &err);
+  if (!keys) {
+    CFG_WARN ("config: '%s' has no [%s] group: %s", config_file, group,
+        err ? err->message : "unknown error");
+    g_clear_error (&err);
+    g_key_file_free (kf);
+    return FALSE;
+  }
+  for (i = 0; i < n; i++)
+    cfg_apply_one_property (element, kf, group, keys[i]);
+
+  CFG_INFO ("config: applied %" G_GSIZE_FORMAT " [%s] properties from '%s'", n, group,
+      config_file);
+  g_strfreev (keys);
+  g_key_file_free (kf);
+  return TRUE;
+}
+
+gboolean
+modelmux_backend_at_position (ModelType type, gint process_mode)
+{
+  guint want = (process_mode == MM_PROCESS_MODE_SGIE)
+      ? MM_BACKEND_AT_SGIE : MM_BACKEND_AT_PGIE;
+
+  return (modelmux_backend (type)->positions & want) != 0;
+}
+
 /* Map the backend type to its gst element / log name. */
 const gchar *
 modelmux_infer_plugin_str (ModelType type)
 {
-  return (type == MODEL_INFERSERVER) ? "nvinferserver" : "nvinfer";
+  return modelmux_backend (type)->element;
 }
 
-/* Auto-detect the inference backend from a model's config-file. The two formats are
+/* Auto-detect the inference backend from a model's config-file. The formats are
  * unambiguous: an nvinferserver config is protobuf text whose mandatory root message is
  * `infer_config {`; an nvinfer config is INI with a `[property]` section. We scan the
- * first decisive non-comment, non-blank line:
- *   - a line beginning `infer_config`  -> MODEL_INFERSERVER
- *   - a line beginning `[property]`     -> MODEL_INFER
- *   - neither found / unreadable        -> MODEL_INFER (safe default, back-compat)
+ * first decisive non-comment, non-blank line and match it against each backend's
+ * markers[] in the REGISTRY, so a new backend is recognised by adding a row rather
+ * than by editing this function:
+ *   - the first line matching any backend's marker -> that backend
+ *   - nothing matched / unreadable                 -> MODEL_INFER (back-compat), WARNED
  * Comments (`#`) and the SPDX header are skipped, so they never mislead the sniff. */
 ModelType
 modelmux_detect_model_type (const gchar * config_file)
 {
   gchar *content = NULL;
   gchar **lines;
-  guint i;
+  guint i, t;
   ModelType type = MODEL_INFER;
   gboolean decided = FALSE;
 
@@ -827,20 +1344,37 @@ modelmux_detect_model_type (const gchar * config_file)
     gchar *s = g_strstrip (lines[i]);            /* trims in place */
     if (!*s || *s == '#')                        /* skip blanks + comments (SPDX header) */
       continue;
-    if (g_str_has_prefix (s, "infer_config")) {  /* protobuf 'infer_config {' OR YAML 'infer_config:' => nvinferserver */
-      type = MODEL_INFERSERVER;
-      decided = TRUE;
-    } else if (g_str_has_prefix (s, "[property]") ||  /* INI  section  => nvinfer */
-               g_str_has_prefix (s, "property:")) {   /* YAML mapping  => nvinfer */
-      type = MODEL_INFER;
-      decided = TRUE;
+    /* walk the REGISTRY, not a hand-written if/else chain: a new backend is
+     * recognised by adding its markers to its row. */
+    for (t = 0; t < MODEL_BACKEND_N && !decided; t++) {
+      const gchar *const *m = modelmux_backend ((ModelType) t)->markers;
+      for (; m && *m; m++)
+        if (g_str_has_prefix (s, *m)) {
+          type = (ModelType) t;
+          decided = TRUE;
+          break;
+        }
     }
   }
   g_strfreev (lines);
   g_free (content);
-  if (!decided)
-    CFG_WARN ("model-type: no 'infer_config' / '[property]' / 'property:' marker in '%s' -- "
-        "defaulting to nvinfer", config_file);
+  /* WARN on the fall-through. The default has to stay nvinfer for back-compat, but
+   * that means a config whose marker is missing or misspelled is silently treated as
+   * an nvinfer config and fails much later with an unrelated-looking error. Saying so
+   * here puts the complaint at config time, next to the typo. */
+  if (!decided) {
+    GString *known = g_string_new (NULL);
+    guint t;
+    for (t = 0; t < MODEL_BACKEND_N; t++) {
+      const gchar *const *m = modelmux_backend ((ModelType) t)->markers;
+      for (; m && *m; m++)
+        g_string_append_printf (known, "%s'%s'", known->len ? " / " : "", *m);
+    }
+    CFG_WARN ("model-type: no %s marker in '%s' -- defaulting to nvinfer. If this is "
+        "not an nvinfer config, its backend marker is missing or misspelled",
+        known->str, config_file);
+    g_string_free (known, TRUE);
+  }
   return type;
 }
 
@@ -1049,7 +1583,7 @@ cfg_rewrite_key (const gchar * content, const gchar * key, const gchar * value,
 
 gchar *
 modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
-    const gchar * model_name, const gchar * version)
+    gint gie, const gchar * model_name, const gchar * version)
 {
   gchar *content = NULL, *derived = NULL, *vtok, *p;
   GString *out;
@@ -1060,7 +1594,7 @@ modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
     return NULL;
   if (engine && !*engine)
     engine = NULL;
-  if (!engine && gpu < 0)
+  if (!engine && gpu < 0 && gie <= 0)
     return NULL;                                     /* nothing to derive */
   /* the engine path is written verbatim as a config line: a newline in it would
    * inject extra key/value lines into the derived config. */
@@ -1074,7 +1608,7 @@ modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
 
   /* nvinferserver: a prebuilt .engine doesn't map -- versioned checkpoints live in the
    * Triton model repository. The gpu placement (gpu_ids) still derives cleanly. */
-  if (type == MODEL_INFERSERVER && engine) {
+  if (!modelmux_backend (type)->engine_file && engine) {
     CFG_WARN ("config derive: an explicit .engine does not apply to nvinferserver "
         "('%s') -- Triton's model repository owns the checkpoints; ignoring the "
         "engine%s", base_cfg, gpu >= 0 ? " (gpu placement still applies)" : "");
@@ -1088,7 +1622,7 @@ modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
     return NULL;
   }
 
-  if (type == MODEL_INFERSERVER) {
+  if (modelmux_backend (type)->gpu_ids_list) {
     /* protobuf text 'infer_config {' or YAML 'infer_config:' -- both colon grammar */
     gchar *val = g_strdup_printf ("[%d]", gpu);
     gchar *next = cfg_rewrite_key (content, "gpu_ids", val, TRUE, "infer_config",
@@ -1108,18 +1642,47 @@ modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
     }
     applied_any |= applied;
   } else {
-    if (engine) {
-      gchar *next = cfg_rewrite_key (content, "model-engine-file", engine, yaml,
-          yaml ? "property:" : "[property]", &applied);
+    /* Section and key names come from the BACKEND REGISTRY, so a backend that spells
+     * its engine "tensorrt-engine" inside a [visionencoder] group derives through the
+     * very same code as nvinfer's "model-engine-file" inside [property]. */
+    const ModelBackendInfo *be = modelmux_backend (type);
+    gchar *section = yaml ? g_strdup_printf ("%s:", be->cfg_section)
+        : g_strdup_printf ("[%s]", be->cfg_section);
+
+    if (engine && be->engine_prop) {
+      gchar *next = cfg_rewrite_key (content, be->engine_prop, engine, yaml,
+          section, &applied);
       g_free (content);
       content = next;
       /* an unapplied engine override would masquerade as a swap while running the
        * BASE engine -- fail LOUD, never acknowledge-and-ignore. */
       if (!applied) {
         GST_ERROR ("config derive FAILED: engine override could NOT be applied "
-            "to '%s' (no model-engine-file line and no %s section) -- rejecting: "
+            "to '%s' (no %s line and no %s section) -- rejecting: "
             "the model would run the BASE engine, not '%s'", base_cfg,
-            yaml ? "'property:'" : "[property]", engine);
+            be->engine_prop, section, engine);
+        g_free (section);
+        g_free (content);
+        return NULL;
+      }
+      applied_any |= applied;
+    }
+    /* gie-unique-id: bake the VERSION's declared id into its own derived config so
+     * the backend reads the same identity modelmux assigns the bin -- one value, one
+     * source, no divergence between the file on disk and the object meta. Skipped for
+     * a backend with no gie identity: it has no such key to carry. */
+    if (gie > 0 && be->gie_id) {
+      gchar *val = g_strdup_printf ("%d", gie);
+      gchar *next = cfg_rewrite_key (content, "gie-unique-id", val, yaml,
+          section, &applied);
+      g_free (content);
+      g_free (val);
+      content = next;
+      if (!applied) {
+        GST_ERROR ("config derive FAILED: could NOT place gie-unique-id into '%s' -- "
+            "rejecting: the model would run under a different identity than the one "
+            "declared for this version", base_cfg);
+        g_free (section);
         g_free (content);
         return NULL;
       }
@@ -1127,20 +1690,22 @@ modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
     }
     if (gpu >= 0) {
       gchar *val = g_strdup_printf ("%d", gpu);
-      gchar *next = cfg_rewrite_key (content, "gpu-id", val, yaml,
-          yaml ? "property:" : "[property]", &applied);
+      gchar *next = cfg_rewrite_key (content, be->gpu_key, val, yaml,
+          section, &applied);
       g_free (content);
       g_free (val);
       content = next;
       if (!applied) {
-        GST_ERROR ("config derive FAILED: could NOT place gpu-id into '%s' -- "
+        GST_ERROR ("config derive FAILED: could NOT place %s into '%s' -- "
             "rejecting: the model would run on the config's device, not the "
-            "requested gpu %d", base_cfg, gpu);
+            "requested gpu %d", be->gpu_key, base_cfg, gpu);
+        g_free (section);
         g_free (content);
         return NULL;
       }
       applied_any |= applied;
     }
+    g_free (section);
   }
 
   if (!applied_any) {                                /* nothing landed -> use the base */
@@ -1268,6 +1833,55 @@ modelmux_config_version_batch (const ModelMuxConfig * config, const gchar * name
     }
   g_mutex_unlock ((GMutex *) &config->versions_lock);
   return batch;
+}
+
+/* Does @name already have a version OTHER than @version on record?
+ *
+ * The catalog's base config is a legitimate artifact source, but it can back only ONE
+ * version: the first to claim it. Once a sibling exists, a version that brings no files
+ * of its own would silently resolve to that same base -- two version numbers, one model.
+ * This answers "is there a sibling", which is what turns a bare load from the normal
+ * first-load flow into that collision.
+ *
+ * Same discipline as the scans above: tiny locked read, no nested locks. */
+gboolean
+modelmux_config_has_other_version (const ModelMuxConfig * config, const gchar * name,
+    const gchar * version)
+{
+  gboolean other = FALSE;
+  guint i;
+
+  if (!config || !name || !*name)
+    return FALSE;
+  g_mutex_lock ((GMutex *) &config->versions_lock);
+  for (i = 0; i < config->num_versions; i++)
+    if (g_strcmp0 (config->versions[i].name, name) == 0 &&
+        g_strcmp0 (config->versions[i].version, version) != 0) {
+      other = TRUE;
+      break;
+    }
+  g_mutex_unlock ((GMutex *) &config->versions_lock);
+  return other;
+}
+
+gint
+modelmux_config_version_gie (const ModelMuxConfig * config, const gchar * name,
+    const gchar * version)
+{
+  gint gie = -1;
+  guint i;
+
+  if (!config || !name || !version)
+    return -1;
+  g_mutex_lock ((GMutex *) &config->versions_lock);
+  for (i = 0; i < config->num_versions; i++)
+    if (g_strcmp0 (config->versions[i].name, name) == 0 &&
+        g_strcmp0 (config->versions[i].version, version) == 0) {
+      gie = config->versions[i].gie;
+      break;
+    }
+  g_mutex_unlock ((GMutex *) &config->versions_lock);
+  return gie;
 }
 
 gint

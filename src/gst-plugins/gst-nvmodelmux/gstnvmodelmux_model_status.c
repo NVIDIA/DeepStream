@@ -25,6 +25,9 @@
  */
 
 #include "gstnvmodelmux_priv.h"
+#include "gstnvmodelmux.h"   /* GstNvModelMux: the query probes answer per STAGE */
+#include <json-glib/json-glib.h>   /* cross-stage merge of the GET plane */
+#include "gst-nvdscustommessage.h"  /* gst_nvquery_model_*_parse_response */
 
 GST_DEBUG_CATEGORY_EXTERN (gst_modelmux_debug_cat);
 #define GST_CAT_DEFAULT gst_modelmux_debug_cat
@@ -42,6 +45,11 @@ extern void gst_nvquery_model_status_set_response (GstQuery * query, const gchar
 extern gboolean gst_nvquery_model_status_parse_request (GstQuery * query,
     const gchar ** model_name, const gchar ** model_version,
     const gchar ** stream_name, gint * source_id);
+
+/* Routing revision with ib->lock ALREADY held. Defined with the rest of the
+ * revision plumbing at the bottom of this file; declared here because the two GET
+ * builders above it are its only callers. */
+static guint64 modelmux_bin_revision_locked (ModelMuxBin * ib);
 
 /* Minimal JSON string escaper for hand-built status JSON. It handles the
  * characters that would otherwise let a user-supplied model or camera name
@@ -157,7 +165,7 @@ modelmux_status_append_instances (GString * s, ModelMuxBin * ib, ModelBin * base
   for (model_bin = base; model_bin; model_bin = (ModelBin *) model_bin->next_shard) {
     g_string_append_printf (s, "%s{\"id\":%u,", *first ? "" : ",", model_bin->inst);
     *first = FALSE;
-    if (model_bin->type == MODEL_INFERSERVER) {
+    if (modelmux_backend (model_bin->type)->owns_placement) {
       /* placement parity with nvinfer WHEN THE PLUGIN PLACED IT (model/load
        * gpu -> derived single-value gpu_ids, recorded pin/registry/config).
        * A multi-gpu gpu_ids list (or no pin) is Triton's internal scheduling
@@ -198,7 +206,17 @@ modelmux_status_append_instances (GString * s, ModelMuxBin * ib, ModelBin * base
     }
     g_string_append_printf (s, "\"state\":\"%s\",\"streams\":%u,\"capacity\":%u",
         modelmux_status_state_str (model_bin), model_bin->num_streams, model_bin->max_streams);
-    if (perf_on && model_bin->type != MODEL_INFERSERVER && model_bin->perf) {
+    /* perf is measured at the BIN boundary (see modelmux_perf_bin_in/out_probe), so it
+     * is a property of the bin, not of whatever backend runs inside it -- report it for
+     * every backend.
+     *
+     * WHAT infer_latency_ms SPANS: inference HEAD -> inference src, i.e. the [nvdsxfer]
+     * device migration plus the inference call, NOT the pure GPU time of the backend.
+     * The name is narrower than the measurement and is kept only because it is a
+     * published v1 field; the schema says the same thing, so the number is never
+     * quietly something other than its name. Measuring the bin rather than the element
+     * is deliberate -- it is what makes the figure comparable across backends. */
+    if (perf_on && model_bin->perf) {
       gdouble fps = 0, lat = 0;
       modelmux_perf_get_model (model_bin->perf, &fps, &lat);
       g_string_append_printf (s, ",\"fps\":%.2f,\"infer_latency_ms\":%.2f",
@@ -251,9 +269,28 @@ modelmux_status_append_version (GString * s, ModelMuxBin * ib, ModelMuxStatusRow
       g_string_append_printf (s, "%s\"shadow\"", def_model ? "," : "");
     g_string_append_c (s, ']');
   }
-  g_string_append_printf (s, ",\"serving\":{\"streams\":%u", p_streams);
+  /* serving{} counts this version's load PER ROLE: `streams` = streams it serves as
+   * the PRIMARY, `shadow_streams` = streams it scores as the SHADOW. They are
+   * separate because a version can hold both roles at once (different streams), and
+   * only the primary count says whose detections are actually being used.
+   *
+   * Each is omitted when zero -- same progressive-disclosure rule `shadow_streams`
+   * already followed. A shadow-only version used to report `"streams":0` beside
+   * `"state":"serving"` and an instance carrying 2 streams, which reads as a
+   * contradiction: the model IS inferring, just not as anyone's primary. Saying
+   * nothing about a role it does not hold is the honest answer; a client that wants
+   * a number reads absent as zero, exactly as it already must for `shadow_streams`.
+   *
+   * The one case that still emits an explicit zero is a version holding NEITHER role
+   * (loaded but idle): `"serving":{"streams":0}`. That zero is the whole point there
+   * -- it is the difference between warm-and-unused and not loaded -- and it keeps
+   * the object from degenerating to `{}`. */
+  g_string_append (s, ",\"serving\":{");
+  if (p_streams || !s_streams)
+    g_string_append_printf (s, "\"streams\":%u", p_streams);
   if (s_streams)
-    g_string_append_printf (s, ",\"shadow_streams\":%u", s_streams);
+    g_string_append_printf (s, "%s\"shadow_streams\":%u",
+        (p_streams || !s_streams) ? "," : "", s_streams);
   g_string_append_c (s, '}');
   if (rep->config_file && *rep->config_file) {
     gchar *ecfg = modelmux_json_escape (rep->config_file);
@@ -300,7 +337,7 @@ modelmux_status_resolve_lane (ModelMuxBin * ib, ModelMuxRoleAttach * ra,
   if (ra->role && ra->role->models)
     model_bin = g_hash_table_lookup (ra->role->models, ra->model);
 
-  if (model_bin && model_bin->type == MODEL_INFERSERVER) {
+  if (model_bin && modelmux_backend (model_bin->type)->owns_placement) {
     /* a PLUGIN-PLACED inferserver instance (model/load gpu -> single-value
      * gpu_ids) reports its device like nvinfer; only an unplaced / multi-gpu
      * gpu_ids Triton deployment keeps the honest "triton_internal". */
@@ -357,7 +394,7 @@ modelmux_status_append_ref (GString * s, ModelMuxBin * ib, const gchar * label,
    * the model (default switches leave it alone). */
   g_string_append_printf (s, ",\"%s\":{\"name\":\"%s\",\"version\":\"%s\",\"origin\":\"%s\"",
       label, ebare, ever, ra->via_default ? "default" : "pinned");
-  if (serving && serving->type == MODEL_INFERSERVER) {
+  if (serving && modelmux_backend (serving->type)->owns_placement) {
     g_string_append (s, ",\"backend\":\"nvinferserver\"");
     if (!triton_internal)
       g_string_append_printf (s, ",\"gpu\":%d", gpu);
@@ -366,11 +403,13 @@ modelmux_status_append_ref (GString * s, ModelMuxBin * ib, const gchar * label,
   } else {
     g_string_append_printf (s, ",\"gpu\":%d,\"instance\":%u",
         gpu >= 0 ? gpu : 0, serving ? serving->inst : 0);
-    if (perf_on && serving && serving->perf) {
-      gdouble f = 0, l = 0;
-      modelmux_perf_get_source (serving->perf, (gint) stream_id, &f, &l);
-      g_string_append_printf (s, ",\"fps\":%.2f,\"latency_ms\":%.2f", f, l);
-    }
+  }
+  /* per-stream perf, for EVERY backend: the numbers come from the bin boundary, so
+   * they mean the same thing whichever element serves this lane. */
+  if (perf_on && serving && serving->perf) {
+    gdouble f = 0, l = 0;
+    modelmux_perf_get_source (serving->perf, (gint) stream_id, &f, &l);
+    g_string_append_printf (s, ",\"fps\":%.2f,\"latency_ms\":%.2f", f, l);
   }
   g_string_append_c (s, '}');
   g_free (ebare);
@@ -413,46 +452,6 @@ modelmux_status_append_default_ref (GString * s, const gchar * label,
   *first = FALSE;
   g_free (en);
   g_free (ev);
-}
-
-/* Append the top-level "routing" object -- the unified contract's compact
- * summary of the ACTIVE default policy:
- *
- *   "routing": { "mode": "single"|"shadow",
- *                "model":  {"name","version"[,"gpu"]},
- *                "shadow": {"name","version"[,"gpu"]}? }
- *
- * `mode` names the policy in the shared vocabulary: one serving model is
- * "single", a primary mirrored by an A/B lane is "shadow". ("canary" is the
- * third value the contract defines; it is an aoi-inference capability and this
- * profile never emits it.)
- *
- * The contract REQUIRES both `mode` and `model`, so a deployment with no
- * default primary emits no routing object at all rather than a half one -- an
- * optional key that is absent is readable, a required key that is missing is a
- * schema violation. Same source of truth and the same unfiltered-only rule as
- * the neighbouring "default" block, so the two can never disagree. */
-static void
-modelmux_status_append_routing (GString * s, ModelMuxBin * ib)
-{
-  DefaultModelRef *dm, *ds;
-  gboolean first = TRUE;
-  GString *d;
-
-  if (!ib || !ib->primary_pool)
-    return;
-  dm = &ib->primary_pool->default_ref;
-  if (!dm->name)                       /* no default primary -> no conformant object */
-    return;
-  ds = ib->shadow_pool ? &ib->shadow_pool->default_ref : NULL;
-
-  d = g_string_new (NULL);
-  modelmux_status_append_default_ref (d, "model", dm, &first);
-  if (ds && ds->name)
-    modelmux_status_append_default_ref (d, "shadow", ds, &first);
-  g_string_append_printf (s, ",\"routing\":{\"mode\":\"%s\",%s}",
-      (ds && ds->name) ? "shadow" : "single", d->str);
-  g_string_free (d, TRUE);
 }
 
 /* One ref inside a stream's "pending" object:
@@ -708,9 +707,14 @@ modelmux_bin_route_json (ModelMuxBin * ib, const gchar * f_camera)
    * inside a locked section, not one that passed an unlocked check and has yet
    * to acquire. */
   if (!ib->stream_wiring || !ib->stream_cam_ids) {
+    guint64 rev = modelmux_bin_revision_locked (ib);
     g_mutex_unlock (&ib->lock);
     g_hash_table_destroy (groups);
-    return g_strdup ("{\"routes\":[],\"routing_revision\":0}");
+    /* the REVISION is still real even with no routes to show -- it is the CAS
+     * token, and answering 0 here would hand a controller a number that loses
+     * the next compare-and-swap for no reason. */
+    return g_strdup_printf ("{\"routes\":[],\"routing_revision\":%"
+        G_GUINT64_FORMAT "}", rev);
   }
 
   g_hash_table_iter_init (&it, ib->stream_wiring);
@@ -833,6 +837,9 @@ modelmux_bin_route_json (ModelMuxBin * ib, const gchar * f_camera)
       /* separator tracked by a FLAG, not by the loop index: a skipped bucket
        * would leave index 0 unemitted and make the next entry lead with a comma
        * -- "routes":[,{...}] -- which is not valid JSON. */
+      /* No process_mode here: routes[] is a PRIMARY-only plane (a secondary has no
+       * per-stream routing and is listed under secondary_models[] instead), so every
+       * entry has one shape and the schema is unchanged from before sgie support. */
       g_string_append_printf (s, "%s{%s,\"streams\":[", rfirst ? "" : ",", body);
       rfirst = FALSE;
       for (c = 0; c < grp->cams->len; c++) {
@@ -848,7 +855,7 @@ modelmux_bin_route_json (ModelMuxBin * ib, const gchar * f_camera)
   }
 
   g_string_append_printf (s, ",\"routing_revision\":%" G_GUINT64_FORMAT "}",
-      ib->routing_revision);
+      modelmux_bin_revision_locked (ib));
 
   g_mutex_unlock (&ib->lock);
 
@@ -905,8 +912,11 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
    * NULLs these under this same lock, so reaching here with NULL is the normal
    * shutdown ordering, not a bug. */
   if (!ib->stream_wiring || !ib->stream_names) {
+    guint64 rev = modelmux_bin_revision_locked (ib);
     g_mutex_unlock (&ib->lock);
-    return g_strdup ("{\"routing_revision\":0,\"models\":[],\"streams\":[]}");
+    /* real revision even in the empty shape -- see modelmux_bin_route_json */
+    return g_strdup_printf ("{\"routing_revision\":%" G_GUINT64_FORMAT
+        ",\"models\":[],\"streams\":[]}", rev);
   }
 
   perf_on = (ib->config && ib->config->attach_perf_metric);
@@ -920,11 +930,19 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
   while (g_hash_table_iter_next (&it, &k, &v)) {
     ModelMuxStreamEntry *e = (ModelMuxStreamEntry *) v;
     const gchar *nm = (const gchar *) g_hash_table_lookup (ib->stream_names, k);
+    const gchar *cid = (const gchar *) g_hash_table_lookup (ib->stream_cam_ids, k);
     gboolean is_pass = (e->prim.active && e->prim.passthru);
     gchar *enm;
 
     if (stream_filter) {
       gboolean match = (f_sid >= 0 && e->stream_id == (guint) f_sid);
+      /* ?stream= accepts the ROUTABLE camera_id -- the same token model/routing
+       * reports and the POST plane requires -- so an id read out of one endpoint
+       * resolves in the other. The display name is still accepted because it is
+       * what this filter has always taken and callers pass it, but the id is
+       * tried FIRST: it is the identifier that round-trips. */
+      if (!match && f_stream && *f_stream && g_strcmp0 (cid, f_stream) == 0)
+        match = TRUE;
       if (!match && f_stream && *f_stream && g_strcmp0 (nm, f_stream) == 0)
         match = TRUE;
       if (!match)
@@ -998,14 +1016,32 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
         continue;
     }
 
-    /* camera_id: the stable stream/add id when the host supplied one (the
-     * bin stores one display name per stream; camera_name split is plumbed
-     * with the element update). */
+    /* IDENTITY, split by what each field is FOR:
+     *   camera_id   = the ROUTABLE id -- the token model/routing reports in
+     *                 routes[].streams and the one a POST must name. Read from
+     *                 stream_cam_ids so the two planes cannot disagree about who
+     *                 a stream is; a client that takes this value and routes with
+     *                 it gets the stream it asked for.
+     *   camera_name = the display label, for humans and overlays only.
+     *
+     * They were ONE field carrying the display name, which made `camera_id` a
+     * value its own POST plane rejects with STREAM_UNKNOWN whenever a deployment
+     * gives a camera a name different from its id -- the common case.
+     *
+     * camera_id is OMITTED when the stream has no routable id, exactly as
+     * model/routing omits such streams: absent is honest, whereas substituting
+     * the display name is the mislabel this split exists to end. */
+    if (cid && *cid) {
+      enm = modelmux_json_escape (cid);
+      g_string_append_printf (streams_s, "%s{\"camera_id\":\"%s\",", first ? "" : ",", enm);
+      g_free (enm);
+    } else {
+      g_string_append_printf (streams_s, "%s{", first ? "" : ",");
+    }
     enm = modelmux_json_escape (nm);
     g_string_append_printf (streams_s,
-        "%s{\"camera_id\":\"%s\",\"source_id\":%u,\"state\":\"%s\"",
-        first ? "" : ",", enm, e->stream_id,
-        is_pass ? "passthrough" : "serving");
+        "\"camera_name\":\"%s\",\"source_id\":%u,\"state\":\"%s\"",
+        enm, e->stream_id, is_pass ? "passthrough" : "serving");
     g_free (enm);
     first = FALSE;
 
@@ -1125,7 +1161,7 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
 
   s = g_string_new (NULL);
   g_string_append_printf (s, "{\"routing_revision\":%" G_GUINT64_FORMAT,
-      ib->routing_revision);
+      modelmux_bin_revision_locked (ib));
   /* UNFILTERED SNAPSHOTS ONLY. A filtered view promises to contain nothing
    * outside the filter -- the existing contract that ?model=X returns only X
    * and the streams routed to it. The runtime default is fleet-wide state and
@@ -1135,17 +1171,19 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
    * model/routing's GET follows the same rule: it drops default{} under
    * ?stream= for the same reason (the default is redundant or irrelevant for a
    * single stream), so the two views stay consistent. */
-  if (!model_filter && !version_filter && !stream_filter) {
+  if (!model_filter && !version_filter && !stream_filter)
     modelmux_status_append_default (s, ib);
-    modelmux_status_append_routing (s, ib);
-  }
   g_string_append (s, ",\"models\":[");
   for (i = 0; i < names->len; i++) {
     const gchar *name = (const gchar *) g_ptr_array_index (names, i);
     gchar *enm = modelmux_json_escape (name);
     gboolean vfirst = TRUE;
-    g_string_append_printf (s, "%s{\"name\":\"%s\",\"versions\":[",
-        i ? "," : "", enm);
+    /* process_mode tags WHICH STAGE hosts this model. It lives on the model entry (not
+     * at the top level) because models[] is FLAT across stages: a merged response from a
+     * primary + a secondary is one array, and each entry says where it runs. */
+    g_string_append_printf (s, "%s{\"name\":\"%s\",\"process_mode\":%d,\"versions\":[",
+        i ? "," : "", enm,
+        ib->config ? ib->config->process_mode : MM_PROCESS_MODE_PGIE);
     g_free (enm);
     g_hash_table_iter_init (&it, rows);
     while (g_hash_table_iter_next (&it, &k, &v)) {
@@ -1265,13 +1303,133 @@ modelmux_bin_status_json (ModelMuxBin * ib, const gchar * f_model,
   return g_string_free (s, FALSE);
 }
 
+/* ================================================================== */
+/* Pipeline-wide routing revision (see MODELMUX_CONTEXT_TYPE_ROUTING)   */
+/* ================================================================== */
+
+struct _ModelMuxRevShared
+{
+  gint     refcount;            /**< atomic; one ref per stage holding it  */
+  GMutex   lock;                /**< guards @rev: GLib has no 64-bit atomic */
+  guint64  rev;
+};
+
+/* Boxed rather than GObject: it only has to survive a trip through a GstStructure,
+ * and boxed copy/free map straight onto ref/unref, so the context holds a real
+ * reference and the counter outlives whichever stage created it. */
+G_DEFINE_BOXED_TYPE (ModelMuxRevShared, modelmux_rev_shared,
+    modelmux_rev_shared_ref, modelmux_rev_shared_unref);
+
+ModelMuxRevShared *
+modelmux_rev_shared_new (void)
+{
+  ModelMuxRevShared *rev = g_new0 (ModelMuxRevShared, 1);
+
+  rev->refcount = 1;
+  g_mutex_init (&rev->lock);
+  return rev;
+}
+
+ModelMuxRevShared *
+modelmux_rev_shared_ref (ModelMuxRevShared * rev)
+{
+  if (rev)
+    g_atomic_int_inc (&rev->refcount);
+  return rev;
+}
+
+void
+modelmux_rev_shared_unref (ModelMuxRevShared * rev)
+{
+  if (!rev || !g_atomic_int_dec_and_test (&rev->refcount))
+    return;
+  g_mutex_clear (&rev->lock);
+  g_free (rev);
+}
+
+guint64
+modelmux_rev_shared_get (ModelMuxRevShared * rev)
+{
+  guint64 v;
+
+  if (!rev)
+    return 0;
+  g_mutex_lock (&rev->lock);
+  v = rev->rev;
+  g_mutex_unlock (&rev->lock);
+  return v;
+}
+
+guint64
+modelmux_rev_shared_bump (ModelMuxRevShared * rev)
+{
+  guint64 v;
+
+  if (!rev)
+    return 0;
+  g_mutex_lock (&rev->lock);
+  v = ++rev->rev;
+  g_mutex_unlock (&rev->lock);
+  return v;
+}
+
+/* Read the revision with ib->lock ALREADY held (the JSON builders hold it for the
+ * whole snapshot, and taking it again would deadlock). */
+static guint64
+modelmux_bin_revision_locked (ModelMuxBin * ib)
+{
+  /* the shared counter is authoritative once negotiated; ib->routing_revision is
+   * only the pre-context fallback, and the two are never both written. */
+  return ib->rev_shared ? modelmux_rev_shared_get (ib->rev_shared)
+      : ib->routing_revision;
+}
+
+void
+modelmux_bin_set_rev_shared (ModelMuxBin * ib, ModelMuxRevShared * rev)
+{
+  ModelMuxRevShared *old;
+
+  if (!ib)
+    return;
+  g_mutex_lock (&ib->lock);
+  old = ib->rev_shared;
+  ib->rev_shared = modelmux_rev_shared_ref (rev);
+  /* carry any bumps this bin took BEFORE the context arrived onto the shared
+   * counter, so adopting it can only move the revision forward -- a controller
+   * must never see it go backwards. */
+  if (rev && ib->routing_revision) {
+    guint64 carry = ib->routing_revision;
+    ib->routing_revision = 0;
+    while (carry--)
+      modelmux_rev_shared_bump (rev);
+  }
+  g_mutex_unlock (&ib->lock);
+  modelmux_rev_shared_unref (old);
+}
+
+guint64
+modelmux_bin_routing_revision (ModelMuxBin * ib)
+{
+  guint64 v;
+
+  if (!ib)
+    return 0;
+  g_mutex_lock (&ib->lock);
+  v = modelmux_bin_revision_locked (ib);
+  g_mutex_unlock (&ib->lock);
+  return v;
+}
+
 void
 modelmux_bin_bump_routing_revision (ModelMuxBin * ib)
 {
   if (!ib)
     return;
   g_mutex_lock (&ib->lock);
-  ib->routing_revision++;
+  if (ib->rev_shared)
+    modelmux_rev_shared_bump (ib->rev_shared);
+  else
+    ib->routing_revision++;
   g_mutex_unlock (&ib->lock);
 }
 
@@ -1310,12 +1468,176 @@ modelmux_bin_set_pending_routes (ModelMuxBin * ib, GPtrArray * notes)
     g_ptr_array_unref (old);
 }
 
+/* ================================================================== */
+/* Cross-stage merge                                                   */
+/*                                                                     */
+/* A pipeline can hold several nvmodelmux stages in series (a primary   */
+/* plus one or more secondaries). The REST host sends ONE downstream    */
+/* query, and the first stage to answer it would otherwise end the      */
+/* propagation -- so each stage FORWARDS the query on before writing    */
+/* its own body, then folds the downstream answer into it. The reply    */
+/* the host reads is therefore the whole pipeline, assembled upstream-  */
+/* first, with no host-side fan-out and no shared state between stages. */
+/*                                                                     */
+/* Merge rule: models[]/streams[]/routes[] are FLAT arrays that simply  */
+/* concatenate (each entry carries its own process_mode). Scalars --    */
+/* routing_revision, default{} -- stay THIS stage's: only a primary     */
+/* has a routing plane, and it is the upstream stage.                   */
+/*                                                                      */
+/* routing_revision needs no merge RULE because it needs no merge: every */
+/* stage reads the ONE counter they share through the routing            */
+/* GstContext, so all the bodies already carry the same value and        */
+/* keeping this stage's is keeping the pipeline's. That is exactly why   */
+/* it is shared -- with a per-stage counter, "keep the upstream one"     */
+/* would report a revision that a route applied at a SECONDARY never     */
+/* moved, and the client's next if_revision would guard nothing.         */
+/* ================================================================== */
+
+/* Append downstream's @arr entries into @mine's array of the same name. Both are
+ * parsed JSON objects; a missing or non-array member on either side is a no-op. */
+static void
+modelmux_status_concat_array (JsonObject * mine, JsonObject * theirs,
+    const gchar * member)
+{
+  JsonArray *dst, *src;
+  guint i, n;
+
+  if (!json_object_has_member (theirs, member)
+      || !JSON_NODE_HOLDS_ARRAY (json_object_get_member (theirs, member)))
+    return;
+  /* CREATE the member when only the downstream stage has it (secondary_models[] is
+   * contributed by secondaries alone) -- otherwise the merge would silently drop a
+   * key just because the upstream stage has nothing to add to it. */
+  if (!json_object_has_member (mine, member)
+      || !JSON_NODE_HOLDS_ARRAY (json_object_get_member (mine, member)))
+    json_object_set_array_member (mine, member, json_array_new ());
+  dst = json_object_get_array_member (mine, member);
+  src = json_object_get_array_member (theirs, member);
+  n = json_array_get_length (src);
+  for (i = 0; i < n; i++)
+    json_array_add_element (dst, json_node_copy (json_array_get_element (src, i)));
+}
+
+/* Fold @theirs (a downstream stage's body) into @mine. Returns a newly-allocated
+ * merged body, or a copy of @mine when @theirs is absent/unparseable -- a broken
+ * downstream answer must not cost us our own. */
+static gchar *
+modelmux_status_merge (const gchar * mine, const gchar * theirs)
+{
+  JsonParser *pm, *pt;
+  JsonObject *om, *ot;
+  JsonGenerator *gen;
+  gchar *out;
+
+  if (!theirs || !*theirs)
+    return g_strdup (mine);
+
+  pm = json_parser_new ();
+  pt = json_parser_new ();
+  if (!json_parser_load_from_data (pm, mine, -1, NULL)
+      || !json_parser_load_from_data (pt, theirs, -1, NULL)
+      || !JSON_NODE_HOLDS_OBJECT (json_parser_get_root (pm))
+      || !JSON_NODE_HOLDS_OBJECT (json_parser_get_root (pt))) {
+    GST_WARNING ("model/status: a stage answered with a body that is not a JSON "
+        "object -- reporting this stage only");
+    g_object_unref (pm);
+    g_object_unref (pt);
+    return g_strdup (mine);
+  }
+  om = json_node_get_object (json_parser_get_root (pm));
+  ot = json_node_get_object (json_parser_get_root (pt));
+
+  modelmux_status_concat_array (om, ot, "models");
+  modelmux_status_concat_array (om, ot, "streams");
+  modelmux_status_concat_array (om, ot, "routes");
+  modelmux_status_concat_array (om, ot, "secondary_models");
+  modelmux_status_concat_array (om, ot, "gpus");
+
+  gen = json_generator_new ();
+  json_generator_set_root (gen, json_parser_get_root (pm));
+  out = json_generator_to_data (gen, NULL);
+  g_object_unref (gen);
+  g_object_unref (pm);
+  g_object_unref (pt);
+  return out;
+}
+
+typedef struct
+{
+  GstQuery *q;                  /**< the original request, filters and all */
+  gboolean  is_routing;
+  gchar    *acc;                /**< merged bodies of every peer visited so far */
+} ModelMuxGetCtx;
+
+/* Visitor: fold ONE peer stage's body into the accumulator.
+ *
+ * Unlike the control plane this does NOT stop at the first answer -- a GET is a
+ * census, so every stage contributes. Merging pairwise as we go reuses
+ * modelmux_status_merge unchanged and keeps only one intermediate body alive. */
+static gboolean
+modelmux_status_get_visit (GstNvModelMux * self, GstNvModelMux * peer, gpointer udata)
+{
+  ModelMuxGetCtx *ctx = (ModelMuxGetCtx *) udata;
+  const gchar *json = NULL;
+  GstQuery *ans = NULL;
+
+  (void) self;
+  if (!modelmux_stage_ask_peer (peer, ctx->q, &ans))
+    return TRUE;
+
+  if (ctx->is_routing)
+    gst_nvquery_model_routing_parse_response (ans, &json);
+  else
+    gst_nvquery_model_status_parse_response (ans, &json);
+
+  if (json && *json) {
+    if (!ctx->acc) {
+      ctx->acc = g_strdup (json);
+    } else {
+      gchar *merged = modelmux_status_merge (ctx->acc, json);
+      g_free (ctx->acc);
+      ctx->acc = merged;
+    }
+  }
+  gst_query_unref (ans);
+  return TRUE;                          /* every stage answers a GET */
+}
+
+/* Collect the bodies of every OTHER stage in the pipeline, merged into one (caller
+ * frees; NULL when no peer answered). The query carries the SAME filters, so each
+ * stage applies them to its own models -- a filtered view stays filtered across the
+ * whole pipeline.
+ *
+ * The pipeline walk rather than the src pad, for the reason spelled out in
+ * modelmux_control_ask_downstream: sibling secondaries hang off a tee, and a
+ * forwarded query stops at the first branch that answers, so pad-following silently
+ * reports a subset of the stages -- the worst possible failure for a census. */
+static gchar *
+modelmux_status_ask_downstream (GstNvModelMux * self, GstQuery * q,
+    gboolean is_routing)
+{
+  ModelMuxGetCtx ctx = { q, is_routing, NULL };
+
+  /* already someone's fan-out: report this stage only (the caller merges). */
+  if (modelmux_stage_query_is_delegated (q))
+    return NULL;
+
+  modelmux_foreach_peer_stage (self, modelmux_status_get_visit, &ctx);
+  return ctx.acc;
+}
+
+/* Stage-agnostic reader of the GET plane. The udata is the ELEMENT (not a bin), so
+ * one probe answers from whichever bin this stage built: the ModelMuxBin at a primary,
+ * the ModelMuxSgieBin at a secondary. A stage answers only for its OWN models -- the
+ * host merges the per-stage responses. */
 G_GNUC_INTERNAL GstPadProbeReturn
 modelmux_status_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udata)
 {
   GstQuery *q = GST_PAD_PROBE_INFO_QUERY (info);
-  ModelMuxBin *ib = (ModelMuxBin *) udata;
-  gchar *json;
+  GstNvModelMux *self = GST_NVMODELMUX (udata);
+  ModelMuxBin *ib = self ? self->modelmux_bin : NULL;
+  ModelMuxSgieBin *sg = self ? self->modelmux_sgie_bin : NULL;
+  gchar *json, *down, *merged;
   (void) pad;
 
   /* model/routing: the ROUTING plane, answered whole by this element -- the REST
@@ -1325,8 +1647,13 @@ modelmux_status_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udat
     gboolean f_on = FALSE;
     gchar *rjson;
     gst_nvquery_model_routing_parse_request (q, &f_camera, &f_on);
-    rjson = modelmux_bin_route_json (ib, f_on ? (f_camera ? f_camera : "") : NULL);
-    gst_nvquery_model_routing_set_response (q, rjson);
+    rjson = sg ? modelmux_sgie_route_json (sg)
+        : modelmux_bin_route_json (ib, f_on ? (f_camera ? f_camera : "") : NULL);
+    down = modelmux_status_ask_downstream (self, q, TRUE);
+    merged = modelmux_status_merge (rjson, down);
+    gst_nvquery_model_routing_set_response (q, merged);
+    g_free (merged);
+    g_free (down);
     g_free (rjson);
     return GST_PAD_PROBE_HANDLED;
   }
@@ -1338,9 +1665,14 @@ modelmux_status_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udat
     const gchar *f_model = NULL, *f_version = NULL, *f_stream = NULL;
     gint f_sid = -1;
     gst_nvquery_model_status_parse_request (q, &f_model, &f_version, &f_stream, &f_sid);
-    json = modelmux_bin_status_json (ib, f_model, f_version, f_stream, f_sid);
+    json = sg ? modelmux_sgie_status_json (sg, f_model, f_version)
+        : modelmux_bin_status_json (ib, f_model, f_version, f_stream, f_sid);
   }
-  gst_nvquery_model_status_set_response (q, json);
+  down = modelmux_status_ask_downstream (self, q, FALSE);
+  merged = modelmux_status_merge (json, down);
+  gst_nvquery_model_status_set_response (q, merged);
+  g_free (merged);
+  g_free (down);
   g_free (json);
   return GST_PAD_PROBE_HANDLED;
 }

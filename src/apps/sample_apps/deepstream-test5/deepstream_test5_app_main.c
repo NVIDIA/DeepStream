@@ -1499,6 +1499,11 @@ void
 apply_ota (AppCtx * ota_appCtx)
 {
   GstElement *primary_gie = NULL;
+  GstElement *visionencoder = NULL;
+
+  /* One stamp for the whole request: both branches can fire from one edit, and
+   * stamping per-branch let the second overwrite the first's OTA latency. */
+  gettimeofday (&ota_request_time, NULL);
 
   if (ota_appCtx->override_config.primary_gie_config.enable) {
     primary_gie =
@@ -1506,8 +1511,11 @@ apply_ota (AppCtx * ota_appCtx)
     gchar *model_engine_file_path =
         ota_appCtx->override_config.primary_gie_config.model_engine_file_path;
 
-    gettimeofday (&ota_request_time, NULL);
-    if (model_engine_file_path) {
+    /* Null-checked like the encoder below: the caller no longer skips the
+     * iteration when the pgie is missing (that blocked encoder-only updates). */
+    if (!primary_gie) {
+      g_print ("\nPrimary GIE element not present in the pipeline\n");
+    } else if (model_engine_file_path) {
       g_print ("\nNew Model Update Request %s ----> %s\n",
           GST_ELEMENT_NAME (primary_gie), model_engine_file_path);
       g_object_set (G_OBJECT (primary_gie), "model-engine-file",
@@ -1515,6 +1523,27 @@ apply_ota (AppCtx * ota_appCtx)
     } else {
       g_print
           ("\nInvalid New Model Update Request received. Property model-engine-path is not set\n");
+    }
+  }
+
+  /* nvdsvisionencoder takes a prebuilt engine on "tensorrt-engine"; onnx-model
+   * is cold-start configuration and is deliberately not an update trigger. */
+  if (ota_appCtx->override_config.visionencoder_config.enable) {
+    visionencoder =
+        ota_appCtx->pipeline.common_elements.visionencoder_bin.visionencoder;
+    gchar *tensorrt_engine =
+        ota_appCtx->override_config.visionencoder_config.tensorrt_engine;
+
+    if (!visionencoder) {
+      g_print ("\nVision encoder element not present in the pipeline\n");
+    } else if (tensorrt_engine) {
+      g_print ("\nNew Model Update Request %s ----> %s\n",
+          GST_ELEMENT_NAME (visionencoder), tensorrt_engine);
+      g_object_set (G_OBJECT (visionencoder), "tensorrt-engine",
+          tensorrt_engine, NULL);
+    } else {
+      g_print
+          ("\nInvalid New Model Update Request received. Property tensorrt-engine is not set\n");
     }
   }
 }
@@ -1541,6 +1570,8 @@ ota_handler_thread (gpointer data)
   struct stat file_stat = { 0 };
   GstElement *primary_gie = NULL;
   gboolean connect_pgie_signal = FALSE;
+  GstElement *visionencoder = NULL;
+  gboolean connect_venc_signal = FALSE;
 
   ota_appCtx->ota_inotify_fd = inotify_init ();
 
@@ -1586,6 +1617,19 @@ ota_handler_thread (gpointer data)
         display_inotify_event (event);
       }
 
+      /* BEFORE the pgie block: that block `continue`s when the pgie is absent,
+       * which would skip this connect and apply_ota() -- leaving an
+       * encoder-only pipeline ([primary-gie] enable=0) unable to update. */
+      if (connect_venc_signal == FALSE) {
+        visionencoder =
+            ota_appCtx->pipeline.common_elements.visionencoder_bin.visionencoder;
+        if (visionencoder) {
+          g_signal_connect (G_OBJECT (visionencoder), "model-updated",
+              G_CALLBACK (infer_model_updated_cb), NULL);
+          connect_venc_signal = TRUE;
+        }
+      }
+
       if (connect_pgie_signal == FALSE) {
         primary_gie =
             ota_appCtx->pipeline.common_elements.primary_gie_bin.primary_gie;
@@ -1593,9 +1637,12 @@ ota_handler_thread (gpointer data)
           g_signal_connect (G_OBJECT (primary_gie), "model-updated",
               G_CALLBACK (infer_model_updated_cb), NULL);
           connect_pgie_signal = TRUE;
-        } else {
+        } else if (!connect_venc_signal) {
+          /* Neither element present. Advance the cursor first: `continue`
+           * alone leaves `i` put and the loop spins on the same event. */
           printf
               ("Gstreamer pipeline element nvinfer is yet to be created or invalid\n");
+          i += INOTIFY_EVENT_SIZE + event->len;
           continue;
         }
       }
