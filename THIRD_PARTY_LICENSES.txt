@@ -237,8 +237,8 @@ SOFTWARE.
 ################################################################################
 */
 
-/* libnvds_mqtt_proto.so uses libmosquitto.so which is provided under the
- * following terms:
+/* libnvds_mqtt_proto.so and libnvds_nvmultiobjecttracker.so use libmosquitto.so
+ * which is provided under the following terms:
 ################################################################################
 Eclipse Public License - v 2.0
 
@@ -6470,7 +6470,8 @@ For the rest:
 ################################################################################
 
 
-/* libnvcv_heartrate.so uses Eigen which is provided under the following terms:
+/* libnvcv_heartrate.so and libnvds_nvmultiobjecttracker.so use Eigen which is
+ * provided under the following terms:
 ################################################################################
 Mozilla Public License Version 2.0
 ==================================
@@ -7945,7 +7946,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
-/* libnvds_nmos.so uses nlohmann/json
+/* libnvds_nmos.so and libnvds_nvmultiobjecttracker.so use nlohmann/json
  * SPDX-License-Identifier: MIT
  * https://github.com/nlohmann/json/blob/develop/LICENSE.MIT
 MIT License

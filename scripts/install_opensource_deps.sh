@@ -36,6 +36,7 @@
 #                 libprotobuf-dev, libglm-dev (prefer 0.9.9.8), libglfw3-dev
 #                 (prefer 3.3.10), openucx/libucx-dev (prefer 1.13.1), etc.
 #   mosquitto (from PPA)
+#   vpi4-dev (from NVIDIA's VPI apt repository, required by nvmultiobjecttracker)
 #   Sparse4D: ds-sparse4d/configs/install_dependencies.sh (PyTorch 2.9.0+cu130,
 #             nlohmann-json, Eigen, OpenCV)
 #
@@ -533,6 +534,27 @@ else
   bash "$SPARSE4D_DEPS"
   mark_stage_done deps-sparse4d
   echo "    Stage deps-sparse4d: DONE"
+fi
+
+# ---------------------------------------------------------------------------
+# VPI4 development headers (required by src/utils/nvmultiobjecttracker)
+# ---------------------------------------------------------------------------
+echo ""
+if stage_is_done deps-vpi4; then
+  echo "--- VPI4 (skipped, already DONE) ---"
+else
+  echo "--- VPI4 ---"
+  apt-get install -y gnupg software-properties-common
+  apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+  if [[ "$(lsb_release -cs)" == "noble" ]]; then
+    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
+  else
+    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main'
+  fi
+  apt-get update
+  apt-get install -y vpi4-dev
+  mark_stage_done deps-vpi4
+  echo "    Stage deps-vpi4: DONE"
 fi
 
 # ---------------------------------------------------------------------------

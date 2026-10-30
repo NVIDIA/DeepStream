@@ -72,6 +72,19 @@ the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) i
 
    See also the [DeepStream Installation Guide — Install Prerequisite Packages](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation#install-prerequisite-packages).
 
+2. Install the VPI development headers, which `src/utils/nvmultiobjecttracker`
+   needs to build. They come from NVIDIA's public VPI repository (Ubuntu 24.04
+   shown; use `jammy` for 22.04). `apt` also installs the `libnvvpi4` runtime
+   package as a dependency.
+   ```bash
+   sudo apt install gnupg software-properties-common
+   sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+   sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
+   sudo apt update && sudo apt install vpi4-dev
+   ```
+   The headers install to `/opt/nvidia/vpi4/include`. Override the location with
+   `VPI_DIR=<path>` when running `make` in `src/utils/nvmultiobjecttracker`.
+
 ### aarch64 (Jetson)
 
 The DeepStream proprietary runtime libraries and sample data are downloaded from
