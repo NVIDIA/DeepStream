@@ -28,6 +28,8 @@
  *
  * Control via a small built-in HTTP server (default port 9857, configurable):
  *   POST /dump/config  {"enable":true,"fps":5,"location":"/data/dumps","quality":80}
+ *   fps accepts fractional values below 1 for sparse sampling, e.g. "fps":0.1
+ *   dumps roughly one frame every 10 seconds.
  *   POST /dump/camera  {"sensor_id":"cam-01","enable":true}
  *   GET  /dump/status
  *
@@ -50,7 +52,8 @@ typedef struct _FrameDumpConfig {
   const char *default_output_dir; /* initial dump location (runtime-changeable)*/
   guint       gpu_id;             /* GPU for JPEG encode                       */
   gboolean    enabled;            /* initial global on/off (runtime-changeable)*/
-  guint       fps;                /* initial fps (0 -> 1)                       */
+  gdouble     fps;                /* initial fps (0 -> 1); fractional values    */
+                                   /* (e.g. 0.1 == 1 frame / 10s) are honoured   */
   gint        quality;            /* JPEG quality (0 -> 80)                     */
   gboolean    hour_subfolder;     /* add /<HH>/ level (runtime-changeable)     */
   gboolean    unique_filenames;   /* name <frame_num>_<pts> (runtime-changeable)*/
@@ -66,6 +69,12 @@ typedef struct _FrameDumpConfig {
   const char *kafka_topic;        /* notification topic (runtime-changeable)    */
   const char *kafka_proto_lib;    /* adaptor .so; NULL -> libnvds_kafka_proto   */
   const char *kafka_config_file;  /* optional Kafka producer config file        */
+
+  /* Base64-image mode: instead of writing <frame>.jpg + <frame>.txt, encode the
+   * frame's JPEG in memory, base64 it, and publish {metadata + "image"} to a
+   * separate Kafka topic. Selection (fps/per-camera gating) is unchanged. */
+  gboolean    kafka_image;        /* on: no files, base64 image over kafka       */
+  const char *kafka_image_topic;  /* topic for image msgs; empty -> kafka_topic  */
 } FrameDumpConfig;
 
 /* Start the feature: creates the JPEG-encode context, starts the HTTP control

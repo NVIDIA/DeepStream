@@ -199,6 +199,7 @@ typedef struct _GstDsNvUriSrcConfig
   gchar* topic;
   guint simulate_fps_interval_ms;
   guint64 creation_time_ns; /**< Stream creation time in nanoseconds since epoch (from ISO 8601 timestamp) */
+  guint64 file_start_time_ns; /**< Source content start time in ns since epoch (from metadata.file_start_time ISO 8601). When >0 it is used as the nvstreammux NTP base for this source, taking precedence over creation_time_ns. */
   /* VIA-S-5: publish this source's DECODED frames over IPC (per-source nvunixfdsink,
    * tapped right after the decoder). Socket: /tmp/nvds_ipc_<source_id>.sock */
   gboolean ipc_frame_copy;
@@ -246,6 +247,9 @@ typedef struct
   gboolean align_first_buffer;
   guint sync_inputs_ntp;
   gboolean drop_backward_sei;
+  /* Forwarded to the internal legacy nvstreammux: drop input buffers on each
+   * source until an RTCP Sender Report derived NTP timestamp is available. */
+  gboolean drop_until_rtcp_sr;
   /* VIA-S-5: if TRUE, publish each source's DECODED frames over IPC (per-source
    * nvunixfdsink, tapped right after the decoder, before the internal mux).
    * Socket per source: /tmp/nvds_ipc_<sensorId|source_id>.sock */

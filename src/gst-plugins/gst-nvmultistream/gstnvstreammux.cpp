@@ -147,7 +147,8 @@ enum
   PROP_ALIGN_FIRST_BUFFER,
   PROP_SYNC_INPUTS_NTP,
   PROP_FAILSAFE_FLUSH_COUNT,
-  PROP_DROP_BACKWARD_SEI
+  PROP_DROP_BACKWARD_SEI,
+  PROP_DROP_UNTIL_RTCP_SR
 };
 
 #define DEFAULT_BATCH_METHOD BATCH_METHOD_ROUND_ROBIN
@@ -171,6 +172,7 @@ enum
 #define DEFAULT_SYNC_INPUTS_NTP 0 
 #define DEFAULT_ALIGN_FIRST_BATCH FALSE
 #define DEFAULT_DROP_BACKWARD_SEI FALSE
+#define DEFAULT_DROP_UNTIL_RTCP_SR FALSE
 
 #define META_BEFORE_NVSTREAMMUX 1
 static GQuark _dsmeta_quark = 0;
@@ -189,6 +191,7 @@ void buf_in_system_timestamp_free(Input_TS_Identification
 
 // Forward declaration for NTP timestamp extraction (defined later in file)
 static GstClockTime get_ntp_timestamp_from_sei_meta(GstBuffer *buffer);
+static void gst_nvstreammux_ensure_runtime_tables (GstNvStreamMux * mux);
 
 void buf_in_system_timestamp_free(Input_TS_Identification
     *buf_in_system_timestamp_ptr)
@@ -952,6 +955,70 @@ gst_nvstreammux_free_pad_data (GstNvStreamMuxPadData * data)
   }
 }
 
+/* pad_indexes / pad_framerates live for the mux object lifetime. READY_TO_NULL
+ * must not free them: sink pads still exist, and nvstreamdemux may still hold
+ * the pad_framerates pointer from the stream-frame-rate query. */
+static void
+free_pad_framerate_value (gpointer data)
+{
+  GValue *v = (GValue *) data;
+  if (!v)
+    return;
+  g_value_unset (v);
+  g_free (v);
+}
+
+static GHashTable *
+new_pad_framerate_table (void)
+{
+  return g_hash_table_new_full (NULL, NULL, NULL, free_pad_framerate_value);
+}
+
+static void
+gst_nvstreammux_unref_event_list (GstNvStreamMux * mux)
+{
+  while (mux->event_list) {
+    GstEvent *event = GST_EVENT (mux->event_list->data);
+    mux->event_list = g_list_delete_link (mux->event_list, mux->event_list);
+    if (event)
+      gst_event_unref (event);
+  }
+}
+
+static void
+gst_nvstreammux_ensure_runtime_tables (GstNvStreamMux * mux)
+{
+  if (!mux->pad_indexes) {
+    mux->pad_indexes = g_hash_table_new (NULL, NULL);
+    for (GList *iter = GST_ELEMENT (mux)->sinkpads; iter; iter = iter->next) {
+      GstPad *pad = GST_PAD (iter->data);
+      const gchar *name = GST_PAD_NAME (pad);
+      guint stream_index = 0;
+      if (name && sscanf (name, "sink_%u", &stream_index) == 1) {
+        g_hash_table_insert (mux->pad_indexes, stream_index + (char *) NULL, pad);
+      }
+    }
+  }
+  if (!mux->pad_framerates) {
+    mux->pad_framerates = (GstNvMultiStreamPadFrameRates *)
+        g_malloc0 (sizeof (GstNvMultiStreamPadFrameRates));
+    g_mutex_init (&mux->pad_framerates->read_write_lock);
+    mux->pad_framerates->table = new_pad_framerate_table ();
+  } else if (!mux->pad_framerates->table) {
+    mux->pad_framerates->table = new_pad_framerate_table ();
+  }
+}
+
+static void
+gst_nvstreammux_clear_framerate_table (GstNvStreamMux * mux)
+{
+  if (!mux->pad_framerates || !mux->pad_framerates->table)
+    return;
+  g_mutex_lock (&mux->pad_framerates->read_write_lock);
+  g_hash_table_remove_all (mux->pad_framerates->table);
+  g_mutex_unlock (&mux->pad_framerates->read_write_lock);
+}
+
 static gboolean
 gst_nvstreammux_alloc_output_buffers (GstNvStreamMux * mux, GstBufferPool **pool, GstNvStreamMuxPadData *pad_data)
 {
@@ -1258,7 +1325,11 @@ gst_nvstreammux_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
                 gst_nvds_ntp_calculator_new (mux->sys_ts ? GST_NVDS_NTP_CALC_MODE_SYSTEM_TIME :
                         GST_NVDS_NTP_CALC_MODE_RTCP, mux->frame_duration,
                         GST_ELEMENT (mux), pad_data->pad_id);
-    if (pad_data->ntp_calc)
+    /* When drop-until-rtcp-sr is enabled, never latch the NTP calculator with a
+     * zero epoch (downstream can send empty ntp-sync queries before the first
+     * RTCP SR; feeding those would stall the calculator on a 1970 timestamp). */
+    if (pad_data->ntp_calc &&
+        (!mux->drop_until_rtcp_sr || ntpdata.ntp_time_epoch_ns > 0))
       gst_nvds_ntp_calculator_add_ntp_sync_values (pad_data->ntp_calc,
               ntpdata.ntp_time_epoch_ns, ntpdata.frame_timestamp,
               ntpdata.avg_frame_time);
@@ -1757,9 +1828,14 @@ gst_nvstreammux_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
         g_value_init (framerate, GST_TYPE_FRACTION);
         g_value_copy ((GValue *)gst_structure_get_value (caps_str, "framerate"), framerate);
 
-        g_mutex_lock (&(mux->pad_framerates->read_write_lock));
-        g_hash_table_insert (mux->pad_framerates->table, pad_data->pad_id + (char *)NULL, framerate);
-        g_mutex_unlock (&(mux->pad_framerates->read_write_lock));
+        if (mux->pad_framerates && mux->pad_framerates->table) {
+          g_mutex_lock (&(mux->pad_framerates->read_write_lock));
+          g_hash_table_insert (mux->pad_framerates->table, pad_data->pad_id + (char *)NULL, framerate);
+          g_mutex_unlock (&(mux->pad_framerates->read_write_lock));
+        } else {
+          g_value_unset (framerate);
+          g_free (framerate);
+        }
 
         gst_structure_set (str, "nvmultistream-pad-framerates", G_TYPE_POINTER, mux->pad_framerates, NULL);
         caps_query = gst_query_new_custom (GST_QUERY_CUSTOM, str);
@@ -2509,8 +2585,11 @@ static gboolean gstnvstreammuxAddToBatch(GstNvStreamMux *mux,
               ntp_frame_timestamp = ntpdata.frame_timestamp;
               avg_frame_time = ntpdata.avg_frame_time;
             }
-            gst_nvds_ntp_calculator_add_ntp_sync_values (pad_data->ntp_calc,
-                ntp_time_epoch_ns, ntp_frame_timestamp, avg_frame_time);
+            /* With drop-until-rtcp-sr, only feed the calculator once a real RTCP
+             * SR is available (epoch>0), so it is never latched with epoch=0. */
+            if (!mux->drop_until_rtcp_sr || ntp_time_epoch_ns > 0)
+              gst_nvds_ntp_calculator_add_ntp_sync_values (pad_data->ntp_calc,
+                  ntp_time_epoch_ns, ntp_frame_timestamp, avg_frame_time);
             gst_query_unref (nvquery);
           }
 
@@ -3752,6 +3831,44 @@ if (mux->align_first_buffer && !mux->first_batch_aligned && mux->extract_sei_sim
    GST_INFO_OBJECT(mux, "First batch aligned. Switching to normal processing.");
 }
 #endif
+
+      /* drop-until-rtcp-sr: hold this source dark until its RTCP Sender Report
+       * derived NTP is available. Probe the source once per buffer via the
+       * ntp-sync nvquery (answered by the rtpjitterbuffer handle-sync probe in
+       * libnvdsgst_helper); ntp_time_epoch_ns > 0 means an RTCP SR has been
+       * received and the RTP->NTP mapping now exists. Once seen we latch
+       * rtcp_sr_ready per pad and never probe/drop again. */
+      if (mux->drop_until_rtcp_sr && !pad_data->rtcp_sr_ready) {
+        gboolean sr_ready = FALSE;
+        GstQuery *nvquery = gst_nvquery_ntp_sync_new ();
+        /* The ntp-sync query is answered by a query probe on the source's
+         * rtpjitterbuffer; that probe fills the query data but does not make
+         * gst_pad_peer_query() return TRUE. So, like the RTCP NTP path, ignore
+         * the return value and just parse. */
+        gst_pad_peer_query (mux->sink_pads[mux->current_loc], nvquery);
+        _NtpData ntpdata;
+        memset (&ntpdata, 0, sizeof (_NtpData));
+        gst_nvquery_ntp_sync_parse (nvquery, &ntpdata);
+        if (ntpdata.ntp_time_epoch_ns > 0)
+          sr_ready = TRUE;
+        gst_query_unref (nvquery);
+
+        if (sr_ready) {
+          pad_data->rtcp_sr_ready = TRUE;
+          GST_INFO_OBJECT (mux, "drop-until-rtcp-sr: pad %d RTCP SR NTP now "
+              "available, resuming buffer flow", pad_data->pad_id);
+        } else {
+          g_mutex_unlock (&pad_data->queue_lock);
+          GST_DEBUG_OBJECT (mux, "drop-until-rtcp-sr: dropping buffer on pad %d "
+              "(no RTCP Sender Report yet)", pad_data->pad_id);
+          get_sync_obj_and_wait (src_buffer, &pad_data->sync_queue, -1);
+          gst_buffer_unref (src_buffer);
+          g_cond_broadcast (&pad_data->queue_cond);
+          mux->current_loc++;
+          continue;
+        }
+      }
+
       get_sync_obj_and_wait(src_buffer, &pad_data->sync_queue, -1);
 
       if (mux->buffer_cache) {
@@ -4711,6 +4828,8 @@ gst_nvstreammux_change_state (GstElement * element, GstStateChange transition)
           mux->cuda_mem_type = NVBUF_MEM_CUDA_DEVICE;
       }
 
+      gst_nvstreammux_ensure_runtime_tables (mux);
+
       if (mux->stream == NULL)
       {
         cudaStreamCreate (&mux->stream);
@@ -4737,20 +4856,10 @@ gst_nvstreammux_change_state (GstElement * element, GstStateChange transition)
         cudaStreamDestroy (mux->nppStream);
         mux->nppStream = NULL;
       }
-      if (mux->pad_indexes) {
-        g_hash_table_unref (mux->pad_indexes);
-        mux->pad_indexes = NULL;
-      }
-      if (mux->pad_framerates) {
-        if (mux->pad_framerates->table) {
-          g_mutex_lock (&(mux->pad_framerates->read_write_lock));
-          g_hash_table_destroy (mux->pad_framerates->table);
-          mux->pad_framerates->table = NULL;
-          g_mutex_unlock (&(mux->pad_framerates->read_write_lock));
-        }
-        g_free (mux->pad_framerates);
-        mux->pad_framerates = NULL;
-      }
+      /* Sink pads still exist after NULL. Keep pad_indexes so request_pad
+       * still sees sink_N as already requested. Keep pad_framerates so
+       * nvstreamdemux's copied pointer stays valid; only drop entries. */
+      gst_nvstreammux_clear_framerate_table (mux);
 
     }
       break;
@@ -4824,6 +4933,9 @@ gst_nvstreammux_change_state (GstElement * element, GstStateChange transition)
         iter = iter->next;
       }
       g_mutex_unlock (&mux->ctx_lock);
+      gst_nvstreammux_unref_event_list (mux);
+      if (mux->processed_pads)
+        g_hash_table_remove_all (mux->processed_pads);
       mux->num_pads_eos = 0;
       mux->num_queues_empty = 0;
       mux->all_pads_eos = FALSE;
@@ -4842,6 +4954,39 @@ gst_nvstreammux_change_state (GstElement * element, GstStateChange transition)
   }
   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
   return ret;
+}
+
+static void
+gst_nvstreammux_finalize (GObject * object)
+{
+  GstNvStreamMux *mux = GST_NVSTREAMMUX (object);
+
+  gst_nvstreammux_unref_event_list (mux);
+
+  if (mux->processed_pads) {
+    g_hash_table_destroy (mux->processed_pads);
+    mux->processed_pads = NULL;
+  }
+  if (mux->pad_indexes) {
+    g_hash_table_unref (mux->pad_indexes);
+    mux->pad_indexes = NULL;
+  }
+  if (mux->pad_framerates) {
+    GHashTable *table = NULL;
+    g_mutex_lock (&mux->pad_framerates->read_write_lock);
+    table = mux->pad_framerates->table;
+    mux->pad_framerates->table = NULL;
+    g_mutex_unlock (&mux->pad_framerates->read_write_lock);
+    if (table)
+      g_hash_table_unref (table);
+    g_mutex_clear (&mux->pad_framerates->read_write_lock);
+    g_free (mux->pad_framerates);
+    mux->pad_framerates = NULL;
+  }
+  g_mutex_clear (&mux->ctx_lock);
+  g_cond_clear (&mux->ctx_cond);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 static void
@@ -4978,6 +5123,9 @@ gst_nvstreammux_set_property (GObject * object, guint prop_id,
     case PROP_DROP_BACKWARD_SEI:
       mux->drop_backward_sei = g_value_get_boolean (value);
       break;
+    case PROP_DROP_UNTIL_RTCP_SR:
+      mux->drop_until_rtcp_sr = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -5096,6 +5244,9 @@ gst_nvstreammux_get_property (GObject * object, guint prop_id,
     case PROP_DROP_BACKWARD_SEI:
       g_value_set_boolean (value, mux->drop_backward_sei);
       break;
+    case PROP_DROP_UNTIL_RTCP_SR:
+      g_value_set_boolean (value, mux->drop_until_rtcp_sr);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -5118,6 +5269,7 @@ gst_nvstreammux_class_init (GstNvStreamMuxClass * klass)
 
   gobject_class->set_property = gst_nvstreammux_set_property;
   gobject_class->get_property = gst_nvstreammux_get_property;
+  gobject_class->finalize = GST_DEBUG_FUNCPTR (gst_nvstreammux_finalize);
 
 //  g_object_class_install_property (gobject_class, PROP_PUSH_MODE_BATCHED,
 //      g_param_spec_enum ("batching-method", "Batching Method",
@@ -5219,6 +5371,16 @@ gst_nvstreammux_class_init (GstNvStreamMuxClass * klass)
       g_param_spec_boolean ("drop-backward-sei", "Drop Backward SEI",
           "Drop incoming buffers whose SEI timestamp is behind the previous buffer's SEI timestamp (per sink pad)",
           DEFAULT_DROP_BACKWARD_SEI,
+          (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_DROP_UNTIL_RTCP_SR,
+      g_param_spec_boolean ("drop-until-rtcp-sr", "Drop Until RTCP SR",
+          "Drop input buffers on each source until an RTCP Sender Report derived "
+          "NTP timestamp is available for that source. Intended for RTSP/live "
+          "sources so that no frame is batched with an un-synchronized (pre-SR) "
+          "NTP timestamp. NOTE: sources that never deliver an RTCP SR (e.g. local "
+          "file/URI inputs) will have all their buffers dropped while this is enabled.",
+          DEFAULT_DROP_UNTIL_RTCP_SR,
           (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_MAX_LATNECY,
@@ -5390,6 +5552,7 @@ gst_nvstreammux_init (GstNvStreamMux * mux)
   mux->one_time_in_batch=TRUE;
   // Note: holding_iterations moved to per-pad (pad_holding_iterations) for per-source failsafe
   mux->drop_backward_sei = DEFAULT_DROP_BACKWARD_SEI;
+  mux->drop_until_rtcp_sr = DEFAULT_DROP_UNTIL_RTCP_SR;
 
   mux->srcpad =
       gst_pad_new_from_static_template (&nvstreammux_srcpad_template, "src");
@@ -5405,7 +5568,7 @@ gst_nvstreammux_init (GstNvStreamMux * mux)
   mux->pad_indexes = g_hash_table_new (NULL, NULL);
   mux->pad_framerates = (GstNvMultiStreamPadFrameRates*)g_malloc0(sizeof(GstNvMultiStreamPadFrameRates));
   g_mutex_init (&(mux->pad_framerates->read_write_lock));
-  mux->pad_framerates->table = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+  mux->pad_framerates->table = new_pad_framerate_table ();
 
   gst_segment_init (&mux->segment, GST_FORMAT_TIME);
 

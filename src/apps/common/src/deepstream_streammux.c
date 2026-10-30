@@ -91,6 +91,13 @@ set_streammux_properties (NvDsStreammuxConfig * config, GstElement * element)
   g_object_set (G_OBJECT (element), "drop-pipeline-eos", config->no_pipeline_eos,
       NULL);
 
+  /* Only set when enabled, so stock nvstreammux builds without this property
+   * do not emit a g_object_set warning. */
+  if (config->drop_until_rtcp_sr) {
+    g_object_set (G_OBJECT (element), "drop-until-rtcp-sr",
+        config->drop_until_rtcp_sr, NULL);
+  }
+
   if (config->extract_sei_type5_data) {
     g_object_set (G_OBJECT (element), "extract-sei-type5-data", config->extract_sei_type5_data,
         NULL);
