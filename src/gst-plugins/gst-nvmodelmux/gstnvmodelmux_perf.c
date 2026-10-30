@@ -75,7 +75,7 @@ modelmux_perf_free (ModelMuxPerf * p)
 }
 
 void
-modelmux_perf_mark_infer_out (ModelMuxPerf * p, gint64 now_us, gint source_id)
+modelmux_perf_mark_bin_out (ModelMuxPerf * p, gint64 now_us, gint source_id)
 {
   if (!p)
     return;

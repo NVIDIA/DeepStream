@@ -90,6 +90,9 @@ typedef struct
   guint64 timestamp_mega;
   guint pad_holding_iterations;  // Per-source failsafe: count holding events for THIS pad
   GstClockTime previous_sei_timestamp;
+  /* drop-until-rtcp-sr: latched TRUE once an RTCP Sender Report (valid NTP) is
+   * seen for this source; buffers are dropped while this stays FALSE. */
+  gboolean rtcp_sr_ready = FALSE;
 } GstNvStreamMuxPadData;
 
 typedef struct
@@ -207,6 +210,10 @@ struct _GstNvStreamMux
   guint max_holding_iterations; // Failsafe: max iterations before forcing batch push
   guint failsafe_flush_count; // Failsafe: max iterations before forcing batch push
   gboolean drop_backward_sei;
+  /** drop-until-rtcp-sr: when TRUE, drop input buffers on each source until an
+   * RTCP Sender Report derived NTP timestamp becomes available for that source
+   * (RTSP/live sources). Off by default (fully backward compatible). */
+  gboolean drop_until_rtcp_sr;
 };
 
 struct _GstNvStreamMuxClass

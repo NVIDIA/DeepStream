@@ -118,9 +118,9 @@ x86 host:
 sudo docker build --build-arg OPENTELEMETRY_BUILD_JOBS=2 ...
 ```
 
-## 1.3 Jetson Dockers (adding to the released DS 9.2 NGC Jetson dockers)
+## 1.3 Jetson Dockers (adding to the released DS 9.2 GHCR Jetson dockers)
 
-For the Jetson NGC dockers you will need to add the following lines if you are making modifications to those prebuilt NGC DS 9.2 Jetson dockers.
+For the Jetson GHCR dockers you will need to add the following lines if you are making modifications to those prebuilt GHCR DS 9.2 Jetson dockers.
 
 ```
 RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc   

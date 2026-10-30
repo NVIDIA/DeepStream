@@ -32,6 +32,7 @@
 
 #include <gstnvdsmeta.h>
 #include <nvdsmeta.h>
+#include <nvdsmeta_schema.h>
 #include <nvbufsurface.h>
 #include "nvds_obj_encode.h"
 
@@ -46,6 +47,8 @@
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -68,7 +71,8 @@
 /* ------------------------------------------------------------------ */
 struct DumpControl {
   std::atomic<bool>     enabled{false};        /* global on/off              */
-  std::atomic<uint32_t> fps{1};                /* target dump fps            */
+  std::atomic<double>   fps{1.0};              /* target dump fps (fractional
+                                                    -> sparse sampling)        */
   std::atomic<int>      quality{80};           /* JPEG quality               */
   std::atomic<bool>     hour_subfolder{false}; /* add /<HH>/ level           */
   std::atomic<bool>     unique_names{false};   /* <frame_num>_<pts>          */
@@ -115,8 +119,9 @@ typedef void (*fn_do_work)(NvDsMsgApiHandle);
 
 struct KafkaState {
   std::atomic<bool> enabled{false};
+  std::atomic<bool> image_mode{false};  /* publish base64 frame image, no files */
   std::mutex        mtx;                 /* guards the strings below            */
-  std::string       broker, topic, proto_lib, config_file;
+  std::string       broker, topic, image_topic, proto_lib, config_file;
 
   void            *lib    = nullptr;     /* dlopen'd adaptor                    */
   NvDsMsgApiHandle handle = nullptr;     /* live connection                     */
@@ -163,12 +168,11 @@ static void kafka_connect() {
   g_print("frame_dump: kafka connected to %s\n", broker.c_str());
 }
 
-/* Publish one notification (called from the writer thread). Non-blocking. */
-static void kafka_publish(const std::string &payload) {
-  if (!g_kafka.enabled.load() || !g_kafka.handle || !g_kafka.send_async) return;
-  std::string topic;
-  { std::lock_guard<std::mutex> lk(g_kafka.mtx); topic = g_kafka.topic; }
-  if (topic.empty()) return;
+/* Publish one message to `topic` (called from the writer thread). Non-blocking.
+ * Gating (enabled / image_mode) is done by the caller; here we only need a live
+ * connection and a non-empty topic. */
+static void kafka_publish(const std::string &payload, const std::string &topic) {
+  if (!g_kafka.handle || !g_kafka.send_async || topic.empty()) return;
   std::lock_guard<std::mutex> lk(g_kafka.send_mtx);
   g_kafka.send_async(g_kafka.handle, (char *) topic.c_str(),
                      (const uint8_t *) payload.data(), payload.size(), nullptr, nullptr);
@@ -186,7 +190,7 @@ static std::mutex              g_ret_mtx;
 /* ------------------------------------------------------------------ */
 /* Async .txt writer (JPEG is written by nvds_obj_enc itself).        */
 /* ------------------------------------------------------------------ */
-struct WriteJob { std::string path; std::string content; std::string kafka; };
+struct WriteJob { std::string path; std::string content; std::string kafka; std::string topic; };
 static std::queue<WriteJob>    g_wq;
 static std::mutex              g_wq_mtx;
 static std::condition_variable g_wq_cv;
@@ -201,15 +205,19 @@ static void writer_loop() {
       job = std::move(g_wq.front());
       g_wq.pop();
     }
-    FILE *fp = fopen(job.path.c_str(), "w");
-    if (fp) { fwrite(job.content.data(), 1, job.content.size(), fp); fclose(fp); }
-    if (!job.kafka.empty()) kafka_publish(job.kafka);
+    if (!job.path.empty()) {                 /* file dump (skipped in kafka-image mode) */
+      FILE *fp = fopen(job.path.c_str(), "w");
+      if (fp) { fwrite(job.content.data(), 1, job.content.size(), fp); fclose(fp); }
+    }
+    if (!job.kafka.empty()) kafka_publish(job.kafka, job.topic);
   }
 }
-static void writer_enqueue(std::string path, std::string content, std::string kafka = std::string()) {
+static void writer_enqueue(std::string path, std::string content,
+                           std::string kafka = std::string(),
+                           std::string topic = std::string()) {
   {
     std::lock_guard<std::mutex> lk(g_wq_mtx);
-    g_wq.push(WriteJob{std::move(path), std::move(content), std::move(kafka)});
+    g_wq.push(WriteJob{std::move(path), std::move(content), std::move(kafka), std::move(topic)});
   }
   g_wq_cv.notify_one();
 }
@@ -312,7 +320,11 @@ static void jb_bbox(JsonBuilder *b, const char *name,
   json_builder_end_object(b);
 }
 
-static std::string build_meta_json(NvDsFrameMeta *fm, const std::string &sensor) {
+/* Build the per-frame metadata JSON. When `image_b64` is non-null it is added as
+ * a top-level "image" member (base64 JPEG) -- this is the Kafka image payload;
+ * with image_b64==null the same JSON is the on-disk .txt content. */
+static std::string build_meta_json(NvDsFrameMeta *fm, const std::string &sensor,
+                                   const char *image_b64 = nullptr) {
   JsonBuilder *b = json_builder_new();
   json_builder_begin_object(b);
   json_builder_set_member_name(b, "sensor_id");     json_builder_add_string_value(b, sensor.c_str());
@@ -343,6 +355,9 @@ static std::string build_meta_json(NvDsFrameMeta *fm, const std::string &sensor)
     json_builder_end_object(b);
   }
   json_builder_end_array(b);
+  if (image_b64) {
+    json_builder_set_member_name(b, "image"); json_builder_add_string_value(b, image_b64);
+  }
   json_builder_end_object(b);
   std::string out = jb_to_string(b);
   g_object_unref(b);
@@ -371,6 +386,130 @@ static std::string build_kafka_json(NvDsFrameMeta *fm, const std::string &sensor
   return out;
 }
 
+/* ISO-8601 UTC with milliseconds, e.g. "2024-11-15T08:32:45.500Z". Uses the
+ * frame NTP timestamp (ns since epoch) when set, else the wall clock. */
+static std::string iso8601_ms(guint64 ntp_ns) {
+  time_t secs; long ms;
+  if (ntp_ns > 0 && ntp_ns != (guint64) GST_CLOCK_TIME_NONE) {
+    secs = (time_t) (ntp_ns / 1000000000ULL);
+    ms   = (long) ((ntp_ns % 1000000000ULL) / 1000000ULL);
+  } else {
+    struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+    secs = ts.tv_sec; ms = ts.tv_nsec / 1000000L;
+  }
+  struct tm tmv; gmtime_r(&secs, &tmv);
+  char buf[40]; size_t n = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmv);
+  snprintf(buf + n, sizeof(buf) - n, ".%03ldZ", ms);
+  return std::string(buf);
+}
+
+/* One object as a pipe-delimited MDX string:
+ *   <object_id>|<left>|<top>|<right>|<bottom>|<type>|#|<attr>|...|<confidence>
+ * bbox is the detector bbox (integers); attributes come from the object's
+ * classifier metadata (secondary GIEs / LPR), in pipeline order. */
+static std::string obj_to_mdx_string(NvDsObjectMeta *o) {
+  const NvBbox_Coords &bb = o->detector_bbox_info.org_bbox_coords;
+  int l = (int) bb.left, t = (int) bb.top;
+  int r = (int) (bb.left + bb.width), bo = (int) (bb.top + bb.height);
+  std::string s = std::to_string((unsigned long long) o->object_id)
+      + "|" + std::to_string(l) + "|" + std::to_string(t)
+      + "|" + std::to_string(r) + "|" + std::to_string(bo)
+      + "|" + (o->obj_label[0] ? o->obj_label : "") + "|#";
+  for (NvDsMetaList *cl = o->classifier_meta_list; cl; cl = cl->next) {
+    NvDsClassifierMeta *cm = (NvDsClassifierMeta *) cl->data;
+    if (!cm) continue;
+    for (NvDsMetaList *ll = cm->label_info_list; ll; ll = ll->next) {
+      NvDsLabelInfo *li = (NvDsLabelInfo *) ll->data;
+      if (li && li->result_label[0]) s += std::string("|") + li->result_label;
+    }
+  }
+  char conf[16]; snprintf(conf, sizeof(conf), "%.2f", o->confidence);
+  s += std::string("|") + conf;
+  return s;
+}
+
+/* Kafka image message in the target schema:
+ * {version,id,timestamp,sensorId,imageData{content_type,data,metadata{w,h}},objects[]} */
+static std::string build_kafka_frame_json(NvDsFrameMeta *fm,
+    const std::string &sensor, const char *image_b64,
+    guint image_width, guint image_height) {
+  JsonBuilder *b = json_builder_new();
+  json_builder_begin_object(b);
+  json_builder_set_member_name(b, "version");   json_builder_add_string_value(b, "4.0");
+  json_builder_set_member_name(b, "id");
+  json_builder_add_string_value(b, ("frame-" + std::to_string(fm->frame_num)).c_str());
+  json_builder_set_member_name(b, "timestamp");
+  json_builder_add_string_value(b, iso8601_ms(fm->ntp_timestamp).c_str());
+  json_builder_set_member_name(b, "sensorId");  json_builder_add_string_value(b, sensor.c_str());
+
+  if (image_b64) {
+    json_builder_set_member_name(b, "imageData");
+    json_builder_begin_object(b);
+    json_builder_set_member_name(b, "content_type"); json_builder_add_string_value(b, "image/jpeg");
+    json_builder_set_member_name(b, "data");         json_builder_add_string_value(b, image_b64);
+    json_builder_set_member_name(b, "metadata");
+    json_builder_begin_object(b);
+    json_builder_set_member_name(b, "width");  json_builder_add_int_value(b, image_width);
+    json_builder_set_member_name(b, "height"); json_builder_add_int_value(b, image_height);
+    json_builder_end_object(b);
+    json_builder_end_object(b);
+  }
+
+  json_builder_set_member_name(b, "objects");
+  json_builder_begin_array(b);
+  for (NvDsMetaList *l = fm->obj_meta_list; l; l = l->next) {
+    NvDsObjectMeta *o = (NvDsObjectMeta *) l->data;
+    if (!o) continue;
+    json_builder_add_string_value(b, obj_to_mdx_string(o).c_str());
+  }
+  json_builder_end_array(b);
+  json_builder_end_object(b);
+  std::string out = jb_to_string(b);
+  g_object_unref(b);
+  return out;
+}
+
+/* ModelMux attaches one provenance record to every output lane. Its combined
+ * output gives Shadow a synthetic source_id, so sampling by fm->source_id would
+ * create one independent FPS clock per A/B arm. Use provenance to suppress the
+ * Shadow lane and recover the original source identity for the Primary lane. */
+static const InferenceProvenanceMeta *frame_provenance(NvDsFrameMeta *fm) {
+  for (NvDsUserMetaList *u = fm->frame_user_meta_list; u; u = u->next) {
+    NvDsUserMeta *um = (NvDsUserMeta *) u->data;
+    if (!um || um->base_meta.meta_type != NVDS_CUSTOM_MSG_INFERENCE_PROVENANCE ||
+        !um->user_meta_data) continue;
+    const InferenceProvenanceMeta *prov =
+        (const InferenceProvenanceMeta *) um->user_meta_data;
+    if (prov->magic == NVDS_INFER_PROV_MAGIC) return prov;
+  }
+  return nullptr;
+}
+
+static bool is_shadow_lane(const InferenceProvenanceMeta *prov) {
+  return prov && g_ascii_strcasecmp(prov->role, "Shadow") == 0;
+}
+
+static void encoded_surface_dimensions(const NvBufSurface *surf,
+    const NvDsFrameMeta *fm, guint &width, guint &height) {
+  width = height = 0;
+  if (surf && surf->surfaceList && fm->batch_id < surf->batchSize) {
+    const NvBufSurfaceParams &params = surf->surfaceList[fm->batch_id];
+    width = params.width;
+    height = params.height;
+  }
+  /* Surface dimensions are authoritative because this is the surface passed to
+   * nvds_obj_enc_process(). Keep metadata fallbacks for unusual empty surfaces. */
+  if (!width) width = fm->pipeline_width ? fm->pipeline_width : fm->source_frame_width;
+  if (!height) height = fm->pipeline_height ? fm->pipeline_height : fm->source_frame_height;
+}
+
+struct EncodedFrame {
+  NvDsFrameMeta *meta;
+  std::string sensor;
+  guint width;
+  guint height;
+};
+
 /* ------------------------------------------------------------------ */
 /* The probe on the nvtracker SRC pad.                                */
 /* ------------------------------------------------------------------ */
@@ -387,22 +526,32 @@ frame_dump_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
   NvDsBatchMeta *bm = gst_buffer_get_nvds_batch_meta(buf);
   if (!surf || !bm) { gst_buffer_unmap(buf, &inmap); return GST_PAD_PROBE_OK; }
 
-  uint32_t fps = g_ctrl.fps.load(); if (fps == 0) fps = 1;
-  const uint64_t interval_ns = 1000000000ULL / fps;
+  double fps = g_ctrl.fps.load(); if (fps <= 0.0) fps = 1.0;
+  const uint64_t interval_ns = (uint64_t) (1000000000.0 / fps);
   const std::string base_dir = g_ctrl.dir();
   const std::string day  = tstr("%Y-%m-%d");
   const bool hour_sub = g_ctrl.hour_subfolder.load();
   const std::string hour = hour_sub ? ("/" + tstr("%H")) : "";
   const bool uniq = g_ctrl.unique_names.load();
+  const bool img_mode = g_kafka.image_mode.load();
   bool encoded_any = false;
+  /* image mode: remember the frames we encoded so we can read back the in-memory
+   * JPEG (attached as NVDS_CROP_IMAGE_META) after nvds_obj_enc_finish(). */
+  std::vector<EncodedFrame> img_frames;
 
   for (NvDsMetaList *l = bm->frame_meta_list; l; l = l->next) {
     NvDsFrameMeta *fm = (NvDsFrameMeta *) l->data;
     if (!fm) continue;
 
+    const InferenceProvenanceMeta *prov = frame_provenance(fm);
+    if (is_shadow_lane(prov)) continue;
+
     const char *sid = fm->sensorInfo_meta.sensor_id;
-    std::string sensor = (sid && sid[0]) ? std::string(sid)
-                                         : ("source_" + std::to_string(fm->source_id));
+    std::string sensor;
+    if (prov && prov->camera_id[0]) sensor = prov->camera_id;
+    else if (prov && prov->camera_name[0]) sensor = prov->camera_name;
+    else if (sid && sid[0]) sensor = sid;
+    else sensor = "source_" + std::to_string(prov ? prov->source_id : fm->source_id);
     if (!g_ctrl.should_dump(sensor)) continue;
 
     uint64_t t = fm->buf_pts;
@@ -412,9 +561,24 @@ frame_dump_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
     }
     {
       std::lock_guard<std::mutex> lk(g_ctrl.gate_mtx);
-      uint64_t &last = g_ctrl.last_pts[fm->source_id];
+      const guint source_id = prov ? prov->source_id : fm->source_id;
+      uint64_t &last = g_ctrl.last_pts[source_id];
       if (last != 0 && t >= last && (t - last) < interval_ns) continue;
       last = t;
+    }
+
+    if (img_mode) {
+      /* No files: encode the full frame into memory (attached as user meta) and
+       * defer the base64 + Kafka publish until after nvds_obj_enc_finish(). */
+      NvDsObjEncUsrArgs args; memset(&args, 0, sizeof(args));
+      args.saveImg = false; args.attachUsrMeta = true;
+      args.isFrame = 1; args.quality = g_ctrl.quality.load();
+      nvds_obj_enc_process(g_enc, &args, surf, nullptr, fm);
+      encoded_any = true;
+      guint width, height;
+      encoded_surface_dimensions(surf, fm, width, height);
+      img_frames.push_back({fm, sensor, width, height});
+      continue;
     }
 
     std::string dir = base_dir + "/" + sensor + "/" + day + hour;
@@ -445,6 +609,33 @@ frame_dump_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
   }
 
   if (encoded_any) nvds_obj_enc_finish(g_enc);
+
+  /* image mode: nvds_obj_enc_finish() has now attached the encoded JPEG to each
+   * frame as NVDS_CROP_IMAGE_META. Base64 it, wrap it with the frame metadata,
+   * and hand it to the writer thread to publish on the image topic. */
+  if (img_mode && !img_frames.empty()) {
+    std::string img_topic;
+    { std::lock_guard<std::mutex> lk(g_kafka.mtx);
+      img_topic = g_kafka.image_topic.empty() ? g_kafka.topic : g_kafka.image_topic; }
+    for (auto &frame : img_frames) {
+      NvDsFrameMeta *fm = frame.meta;
+      NvDsObjEncOutParams *enc = nullptr;
+      for (NvDsUserMetaList *u = fm->frame_user_meta_list; u; u = u->next) {
+        NvDsUserMeta *um = (NvDsUserMeta *) u->data;
+        if (um && um->base_meta.meta_type == NVDS_CROP_IMAGE_META) {
+          enc = (NvDsObjEncOutParams *) um->user_meta_data;
+          break;
+        }
+      }
+      if (!enc || !enc->outBuffer || !enc->outLen) continue;
+      gchar *b64 = g_base64_encode((const guchar *) enc->outBuffer, (gsize) enc->outLen);
+      writer_enqueue(std::string(), std::string(),
+                     build_kafka_frame_json(fm, frame.sensor, b64,
+                                            frame.width, frame.height), img_topic);
+      g_free(b64);
+    }
+  }
+
   gst_buffer_unmap(buf, &inmap);
   return GST_PAD_PROBE_OK;
 }
@@ -482,6 +673,14 @@ static gint64 jo_int(JsonObject *o, const char *k) {
   JsonNode *n = json_object_get_member(o, k);
   return (n && json_node_get_value_type(n) == G_TYPE_INT64) ? json_node_get_int(n) : 0;
 }
+/* accepts either a JSON integer or float, e.g. fps values below 1 (0.1) */
+static double jo_double(JsonObject *o, const char *k) {
+  JsonNode *n = json_object_get_member(o, k); if (!n) return 0.0;
+  GType t = json_node_get_value_type(n);
+  if (t == G_TYPE_DOUBLE) return json_node_get_double(n);
+  if (t == G_TYPE_INT64)  return (double) json_node_get_int(n);
+  return 0.0;
+}
 static std::string jo_str(JsonObject *o, const char *k) {
   JsonNode *n = json_object_get_member(o, k);
   if (n && json_node_get_value_type(n) == G_TYPE_STRING) {
@@ -494,18 +693,20 @@ static std::string status_json() {
   JsonBuilder *b = json_builder_new();
   json_builder_begin_object(b);
   json_builder_set_member_name(b, "enabled");          json_builder_add_boolean_value(b, g_ctrl.enabled.load());
-  json_builder_set_member_name(b, "fps");              json_builder_add_int_value(b, g_ctrl.fps.load());
+  json_builder_set_member_name(b, "fps");              json_builder_add_double_value(b, g_ctrl.fps.load());
   json_builder_set_member_name(b, "quality");          json_builder_add_int_value(b, g_ctrl.quality.load());
   json_builder_set_member_name(b, "hour_subfolder");   json_builder_add_boolean_value(b, g_ctrl.hour_subfolder.load());
   json_builder_set_member_name(b, "unique_filenames"); json_builder_add_boolean_value(b, g_ctrl.unique_names.load());
   json_builder_set_member_name(b, "retention_days");   json_builder_add_int_value(b, g_ctrl.retention_days.load());
   json_builder_set_member_name(b, "all_cameras");      json_builder_add_boolean_value(b, g_ctrl.all_cameras.load());
   json_builder_set_member_name(b, "kafka_enable");     json_builder_add_boolean_value(b, g_kafka.enabled.load());
+  json_builder_set_member_name(b, "kafka_image");      json_builder_add_boolean_value(b, g_kafka.image_mode.load());
   json_builder_set_member_name(b, "kafka_connected");  json_builder_add_boolean_value(b, g_kafka.handle != nullptr);
   {
     std::lock_guard<std::mutex> lk(g_kafka.mtx);
     json_builder_set_member_name(b, "kafka_broker"); json_builder_add_string_value(b, g_kafka.broker.c_str());
     json_builder_set_member_name(b, "kafka_topic");  json_builder_add_string_value(b, g_kafka.topic.c_str());
+    json_builder_set_member_name(b, "kafka_image_topic"); json_builder_add_string_value(b, g_kafka.image_topic.c_str());
   }
   {
     std::lock_guard<std::mutex> lk(g_ctrl.cfg_mtx);
@@ -534,16 +735,21 @@ static std::string handle_request(const std::string &method, const std::string &
     JsonParser *p = json_parse_body(body, &j);
     if (!p) return http_resp("400 Bad Request", "{\"error\":\"invalid json\"}");
     if (jo_has(j, "enable"))           g_ctrl.enabled.store(jo_bool(j, "enable"));
-    if (jo_has(j, "fps"))              { gint64 v = jo_int(j, "fps"); g_ctrl.fps.store(v > 0 ? (uint32_t) v : 1); }
+    if (jo_has(j, "fps"))              { double v = jo_double(j, "fps"); g_ctrl.fps.store(v > 0.0 ? v : 1.0); }
     if (jo_has(j, "quality"))          g_ctrl.quality.store((int) jo_int(j, "quality"));
     if (jo_has(j, "hour_subfolder"))   g_ctrl.hour_subfolder.store(jo_bool(j, "hour_subfolder"));
     if (jo_has(j, "unique_filenames")) g_ctrl.unique_names.store(jo_bool(j, "unique_filenames"));
     if (jo_has(j, "retention_days"))   g_ctrl.retention_days.store((uint32_t) jo_int(j, "retention_days"));
     if (jo_has(j, "all_cameras"))      g_ctrl.all_cameras.store(jo_bool(j, "all_cameras"));
     if (jo_has(j, "kafka_enable"))     g_kafka.enabled.store(jo_bool(j, "kafka_enable"));
+    if (jo_has(j, "kafka_image"))      g_kafka.image_mode.store(jo_bool(j, "kafka_image"));
     if (jo_has(j, "kafka_topic")) {
       std::lock_guard<std::mutex> lk(g_kafka.mtx);
       g_kafka.topic = jo_str(j, "kafka_topic");
+    }
+    if (jo_has(j, "kafka_image_topic")) {
+      std::lock_guard<std::mutex> lk(g_kafka.mtx);
+      g_kafka.image_topic = jo_str(j, "kafka_image_topic");
     }
     if (jo_has(j, "sensors")) {
       JsonNode *sn = json_object_get_member(j, "sensors");
@@ -648,7 +854,7 @@ gboolean frame_dump_init(const FrameDumpConfig *cfg) {
   if (!g_enc) { GST_ERROR("frame_dump: nvds_obj_enc_create_context failed"); return FALSE; }
 
   g_ctrl.enabled.store(cfg->enabled == TRUE);
-  g_ctrl.fps.store(cfg->fps ? cfg->fps : 1);
+  g_ctrl.fps.store(cfg->fps > 0.0 ? cfg->fps : 1.0);
   g_ctrl.quality.store(cfg->quality ? cfg->quality : 80);
   g_ctrl.hour_subfolder.store(cfg->hour_subfolder == TRUE);
   g_ctrl.unique_names.store(cfg->unique_filenames == TRUE);
@@ -679,10 +885,12 @@ gboolean frame_dump_init(const FrameDumpConfig *cfg) {
   /* Kafka notifier: seed config and connect if a broker is set (connecting even
    * when disabled lets REST enable it later without a restart). */
   g_kafka.enabled.store(cfg->kafka_enable == TRUE);
+  g_kafka.image_mode.store(cfg->kafka_image == TRUE);
   {
     std::lock_guard<std::mutex> lk(g_kafka.mtx);
     g_kafka.broker      = (cfg->kafka_broker      && cfg->kafka_broker[0])      ? cfg->kafka_broker      : "";
     g_kafka.topic       = (cfg->kafka_topic       && cfg->kafka_topic[0])       ? cfg->kafka_topic       : "";
+    g_kafka.image_topic = (cfg->kafka_image_topic && cfg->kafka_image_topic[0]) ? cfg->kafka_image_topic : "";
     g_kafka.proto_lib   = (cfg->kafka_proto_lib   && cfg->kafka_proto_lib[0])   ? cfg->kafka_proto_lib   : "";
     g_kafka.config_file = (cfg->kafka_config_file && cfg->kafka_config_file[0]) ? cfg->kafka_config_file : "";
   }
@@ -703,7 +911,8 @@ static void fd_parse_keyfile(const char *file, FrameDumpConfig &cfg,
                             std::string &loc, std::string &port,
                             std::string &bind, std::string &sensors,
                             std::string &kbroker, std::string &ktopic,
-                            std::string &kproto, std::string &kcfg) {
+                            std::string &kproto, std::string &kcfg,
+                            std::string &kimgtopic) {
   GKeyFile *kf = g_key_file_new();
   const char *G = "frame-dump";
   if (g_key_file_load_from_file(kf, file, G_KEY_FILE_NONE, nullptr) &&
@@ -711,7 +920,7 @@ static void fd_parse_keyfile(const char *file, FrameDumpConfig &cfg,
     if (g_key_file_has_key(kf, G, "enable", nullptr))
       cfg.enabled = g_key_file_get_boolean(kf, G, "enable", nullptr);
     if (g_key_file_has_key(kf, G, "fps", nullptr))
-      cfg.fps = g_key_file_get_integer(kf, G, "fps", nullptr);
+      cfg.fps = g_key_file_get_double(kf, G, "fps", nullptr);
     if (g_key_file_has_key(kf, G, "quality", nullptr))
       cfg.quality = g_key_file_get_integer(kf, G, "quality", nullptr);
     if (g_key_file_has_key(kf, G, "gpu-id", nullptr))
@@ -726,6 +935,8 @@ static void fd_parse_keyfile(const char *file, FrameDumpConfig &cfg,
       cfg.all_cameras = g_key_file_get_boolean(kf, G, "all-cameras", nullptr);
     if (g_key_file_has_key(kf, G, "kafka-enable", nullptr))
       cfg.kafka_enable = g_key_file_get_boolean(kf, G, "kafka-enable", nullptr);
+    if (g_key_file_has_key(kf, G, "kafka-image", nullptr))
+      cfg.kafka_image = g_key_file_get_boolean(kf, G, "kafka-image", nullptr);
     gchar *s;
     if ((s = g_key_file_get_string(kf, G, "location", nullptr)))         { loc = s;     g_free(s); }
     if ((s = g_key_file_get_string(kf, G, "port", nullptr)))             { port = s;    g_free(s); }
@@ -733,6 +944,7 @@ static void fd_parse_keyfile(const char *file, FrameDumpConfig &cfg,
     if ((s = g_key_file_get_string(kf, G, "enable-sensors", nullptr)))   { sensors = s; g_free(s); }
     if ((s = g_key_file_get_string(kf, G, "kafka-broker", nullptr)))     { kbroker = s; g_free(s); }
     if ((s = g_key_file_get_string(kf, G, "kafka-topic", nullptr)))      { ktopic = s;  g_free(s); }
+    if ((s = g_key_file_get_string(kf, G, "kafka-image-topic", nullptr))){ kimgtopic = s; g_free(s); }
     if ((s = g_key_file_get_string(kf, G, "kafka-proto-lib", nullptr)))  { kproto = s;  g_free(s); }
     if ((s = g_key_file_get_string(kf, G, "kafka-config-file", nullptr))){ kcfg = s;    g_free(s); }
   }
@@ -761,7 +973,8 @@ static void fd_parse_yaml(const char *file, FrameDumpConfig &cfg,
                           std::string &loc, std::string &port,
                           std::string &bind, std::string &sensors,
                           std::string &kbroker, std::string &ktopic,
-                          std::string &kproto, std::string &kcfg) {
+                          std::string &kproto, std::string &kcfg,
+                          std::string &kimgtopic) {
   FILE *fp = fopen(file, "r");
   if (!fp) return;
   char *line = nullptr; size_t cap = 0; ssize_t len;
@@ -784,7 +997,7 @@ static void fd_parse_yaml(const char *file, FrameDumpConfig &cfg,
     std::string val = fd_yaml_strip(trimmed.substr(colon + 1));
     if (val.empty()) continue;
     if      (key == "enable")           cfg.enabled          = fd_yaml_bool(val) ? TRUE : FALSE;
-    else if (key == "fps")              cfg.fps              = atoi(val.c_str());
+    else if (key == "fps")              cfg.fps              = atof(val.c_str());
     else if (key == "quality")          cfg.quality          = atoi(val.c_str());
     else if (key == "gpu-id")           cfg.gpu_id           = atoi(val.c_str());
     else if (key == "hour-subfolder")   cfg.hour_subfolder   = fd_yaml_bool(val) ? TRUE : FALSE;
@@ -792,12 +1005,14 @@ static void fd_parse_yaml(const char *file, FrameDumpConfig &cfg,
     else if (key == "retention-days")   cfg.retention_days   = atoi(val.c_str());
     else if (key == "all-cameras")      cfg.all_cameras      = fd_yaml_bool(val) ? TRUE : FALSE;
     else if (key == "kafka-enable")     cfg.kafka_enable     = fd_yaml_bool(val) ? TRUE : FALSE;
+    else if (key == "kafka-image")      cfg.kafka_image      = fd_yaml_bool(val) ? TRUE : FALSE;
     else if (key == "location")         loc     = val;
     else if (key == "port")             port    = val;
     else if (key == "bind-address")     bind    = val;
     else if (key == "enable-sensors")   sensors = val;
     else if (key == "kafka-broker")     kbroker = val;
     else if (key == "kafka-topic")      ktopic  = val;
+    else if (key == "kafka-image-topic") kimgtopic = val;
     else if (key == "kafka-proto-lib")  kproto  = val;
     else if (key == "kafka-config-file") kcfg   = val;
   }
@@ -809,7 +1024,7 @@ gboolean frame_dump_init_from_file(const char *config_file, guint gpu_id) {
   FrameDumpConfig cfg; memset(&cfg, 0, sizeof(cfg));
   cfg.gpu_id = gpu_id;
   std::string loc, port, bind, sensors;   /* hold strings until init copies them */
-  std::string kbroker, ktopic, kproto, kcfg;
+  std::string kbroker, ktopic, kproto, kcfg, kimgtopic;
 
   if (config_file && config_file[0]) {
     std::string f(config_file);
@@ -818,18 +1033,19 @@ gboolean frame_dump_init_from_file(const char *config_file, guint gpu_id) {
       return f.size() >= n && f.compare(f.size() - n, n, e) == 0;
     };
     if (ends(".yml") || ends(".yaml"))
-      fd_parse_yaml(config_file, cfg, loc, port, bind, sensors, kbroker, ktopic, kproto, kcfg);
+      fd_parse_yaml(config_file, cfg, loc, port, bind, sensors, kbroker, ktopic, kproto, kcfg, kimgtopic);
     else
-      fd_parse_keyfile(config_file, cfg, loc, port, bind, sensors, kbroker, ktopic, kproto, kcfg);
+      fd_parse_keyfile(config_file, cfg, loc, port, bind, sensors, kbroker, ktopic, kproto, kcfg, kimgtopic);
   }
-  if (!loc.empty())     cfg.default_output_dir = loc.c_str();
-  if (!port.empty())    cfg.http_port          = port.c_str();
-  if (!bind.empty())    cfg.bind_address       = bind.c_str();
-  if (!sensors.empty()) cfg.enable_sensors     = sensors.c_str();
-  if (!kbroker.empty()) cfg.kafka_broker       = kbroker.c_str();
-  if (!ktopic.empty())  cfg.kafka_topic        = ktopic.c_str();
-  if (!kproto.empty())  cfg.kafka_proto_lib    = kproto.c_str();
-  if (!kcfg.empty())    cfg.kafka_config_file  = kcfg.c_str();
+  if (!loc.empty())       cfg.default_output_dir = loc.c_str();
+  if (!port.empty())      cfg.http_port          = port.c_str();
+  if (!bind.empty())      cfg.bind_address       = bind.c_str();
+  if (!sensors.empty())   cfg.enable_sensors     = sensors.c_str();
+  if (!kbroker.empty())   cfg.kafka_broker       = kbroker.c_str();
+  if (!ktopic.empty())    cfg.kafka_topic        = ktopic.c_str();
+  if (!kimgtopic.empty()) cfg.kafka_image_topic  = kimgtopic.c_str();
+  if (!kproto.empty())    cfg.kafka_proto_lib    = kproto.c_str();
+  if (!kcfg.empty())      cfg.kafka_config_file  = kcfg.c_str();
   return frame_dump_init(&cfg);            /* init copies all values */
 }
 

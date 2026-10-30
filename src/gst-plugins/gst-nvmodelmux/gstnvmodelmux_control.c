@@ -154,11 +154,16 @@ static inline void modelmux_control_err_capture_disarm (void)
  * exists at all), only the causes the contract actually names classify
  * themselves; everything else keeps the generic bucket and 400. Set alongside
  * the message, so the first specific reject wins there too. */
-typedef struct { gint http; const gchar *err_code; } ModelMuxRejectClass;
+/* `hint` is OPTIONAL (NULL = use the plane's generic retry hint). A reject whose
+ * remedy is specific should say what it is: the generic hint tells a client to
+ * re-check its refs, which is useless when the request was well-formed and the
+ * fix is to send a DIFFERENT request. */
+typedef struct { gint http; const gchar *err_code; const gchar *hint; } ModelMuxRejectClass;
 static GPrivate mm_ctrl_err_class = G_PRIVATE_INIT (g_free);
 
 static inline void
-modelmux_control_err_classify (gint http, const gchar * err_code)
+modelmux_control_err_classify_hint (gint http, const gchar * err_code,
+    const gchar * hint)
 {
   ModelMuxRejectClass *c;
   const gchar *msg = (const gchar *) g_private_get (&mm_ctrl_err_capture);
@@ -169,7 +174,14 @@ modelmux_control_err_classify (gint http, const gchar * err_code)
   c = g_new0 (ModelMuxRejectClass, 1);
   c->http = http;
   c->err_code = err_code;               /* static string literal; not owned */
+  c->hint = hint;                       /* ditto; NULL = generic */
   g_private_replace (&mm_ctrl_err_class, c);
+}
+
+static inline void
+modelmux_control_err_classify (gint http, const gchar * err_code)
+{
+  modelmux_control_err_classify_hint (http, err_code, NULL);
 }
 
 static inline const ModelMuxRejectClass *modelmux_control_err_class_get (void)
@@ -1238,11 +1250,54 @@ modelmux_control_handle_model_load (GstNvModelMux * self, const ModelMuxModelPay
   /* explicit engines never apply to nvinferserver -- Triton's model repository
    * owns the checkpoints. REJECT (never accept-and-ignore): an acknowledged
    * engine that isn't used would silently serve the wrong checkpoint. */
-  if (def && def->type == MODEL_INFERSERVER && (eng || pl->n_engines)) {
+  if (def && !modelmux_backend (def->type)->engine_file && (eng || pl->n_engines)) {
     MODELMUX_CONTROL_ERR (self, "model load '%s' rejected: engine_file/engine_files do not "
         "apply to nvinferserver (ENGINE_UNSUPPORTED_BACKEND) -- add the "
         "checkpoint to the Triton model repository and load by config", key);
     goto done;
+  }
+
+  /* THIS VERSION MUST HAVE AN ARTIFACT OF ITS OWN. Omitting engine_file is legal and
+   * means "build the engine from the config" -- but omit config_file as well and there
+   * is no "the config": the load falls back to the catalog BASE, which is the artifact
+   * every OTHER version of this name already runs. The version would then come up
+   * `ready`, routable, and reported at the requested version number while serving the
+   * baseline's weights -- an A/B that compares a model with itself, or a rollout that
+   * silently ships nothing.
+   *
+   * Three ways to satisfy it, any one is enough:
+   *   engine_file / engine_files  -> load that engine
+   *   config_file                 -> build from THAT config
+   *   [model-<name>-<version>]    -> the version declares its own artifact
+   * The last is why this check lives here and not in the REST parser: only the element
+   * can see the catalog.
+   *
+   * ONLY once a SIBLING version exists. The base config is a legitimate artifact source
+   * -- for exactly one version, the first to claim it. Loading the first version of a
+   * name with nothing but (name, version) is the normal catalog flow and stays legal;
+   * it is the SECOND version arriving empty-handed that would land on the same base.
+   *
+   * Scoped per (name, version), NOT per name -- the existing "config_file is required
+   * on the FIRST load of a name" rule is satisfied the moment the NAME is known, which
+   * is precisely why every later version slipped through.
+   *
+   * nvinferserver is EXEMPT: Triton's model repository owns the checkpoints (an engine
+   * here is rejected outright, just above), so a bare (name, version) is the correct
+   * and only form for that backend. */
+  if (def && modelmux_backend (def->type)->version_artifact
+      && !config && !eng && !pl->n_engines
+      && modelmux_config_has_other_version (&self->config, name, use_ver)) {
+    gchar *vcfg = modelmux_config_resolve_version_cfg (&self->config, name, use_ver, NULL);
+    if (!vcfg) {
+      MODELMUX_CONTROL_ERR (self, "model load '%s' rejected: no engine_file, no config_file, "
+          "and no [model-%s-%s] catalog entry -- this version has no artifact of its "
+          "own, so the base config would run the wrong model while status reports the "
+          "requested version (ARTIFACT_MISSING). Supply engine_file (load a prebuilt "
+          "engine), or config_file (build from it), or declare the version in the "
+          "catalog", key, name, use_ver);
+      goto done;
+    }
+    g_free (vcfg);
   }
 
   /* effective config for THIS version: a custom config wins over the catalog base; the
@@ -1254,7 +1309,7 @@ modelmux_control_handle_model_load (GstNvModelMux * self, const ModelMuxModelPay
    * is delegated to Triton's instance_group (edit the model repository's
    * config.pbtxt and reload in Triton -- the plugin never scales Triton). */
   if (multi && base_cfg &&
-      modelmux_detect_model_type (base_cfg) == MODEL_INFERSERVER) {
+      !modelmux_backend (modelmux_detect_model_type (base_cfg))->multi_gpu_scale) {
     MODELMUX_CONTROL_ERR (self, "model load '%s@%s' rejected: gpus[] with multiple GPUs "
         "is nvinfer-only -- scale an nvinferserver model via the Triton "
         "repository's instance_group (TRITON_INSTANCE_GROUP_MISMATCH)",
@@ -1264,7 +1319,7 @@ modelmux_control_handle_model_load (GstNvModelMux * self, const ModelMuxModelPay
 
   if (!multi) {
     if ((eng || gpu >= 0) && base_cfg) {
-      derived = modelmux_config_derive (base_cfg, eng, gpu, name, use_ver);
+      derived = modelmux_config_derive (base_cfg, eng, gpu, -1, name, use_ver);
       /* an EXPLICIT engine/gpu that failed to derive must REJECT the load --
        * falling back to the base config would run the wrong artifact/device
        * while status and routing report the requested one (DERIVE_FAILED). */
@@ -1284,7 +1339,7 @@ modelmux_control_handle_model_load (GstNvModelMux * self, const ModelMuxModelPay
     for (i = 0; i < pl->n_gpus; i++) {
       gchar *vtag = (i == 0) ? g_strdup (use_ver)
           : g_strdup_printf ("%s.g%d", use_ver, pl->gpus[i]);
-      derived_multi[i] = modelmux_config_derive (base_cfg, inst_engs[i], pl->gpus[i],
+      derived_multi[i] = modelmux_config_derive (base_cfg, inst_engs[i], pl->gpus[i], -1,
           name, vtag);
       g_free (vtag);
       if (!derived_multi[i]) {
@@ -2570,23 +2625,25 @@ modelmux_control_route_gpu_ok (GstNvModelMux * self, const gchar * role, const g
  * excl/n_excl/excl_all: source_ids covered by explicit SERVING-MODEL routes[]
  * in the SAME request, forwarded to the sweep (an explicit route that changes
  * the serving model always wins over the default sweep). */
+/* other_end_key: the key the OTHER role holds once the WHOLE request has been
+ * applied (NULL = that role ends with no default). The identical-default guard
+ * below compares against THAT, not against the live ref, so the roles can be
+ * exchanged or cleared within one request; the admission pass has already refused
+ * any end state where the two collide. */
 static void
 modelmux_control_route_set_default (GstNvModelMux * self, gboolean shadow,
     const gchar * name, const gchar * ver, gint gpu,
-    const guint * excl, guint n_excl, gboolean excl_all)
+    const guint * excl, guint n_excl, gboolean excl_all,
+    const gchar * other_end_key)
 {
   const gchar *role_str = shadow ? "shadow" : "model";
   gchar *key = model_key (name, ver);
   gchar *other_key = NULL, *old_key = NULL;
   ModelStatus st;
 
-  /* identical-default guard: the new default must not equal the OTHER role's
-   * current default (same name@version in both roles is a pointless A/B). */
-  {
-    const DefaultModelRef *oref =
-        modelmux_bin_get_default (self->modelmux_bin, !shadow);
-    other_key = (oref && oref->key) ? g_strdup (oref->key) : NULL;
-  }
+  /* identical-default guard: the new default must not equal what the OTHER role
+   * ends this request holding (same name@version in both roles is a pointless A/B). */
+  other_key = g_strdup (other_end_key);
   if (other_key && g_strcmp0 (other_key, key) == 0) {
     MODELMUX_CONTROL_ERR (self, "default %s '%s' rejected: it is already the default %s -- "
         "a model can't be BOTH default roles (pointless A/B)", role_str, key,
@@ -2642,6 +2699,87 @@ modelmux_control_route_set_default (GstNvModelMux * self, gboolean shadow,
         excl_all);
   g_free (old_key);
   g_free (key);
+}
+
+/* default{"shadow": null} -- DROP the runtime default shadow.
+ *
+ * The mirror image of a default SWITCH: a switch moves the default-following lanes
+ * from the old model to the new one, this removes them, because the new state has no
+ * model for them to move to. Same two-part shape (re-designate, then sweep) and the
+ * same exclusion rules, so the two cannot disagree about which lanes a default change
+ * owns:
+ *   - only lanes whose SHADOW resolved from the default (via_default) are swept; a
+ *     lane explicitly pinned to that same model stays, because a default change never
+ *     moves a pinned lane;
+ *   - a stream explicitly routed by routes[] in the SAME request is excluded, because
+ *     an explicit route always outranks the default sweep.
+ *
+ * Idempotent: clearing an absent default shadow succeeds and changes nothing, so a
+ * reconciler can send the desired end-state without first reading the current one. */
+static void
+modelmux_control_clear_default_shadow (GstNvModelMux * self, const guint * excl,
+    guint n_excl, gboolean excl_all)
+{
+  gchar *old_key = NULL;
+  guint *src, cap, n;
+
+  {
+    const DefaultModelRef *cref =
+        modelmux_bin_get_default (self->modelmux_bin, TRUE);
+    old_key = (cref && cref->key) ? g_strdup (cref->key) : NULL;
+  }
+  if (!old_key) {
+    MODELMUX_CONTROL_INFO (self,
+        "default shadow clear: no default shadow designated -- nothing to do");
+    return;
+  }
+
+  /* Designation first. A lane torn down below must not be able to re-resolve to the
+   * very default this request is removing; and modelmux_bin_streams_on_model selects
+   * on the LANE's via_default flag, not on the pool ref, so the sweep below is
+   * unaffected by having cleared it here. */
+  modelmux_bin_clear_default (self->modelmux_bin, TRUE);
+  modelmux_bin_bump_routing_revision (self->modelmux_bin);
+  MODELMUX_CONTROL_INFO (self, "default shadow -> none (was '%s') -- previous default "
+      "shadow demoted to normal (will unload when idle)", old_key);
+
+  if (excl_all) {
+    MODELMUX_CONTROL_INFO (self, "default shadow clear: sweep skipped, an explicit \"all\" "
+        "route in this request covers every stream");
+    g_free (old_key);
+    return;
+  }
+  cap = modelmux_bin_num_streams (self->modelmux_bin);
+  src = g_new (guint, cap ? cap : 1);
+  n = modelmux_bin_streams_on_model (self->modelmux_bin, TRUE, old_key, src,
+      cap ? cap : 1, TRUE /* default-following lanes only */);
+  if (n && n_excl) {
+    guint w = 0, i, k;
+    for (i = 0; i < n; i++) {
+      gboolean skip = FALSE;
+      for (k = 0; k < n_excl && !skip; k++)
+        skip = (src[i] == excl[k]);
+      if (!skip)
+        src[w++] = src[i];
+    }
+    if (w < n)
+      MODELMUX_CONTROL_INFO (self, "default shadow clear: %u stream(s) skipped by the sweep "
+          "-- explicitly routed in this request (explicit routes win)", n - w);
+    n = w;
+  }
+  if (n) {
+    /* clear_shadow=TRUE: tear the A/B lane down. No target to warm, so unlike a
+     * switch this can never defer -- it applies immediately, zero-drop (only the
+     * shadow lane is unplugged; the primary lane is never touched). */
+    modelmux_control_apply_scoped_reroute (self, src, n, NULL, NULL,
+        TRUE /* clear_shadow */, MM_GPU_ANY, MM_GPU_ANY, FALSE, FALSE, NULL);
+    MODELMUX_CONTROL_INFO (self, "default shadow clear: dropped the A/B lane on %u stream(s) "
+        "that followed '%s'", n, old_key);
+  } else {
+    MODELMUX_CONTROL_INFO (self, "default shadow clear: no live streams followed '%s'", old_key);
+  }
+  g_free (src);
+  g_free (old_key);
 }
 
 /* Current routing revision (under ib->lock; written by the bump helper). */
@@ -3104,13 +3242,9 @@ modelmux_control_handle_model_routing (GstNvModelMux * self, const gchar * json,
           !modelmux_control_route_gpu_ok (self, "default model", dm_name, dm_ver, dm_gpu, 0))
         goto reject;
     }
-    if (has_def_shadow && ds_null) {
-      /* clearing the DEFAULT shadow needs a dedicated bin primitive
-       * (TODO API_DESIGN.md). HARD failure until then -- never a silent keep. */
-      MODELMUX_CONTROL_ERR (self, "model/routing rejected: default \"shadow\": null (clear "
-          "the default shadow) is not available yet (NOT_IMPLEMENTED)");
-      goto reject;
-    }
+    /* default "shadow": null CLEARS the default shadow -- see
+     * modelmux_control_clear_default_shadow. Nothing to validate: there is no target
+     * model to resolve, and clearing an absent default shadow is a legal no-op. */
     if (has_def_shadow && !ds_null && (ds_name || ds_ver)) {
       if (!modelmux_control_ref_valid (self, 0, "default shadow", ds_name, ds_ver) ||
           !modelmux_control_route_gpu_ok (self, "default shadow", ds_name, ds_ver, ds_gpu, 0))
@@ -3140,6 +3274,50 @@ modelmux_control_handle_model_routing (GstNvModelMux * self, const gchar * json,
       }
       g_free (dk);
       if (!ok)
+        goto reject;
+    }
+    /* BOTH-ROLES conflict, decided on the END STATE this request produces -- not on
+     * the state it starts from. A model may not hold both default roles at once, but
+     * whether it ends up doing so depends on the WHOLE request: naming the current
+     * default shadow as the default primary conflicts, unless the same request also
+     * clears or re-points the shadow. Judging each role against the live ref instead
+     * would refuse the two requests that resolve the conflict -- the promote
+     * (model=<the shadow>, shadow=null) and the swap (the roles exchanged).
+     *
+     * This runs in the ADMISSION pass on purpose: the apply pass enforces the same
+     * rule, but by then 202 has already been sent, so a refusal there is invisible to
+     * the caller. Decided here, it comes back as a 409 the client can act on. */
+    {
+      const DefaultModelRef *cp = modelmux_bin_get_default (self->modelmux_bin, FALSE);
+      const DefaultModelRef *cs = modelmux_bin_get_default (self->modelmux_bin, TRUE);
+      gchar *end_p = (dm_name && dm_ver) ? model_key (dm_name, dm_ver)
+          : g_strdup ((cp && cp->key) ? cp->key : NULL);
+      gchar *end_s = (has_def_shadow && ds_null) ? NULL
+          : (ds_name && ds_ver) ? model_key (ds_name, ds_ver)
+          : g_strdup ((cs && cs->key) ? cs->key : NULL);
+      gboolean clash = (end_p && end_s && g_strcmp0 (end_p, end_s) == 0);
+      if (clash) {
+        /* The remedy depends on which role the model already holds, so name the
+         * request that fixes it rather than restating the rule. `other` is the
+         * model the OTHER role holds today -- the one a swap would move. */
+        const gchar *other = (dm_name && dm_ver)
+            ? ((cp && cp->key) ? cp->key : NULL)      /* asked for primary -> old primary */
+            : ((cs && cs->key) ? cs->key : NULL);     /* asked for shadow  -> old shadow  */
+        modelmux_control_err_classify_hint (409, "MODEL_IN_USE",
+            "send ONE request that says what happens to BOTH roles: "
+            "\"shadow\": null to promote (ends the A/B), or name both "
+            "\"model\" and \"shadow\" to swap them");
+        MODELMUX_CONTROL_ERR (self, "model/routing rejected: '%s' is already the default %s -- "
+            "one model cannot be the default model AND the default shadow at the same time. "
+            "Either PROMOTE it: default{\"model\":\"%s\", \"shadow\":null} (it takes over and "
+            "the A/B ends), or SWAP the roles: default{\"model\":\"%s\", \"shadow\":\"%s\"} "
+            "(the A/B continues with the roles exchanged) (MODEL_IN_USE)",
+            end_p, (dm_name && dm_ver) ? "shadow" : "model",
+            end_p, end_p, other ? other : "<the other model>");
+      }
+      g_free (end_p);
+      g_free (end_s);
+      if (clash)
         goto reject;
     }
   }
@@ -3187,12 +3365,71 @@ modelmux_control_handle_model_routing (GstNvModelMux * self, const gchar * json,
         }
       }
     }
-    if (dm_name && dm_ver)
-      modelmux_control_route_set_default (self, FALSE, dm_name, dm_ver, dm_gpu, excl, n_excl,
-          excl_all);
-    if (has_def_shadow && ds_name && ds_ver)
-      modelmux_control_route_set_default (self, TRUE, ds_name, ds_ver, ds_gpu, excl, n_excl,
-          excl_all);
+    /* CLEAR BEFORE SET, and it matters. A model may not hold both default roles at
+     * once, so promoting the current default shadow to default primary -- the last
+     * step of every A/B -- is only legal once the shadow designation is gone. Setting
+     * the primary first would be refused against the pre-clear state, leaving the
+     * shadow dropped and the primary unchanged: a half-applied request. Clearing
+     * first makes default{"model": <the shadow>, "shadow": null} do exactly what it
+     * reads like. */
+    /* the END STATE each role holds after this request -- what the identical-default
+     * guard in route_set_default must judge against (admission validated this exact
+     * pair). A role the request does not name keeps whatever it has now. */
+    gchar *end_p = NULL, *end_s = NULL, *cur_p = NULL, *cur_s = NULL;
+    {
+      const DefaultModelRef *cp = modelmux_bin_get_default (self->modelmux_bin, FALSE);
+      const DefaultModelRef *cs = modelmux_bin_get_default (self->modelmux_bin, TRUE);
+      cur_p = g_strdup ((cp && cp->key) ? cp->key : NULL);
+      cur_s = g_strdup ((cs && cs->key) ? cs->key : NULL);
+      end_p = (dm_name && dm_ver) ? model_key (dm_name, dm_ver) : g_strdup (cur_p);
+      end_s = (has_def_shadow && ds_null) ? NULL
+          : (ds_name && ds_ver) ? model_key (ds_name, ds_ver)
+          : g_strdup (cur_s);
+    }
+
+    /* IN-PLACE fast path for a default SWAP / PROMOTE -- the same one routes[] already
+     * takes (modelmux_control_exec_route). Both models are ALREADY warm and inferring,
+     * one in each role pool, so the operation is a RELABEL: retag the bins' role, move
+     * their pool-map entries, swap the per-stream lane records. The pads are never
+     * touched (the tee already feeds both bins; only the label on each branch changes),
+     * so it costs nothing, keeps the gie-ids, and drops no frames.
+     *
+     * Without this the request falls into modelmux_bin_prepare_model, which searches
+     * only the TARGET role's pool: the warm bin sitting in the OTHER pool is invisible
+     * to it, so it builds a SECOND bin from the catalog base config -- re-running the
+     * engine build and losing the per-version artifact the model was loaded with.
+     *
+     * Conditions: no routes[] in the same request (their scope would fight the
+     * fleet-wide relabel), no gpu pin (relabeling keeps every stream on its current
+     * shard; an explicit gpu may require a MIGRATE, which is the generic path's job),
+     * and the request must be an exact role exchange of the two CURRENT defaults --
+     * try_inplace re-validates all of that under the bin lock and returns FALSE to fall
+     * through if anything does not fit. It also re-assigns the default refs itself
+     * ("the default status follows the ROLE/SLOT"), so the set/clear calls below are
+     * skipped on success. */
+    if (nr == 0 && dm_name && dm_ver && dm_gpu == MM_GPU_ANY && ds_gpu == MM_GPU_ANY &&
+        cur_s && end_p && g_strcmp0 (end_p, cur_s) == 0 &&
+        (end_s == NULL || (cur_p && g_strcmp0 (end_s, cur_p) == 0)) &&
+        modelmux_bin_try_inplace (self->modelmux_bin, NULL, 0, end_p,
+            end_s ? end_s : "none")) {
+      MODELMUX_CONTROL_INFO (self, "default %s handled IN-PLACE: '%s' <-> '%s' (bins reused, "
+          "gie preserved, no engine reload, zero drop)", end_s ? "SWAP" : "PROMOTE",
+          cur_p ? cur_p : "-", cur_s);
+      modelmux_bin_bump_routing_revision (self->modelmux_bin);
+    } else {
+      if (has_def_shadow && ds_null)
+        modelmux_control_clear_default_shadow (self, excl, n_excl, excl_all);
+      if (dm_name && dm_ver)
+        modelmux_control_route_set_default (self, FALSE, dm_name, dm_ver, dm_gpu, excl, n_excl,
+            excl_all, end_s);
+      if (has_def_shadow && ds_name && ds_ver)
+        modelmux_control_route_set_default (self, TRUE, ds_name, ds_ver, ds_gpu, excl, n_excl,
+            excl_all, end_p);
+    }
+    g_free (end_p);
+    g_free (end_s);
+    g_free (cur_p);
+    g_free (cur_s);
     g_free (excl);
   }
   /* app-facing completion notice: the reroute has actually been applied now. The
@@ -3439,7 +3676,7 @@ modelmux_control_handle_model_inplace_update (GstNvModelMux * self, const ModelM
         "(MODEL_NOT_LOADED)", pl->name);
     return;
   }
-  if (def->type == MODEL_INFERSERVER) {
+  if (!modelmux_backend (def->type)->inplace_reload) {
     MODELMUX_CONTROL_ERR (self, "model/update '%s' rejected: nvinferserver checkpoints live "
         "in the Triton model repository (MODEL_UPDATE_UNSUPPORTED_BACKEND) -- "
         "add the new version there, then model/load + model/routing to it",
@@ -3608,6 +3845,29 @@ done:
  * source is ALREADY attached (the attach raced ahead on the defaults), it
  * reconciles by rerouting that one stream to the bound model(s) -- zero-drop,
  * reusing the scoped-reroute primitive. */
+/* Give an already-attached stream the identity its late-arriving bind carried.
+ *
+ * The derivation is copied DELIBERATELY from the attach path (modelmux_bin_attach_stream:
+ * display name = sensor_name, falling back to the camera id; routable id = sensor_id), so
+ * a stream ends up with the same identity no matter which side of the bind/attach race it
+ * landed on. Two spellings of the same rule would be worse than the bug -- the whole point
+ * is that the two orderings converge. */
+static void
+modelmux_control_apply_late_identity (GstNvModelMux * self, const NvDsSensorInfo * sensor_info)
+{
+  const gchar *camera_id, *display_name;
+
+  if (!self || !self->modelmux_bin || !sensor_info)
+    return;
+  camera_id = sensor_info->sensor_id;
+  display_name = sensor_info->sensor_name ? sensor_info->sensor_name : camera_id;
+  if (!display_name && !camera_id)
+    return;                     /* a bind naming neither has nothing to apply */
+
+  modelmux_bin_set_stream_identity (self->modelmux_bin, sensor_info->source_id,
+      display_name, camera_id);
+}
+
 static void
 modelmux_control_handle_stream_model_bind (GstNvModelMux * self, const NvDsSensorInfo * sensor_info)
 {
@@ -3662,6 +3922,22 @@ modelmux_control_handle_stream_model_bind (GstNvModelMux * self, const NvDsSenso
   MODELMUX_CONTROL_INFO (self, "STREAM BIND source=%u camera='%s' (%s)", sensor_info->source_id,
       sensor_info->sensor_id ? sensor_info->sensor_id : "?",
       attached ? "already attached -> reconcile" : "cached for attach");
+
+  /** IDENTITY FIRST, and for the attached case it must happen HERE. The attach reads
+   * the cached binding, so a bind that arrived first is already reflected in the
+   * stream's id/name. A bind that arrived LATE is not: that stream was wired with the
+   * placeholder identity ("src", and no routable camera_id) and would keep it forever,
+   * because nothing else ever revisits those maps. That is not cosmetic -- a stream
+   * without a camera_id is skipped by GET /model/routing and cannot be named in any
+   * per-stream request, leaving fleet-wide "all" as the only way to reach it.
+   *
+   * Which side of that race a stream lands on is not deterministic (the bind is emitted
+   * from nvmultiurisrcbin's PAUSED->PLAYING transition, the attach from the source pad
+   * appearing -- milliseconds apart, either order), so the two paths must converge on
+   * the same result. Applied before the early return below, since the identity is worth
+   * repairing whether or not the model also has to move. */
+  if (attached)
+    modelmux_control_apply_late_identity (self, sensor_info);
 
   /** NOT attached yet (common case: BIND arrived before the ADD). Nothing more to do --
    * the binding is already cached, and the upcoming attach will read it and bring the
@@ -4213,13 +4489,38 @@ modelmux_control_admit_model_load (GstNvModelMux * self, const ModelMuxModelPayl
     return;
   }
   def = modelmux_config_find_model (&self->config, name);
-  if (def && def->type == MODEL_INFERSERVER && (pl->engine_file || pl->n_engines)) {
+  if (def && !modelmux_backend (def->type)->engine_file
+      && (pl->engine_file || pl->n_engines)) {
     ADMIT_REJECT (self, res, 400, "ENGINE_UNSUPPORTED_BACKEND",
         "add the checkpoint to the Triton model repository and load by config",
         "model/load rejected: engine_file/engine_files do not apply to nvinferserver "
         "model '%s'", key);
     g_free (key);
     return;
+  }
+  /* THE VERSION MUST BRING AN ARTIFACT. Rejected HERE, in the admission pass, so the
+   * caller gets a real 4xx at the call site instead of a 202 followed by a version that
+   * quietly serves the baseline's weights. (The apply path re-checks; this is the one
+   * the client sees.) nvinferserver is exempt -- Triton's repository owns its
+   * checkpoints, so a bare (name, version) is the correct form there. */
+  if (def && modelmux_backend (def->type)->version_artifact
+      && !pl->config_file && !pl->engine_file && !pl->n_engines
+      && modelmux_config_has_other_version (&self->config, name, ver)) {
+    gchar *vcfg = modelmux_config_resolve_version_cfg (&self->config, name, ver, NULL);
+    if (!vcfg) {
+      ADMIT_REJECT (self, res, 400, "ARTIFACT_MISSING",
+          "send engine_file (a prebuilt engine) or config_file (an engine is built from "
+          "it), or declare [model-<name>-<version>] in the plugin config",
+          "model/load rejected: version %s of '%s' brings no model files of its own -- "
+          "the request has no engine_file and no config_file, and the plugin config has "
+          "no [model-%s-%s] section. Another version of '%s' is already loaded, so this "
+          "one would resolve to the SAME shared base config -- two version numbers, one "
+          "model -- while status reported it as version %s",
+          ver, name, name, ver, name, ver);
+      g_free (key);
+      return;
+    }
+    g_free (vcfg);
   }
   ok = g_strdup_printf ("'%s' accepted; warming -> 'model loaded [%s]' when ready", key, key);
   modelmux_control_result_set (res, 202, NULL, ok, "or GET /api/v1/model/status");
@@ -4253,7 +4554,7 @@ modelmux_control_admit_model_update (GstNvModelMux * self, const ModelMuxModelPa
         "model/update rejected: '%s' is not in the catalog", name);
     return;
   }
-  if (def->type == MODEL_INFERSERVER) {
+  if (!modelmux_backend (def->type)->inplace_reload) {
     ADMIT_REJECT (self, res, 400, "MODEL_UPDATE_UNSUPPORTED_BACKEND",
         "put the new checkpoint in the Triton repository, then model/load + model/routing",
         "model/update rejected: '%s' is nvinferserver; in-place update is not supported",
@@ -4315,28 +4616,346 @@ modelmux_control_admit_model_update (GstNvModelMux * self, const ModelMuxModelPa
 /*     real warm/swap on the main loop (creation must not run on this      */
 /*     thread). The verdict is still returned synchronously.               */
 /* Non-REST hosts still use the async in-band event (fire-and-forget).     */
+/* Does this stage own a model-plane request?
+ *
+ * The control query travels DOWNSTREAM and each stage gets a look. A stage that
+ * does not own the name must pass it on (PROBE_OK) or the stages behind it are
+ * unreachable -- with one modelmux the first one answering was always right, with
+ * two it silently swallows the other's requests.
+ *
+ * Ownership, in order:
+ *   declared  -- the name is in this stage's [model-name-*] catalog. Authoritative
+ *                even before the model exists, which is what makes model/load
+ *                addressable without a stage id in the payload.
+ *   hosted    -- the model is loaded here right now (either role).
+ *   fallback  -- a load of a name NO stage declares, carrying its own config_file,
+ *                is claimed by the FIRST stage. That is where such a load lands
+ *                today, so nothing that works now stops working.
+ */
+static gboolean
+modelmux_control_stage_owns (GstNvModelMux * self,
+    const ModelMuxModelPayload * pl, gboolean is_load)
+{
+  if (!self || !pl || !pl->name || !*pl->name)
+    return TRUE;                   /* malformed: answer here, do not pass it on */
+
+  if (modelmux_config_find_model (&self->config, pl->name))
+    return TRUE;                                        /* declared */
+
+  if (self->modelmux_bin
+      && (modelmux_bin_model_status (self->modelmux_bin, FALSE, pl->name) >= 0
+          || modelmux_bin_model_status (self->modelmux_bin, TRUE, pl->name) >= 0))
+    return TRUE;                                        /* hosted */
+
+  /* A secondary hosts exactly the model its config declares, so it must NOT claim
+   * an undeclared name -- that load belongs to the primary, which sees the request
+   * first anyway. */
+  if (is_load && pl->config_file && *pl->config_file
+      && self->config.process_mode != MM_PROCESS_MODE_SGIE
+      && modelmux_config_file_process_mode (pl->config_file) != MM_PROCESS_MODE_SGIE)
+    return TRUE;                                        /* self-describing load */
+  /* ...but a self-describing load whose config declares process-mode=2 is NOT ours.
+   * Position is not a detail the primary may override: nvinfer would run that
+   * classifier FULL-FRAME as the detector -- which is exactly what the "the model
+   * config wins; fix it or the model runs at the wrong position" warning in
+   * modelmux_infer_configure is about, and worse, a later all-streams route would then
+   * hitless-swap the real detector out for it. Pass it on to the stage whose position
+   * the config actually declares; if none exists, the caller still gets a 404. */
+
+  return FALSE;
+}
+
+/* model/routing at a SECONDARY. The stage has no per-stream plane and no shadow lane,
+ * so exactly ONE shape carries meaning: "every stream at this stage now uses this
+ * resident model". That single form is both directions of the change -- point it at v2
+ * and v2 serves, point it back at v1 and the change is undone -- which is why the
+ * approach doc says promote and swap do not exist here as separate verbs: at a primary
+ * they differ only in the shadow field, and there is no shadow field to differ in.
+ *
+ * Everything else is refused with the reason it was refused for, never a blanket 409:
+ * a per-stream list and a shadow ref are different mistakes with different fixes.
+ * Caller holds @api_control_lock and has checked the stage exists. */
+/* Forward a control query to the next stage and ADOPT its verdict as our own.
+ *
+ * Why a copy + explicit forward rather than just returning GST_PAD_PROBE_OK and letting
+ * the query travel: nvmultiurisrcbin decides "did anyone answer?" from the query's
+ * RETURN VALUE, not from the response written into it --
+ *
+ *   bool answered = src_pad && gst_pad_peer_query (src_pad, query) && ...parse_response
+ *
+ * so a query that nothing downstream handles comes back FALSE and the caller gets the
+ * generic "no model element answered" (MODEL_OPERATION_FAILED), discarding whatever
+ * verdict we had written. Passing the buck only works when a downstream stage actually
+ * returns HANDLED. Asking here lets THIS stage keep answering -- with the specific
+ * reason -- whenever nothing downstream claims the model.
+ *
+ * Strings are copied into @q by gst_nvquery_control_set_response (GstStructure copies
+ * G_TYPE_STRING), so they outlive the forwarded query. */
+typedef struct
+{
+  GstQuery *q;                  /**< the ORIGINAL query; the verdict lands here */
+  gboolean  answered;
+} ModelMuxAskCtx;
+
+/* Visitor: offer the request to one peer stage and adopt a real verdict.
+ *
+ * FIRST claimer wins and the walk stops. That is safe because a template name is
+ * unique across every stage (validated at READY->PAUSED), so at most one stage can
+ * own a model -- and asking the rest could only produce answers about a model they
+ * do not have. */
+static gboolean
+modelmux_control_ask_visit (GstNvModelMux * self, GstNvModelMux * peer, gpointer udata)
+{
+  ModelMuxAskCtx *ctx = (ModelMuxAskCtx *) udata;
+  GstQuery *ans = NULL;
+  gint http = 0;
+  const gchar *code = NULL, *why = NULL, *tip = NULL;
+  (void) self;
+
+  if (!modelmux_stage_ask_peer (peer, ctx->q, &ans))
+    return TRUE;                        /* peer did not answer -- keep walking */
+
+  if (gst_nvquery_control_parse_response (ans, &http, &code, &why, &tip) && http) {
+    gst_nvquery_control_set_response (ctx->q, http, code, why, tip);
+    ctx->answered = TRUE;
+  }
+  gst_query_unref (ans);
+  return !ctx->answered;                /* stop once a stage has claimed it */
+}
+
+/* Offer @q to every OTHER stage in the pipeline and adopt the verdict of whichever
+ * one claims the model. Returns TRUE when a peer answered.
+ *
+ * Why the pipeline and not the src pad: a forwarded query only reaches stages wired
+ * in SERIES, and deepstream-app wires sibling secondaries in PARALLEL behind one tee
+ * (each branch ending in a fakesink), so pad-following reaches exactly the first of
+ * them. Walking the pipeline addresses every stage regardless of topology, which is
+ * what "the stage that declares the template owns the request" requires in order to
+ * be true rather than merely intended.
+ *
+ * Strings are copied into @q by gst_nvquery_control_set_response (GstStructure copies
+ * G_TYPE_STRING), so they outlive the peer's query. */
+static gboolean
+modelmux_control_ask_downstream (GstNvModelMux * self, GstQuery * q)
+{
+  ModelMuxAskCtx ctx = { q, FALSE };
+
+  /* a DELEGATED request is already someone's fan-out: answer for this stage alone,
+   * or two stages would each walk the other. */
+  if (modelmux_stage_query_is_delegated (q))
+    return FALSE;
+
+  modelmux_foreach_peer_stage (self, modelmux_control_ask_visit, &ctx);
+  return ctx.answered;
+}
+
+/* Does THIS stage host the model a model/routing payload names? Routing is answered by
+ * the stage that hosts the model, exactly as the model plane is -- without this the
+ * primary, which sees every query first, rejects a reroute aimed at the secondary with
+ * its own 404 and returns HANDLED, so the query never reaches the stage that could have
+ * honoured it.
+ *
+ * Conservative on purpose: anything this function cannot read as "a route naming one
+ * model I have never heard of" stays with the primary, which owns every other shape of
+ * this endpoint (default{}, multi-route, per-stream lists) and produces the real error. */
+static gboolean
+modelmux_control_route_stage_owns (GstNvModelMux * self, const gchar * json)
+{
+  JsonParser *parser;
+  JsonObject *v, *r;
+  JsonNode *rn;
+  JsonArray *routes;
+  gboolean owns = TRUE, is_null = FALSE, bad = FALSE;
+  gchar *name = NULL, *version = NULL;
+
+  if (!json || !*json)
+    return TRUE;
+  parser = json_parser_new ();
+  if (!json_parser_load_from_data (parser, json, -1, NULL)
+      || !json_parser_get_root (parser)
+      || !JSON_NODE_HOLDS_OBJECT (json_parser_get_root (parser)))
+    goto done;                                   /* malformed -> primary reports it */
+  v = json_node_get_object (json_parser_get_root (parser));
+
+  if (json_object_has_member (v, "default"))
+    goto done;                                   /* role defaults are a primary concept */
+  rn = json_object_has_member (v, "routes") ? json_object_get_member (v, "routes") : NULL;
+  if (!rn || !JSON_NODE_HOLDS_ARRAY (rn))
+    goto done;
+  routes = json_node_get_array (rn);
+  if (json_array_get_length (routes) != 1)
+    goto done;                                   /* only a secondary's single-route shape */
+  rn = json_array_get_element (routes, 0);
+  if (!rn || !JSON_NODE_HOLDS_OBJECT (rn))
+    goto done;
+  r = json_node_get_object (rn);
+
+  if (!modelmux_control_json_ref (r, "model", &is_null, &name, &version, NULL, &bad)
+      || is_null || bad || !name)
+    goto done;
+
+  /* The same two questions stage_owns asks on the model plane: declared, or hosted. */
+  if (modelmux_config_find_model (&self->config, name))
+    goto done;
+  if (self->modelmux_bin
+      && (modelmux_bin_model_status (self->modelmux_bin, FALSE, name) >= 0
+          || modelmux_bin_model_status (self->modelmux_bin, TRUE, name) >= 0))
+    goto done;
+  owns = FALSE;
+
+done:
+  g_free (name);
+  g_free (version);
+  g_object_unref (parser);
+  return owns;
+}
+
+/* Reject like the PRIMARY plane does: log the reason through MODELMUX_CONTROL_ERR --
+ * same "<op> rejected: <why> (<CODE>) -- <hint>" wording the pool handlers use -- and
+ * answer with the same {http, code, reason, hint} the rest of the API returns. A REST
+ * 4xx and the app log now say the same sentence. */
+#define SGIE_ROUTE_REJECT(h, code, why, tip)                                     \
+  G_STMT_START {                                                                 \
+    MODELMUX_CONTROL_ERR (self, "model/routing rejected: %s (%s)%s%s", (why),    \
+        (code), (tip) ? " -- " : "", (tip) ? (tip) : "");                        \
+    gst_nvquery_control_set_response (q, (h), (code), (why), (tip));             \
+    goto out;                                                                    \
+  } G_STMT_END
+
+static void
+modelmux_control_sgie_route (GstNvModelMux * self, const gchar * json, GstQuery * q)
+{
+  JsonParser *parser;
+  JsonObject *v, *r;
+  JsonNode *rn, *st;
+  JsonArray *routes;
+  gchar *name = NULL, *version = NULL, *sh_name = NULL, *sh_ver = NULL;
+  gboolean sh_null = FALSE, sh_bad = FALSE;
+  gint http = 202;
+  const gchar *code = NULL, *why = NULL, *tip = NULL;
+
+  parser = modelmux_control_ctrl_json_load (self, json, "model/routing");
+  if (!parser) {
+    gst_nvquery_control_set_response (q, 400, "FIELD_TYPE_INVALID",
+        "malformed model/routing payload", "see the request schema for this endpoint");
+    return;
+  }
+  v = json_node_get_object (json_parser_get_root (parser));
+
+  /* default{} moves a ROLE's runtime default. The roles are primary and shadow -- the
+   * A/B lane pair, which a secondary does not have. */
+  if (json_object_has_member (v, "default")) {
+    SGIE_ROUTE_REJECT (400, "ROUTING_DEFAULT_UNSUPPORTED",
+        "'default' moves a primary/shadow role default, and a secondary stage has "
+        "neither role", "send routes[] with streams:\"all\" to change what this stage "
+        "serves");
+  }
+
+  rn = json_object_has_member (v, "routes") ? json_object_get_member (v, "routes") : NULL;
+  if (!rn || !JSON_NODE_HOLDS_ARRAY (rn)) {
+    SGIE_ROUTE_REJECT (400, "FIELD_TYPE_INVALID",
+        "'routes' is required and must be an array",
+        "routes: [{ \"streams\": \"all\", \"model\": {\"name\", \"version\"} }]");
+  }
+  routes = json_node_get_array (rn);
+  if (json_array_get_length (routes) != 1) {
+    /* Two entries could only differ by scope, and there is exactly one scope here. */
+    SGIE_ROUTE_REJECT (400, "ROUTING_SCOPE_INVALID",
+        "a secondary stage serves one model over every stream, so exactly one route "
+        "entry is meaningful", "send a single route with streams:\"all\"");
+  }
+  rn = json_array_get_element (routes, 0);
+  if (!rn || !JSON_NODE_HOLDS_OBJECT (rn)) {
+    SGIE_ROUTE_REJECT (400, "FIELD_TYPE_INVALID",
+        "routes[0] must be an object", NULL);
+  }
+  r = json_node_get_object (rn);
+
+  /* --- scope: the literal "all", and nothing else ------------------------------- */
+  if (!json_object_has_member (r, "streams")) {
+    SGIE_ROUTE_REJECT (400, "FIELD_MISSING",
+        "'streams' is required on every route", "use streams:\"all\" at a secondary");
+  }
+  st = json_object_get_member (r, "streams");
+  if (st && JSON_NODE_HOLDS_ARRAY (st)) {
+    /* The commonest wrong request, and the one worth explaining: a secondary sees the
+     * batch AFTER the primary has muxed it back together, so it has no per-stream
+     * binding to write. It classifies whatever objects reach it, for every stream. */
+    SGIE_ROUTE_REJECT (400, "ROUTING_PER_STREAM_UNSUPPORTED",
+        "a secondary stage has no per-stream routing: it applies one model to every "
+        "stream that reaches it, so an explicit camera_id list cannot be honoured",
+        "use streams:\"all\", or bind per-stream models at the PRIMARY stage instead");
+  }
+  if (!st || !JSON_NODE_HOLDS_VALUE (st)
+      || json_node_get_value_type (st) != G_TYPE_STRING
+      || g_strcmp0 (json_node_get_string (st), "all") != 0) {
+    SGIE_ROUTE_REJECT (400, "ROUTING_SCOPE_INVALID",
+        "'streams' must be the literal \"all\" at a secondary stage",
+        "streams:\"all\" -- the only scope this stage has");
+  }
+
+  /* --- shadow: absent or explicitly null; anything else is an A/B request -------- */
+  if (modelmux_control_json_ref (r, "shadow", &sh_null, &sh_name, &sh_ver, NULL, &sh_bad)
+      && !sh_null) {
+    /* A null shadow asserts "no shadow after this", which is permanently true here --
+     * a promote body written out of habit stays valid. A NAMED shadow does not. */
+    SGIE_ROUTE_REJECT (400, "ROUTING_SHADOW_UNSUPPORTED",
+        sh_bad ? "'shadow' must be a {name, version} object or null"
+        : "a secondary stage has no shadow lane, so it cannot run an A/B pair",
+        "drop 'shadow' (or send null); run the A/B at the PRIMARY stage");
+  }
+
+  if (!modelmux_control_json_ref (r, "model", &sh_null, &name, &version, NULL, &sh_bad)
+      || sh_null || sh_bad || !name || !version) {
+    SGIE_ROUTE_REJECT (400, "FIELD_MISSING",
+        "'model' must name the resident {name, version} that should serve",
+        "GET /api/v1/model/status lists what is loaded at this stage");
+  }
+
+  if (modelmux_sgie_route (self->modelmux_sgie_bin, name, version, &http, &code,
+          &why, &tip)) {
+    /* ACCEPTED -- applied now, or parked on a warming model. Either way the
+     * pipeline's routing state changed, so the shared revision moves and a
+     * controller still holding the old if_revision loses its CAS, exactly as it
+     * would for a reroute at the primary. A REJECTED route changes nothing and
+     * must not invalidate anyone. */
+    modelmux_sgie_bump_routing_revision (self->modelmux_sgie_bin);
+  }
+  gst_nvquery_control_set_response (q, http, code, why, tip);
+  GST_INFO_OBJECT (self, "control 'model/routing' for '%s@%s' answered by the SECONDARY "
+      "stage -> %d", name, version, http);
+
+out:
+  g_free (name);
+  g_free (version);
+  g_free (sh_name);
+  g_free (sh_ver);
+  g_object_unref (parser);
+}
+
+#undef SGIE_ROUTE_REJECT
+
 /* ================================================================== */
 G_GNUC_INTERNAL GstPadProbeReturn
 modelmux_control_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udata)
 {
   GstQuery *q = GST_PAD_PROBE_INFO_QUERY (info);
-  ModelMuxBin *ib = (ModelMuxBin *) udata;
-  GstNvModelMux *self;
+  GstNvModelMux *self = GST_NVMODELMUX (udata);
   const gchar *op = NULL, *json = NULL;
   ModelMuxModelPayload pl;
   ModelMuxControlResult res = { 0, NULL, NULL, NULL };
-  gboolean is_load, is_unload, is_update, is_route;
+  gboolean is_load, is_unload, is_update, is_route, is_sgie;
   (void) pad;
 
   if (!q || !gst_nvquery_is_control (q))
     return GST_PAD_PROBE_OK;             /* not our query -> let it pass */
 
-  self = ib ? GST_NVMODELMUX (ib->parent_pipeline) : NULL;
   gst_nvquery_control_parse_request (q, &op, &json);
   is_load = (op && g_strcmp0 (op, "model/load") == 0);
   is_unload = (op && g_strcmp0 (op, "model/unload") == 0);
   is_update = (op && g_strcmp0 (op, "model/update") == 0);
   is_route = (op && g_strcmp0 (op, "model/routing") == 0);
+  is_sgie = (self && self->config.process_mode == MM_PROCESS_MODE_SGIE);
 
   if (!self || !(is_load || is_unload || is_update || is_route)) {
     gst_nvquery_control_set_response (q, 501, "NOT_IMPLEMENTED",
@@ -4347,8 +4966,31 @@ modelmux_control_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer uda
   /* model/routing: run the handler's ADMISSION PASS only (admit_only) and capture
    * the reason it logs on reject. Route has its own payload (not a model payload),
    * so it is handled before the model-plane decode. */
+  if (is_route && is_sgie) {
+    g_mutex_lock (&self->api_control_lock);   /* teardown frees the bin under this */
+    if (!self->modelmux_sgie_bin) {
+      g_mutex_unlock (&self->api_control_lock);
+      gst_nvquery_control_set_response (q, 503, "NOT_READY",
+          "the secondary stage is not built yet", "retry once the pipeline is running");
+      return GST_PAD_PROBE_HANDLED;
+    }
+    modelmux_control_sgie_route (self, json, q);
+    g_mutex_unlock (&self->api_control_lock);
+    return GST_PAD_PROBE_HANDLED;
+  }
+
   if (is_route) {
     const gchar *captured;
+    /* Routing is answered by the stage that HOSTS the model. A name this stage does
+     * not host may belong to a secondary further down, so ask there first.
+     *
+     * If nothing downstream claims it we deliberately FALL THROUGH to this stage's own
+     * admission below -- which is what a single-stage pipeline did before secondaries
+     * existed, and it is the only path that produces the specific reject (an unloaded
+     * ref, a stale revision) rather than the caller's generic "nobody answered". */
+    if (!modelmux_control_route_stage_owns (self, json)
+        && modelmux_control_ask_downstream (self, q))
+      return GST_PAD_PROBE_HANDLED;
     modelmux_control_err_capture_arm ();
     modelmux_control_err_class_clear ();
     modelmux_control_handle_model_routing (self, json, TRUE /* admit_only */);
@@ -4362,7 +5004,8 @@ modelmux_control_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer uda
       gst_nvquery_control_set_response (q,
           cls ? cls->http : 400,
           cls ? cls->err_code : "MODEL_ROUTING_REJECTED", captured,
-          "re-check the referenced models/streams and if_revision, then retry");
+          (cls && cls->hint) ? cls->hint
+              : "re-check the referenced models/streams and if_revision, then retry");
     } else {                                        /* admitted -> apply async */
       modelmux_control_post_ctrl_json (self, MODELMUX_CONTROL_MODEL_ROUTING, json);
       gst_nvquery_control_set_response (q, 202, NULL,
@@ -4378,6 +5021,75 @@ modelmux_control_query_probe (GstPad * pad, GstPadProbeInfo * info, gpointer uda
   if (!modelmux_control_decode_model_payload (self, op, json, &pl)) {
     gst_nvquery_control_set_response (q, 400, "FIELD_TYPE_INVALID",
         "malformed model-plane payload", "see the request schema for this endpoint");
+    return GST_PAD_PROBE_HANDLED;
+  }
+
+  /* Not ours -> OFFER it downstream, and adopt that stage's verdict if it claims the
+   * model. Same shape as the routing plane above, for the same reason: asking
+   * explicitly is the only way to tell "a downstream stage answered" from "nobody
+   * did" (see modelmux_control_ask_downstream), and the difference decides who owes
+   * the caller an error.
+   *
+   * FALL THROUGH when nothing downstream claims it, rather than answering a generic
+   * 404 here. The handlers below already produce the SPECIFIC reason for exactly this
+   * case -- MODEL_NOT_LOADED for an unload of a name that was never loaded,
+   * MODEL_NOT_IN_CATALOG for an update of one the catalog never declared -- and those
+   * codes are the API contract a client branches on. Short-circuiting to
+   * "MODEL_NOT_FOUND: no stage in this pipeline declares or hosts this model" replaced
+   * a diagnosis with a restatement of the question, and did it in the single-stage
+   * pipelines that have no other stage to be talking about. */
+  if (!modelmux_control_stage_owns (self, &pl, is_load)
+      && modelmux_control_ask_downstream (self, q)) {
+    modelmux_control_model_payload_clear (&pl);
+    return GST_PAD_PROBE_HANDLED;
+  }
+
+  /* SECONDARY stage. The model plane's handlers below all drive the ModelMuxBin's
+   * pools, which a secondary does not have -- it holds one statically-built model.
+   * Answer each op from that fact instead of a verdict the stage cannot honour. */
+  if (is_sgie) {
+    const gchar *serving;
+    /* under api_control_lock: teardown frees modelmux_sgie_bin while holding it, and
+     * this probe runs on the REST/query thread. */
+    g_mutex_lock (&self->api_control_lock);
+    if (!self->modelmux_sgie_bin) {
+      g_mutex_unlock (&self->api_control_lock);
+      gst_nvquery_control_set_response (q, 503, "NOT_READY",
+          "the secondary stage is not built yet", "retry once the pipeline is running");
+      modelmux_control_model_payload_clear (&pl);
+      return GST_PAD_PROBE_HANDLED;
+    }
+    serving = modelmux_sgie_model_name (self->modelmux_sgie_bin);
+    if (is_load) {
+      /* A secondary hosts several models but serves ONE: the load is inert (built,
+       * warmed, idle) until an all-streams model/routing makes it the serving one. */
+      gint http = 202;
+      const gchar *code = NULL, *why = NULL, *tip = NULL;
+      modelmux_sgie_load (self->modelmux_sgie_bin, pl.name, pl.version, pl.config_file,
+          pl.engine_file, &http, &code, &why, &tip);
+      gst_nvquery_control_set_response (q, http, code, why, tip);
+    } else if (is_unload) {
+      /* The mirror of load: an idle resident model releases its engine. Only the
+       * SERVING one is refused -- the stage cannot be left with nothing inferring. */
+      gint http = 202;
+      const gchar *code = NULL, *why = NULL, *tip = NULL;
+      modelmux_sgie_unload (self->modelmux_sgie_bin, pl.name, pl.version, &http, &code,
+          &why, &tip);
+      gst_nvquery_control_set_response (q, http, code, why, tip);
+    } else {
+      /* model/update: the ONE reshape a secondary supports -- an in-place OTA on its
+       * single inference element. Admission + trigger are synchronous (the trigger is
+       * a property set); nvinfer confirms the swap asynchronously. */
+      gint http = 202;
+      const gchar *code = NULL, *why = NULL, *tip = NULL;
+      modelmux_sgie_update (self->modelmux_sgie_bin, pl.name, pl.from_version,
+          pl.version, pl.config_file, pl.engine_file, &http, &code, &why, &tip);
+      gst_nvquery_control_set_response (q, http, code, why, tip);
+    }
+    GST_INFO_OBJECT (self, "control '%s' for '%s' answered by the SECONDARY stage "
+        "(serving '%s')", op, pl.name ? pl.name : "(none)", serving ? serving : "(none)");
+    g_mutex_unlock (&self->api_control_lock);
+    modelmux_control_model_payload_clear (&pl);
     return GST_PAD_PROBE_HANDLED;
   }
 
@@ -4659,17 +5371,34 @@ gst_modelmux_control_attach (GstNvModelMux * self)
   /* Initialize the batch index. */
   self->batch_idx = 0;
 
+  /* A SECONDARY stage serves every stream with its one model, so there is no attach
+   * lifecycle to drive and nothing to gate: skip both per-stream sink probes (the
+   * auto-attach probe would otherwise drop every buffer). The bus subscription below
+   * still carries the model/load|unload|update control plane. */
+  gboolean per_stream = (self->config.process_mode != MM_PROCESS_MODE_SGIE);
+
   /* Add the EVENT probe: PAD_ADDED/PAD_DELETED drive link/unlink; STREAM_EOS is observed only. */
-  if (!self->sink_event_probe_id && self->sinkpad)
+  if (per_stream && !self->sink_event_probe_id && self->sinkpad)
     self->sink_event_probe_id = gst_pad_add_probe (self->sinkpad,
         GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, modelmux_control_sink_event_probe, self, NULL);
 
   /* Add the BUFFER probe: drop a source's buffers until it is attached (safety net so an
    * un-routable source can never NOT_LINK the decoder; also a fallback attach for
    * sources that arrive without a PAD_ADDED event). */
-  if (!self->sink_probe_id && self->sinkpad)
+  if (per_stream && !self->sink_probe_id && self->sinkpad)
     self->sink_probe_id = gst_pad_add_probe (self->sinkpad,
         GST_PAD_PROBE_TYPE_BUFFER, modelmux_control_autoattach_probe, self, NULL);
+
+  /* Add the QUERY probes: model/status + model/routing GET, and the synchronous
+   * control admission (so the REST caller gets our real verdict instead of a blind
+   * 202). Both are STAGE-AGNOSTIC and live on the element's own sink pad, which
+   * exists whichever bin the stage built. */
+  if (!self->sink_status_query_id && self->sinkpad)
+    self->sink_status_query_id = gst_pad_add_probe (self->sinkpad,
+        GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, modelmux_status_query_probe, self, NULL);
+  if (!self->sink_control_query_id && self->sinkpad)
+    self->sink_control_query_id = gst_pad_add_probe (self->sinkpad,
+        GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, modelmux_control_query_probe, self, NULL);
 
   /* Subscribe to the bus: works when the host app does NOT own the bus
    * sync handler (standalone / gst-launch), and carries the REST model/load|
@@ -4683,7 +5412,8 @@ gst_modelmux_control_attach (GstNvModelMux * self)
     }
   }
 
-  MODELMUX_CONTROL_INFO (self, "control attached: data-plane auto-attach%s",
+  MODELMUX_CONTROL_INFO (self, "control attached: %s%s",
+      per_stream ? "data-plane auto-attach" : "secondary (no per-stream attach)",
       self->bus ? " + bus REST control" : " (bus unavailable)");
 }
 
@@ -4697,6 +5427,14 @@ gst_modelmux_control_detach (GstNvModelMux * self)
   if (self->sink_probe_id && self->sinkpad) {
     gst_pad_remove_probe (self->sinkpad, self->sink_probe_id);
     self->sink_probe_id = 0;
+  }
+  if (self->sink_status_query_id && self->sinkpad) {
+    gst_pad_remove_probe (self->sinkpad, self->sink_status_query_id);
+    self->sink_status_query_id = 0;
+  }
+  if (self->sink_control_query_id && self->sinkpad) {
+    gst_pad_remove_probe (self->sinkpad, self->sink_control_query_id);
+    self->sink_control_query_id = 0;
   }
   if (self->pending_poll_id) {
     g_source_remove (self->pending_poll_id);

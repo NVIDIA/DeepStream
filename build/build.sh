@@ -753,6 +753,16 @@ if begin_stage utils; then
   # needs libnvds_stats; nvll_osd needs libnvds_utils; nvmsgbroker needs
   # libnvds_logger). Those libs used to be satisfied by the prebuilt artifacts;
   # now that they are built from source they must come first.
+  # nvmultiobjecttracker also links libnvds_mqtt_proto. That adaptor lives
+  # under nvds_msgapi (no top-level Makefile, so the glob skips it) and is
+  # built again by the protocol-adaptor loop below; install it here first.
+  # It only needs libnvds_logger, which the leaf loop installs. The tracker's
+  # other DeepStream libs are either in that leaf loop (inferlogger,
+  # inferutils) or in the prebuilt binaries (nvbufsurface, nvbufsurftransform,
+  # libnvvpi). Within the glob, nvll_batch_jpeg_encode sorts before nvll_osd
+  # and nvds_rest_server sorts before nvds_ymlparser, so those links are
+  # already in order. ds3d stays after this glob so libnvds_infer_server exists
+  # before its consumers.
   for leaf in nvdsmeta nvdsinfer_logger nvdsinferutils nvds_logger nvds_stats nvdsutils nvtx_helper; do
     dir="src/utils/$leaf"
     [[ -f "$dir/Makefile" ]] || continue
@@ -762,6 +772,15 @@ if begin_stage utils; then
       FAILED_BUILDS+=("$dir")
     fi
   done
+
+  dir=src/utils/nvds_msgapi/mqtt_protocol_adaptor
+  if [[ -f "$dir/Makefile" ]]; then
+    if run_submake -C "$dir" $MK; then
+      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    else
+      FAILED_BUILDS+=("$dir")
+    fi
+  fi
 
   for dir in src/utils/*/; do
     [[ -f "$dir/Makefile" ]] || continue

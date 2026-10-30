@@ -61,6 +61,8 @@ nvds_rest_stream_parse (const Json::Value & in, NvDsServerStreamInfo * stream_in
                   metadata_in.get ("codec", EMPTY_STRING).asString ().c_str ();
               stream_info->metadata_framerate =
                   metadata_in.get ("framerate", EMPTY_STRING).asString ().c_str ();
+              stream_info->metadata_file_start_time =
+                  metadata_in.get ("file_start_time", EMPTY_STRING).asString ().c_str ();
               /* Forward the WHOLE metadata object (variable keys) as compact JSON
                * so the app receives custom per-stream metadata (e.g. model
                * selection), not just the three known fields. */

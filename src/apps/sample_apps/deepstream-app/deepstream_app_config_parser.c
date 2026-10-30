@@ -794,7 +794,14 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
     }
   }
 
+  /* gie-unique-id uniqueness: only for elements that USE the id. nvmodelmux ignores the
+   * property (its model bins allocate their own), so exempt it from both comparisons. */
+#define GIE_ID_IS_COMPARABLE(c) ((c).plugin_type != NV_DS_GIE_PLUGIN_MULTIMODEL)
+
   for (i = 0; i < config->num_secondary_gie_sub_bins; i++) {
+    if (!GIE_ID_IS_COMPARABLE (config->secondary_gie_sub_bin_config[i])
+        || !GIE_ID_IS_COMPARABLE (config->primary_gie_config))
+      continue;
     if (config->secondary_gie_sub_bin_config[i].unique_id ==
         config->primary_gie_config.unique_id) {
       NVGSTDS_ERR_MSG_V ("Non unique gie ids found");
@@ -804,7 +811,11 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
   }
 
   for (i = 0; i < config->num_secondary_gie_sub_bins; i++) {
+    if (!GIE_ID_IS_COMPARABLE (config->secondary_gie_sub_bin_config[i]))
+      continue;
     for (j = i + 1; j < config->num_secondary_gie_sub_bins; j++) {
+      if (!GIE_ID_IS_COMPARABLE (config->secondary_gie_sub_bin_config[j]))
+        continue;
       if (config->secondary_gie_sub_bin_config[i].unique_id ==
           config->secondary_gie_sub_bin_config[j].unique_id) {
         NVGSTDS_ERR_MSG_V ("Non unique gie id %d found",
@@ -814,6 +825,8 @@ parse_config_file (NvDsConfig * config, gchar * cfg_file_path)
       }
     }
   }
+
+#undef GIE_ID_IS_COMPARABLE
 
   for (i = 0; i < config->num_source_sub_bins; i++) {
     if (config->multi_source_config[i].type == NV_DS_SOURCE_URI_MULTIPLE) {

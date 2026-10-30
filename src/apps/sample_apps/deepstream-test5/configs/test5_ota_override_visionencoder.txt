@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OTA override payload for nvdsvisionencoder, the counterpart of
+# test5_ota_override_config.txt for nvinfer.
+#
+#   deepstream-test5-app -c test5_config_file_visionencoder.txt \
+#                        -o test5_ota_override_visionencoder.txt
+#
+# The app watches this file with inotify: editing and saving it re-parses the
+# file and applies the update. The file is the payload, the edit is the trigger.
+#
+# The new engine must match the live one on input resolution, embedding width
+# and batch capacity, or it is refused and the current model keeps serving.
+# Set this to the running engine first -- that always passes the gate.
+
+[visionencoder]
+enable=1
+tensorrt-engine=siglip_v2_vdeployable_v1.0/siglip2_v1_b8.engine

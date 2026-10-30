@@ -71,18 +71,169 @@ G_BEGIN_DECLS
 /* Canonical batched-mux geometry. Applied to the nvmultiurisrcbin input mux and
  * mirrored by the per-model + combined muxes, so all batches share resolution.
  * (Decided at runtime; not user config.) */
+/* GIE position of a stage. Values match nvinfer's process-mode (1 = primary/full
+ * frame, 2 = secondary/objects); shared so the element, the control plane and the
+ * secondary chain all test the same constants. */
+#define MM_PROCESS_MODE_PGIE     1
+#define MM_PROCESS_MODE_SGIE     2
+
+/* Offset added to a SHADOW lane's gie id. A model's configured gie-unique-id names its
+ * PRIMARY lane (that is the id a downstream secondary targets); the A/B twin must still
+ * be distinguishable in the object meta, so it takes id + this. Matches the Shadow
+ * pool's historical base of 100, so ids look the same as they always did. */
+#define MM_SHADOW_GIE_OFFSET     100
+
 #define MM_MUX_WIDTH             1920
 #define MM_MUX_HEIGHT            1080
 #define MM_MUX_PUSH_TIMEOUT      33333
+
+/* ================================================================== */
+/* Pipeline-wide routing revision                                      */
+/*                                                                     */
+/* routing_revision is the CAS token a controller sends back as        */
+/* if_revision, so there may only ever be ONE of it per pipeline: a    */
+/* per-stage counter would let a route applied at the secondary leave  */
+/* the primary's number untouched, and a controller holding that stale */
+/* number would win a compare-and-swap it should have lost.            */
+/*                                                                     */
+/* Every nvmodelmux stage therefore points at the SAME counter. The    */
+/* stages find each other through a GstContext -- GStreamer's own      */
+/* mechanism for sharing one live object between element instances in  */
+/* a pipeline (the same way GstGLDisplay is shared): the first stage   */
+/* to reach READY posts need-context, gets no answer, creates the      */
+/* counter and posts have-context; the pipeline caches that context    */
+/* and hands it to every other stage, whose need-context is then       */
+/* answered synchronously from the cache. No shared globals, no        */
+/* assumption about which stage comes up first, and a stage in a       */
+/* pipeline of its own simply owns the counter alone.                  */
+/* ================================================================== */
+
+/** gst_context_get_context_type() for the routing-revision context. */
+#define MODELMUX_CONTEXT_TYPE_ROUTING "nvidia.deepstream.modelmux.routing"
+/** field name carrying the ModelMuxRevShared inside that context's structure */
+#define MODELMUX_CONTEXT_FIELD_REV    "revision"
+
+/** The counter itself: refcounted (each stage holds one ref) and self-locking, so
+ *  it can be read while a caller already holds a bin lock. Lock order is always
+ *  bin-lock -> rev-lock, never the reverse. */
+typedef struct _ModelMuxRevShared ModelMuxRevShared;
+
+#define MODELMUX_TYPE_REV_SHARED (modelmux_rev_shared_get_type ())
+GType              modelmux_rev_shared_get_type (void);
+/** A new counter at revision 0, refcount 1. */
+ModelMuxRevShared *modelmux_rev_shared_new (void);
+ModelMuxRevShared *modelmux_rev_shared_ref (ModelMuxRevShared * rev);
+void               modelmux_rev_shared_unref (ModelMuxRevShared * rev);
+/** Current value; 0 for a NULL @rev, which is the same answer a stage that has not
+ *  negotiated the context yet would give. */
+guint64            modelmux_rev_shared_get (ModelMuxRevShared * rev);
+/** Increment and return the new value. NULL-safe (returns 0). */
+guint64            modelmux_rev_shared_bump (ModelMuxRevShared * rev);
 
 /** Inference backend element used inside a ModelBin. AUTO-DETECTED from the model's
  *  config-file: an nvinferserver protobuf config has a top-level `infer_config {` block;
  *  an nvinfer INI config has a `[property]` section. Default = nvinfer (back-compat). */
 typedef enum
 {
-  MODEL_INFER = 0,     /** nvinfer       (TensorRT; default)         */
-  MODEL_INFERSERVER    /** nvinferserver (Triton backend)            */
+  MODEL_INFER = 0,       /** nvinfer          (TensorRT; default)       */
+  MODEL_INFERSERVER,     /** nvinferserver    (Triton backend)          */
+  MODEL_VISION_ENCODER,  /** nvdsvisionencoder (object embeddings)      */
+  MODEL_BACKEND_N        /** count -- keep LAST, not a backend          */
 } ModelType;
+
+/* ================================================================== */
+/* Backend registry                                                    */
+/*                                                                     */
+/* Every per-backend fact lives in ONE table (modelmux_backends[] in   */
+/* gstnvmodelmux_config.c) and is reached through modelmux_backend().  */
+/* Call sites ask a NAMED question -- "does this backend take a raw    */
+/* .engine?" -- instead of testing the enum, so adding a backend is a  */
+/* new row rather than a hunt for every `== MODEL_INFERSERVER` branch. */
+/*                                                                     */
+/* The enum is deliberately NOT a capability: nvinferserver refuses an */
+/* engine because Triton owns its checkpoints, and a vision encoder    */
+/* will refuse one for entirely different reasons. Two backends can    */
+/* share an answer without sharing a reason, and a table records the   */
+/* answer where a conditional records the coincidence.                 */
+/* ================================================================== */
+
+/** Positions a backend may occupy. A BITMASK, because validity is a property of
+ *  the backend, not of the stage: nvinfer runs at either position, nvinferserver
+ *  is a primary-only backend here, and a vision encoder will be secondary-only. */
+#define MM_BACKEND_AT_PGIE  (1u << 0)
+#define MM_BACKEND_AT_SGIE  (1u << 1)
+
+/** One row of the backend registry. Every field answers a question some call site
+ *  used to answer by testing the enum. */
+typedef struct
+{
+  /** gst factory name -- also the name status/logs report as "backend" */
+  const gchar *element;
+  /** NULL-terminated config-file markers that identify this backend (see
+   *  modelmux_detect_model_type). The FIRST decisive line wins. */
+  const gchar *const *markers;
+  /** MM_BACKEND_AT_* mask: where this backend is allowed to run */
+  guint        positions;
+  /** a raw .engine is a meaningful artifact for this backend (nvinfer swaps it in
+   *  via model-engine-file; Triton's repository owns its own checkpoints) */
+  gboolean     engine_file;
+  /** a NEW version must bring its own config/engine. FALSE means a bare
+   *  (name, version) is the correct and only form -- the backend resolves the
+   *  version itself. */
+  gboolean     version_artifact;
+  /** supports nvinfer's native in-place engine/config hot-swap (model/update) */
+  gboolean     inplace_reload;
+  /** the BACKEND schedules its own device(s), so the plugin cannot claim to have
+   *  placed it (status reports the honest "triton_internal" rather than a device) */
+  gboolean     owns_placement;
+  /** gpus[] instance groups are the PLUGIN's to scale (vs delegated to the
+   *  backend's own instance_group) */
+  gboolean     multi_gpu_scale;
+  /** a derived config pins the device as `gpu_ids: [N]` inside an `infer_config`
+   *  block (Triton grammar) rather than a scalar `gpu-id` in the property
+   *  section (nvinfer grammar) */
+  gboolean     gpu_ids_list;
+
+  /** property that takes the model's config FILE, or NULL when the element has no
+   *  such property and is configured key-by-key from @config_group instead. */
+  const gchar *config_prop;
+  /** config-file group whose keys ARE the element's property names, applied one by
+   *  one (see modelmux_config_apply_properties). NULL for a backend that reads its
+   *  own config file. Exactly one of @config_prop / @config_group is set. */
+  const gchar *config_group;
+  /** property carrying a PREBUILT engine. Also the in-place OTA trigger: setting it
+   *  on a live element is what model/update does. NULL = the backend has no engine
+   *  artifact (its checkpoints live elsewhere). */
+  const gchar *engine_prop;
+  /** the element carries a gie identity: `unique-id` to stamp into object meta and
+   *  `operate-on-gie-id` to filter its input. FALSE means the backend cannot be
+   *  scoped to one upstream detector and cannot be attributed downstream. */
+  gboolean     gie_id;
+  /** config-file section holding this backend's scalar keys, WITHOUT brackets
+   *  ("property", "infer_config", "visionencoder"). Used when DERIVING a per-version
+   *  config: it is where an engine/gpu override is injected if the base declares the
+   *  key nowhere. Rendered as "[x]" for INI and "x:" for YAML/protobuf by the caller. */
+  const gchar *cfg_section;
+  /** config key that pins the device inside @cfg_section */
+  const gchar *gpu_key;
+} ModelBackendInfo;
+
+/** Apply every key of @group in @config_file to @element as the property of the same
+ *  name, converting by the property's own GParamSpec type. For a backend with no
+ *  config-file property (see ModelBackendInfo.config_group), this IS its configuration.
+ *  Unknown keys are WARNED and skipped rather than fatal -- a newer config naming a
+ *  property this build's element lacks must not stop the pipeline. Returns FALSE only
+ *  when the file or the group cannot be read at all. */
+gboolean     modelmux_config_apply_properties (GstElement * element,
+                                               const gchar * config_file,
+                                               const gchar * group);
+
+/** The registry row for @type. NEVER NULL -- an out-of-range value clamps to
+ *  MODEL_INFER, which is the same back-compat default the config sniff uses, so a
+ *  caller can dereference the result without a null check. */
+const ModelBackendInfo *modelmux_backend (ModelType type);
+/** TRUE iff @type may run at @process_mode (MM_PROCESS_MODE_PGIE / _SGIE). */
+gboolean     modelmux_backend_at_position (ModelType type, gint process_mode);
 
 /** A model definition from the [model-*] config groups. */
 typedef struct
@@ -106,6 +257,11 @@ typedef struct
   gchar    *engine;        /** OPT engine swapped into the effective config (NULL=base)*/
   gchar    *config;        /** OPT custom base config for this version (NULL=catalog)  */
   gint      gpu;           /** placement recorded at load/update (-1 = config's device)*/
+  gint      gie;           /** OPT per-VERSION gie-unique-id (-1 = unset). Declared in the
+                            *   [model-<name>-<version>] block; written into this version's
+                            *   DERIVED config (so nvinfer reads it) and adopted verbatim as
+                            *   the bin's id -- no shadow offset, because the id then belongs
+                            *   to the VERSION rather than to a lane. */
   guint     batch;         /** OPT per-VERSION batch/stream cap (0 = unset -> falls back
                             *   to the catalog name-level batch, then the global
                             *   per-model-batch-size). A version's batch is IMMUTABLE
@@ -135,14 +291,15 @@ typedef struct
   /* defaults / behaviour */
   guint     per_model_max_streams; /** default cap for a model if unset       */
   gboolean  unified_batch;         /** one display batch (TRUE) vs per-role   */
-  gboolean  wait_for_default_models; /** TRUE: block the pipeline's PLAYING
-                                    *   transition until the configured default
-                                    *   model(s) are WARMED, so defaults infer on
-                                    *   every frame (mirrors nvinfer). FALSE:
-                                    *   warm async, streams passthrough until
-                                    *   ready. Runtime model/load is ALWAYS async
-                                    *   regardless -- this gates only the
-                                    *   startup default preload.               */
+  gint      process_mode;          /** 1 = pgie, 2 = sgie; forwarded to every
+                                    *   inference element this stage builds   */
+  /** TRUE when every catalog model declares a DISTINCT gie-unique-id, so this stage
+   *  adopts the configured ids (making `operate-on-gie-id` knowable from config, as
+   *  with a plain nvinfer). FALSE when any two overlap -- the stage then falls back to
+   *  the historical monotonic allocator for ALL models, so ids stay unambiguous and an
+   *  existing config keeps working unchanged. All-or-nothing on purpose: a mix of
+   *  configured and allocated ids would be the least predictable outcome. */
+  gboolean  gie_ids_from_config;
   gboolean  enable;                /** [multimodel] enable: 0 => bypass the inference
                                     *   bin (decode->display passthrough)             */
   gboolean  shard_compact;         /** auto-compact under-full shards of a model back
@@ -325,6 +482,7 @@ typedef struct
   guint        mux_width;
   guint        mux_height;
   guint        mux_push_timeout;
+  gint         process_mode;  /** 1 = pgie, 2 = sgie (from the element) */
   gboolean     mux_live_source;
   gint         mux_gpu;       /** PIPELINE device ([multimodel] gpu-id): the model mux
                                *   batches decoder buffers, which live on that device --
@@ -822,7 +980,13 @@ typedef struct
   guint        perf_timer_id;   /**< perf-metric tick g_timeout id (0=none/off)          */
   guint64      routing_revision; /**< monotonic; bumps on every APPLIED model/routing,
                                  *   default switch or model/update (under ib->lock);
-                                 *   surfaced by model/status for if_revision CAS      */
+                                 *   surfaced by model/status for if_revision CAS.
+                                 *   FALLBACK only: used when @rev_shared is NULL (a
+                                 *   bin built before the context was negotiated).    */
+  ModelMuxRevShared *rev_shared; /**< the PIPELINE-WIDE revision, shared with every
+                                 *   other nvmodelmux stage through a GstContext (see
+                                 *   MODELMUX_CONTEXT_TYPE_ROUTING). Owns a ref; set
+                                 *   by the element at build. NULL until negotiated. */
   GPtrArray   *pending_routes; /**< ModelMuxPendingRouteNote*: routes ACCEPTED but still
                                *   waiting on a warming target, mirrored from the control
                                *   layer under ib->lock (NULL = none queued). Read-only
@@ -892,6 +1056,7 @@ const gchar *modelmux_infer_plugin_str (ModelType type);
  * (caller uses the base config as-is). The derived filename is tagged with BOTH
  * `model_name` and `version` (e.g. trafficcamnet_1_config_infer_primary.txt). */
 gchar       *modelmux_config_derive (const gchar * base_cfg, const gchar * engine, gint gpu,
+                                     gint gie,
                                const gchar * model_name, const gchar * version);
 /* Record/refresh the per-version artifact + placement of a runtime model/load or
  * model/update, so later lazy warms, in-place updates and gpu-addressed routing resolve
@@ -905,8 +1070,16 @@ void         modelmux_config_register_version (ModelMuxConfig * config, const gc
 /* Per-version batch (0 = unset; resolve name-level/catalog then global). Locked scan. */
 guint        modelmux_config_version_batch (const ModelMuxConfig * config, const gchar * name,
                                           const gchar * version);
+/* The per-VERSION gie-unique-id a [model-<name>-<version>] block declares (-1 = none). */
+gint         modelmux_config_version_gie (const ModelMuxConfig * config, const gchar * name,
+                                          const gchar * version);
 gint         modelmux_config_version_gpu (const ModelMuxConfig * config, const gchar * name,
                                     const gchar * version);
+/* TRUE when @name already has a version other than @version on record. The catalog base
+ * config can back only ONE version; a sibling turns a bare load into two version numbers
+ * resolving to one model. Locked scan. */
+gboolean     modelmux_config_has_other_version (const ModelMuxConfig * config,
+                                    const gchar * name, const gchar * version);
 /* Resolve the EFFECTIVE config path for a (name, version) from its per-version artifact
  * ([model-<name>-<version>] block): a custom config and/or an engine swapped into it.
  * Returns a newly-allocated config path (caller g_free) when an override applies, or NULL
@@ -920,6 +1093,17 @@ gchar       *modelmux_config_resolve_version_cfg (const ModelMuxConfig * config,
 /* Device a model CONFIG FILE pins its inference to: nvinfer keyfile "gpu-id=N" or
  * nvinferserver pbtxt "gpu_ids: [N]". -1 = no key present (backend defaults to 0). */
 gint         modelmux_config_file_gpu (const gchar * config_file);
+gint         modelmux_config_file_process_mode (const gchar * config_file);
+/* The gie-unique-id a model's infer config declares (-1 = absent). A stage adopts it
+ * as the model's gie id so `operate-on-gie-id` stays config-knowable, exactly as with
+ * a plain nvinfer; the SHADOW lane adds MM_SHADOW_GIE_OFFSET so an A/B pair stays
+ * distinguishable in the object meta. */
+gint         modelmux_config_file_gie_id (const gchar * config_file);
+/* The gie-unique-id a SECONDARY operates ON (nvinfer `operate-on-gie-id`); -1 = absent,
+ * nvinfer's default meaning every GIE. This is the model's INPUT filter, so it is also
+ * the only correct answer to which stage's objects it actually classified -- the
+ * MM_OVERLAY line uses it to label only the tiles the model really ran on. */
+gint         modelmux_config_file_operate_on_gie (const gchar * config_file);
 /* modelmux_gpu_stats (whole-device NVML stats) lives in gstnvmodelmux_perf.h -- the
  * module header its definition includes, so the prototype is visible there
  * (tmake builds with -Werror=missing-prototypes). Included above. */
@@ -1008,6 +1192,103 @@ G_GNUC_INTERNAL void modelmux_debug_configure (ModelMuxBin * ib);
 G_GNUC_INTERNAL void modelmux_schedule_dump (ModelMuxBin * ib,
                                        guint delay_seconds);
 
+/* ---- SECONDARY stage: linear chain -- ModelMuxSgieBin (gstnvmodelmux_sgie.c) ----
+ * At process-mode=2 one model serves ALL streams on the already-batched buffer, so the
+ * stage needs no demux/mux and no per-stream lanes -- only
+ *   sink -> queue -> [xfer-in] -> infer -> [xfer-out] -> src.
+ * Built instead of the ModelMuxBin when the stage is a secondary. */
+typedef struct _ModelMuxSgieBin ModelMuxSgieBin;
+
+ModelMuxSgieBin *modelmux_sgie_new (GstElement * parent, const gchar * name,
+                                      const ModelMuxConfig * config);
+void         modelmux_sgie_free (ModelMuxSgieBin * sgie_bin);
+GstPad      *modelmux_sgie_get_sink (ModelMuxSgieBin * sgie_bin);
+GstPad      *modelmux_sgie_get_src (ModelMuxSgieBin * sgie_bin);
+/* the serving model's identity + element, for logging and model/status */
+GstElement  *modelmux_sgie_get_infer (ModelMuxSgieBin * sgie_bin);
+const gchar *modelmux_sgie_model_name (ModelMuxSgieBin * sgie_bin);
+const gchar *modelmux_sgie_model_version (ModelMuxSgieBin * sgie_bin);
+/* GET plane, answered by the stage that hosts the model. Same v1 shape as the
+ * primary's, tagged with process_mode so the host can merge per-stage responses. */
+gchar       *modelmux_sgie_status_json (ModelMuxSgieBin * sgie_bin,
+                                        const gchar * f_model, const gchar * f_version);
+gchar       *modelmux_sgie_route_json (ModelMuxSgieBin * sgie_bin);
+/* Point this stage at the pipeline-wide routing counter (takes a ref). The
+ * secondary has no routing table of its own, but a route APPLIED here still
+ * invalidates every controller's if_revision, so it bumps the same number the
+ * primary does -- see MODELMUX_CONTEXT_TYPE_ROUTING. */
+void         modelmux_sgie_set_rev_shared (ModelMuxSgieBin * sgie_bin,
+                                           ModelMuxRevShared * rev);
+/* Bump it after a route this stage ACCEPTED (applied now, or parked on a warming
+ * model -- the declarative intent is recorded either way, exactly as a queued
+ * promotion counts at the primary). No-op when no counter is attached. */
+void         modelmux_sgie_bump_routing_revision (ModelMuxSgieBin * sgie_bin);
+/* Which line this stage owns in the MM_OVERLAY stack. The primary draws at the top and
+ * each secondary gets its own line under it, so a pipeline with several secondaries
+ * shows one name per stage instead of them fighting over one label. Assigned at
+ * READY->PAUSED, when every stage's catalog is parsed and the set of stages is known. */
+void         modelmux_sgie_set_overlay_slot (ModelMuxSgieBin * sgie_bin, guint slot);
+/* Display facts for the MM_DEBUG models_table (see gstnvmodelmux_debug.c), one
+ * resident model per @idx. Returns FALSE once @idx is past the last one, so the
+ * caller walks with `for (i = 0; modelmux_sgie_get_info (bin, i, ...); i++)` and
+ * never reaches into the struct itself. */
+gboolean     modelmux_sgie_get_info (ModelMuxSgieBin * sgie_bin, guint idx,
+                                     const gchar ** name, const gchar ** version,
+                                     const gchar ** backend, guint * gie, gint * gpu,
+                                     guint * streams, const gchar ** state,
+                                     gboolean * serving, gchar ** engine);
+/* model/update: in-place OTA on the stage's one inference element (nvinfer only).
+ * Fills the verdict (@http/@err_code/@reason/@hint -- all static strings) whether it
+ * triggers or refuses; returns TRUE only when the swap was handed to nvinfer, which
+ * confirms it asynchronously. */
+gboolean     modelmux_sgie_update (ModelMuxSgieBin * sgie_bin, const gchar * name,
+                                   const gchar * from_version, const gchar * version,
+                                   const gchar * config_file, const gchar * engine_file,
+                                   gint * http, const gchar ** err_code,
+                                   const gchar ** reason, const gchar ** hint);
+/* model/load: build + warm ANOTHER version of a model this stage's catalog declares,
+ * resident but NOT inferring -- "available, not active". It costs VRAM and changes no
+ * output until an all-streams model/routing makes it the serving one. Same verdict
+ * contract as _update; TRUE means accepted (202) and warming on its own thread. */
+gboolean     modelmux_sgie_load (ModelMuxSgieBin * sgie_bin, const gchar * name,
+                                 const gchar * version, const gchar * config_file,
+                                 const gchar * engine_file, gint * http,
+                                 const gchar ** err_code, const gchar ** reason,
+                                 const gchar ** hint);
+/* model/routing: make an already-resident model the SERVING one -- an all-streams
+ * rebind, instant because the displaced model stays loaded and warm, and reversed by
+ * the identical call naming the other version. A target still warming PARKS the route
+ * (the current model keeps serving until it is ready) rather than being refused.
+ * Payload shape -- streams:"all", no shadow, no camera list -- is the caller's to
+ * check; this decides on residency. Same verdict contract as _load. */
+gboolean     modelmux_sgie_route (ModelMuxSgieBin * sgie_bin, const gchar * name,
+                                  const gchar * version, gint * http,
+                                  const gchar ** err_code, const gchar ** reason,
+                                  const gchar ** hint);
+/* model/unload: release a RESIDENT model and its engine. Refuses exactly one thing --
+ * the model that is SERVING, because a secondary cannot run without one; reroute to
+ * another resident model first. An omitted @version is accepted only while the name has
+ * a single version here. Same verdict contract as _load. */
+gboolean     modelmux_sgie_unload (ModelMuxSgieBin * sgie_bin, const gchar * name,
+                                   const gchar * version, gint * http,
+                                   const gchar ** err_code, const gchar ** reason,
+                                   const gchar ** hint);
+
+/* Per-tile debug overlay (env MM_OVERLAY=1), shared by BOTH stages so one env var
+ * governs the whole picture: the primary draws its provenance line at the top of each
+ * tile, the secondary stacks the model it is serving just under it. Debug only.
+ *
+ * The two meta types are forward-declared rather than pulled in with nvdsmeta.h: this
+ * header is included by every translation unit, and only the two overlay callers need
+ * the full definitions (they include nvdsmeta.h themselves). */
+struct _NvDsBatchMeta;
+struct _NvDsFrameMeta;
+gboolean     modelmux_overlay_enabled (void);
+void         modelmux_draw_label (struct _NvDsBatchMeta * bmeta,
+                                  struct _NvDsFrameMeta * fm,
+                                  guint x_offset, guint y_offset, const gchar * text,
+                                  const gchar * role);
+
 /* ModelMuxBin */
 ModelMuxBin *modelmux_bin_new (GstElement * pipeline, const gchar * name,
                                       guint max_streams, const ModelMuxConfig * config);
@@ -1043,7 +1324,7 @@ guint       modelmux_bin_num_streams (ModelMuxBin * ib);
  * stream attaches. wait=TRUE blocks until each default is WARMED and returns FALSE
  * if any FAILED to warm (caller fails the state change); wait=FALSE kicks the async
  * warm and returns TRUE immediately (legacy behaviour). */
-gboolean    modelmux_bin_load_defaults (ModelMuxBin * ib, gboolean wait);
+gboolean    modelmux_bin_load_defaults (ModelMuxBin * ib);
 /* TYPE-LESS model/load: warm the named model into the limbo map (role Unknown) so
  * it is READY but unassigned. Its primary/shadow type is decided LATER, on first
  * use (stream-add or model/update), which PROMOTES it into the matching pool. The
@@ -1094,6 +1375,18 @@ ModelStatus modelmux_bin_load_into_pool (ModelMuxBin * ib, gboolean shadow,
 void        modelmux_bin_set_default (ModelMuxBin * ib, gboolean shadow,
                                             const gchar * name, const gchar * version,
                                             gint gpu);
+/* CLEAR a role's runtime default designation ("no default for this role"): the
+ * counterpart of modelmux_bin_set_default, and what default{"shadow": null} needs.
+ * Drops only the IDENTITY -- the model it named keeps serving its attached streams
+ * and is reclaimed by the normal idle paths once they leave. Idempotent (clearing
+ * an absent default is a no-op). Streams whose lane RESOLVED from this default are
+ * not touched here: sweeping them is the caller's decision, exactly as it is for a
+ * default switch. Locks internally; callers must NOT hold ib->lock. */
+void        modelmux_bin_clear_default (ModelMuxBin * ib, gboolean shadow);
+/* Apply a sensor id / display name to an ALREADY-ATTACHED stream (late bind).
+ * Either field may be NULL to leave it unchanged; a stream that has gone is a no-op. */
+void        modelmux_bin_set_stream_identity (ModelMuxBin * ib, guint stream_id,
+                const gchar * name, const gchar * cam_id);
 /* Read-only access to a role's runtime default designation (the pool-embedded
  * ref) for the element-side control plane (route guards, resolution). Returned
  * pointer is owned by the pool; main-loop readers are same-thread with all
@@ -1172,6 +1465,13 @@ gchar      *modelmux_bin_route_json (ModelMuxBin * ib, const gchar * f_camera);
 /* Bump the routing revision (under ib->lock): call after every APPLIED routing
  * change -- scoped reroute, default switch, in-place update trigger. */
 void        modelmux_bin_bump_routing_revision (ModelMuxBin * ib);
+/* Point this bin at the pipeline-wide counter (takes a ref, drops any previous).
+ * Called by the element once the routing GstContext is negotiated; until then the
+ * bin falls back to its own field, so the value is never garbage. */
+void        modelmux_bin_set_rev_shared (ModelMuxBin * ib, ModelMuxRevShared * rev);
+/* Current routing revision: the shared counter when one is attached, this bin's
+ * own otherwise. Takes ib->lock. */
+guint64     modelmux_bin_routing_revision (ModelMuxBin * ib);
 /* REPLACE the mirrored list of accepted-but-deferred routes (under ib->lock),
  * taking ownership of `notes` and freeing whatever was there. notes==NULL clears
  * it. Wholesale replacement on purpose -- the control layer republishes its whole

@@ -485,7 +485,7 @@ build_custom_parser() {
         fi
 
         log_info "Building custom parser for $model..."
-        build_output=$(docker run --privileged --rm --net=host $GPU_FLAG \
+        build_output=$(docker run --rm $GPU_FLAG \
             -v $PWD/models:/workspace/models \
             -w /workspace/models/$model \
             --entrypoint /bin/bash \

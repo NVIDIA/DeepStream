@@ -54,7 +54,6 @@ For build and installation instructions, see [build/BUILD.md](../../build/BUILD.
 | `gst-nvtracker` | `nvtracker` | Multi-object tracker. Supports NvDCF, DeepSORT, IOU, and custom tracker libraries. See [README](gst-nvtracker/README). |
 | `gst-nvdsanalytics` | `nvdsanalytics` | Line-crossing counting, ROI filtering, and direction detection analytics. See [README](gst-nvdsanalytics/README). |
 | `gst-nvdewarper` | `nvdewarper` | Dewarps fisheye and 360° camera feeds into perspective or panoramic views. See [README](gst-nvdewarper/README). |
-| `gst-nvdsframeselector` | `nvdsframeselector` | Selects representative frames using optical flow, SAD, or equidistant selection. See [README](gst-nvdsframeselector/README.md). |
 | `gst-nvmodelmux` | `nvmodelmux` | Routes streams to per-stream primary and shadow inference models. See [README](gst-nvmodelmux/README.md). |
 | `gst-nvinfereval` | `nvinfereval` | Live inference accuracy evaluator with A/B promotion gating. See [configs](gst-nvinfereval/configs). |
 | `gst-nvof` *(via nvdsvideotemplate)* | — | NVIDIA Optical Flow SDK integration for motion estimation. |

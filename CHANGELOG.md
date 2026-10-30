@@ -10,6 +10,7 @@
   | `gst-nvdsvisionencoder-c` (`nvdsvisionencoder`) | C plugin that generates ReID embeddings for tracked objects (TensorRT; Triton client optional) and attaches `NVDS_TRACKER_OBJ_REID_META`. |
   | `gst-nvdstextembedder` (`nvdstextembedder`) | Python plugin that generates DFN5B-CLIP text embeddings for use with `nvdsvisionencoder`. Not compiled by `build/build.sh`. |
   | `ds-sparse4d` (via `gst-nvdsvideotemplate`) | Sparse4D multi-camera 3D detection and tracking custom lib (`libnvdsgst_sparse4d.so`). Requires PyTorch 2.9.0+cu130. |
+  | `nvmultiobjecttracker` | Low-level multi-object tracker library (`libnvds_nvmultiobjecttracker.so`) loaded by `gst-nvtracker`. Built by `build/build.sh` in the `utils` stage. VPI headers are already present in the DS 9.2 build image; bare-metal x86 builds outside the image require the `vpi4-dev` package (see [build/BUILD.md](build/BUILD.md)). |
 
   For details, see [src/gst-plugins/README.md](src/gst-plugins/README.md).
 

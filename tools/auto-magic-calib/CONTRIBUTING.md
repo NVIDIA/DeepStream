@@ -3,18 +3,25 @@
 
 # Contribution Rules
 
-This project is currently not accepting code contributions.
+AutoMagicCalib is part of the DeepStream repository and follows the project-wide
+contribution process: see the root [CONTRIBUTING.md](../../CONTRIBUTING.md) for
+contribution paths, the pull request process, the Developer Certificate of Origin
+(DCO) sign-off (`git commit -s`), and licensing requirements.
 
-Pull requests opened against this repository will not be reviewed or merged at
-this time. The repository is published as a reference distribution of
-NVIDIA-authored deployment scripts and configuration for AutoMagicCalib camera
-calibration.
+For changes in this directory:
+
+- Open an issue first for new features, changes to the REST API, or changes to the
+  deployment scripts and container configuration, and wait for maintainer feedback
+  before writing code.
+- Test with the sample calibration dataset or your own `cam_*.mp4` set, and state
+  the DeepStream version, GPU, OS, and container tag you used in the pull request.
+- Keep the SPDX header on every new or edited file.
 
 ## Reporting issues
 
 We welcome bug reports and feature requests.
 
-**File a [GitHub issue](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/issues)** - Include reproduction steps, expected vs. actual behavior, and environment details
+**File an [issue](https://github.com/NVIDIA/DeepStream/issues)** - Include reproduction steps, expected vs. actual behavior, and environment details
   (DeepStream version, GPU, OS, container tag).
 
 ## Asking questions

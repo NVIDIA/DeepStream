@@ -57,8 +57,10 @@ GST_DEBUG_CATEGORY_EXTERN (gst_modelmux_debug_cat);
 #define MM_ERR(fmt, ...)   GST_ERROR (fmt, ##__VA_ARGS__)
 
 /* Runtime toggle for the per-tile debug overlay (env MM_OVERLAY=1).
- * Cached on first use; 0 (off) by default. Replaces the old compile-time flag. */
-static gboolean
+ * Cached on first use; 0 (off) by default. Replaces the old compile-time flag.
+ * Shared with the SECONDARY stage (gstnvmodelmux_sgie.c), which draws its own line
+ * under this one, so one env var still governs the whole overlay. */
+G_GNUC_INTERNAL gboolean
 modelmux_overlay_enabled (void)
 {
   static gint cached = -1;
@@ -100,12 +102,16 @@ modelmux_frametrace_enabled (void)
  * nvdsosd renders one NvOSD_TextParams per LINE, so we emit 5 labels stacked by
  * y_offset. source_id is the nvmultiurisrcbin global id preserved on the frame. */
 
-/* Draw a single info line at (x_offset, top) on one frame, colour-coded by role:
- * Primary -> green, Shadow -> red, anything else -> white. No background box.
- * `text` is copied (freed when the display meta is released). */
-static void
+/* Draw a single info line at (x_offset, y_offset) on one frame, colour-coded by role:
+ * Primary -> green, Shadow -> red, Secondary -> cyan, anything else -> white.
+ * `text` is copied (freed when the display meta is released).
+ *
+ * y_offset is a parameter so stages can STACK their lines on the same tile: the
+ * primary draws its provenance at the top, the secondary its serving model just
+ * under it, and both stay readable on one tile. */
+G_GNUC_INTERNAL void
 modelmux_draw_label (NvDsBatchMeta * bmeta, NvDsFrameMeta * fm, guint x_offset,
-    const gchar * text, const gchar * role)
+    guint y_offset, const gchar * text, const gchar * role)
 {
   NvDsDisplayMeta *dm = nvds_acquire_display_meta_from_pool (bmeta);
   NvOSD_TextParams *tp;
@@ -121,12 +127,14 @@ modelmux_draw_label (NvDsBatchMeta * bmeta, NvDsFrameMeta * fm, guint x_offset,
     r = 0.0; g = 1.0; b = 0.0;
   } else if (g_strcmp0 (role, "Shadow") == 0) {  /* Shadow  -> red   */
     r = 1.0; g = 0.0; b = 0.35;
+  } else if (g_strcmp0 (role, "Secondary") == 0) {  /* Secondary -> cyan */
+    r = 0.0; g = 0.85; b = 1.0;
   }
 
   dm->num_labels = 1;
   tp->display_text = g_strdup (text);
   tp->x_offset = x_offset;
-  tp->y_offset = 12;
+  tp->y_offset = y_offset;
   tp->font_params.font_name = (gchar *) "Sans";
   tp->font_params.font_size = 1;
   tp->font_params.font_color.red = r;
@@ -369,15 +377,17 @@ modelmux_acct_role_rewarm (ModelMuxBin * modelmux_bin, guint sid, gint r)
 }
 
 /* perf metrics ONLY (installed only when attach-perf-metric is on): stamp the batch
- * arrival time at the nvinfer SINK, so the src provenance probe can derive the batch's
- * inference latency. Lock-free, single writer. */
+ * arrival time at the BIN's inference HEAD -- the xfer-in when the shard is cross-GPU,
+ * the inference element otherwise -- so the tail probe derives the whole bin's latency,
+ * device migration included. Measuring the bin rather than the element inside it is what
+ * makes the number mean the same thing for every backend. Lock-free, single writer. */
 static GstPadProbeReturn
-modelmux_perf_infer_in_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udata)
+modelmux_perf_bin_in_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udata)
 {
   ModelBin *model_bin = (ModelBin *) udata;
   (void) pad; (void) info;
   if (model_bin && model_bin->perf)
-    modelmux_perf_mark_infer_in (model_bin->perf, g_get_monotonic_time ());
+    modelmux_perf_mark_bin_in (model_bin->perf, g_get_monotonic_time ());
   return GST_PAD_PROBE_OK;
 }
 
@@ -580,9 +590,12 @@ modelmux_inference_provenance_probe (GstPad * pad, GstPadProbeInfo * info, gpoin
       g_atomic_int_inc (&modelmux_bin->acct[source_id].role[racct].infer);
 
     /* perf metrics (opt-in): record this frame into the bin aggregate + its per-source
-     * counter (lock-free). `perf_now` is the single batch timestamp sampled above. */
+     * counter (lock-free). `perf_now` is the single batch timestamp sampled above.
+     * Recorded HERE (the inference src) rather than after xfer-out: this probe already
+     * walks every frame for provenance, and the egress migration is symmetric with the
+     * ingress one already inside the window. */
     if (perf)
-      modelmux_perf_mark_infer_out (model_bin->perf, perf_now, (gint) source_id);
+      modelmux_perf_mark_bin_out (model_bin->perf, perf_now, (gint) source_id);
 
     /* lock-free per-frame path: read the atomic name mirror, never the hash */
     const gchar *name = modelmux_stream_name_get (modelmux_bin, source_id);
@@ -1647,14 +1660,14 @@ model_bin_reload_engine (ModelBin * model_bin, const gchar * new_cfg,
 static GstElement *
 modelmux_infer_create (ModelType type, const gchar * elem_name)
 {
-  return create_gst_element (type == MODEL_INFERSERVER ? "nvinferserver" : "nvinfer", elem_name);
+  return create_gst_element (modelmux_backend (type)->element, elem_name);
 }
 
 /* TRUE iff the backend supports nvinfer's native in-place engine/config hot-swap (OTA). */
 static gboolean
 modelmux_infer_supports_inplace_reload (ModelType type)
 {
-  return (type == MODEL_INFER);
+  return modelmux_backend (type)->inplace_reload;
 }
 
 /* Configure the inference element + wire its completion signal. config-file-path/unique-id/
@@ -1668,7 +1681,23 @@ modelmux_infer_configure (ModelBin * model_bin, const gchar * engine_file)
       "unique-id", model_bin->unique_id,
       "batch-size", model_bin->max_streams, NULL);
 
+  /* The model's infer config owns process-mode; check it agrees with the stage this
+   * model is running in. A mismatch is the operator's to fix -- inferring full-frame
+   * at a secondary stage produces plausible-looking garbage with no error. */
   if (model_bin->type == MODEL_INFER) {
+    gint declared = modelmux_config_file_process_mode (model_bin->config_file);
+    if (declared < 0)
+      MM_WARN ("ModelBin %s/%s: '%s' does not set process-mode; nvinfer defaults to 1 "
+          "(full frame) but this stage is process-mode=%d -- set it in the model config",
+          model_bin->role, model_bin->name, model_bin->config_file, model_bin->process_mode);
+    else if (declared != model_bin->process_mode)
+      MM_WARN ("ModelBin %s/%s: '%s' sets process-mode=%d but this stage is "
+          "process-mode=%d -- the model config wins; fix it or the model runs at the "
+          "wrong position", model_bin->role, model_bin->name, model_bin->config_file,
+          declared, model_bin->process_mode);
+  }
+
+  if (modelmux_backend (model_bin->type)->inplace_reload) {
     /* OTA completion signal (nvinfer fires "model-updated" on every (re)load;
      * signature (gint status, gchar* cfg) matches infer_engine_update_cb). The
      * name MUST be exactly what nvinfer registers -- a wrong name silently drops
@@ -1780,6 +1809,7 @@ model_bin_new (const gchar * name, const gchar * role,
   model_bin->mux_push_timeout = config ? config->model_mux_push_timeout : 10000;
   model_bin->mux_live_source  = config ? config->mux_live_source       : TRUE;
   model_bin->mux_gpu          = config ? (gint) config->gpu             : 0;
+  model_bin->process_mode     = config ? config->process_mode          : 1;
   /* perf metrics: opt-in. `perf_on` is the cached hot-path gate; `perf` holds the counters. */
   model_bin->perf_on = (config && config->attach_perf_metric);
   model_bin->perf = model_bin->perf_on ? modelmux_perf_new () : NULL;
@@ -2006,12 +2036,14 @@ model_bin_new (const gchar * name, const gchar * role,
     }
   }
 
-  /* perf metrics ONLY: stamp the batch arrival time at the nvinfer sink, so the src
-   * provenance probe can derive per-batch inference latency. Installed only when enabled. */
+  /* perf metrics ONLY: stamp the batch arrival at the BIN's head, so the latency covers
+   * the whole bin (xfer-in + inference), not just the inference element. Installed only
+   * when enabled. */
   if (model_bin->perf_on) {
-    GstPad *isnk = gst_element_get_static_pad (model_bin->infer, "sink");
+    GstElement *head = model_bin->conv_in ? model_bin->conv_in : model_bin->infer;
+    GstPad *isnk = gst_element_get_static_pad (head, "sink");
     if (isnk) {
-      gst_pad_add_probe (isnk, GST_PAD_PROBE_TYPE_BUFFER, modelmux_perf_infer_in_probe, model_bin, NULL);
+      gst_pad_add_probe (isnk, GST_PAD_PROBE_TYPE_BUFFER, modelmux_perf_bin_in_probe, model_bin, NULL);
       gst_object_unref (isnk);
     }
   }
@@ -2589,6 +2621,45 @@ modelmux_effective_batch (const ModelMuxConfig * config, const ModelCatalogEntry
 }
 
 /* find or lazily create a ModelBin for this role */
+/* Is @uid already stamped by a LIVE bin in this graph? Scans both role pools (walking
+ * each model's shard chain -- shards SHARE their group's id) and the limbo map.
+ *
+ * A CONFIGURED id is only unique by the operator's promise, and a runtime model/load
+ * carries no id field at all, so a model loaded later can name an id an existing model
+ * already uses. Two bins stamping one id makes downstream provenance and any
+ * 'operate-on-gie-id' ambiguous, so the caller falls back to the monotonic allocator
+ * instead. Caller holds ib->lock (the allocator's own contract). */
+static gboolean
+modelmux_gie_uid_in_use (ModelMuxBin * ib, guint uid)
+{
+  ModelPool *pools[2];
+  GHashTableIter it;
+  gpointer k, v;
+  guint pi;
+
+  if (!ib)
+    return FALSE;
+  pools[0] = ib->primary_pool;
+  pools[1] = ib->shadow_pool;
+  for (pi = 0; pi < 2; pi++) {
+    if (!pools[pi] || !pools[pi]->models)
+      continue;
+    g_hash_table_iter_init (&it, pools[pi]->models);
+    while (g_hash_table_iter_next (&it, &k, &v))
+      for (ModelBin *b = (ModelBin *) v; b; b = (ModelBin *) b->next_shard)
+        if (b->unique_id == uid)
+          return TRUE;
+  }
+  if (ib->limbo_models) {
+    g_hash_table_iter_init (&it, ib->limbo_models);
+    while (g_hash_table_iter_next (&it, &k, &v))
+      for (ModelBin *b = (ModelBin *) v; b; b = (ModelBin *) b->next_shard)
+        if (b->unique_id == uid)
+          return TRUE;
+  }
+  return FALSE;
+}
+
 static ModelBin *
 model_pool_get_or_create (ModelPool * model_pool, const gchar * model_name,
     const gchar * cfg_override, guint req_batch)
@@ -2646,10 +2717,60 @@ model_pool_get_or_create (ModelPool * model_pool, const gchar * model_name,
       g_free (bare); g_free (ver);
       return NULL;
     }
-    /* stable per-role unique-id: a MONOTONIC counter, never reused while the
-     * process lives. Using the registry size would reuse a uid after an
-     * unload+reload and collide with another live model's gie-unique-id. */
-    uid = ++model_pool->next_uid;
+    /* gie-unique-id. PREFER the id the model's own infer config DECLARES: that is the
+     * value nvinfer stamps into the object meta, so a downstream secondary can name it
+     * in `operate-on-gie-id` straight from config -- the plain-nvinfer contract, which
+     * an internally-allocated id silently breaks (the id is then only discoverable by
+     * running the pipeline). The SHADOW lane adds MM_SHADOW_GIE_OFFSET so the A/B twin
+     * stays distinguishable downstream.
+     *
+     * FALLBACK, when the config declares none: the historical MONOTONIC counter, never
+     * reused while the process lives. (Using the registry size would reuse a uid after
+     * an unload+reload and collide with another live model.) */
+    {
+      const gchar *eff_cfg = cfg_override ? cfg_override : def->config_file;
+      /* MOST SPECIFIC FIRST: an id declared for THIS VERSION in its
+       * [model-<name>-<version>] block. Used verbatim -- no shadow offset, because the
+       * id then belongs to the version, not to a lane, and derive has already baked it
+       * into this version's own config so nvinfer stamps the very same number. */
+      gint vgie = modelmux_config_version_gie (model_pool->config, bare, ver);
+      gint declared = (vgie > 0) ? -1                     /* version id wins outright */
+          : (model_pool->config && model_pool->config->gie_ids_from_config)
+              ? modelmux_config_file_gie_id (eff_cfg) : -1;
+      guint want = 0;
+      if (vgie > 0)
+        want = (guint) vgie;
+      else if (declared > 0)
+        want = (guint) declared +
+            (modelmux_role_idx (model_pool->role) == MM_ROLE_SHADOW
+                ? MM_SHADOW_GIE_OFFSET : 0);
+
+      if (want && modelmux_gie_uid_in_use ((ModelMuxBin *) model_pool->owner, want)) {
+        /* a LOAD naming an id that is already serving: honouring it would duplicate an
+         * identity downstream. Allocate instead and say which model to fix. */
+        MM_WARN ("ModelPool %s: gie-unique-id %u for '%s@%s' is already in use by a live "
+            "model -- allocating one instead (read it from model/status). Give this "
+            "version a distinct gie-unique-id to keep the id config-knowable",
+            model_pool->role, want, bare, ver);
+        want = 0;
+      }
+
+      if (want) {
+        uid = want;
+      } else {
+        /* SKIP ids a live model already holds. The monotonic counter knows nothing
+         * about CONFIGURED ids, and the two ranges overlap head-on: the primary
+         * pool's first allocation is base+1 = 2, which is exactly what a second
+         * config declaring gie-unique-id=2 already took (the shadow pool's first is
+         * 101, i.e. a declared 1 plus the shadow offset). Without this the fallback
+         * -- whose whole job is to AVOID a duplicate id -- would hand out the very
+         * id it just rejected, and two live bins would stamp one identity into the
+         * object meta. Terminates: next_uid only grows and live models are finite. */
+        do {
+          uid = ++model_pool->next_uid;
+        } while (modelmux_gie_uid_in_use ((ModelMuxBin *) model_pool->owner, uid));
+      }
+    }
     mx = modelmux_effective_batch (model_pool->config, def, bare, ver, req_batch,
         model_pool->max_streams);
 
@@ -2946,7 +3067,7 @@ modelmux_pool_shard_for_attach (ModelPool * rb, const gchar * model_name,
             g_atomic_pointer_get (&base->engine);
         gchar *vtag = g_strdup_printf ("%s.g%d",
             model_version_str (base), dev);
-        gchar *dcfg = modelmux_config_derive (base->config_file, teng, dev,
+        gchar *dcfg = modelmux_config_derive (base->config_file, teng, dev, -1,
             base->name, vtag);
         g_free (vtag);
         if (dcfg) {
@@ -3557,7 +3678,7 @@ modelmux_combined_overlay_probe (GstPad * pad, GstPadProbeInfo * info, gpointer 
          * colour-coded by role (Primary=green, Shadow=red). */
         gchar *txt = g_strdup_printf ("%s:%u:%s-%s:%s",
             pm->camera_name, fm->frame_num, pm->model_name, pm->model_version, pm->role);
-        modelmux_draw_label (bmeta, fm, 12, txt, pm->role);
+        modelmux_draw_label (bmeta, fm, 12, 12, txt, pm->role);
         g_free (txt);
       }
     }
@@ -3865,13 +3986,9 @@ modelmux_bin_new (GstElement * pipeline, const gchar * name,
   gst_pad_set_active (modelmux_bin->sink_ghost, TRUE);
   gst_element_add_pad (modelmux_bin->bin, modelmux_bin->sink_ghost);
 
-  /* answer the REST /api/v1/model/status downstream query at the bin boundary */
-  gst_pad_add_probe (modelmux_bin->sink_ghost, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM,
-      modelmux_status_query_probe, modelmux_bin, NULL);
-  /* answer the SYNCHRONOUS control-admission query (model/unload) here too, so the
-   * REST caller gets our real verdict + reason instead of a blind 202 */
-  gst_pad_add_probe (modelmux_bin->sink_ghost, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM,
-      modelmux_control_query_probe, modelmux_bin, NULL);
+  /* the model/status + control-admission query probes are installed by
+   * gst_modelmux_control_attach on the ELEMENT's sink pad -- a secondary stage has
+   * no ModelMuxBin, so they cannot live on this bin's boundary pad. */
   gst_object_unref (demux_sink);
 
   /* output mux: set properties defensively (see set_prop_if_exists): the
@@ -5185,7 +5302,7 @@ modelmux_bin_num_streams (ModelMuxBin * modelmux_bin)
  * promote-when-ready (same deferred-promote path as a runtime model switch). Only the defaults
  * are eager (and unload-protected). */
 gboolean
-modelmux_bin_load_defaults (ModelMuxBin * modelmux_bin, gboolean wait)
+modelmux_bin_load_defaults (ModelMuxBin * modelmux_bin)
 {
   /* MM_DEFAULT_WARM_WAIT_MS: cap the blocking wait ABOVE the warm thread's own
    * 30-min build timeout, so the thread always resolves to WARMED/FAILED first
@@ -5217,14 +5334,13 @@ modelmux_bin_load_defaults (ModelMuxBin * modelmux_bin, gboolean wait)
         g_mutex_lock (&modelmux_bin->lock);
         default_primary->bin = mm_default_bin_lookup (modelmux_bin, FALSE, default_primary->key);
         g_mutex_unlock (&modelmux_bin->lock);
-        /* wait-for-default-models: block until this default's engine is WARMED so
-         * it infers from the first frame; a FAILED warm makes the caller fail the
-         * PLAYING transition (fail loud on a bad default). */
-        if (wait) {
+        /* Block until this default's engine is WARMED so it infers from the first
+         * frame; a FAILED warm makes the caller fail the PLAYING transition. */
+        {
           if (!default_primary->bin ||
               !model_bin_wait_ready (default_primary->bin, MM_DEFAULT_WARM_WAIT_MS)) {
             MM_ERR ("MultiModelBin: default PRIMARY '%s' did NOT warm up (engine "
-                "build/load failed) -- wait-for-default-models", default_primary->key);
+                "build/load failed) -- defaults must be READY before streaming", default_primary->key);
             ok = FALSE;
           } else {
             MM_INFO ("  - MultiModelBin  default PRIMARY '%s' WARMED (ready before "
@@ -5249,11 +5365,11 @@ modelmux_bin_load_defaults (ModelMuxBin * modelmux_bin, gboolean wait)
         g_mutex_lock (&modelmux_bin->lock);
         default_shadow->bin = mm_default_bin_lookup (modelmux_bin, TRUE, default_shadow->key);
         g_mutex_unlock (&modelmux_bin->lock);
-        if (wait) {
+        {
           if (!default_shadow->bin ||
               !model_bin_wait_ready (default_shadow->bin, MM_DEFAULT_WARM_WAIT_MS)) {
             MM_ERR ("MultiModelBin: default SHADOW '%s' did NOT warm up (engine "
-                "build/load failed) -- wait-for-default-models", default_shadow->key);
+                "build/load failed) -- defaults must be READY before streaming", default_shadow->key);
             ok = FALSE;
           } else {
             MM_INFO ("  - MultiModelBin  default SHADOW '%s' WARMED (ready before "
@@ -5327,6 +5443,80 @@ modelmux_bin_set_default (ModelMuxBin * modelmux_bin, gboolean shadow,
   g_free (key);
   MM_INFO ("  - MultiModelBin  runtime default %s is now '%s@%s'",
       shadow ? "SHADOW" : "PRIMARY", name, version ? version : MM_MODEL_VERSION_DEFAULT);
+}
+
+/* Apply a stream's sensor identity AFTER it has already attached.
+ *
+ * A stream normally receives its id and display name at attach time, from the
+ * binding cached before it. But the bind and the attach are two independent
+ * events -- the bind is emitted once from nvmultiurisrcbin's PAUSED->PLAYING
+ * transition, the attach is driven by the source pad appearing -- and for
+ * statically listed sources they land within milliseconds of each other in an
+ * order nothing guarantees. Lose that race and the stream keeps the placeholder
+ * the attach gave it ("src", and NO routable camera_id), which is not cosmetic:
+ * a stream with no camera_id is skipped by GET /model/routing and cannot be named
+ * in any per-stream request, so only fleet-wide "all" can ever reach it again.
+ *
+ * Identity is therefore repairable, and this is the one place that repairs it.
+ * Same locked-write discipline as the attach-time record, plus the atomic
+ * name-slot publish that the lock-free probe readers use. Fields are applied
+ * INDEPENDENTLY: a bind carrying only one of the two must not erase the other.
+ * A stream that has already gone is left alone -- re-inserting here would
+ * resurrect an entry the teardown just removed. */
+void
+modelmux_bin_set_stream_identity (ModelMuxBin * modelmux_bin, guint stream_id,
+    const gchar * name, const gchar * cam_id)
+{
+  gboolean live;
+
+  if (!modelmux_bin || (!name && !cam_id))
+    return;
+
+  g_mutex_lock (&modelmux_bin->lock);
+  live = (modelmux_bin->stream_wiring
+      && g_hash_table_contains (modelmux_bin->stream_wiring,
+          GINT_TO_POINTER ((gint) stream_id)));
+  if (live) {
+    if (name && *name) {
+      /* the table owns its values (g_free destroy), so insert REPLACES and frees
+       * the old string; the probe-visible slot is republished under the same lock. */
+      g_hash_table_insert (modelmux_bin->stream_names,
+          GINT_TO_POINTER ((gint) stream_id), g_strdup (name));
+      modelmux_stream_name_publish (modelmux_bin, stream_id, name);
+    }
+    if (cam_id && *cam_id)
+      g_hash_table_insert (modelmux_bin->stream_cam_ids,
+          GINT_TO_POINTER ((gint) stream_id), g_strdup (cam_id));
+  }
+  g_mutex_unlock (&modelmux_bin->lock);
+
+  if (live)
+    MM_INFO ("  - MultiModelBin  stream %u identity applied LATE  (camera_id='%s' name='%s')"
+        " -- the bind arrived after the attach", stream_id,
+        cam_id ? cam_id : "-", name ? name : "-");
+}
+
+void
+modelmux_bin_clear_default (ModelMuxBin * modelmux_bin, gboolean shadow)
+{
+  DefaultModelRef *ref;
+  gboolean had;
+  if (!modelmux_bin || !modelmux_bin->primary_pool || !modelmux_bin->shadow_pool)
+    return;
+  g_mutex_lock (&modelmux_bin->lock);
+  ref = shadow ? &modelmux_bin->shadow_pool->default_ref
+               : &modelmux_bin->primary_pool->default_ref;
+  had = (ref->key != NULL);
+  /* Drops the IDENTITY, not the model: the bin it named keeps serving whatever
+   * streams are still attached to it and is reclaimed by the normal idle paths
+   * once they leave. Same locked-write discipline as set_default -- identity and
+   * the derived bin cache are cleared together, so no reader can observe one
+   * without the other. */
+  mm_default_ref_clear (ref);
+  g_mutex_unlock (&modelmux_bin->lock);
+  if (had)
+    MM_INFO ("  - MultiModelBin  runtime default %s CLEARED (no default %s from now on)",
+        shadow ? "SHADOW" : "PRIMARY", shadow ? "A/B lane" : "primary");
 }
 
 /* Collect the source-ids of streams currently routed to `key` in the given role (primary or
@@ -9713,6 +9903,12 @@ modelmux_bin_free (ModelMuxBin * modelmux_bin)
   if (modelmux_bin->pending_routes) {             /* mirrored deferred-route view */
     g_ptr_array_unref (modelmux_bin->pending_routes);
     modelmux_bin->pending_routes = NULL;
+  }
+  /* drop our ref on the pipeline-wide revision; the counter itself lives on as
+   * long as another stage (or the cached GstContext) still holds one. */
+  if (modelmux_bin->rev_shared) {
+    modelmux_rev_shared_unref (modelmux_bin->rev_shared);
+    modelmux_bin->rev_shared = NULL;
   }
   if (modelmux_bin->col_free_idx)
     g_queue_free (modelmux_bin->col_free_idx);

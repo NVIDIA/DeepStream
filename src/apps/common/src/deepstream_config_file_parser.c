@@ -105,6 +105,7 @@ GST_DEBUG_CATEGORY (APP_CFG_PARSER_CAT);
 #define CONFIG_GROUP_STREAMMUX_ALIGN_FIRST_BUFFER "align-first-buffer"
 #define CONFIG_GROUP_STREAMMUX_FAILSAFE_FLUSH_COUNT "failsafe-flush-count"
 #define CONFIG_GROUP_STREAMMUX_DROP_BACKWARD_SEI "drop-backward-sei"
+#define CONFIG_GROUP_STREAMMUX_DROP_UNTIL_RTCP_SR "drop-until-rtcp-sr"
 #define CONFIG_GROUP_SEGVISUAL_WIDTH "width"
 #define CONFIG_GROUP_SEGVISUAL_HEIGHT "height"
 #define CONFIG_GROUP_SEGVISUAL_BATCH_SIZE "batch-size"
@@ -990,6 +991,11 @@ parse_streammux (NvDsStreammuxConfig * config, GKeyFile * key_file,
         config->drop_backward_sei =
             g_key_file_get_integer(key_file, CONFIG_GROUP_STREAMMUX,
             CONFIG_GROUP_STREAMMUX_DROP_BACKWARD_SEI, &error);
+        CHECK_ERROR(error);
+    } else if (!g_strcmp0(*key, CONFIG_GROUP_STREAMMUX_DROP_UNTIL_RTCP_SR)) {
+        config->drop_until_rtcp_sr =
+            g_key_file_get_integer(key_file, CONFIG_GROUP_STREAMMUX,
+            CONFIG_GROUP_STREAMMUX_DROP_UNTIL_RTCP_SR, &error);
         CHECK_ERROR(error);
     }
     else {

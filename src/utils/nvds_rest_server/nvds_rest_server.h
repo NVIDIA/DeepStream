@@ -391,6 +391,11 @@ typedef struct NvDsServerStreamInfo
   std::string metadata_resolution;
   std::string metadata_codec;
   std::string metadata_framerate;
+  /* Wall-clock time of the first frame of the source (ISO 8601, e.g.
+   * "2025-01-01T00:00:00.000Z"), from metadata.file_start_time. When set it seeds
+   * the nvstreammux NTP base for this source so frame ntp_timestamp reflects the
+   * real content time (mainly for file sources that carry no RTCP NTP). */
+  std::string metadata_file_start_time;
   /* Full metadata object forwarded verbatim as a JSON string (variable keys),
    * so custom per-stream metadata (e.g. model selection) reaches the app. */
   std::string metadata_json;
