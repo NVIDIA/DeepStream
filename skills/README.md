@@ -65,10 +65,7 @@ deepstream/                                 # mono-repo root
 │   ├── deepstream-setup-on-wsl/            # DeepStream-in-Docker setup and verification for WSL2
 │   ├── deepstream-build-compute-stack/     # NVIDIA driver/CUDA/cuDNN/TensorRT host provisioning
 │   ├── inference-builder/                   # Declarative GPU inference pipeline generation skill
-│   ├── amc-setup-calibration-stack/        # AutoMagicCalib MS + UI launch skill
-│   ├── amc-run-sample-calibration/         # AutoMagicCalib bundled-sample validation skill
-│   ├── amc-run-video-calibration/          # AutoMagicCalib user-video calibration skill
-│   ├── amc-run-rtsp-calibration/           # AutoMagicCalib RTSP-stream calibration skill
+│   ├── amc-run-auto-calibration/           # AutoMagicCalib setup, calibration, and custom-dataset tuning skill
 │   ├── rtvi-cv-customize-model/            # Swap CV detection model in RTVI-CV (VSS Alerts Blueprint)
 │   ├── rtvi-vlm-customize-model/           # Swap VLM in the VSS Alerts Blueprint
 │   └── rtvi-cv-scaffold-vss-service/       # Scaffold a custom RTVI CV microservice for VSS
@@ -92,7 +89,7 @@ An **agentic skill** is a structured knowledge package that an AI coding assista
 
 Each subdirectory under `skills/` contains a DeepStream agentic skill that follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and others.
 
-This project ships **twenty-one complementary skills**:
+This project ships **eighteen complementary skills**:
 
 | Skill | Mode | Use when you want to… |
 |-------|------|----------------------|
@@ -110,10 +107,7 @@ This project ships **twenty-one complementary skills**:
 | [`deepstream-setup-on-wsl`](deepstream-setup-on-wsl/) | Consent-first setup and verification | Set up and verify DeepStream in Docker inside WSL2 on a supported local or remote Windows workstation, with secure remote access and GPU compatibility gates. |
 | [`deepstream-build-compute-stack`](deepstream-build-compute-stack/) | Version-pinned host provisioning | Provision an Ubuntu 24.04 x86_64 or ARM SBSA host with the NVIDIA open driver, CUDA, cuDNN, TensorRT, and NVIDIA Docker; optionally install DeepStream OS dependencies. |
 | [`inference-builder`](inference-builder/) | Declarative pipeline generation | Generate deployable GPU inference pipelines and containers from YAML for DeepStream, Triton, vLLM, TensorRT-LLM, or PyTorch backends. |
-| [`amc-setup-calibration-stack`](amc-setup-calibration-stack/) | Deployment runbook | Launch the AutoMagicCalib microservice and web UI from NGC release images via Docker Compose. |
-| [`amc-run-sample-calibration`](amc-run-sample-calibration/) | Validation runbook + script | Verify a running AMC stack with the bundled synthetic sample dataset. |
-| [`amc-run-video-calibration`](amc-run-video-calibration/) | Calibration runbook + script | Calibrate a camera rig from user-provided pre-recorded MP4 files via the AMC REST API. |
-| [`amc-run-rtsp-calibration`](amc-run-rtsp-calibration/) | RTSP capture + calibration runbook | Calibrate a camera rig from live RTSP streams through VIOS capture and the AMC REST API. |
+| [`amc-run-auto-calibration`](amc-run-auto-calibration/) | AMC operations runbook | Launch the AutoMagicCalib service/UI, run sample, MP4, or RTSP calibration, and tune settings for unfamiliar or poor-quality custom datasets using release paths under `tools/auto-magic-calib`. |
 | [`rtvi-cv-customize-model`](rtvi-cv-customize-model/) | Model swap + redeployment | Swap the CV detection model in RTVI-CV (VSS Alerts Blueprint verification mode) — covers ONNX staging, custom bbox parser, nvinfer config, runtime TRT engine build, and redeployment. |
 | [`rtvi-vlm-customize-model`](rtvi-vlm-customize-model/) | VLM endpoint / deployment swap | Swap the VLM in the VSS Alerts Blueprint across all three consumers (`rtvi-vlm`, `vlm-as-verifier`, `vss-agent`) via OpenAI-compatible endpoint or in-container vLLM. |
 | [`rtvi-cv-scaffold-vss-service`](rtvi-cv-scaffold-vss-service/) | Microservice scaffold | Scaffold a custom RTVI CV microservice (YOLO26 reference) that publishes detection metadata to VSS via Kafka `mdx-raw`. |
@@ -677,32 +671,29 @@ Measure TTFC and C2C latency on /path/to/test_video.mp4 — follow the deepstrea
 
 ### Skill: AutoMagicCalib
 
-The AMC skills provide guided AutoMagicCalib setup and calibration workflows. When these skills mention the root `README.md`, `assets/`, `compose/`, `projects/`, or `models/`, they mean the resolved `auto-magic-calib` checkout. The setup skill finds an existing checkout or asks before cloning one.
+`amc-run-auto-calibration` is the single DeepStream skill for AutoMagicCalib setup, calibration, and custom-dataset tuning workflows. It uses the release AMC checkout under `tools/auto-magic-calib/` and routes details to reference files for service setup, the SDG sample dataset, local MP4 calibration, RTSP/VIOS capture, bounded parameter tuning, and troubleshooting.
 
-These AMC skills are runtime-operation skills. Running setup or calibration requires a host with an NVIDIA GPU with NVENC, NVIDIA driver, Docker without sudo, NVIDIA Container Toolkit, and NGC image access. Optional VGGT refinement also requires HuggingFace access and the VGGT model. In restricted or no-GPU sandboxes, use the skills for planning and command preparation only.
+This is a runtime-operation skill. Running setup or calibration requires a host with an NVIDIA GPU with NVENC, NVIDIA driver, Docker without sudo, NVIDIA Container Toolkit, and NGC image access. Optional independent VGGT calibration also requires HuggingFace access and the VGGT model. In restricted or no-GPU sandboxes, use the skill for planning and command preparation only.
 
 | Skill | What it does |
 |-------|--------------|
-| [`amc-setup-calibration-stack`](amc-setup-calibration-stack/SKILL.md) | Launches the AMC microservice and UI from NGC release images, handles NGC login, resolves ports, configures `compose/.env`, verifies `/v1/ready`, and reports MS, Swagger, and UI URLs. |
-| [`amc-run-sample-calibration`](amc-run-sample-calibration/SKILL.md) | Runs the shipped sample dataset (`assets/sdg_08_2_sample_data_010926.zip`) through the AMC REST API using the bundled Python script or a documented Swagger UI path. |
-| [`amc-run-video-calibration`](amc-run-video-calibration/SKILL.md) | Runs calibration for user-supplied `cam_*.mp4` videos through the AMC REST API, with local config/alignment/layout detection, UI fallback, optional GT, focal lengths, detector selection, and optional VGGT refinement. |
-| [`amc-run-rtsp-calibration`](amc-run-rtsp-calibration/SKILL.md) | Records live RTSP streams through VIOS, ingests clips into AMC, then runs the same verify, calibrate, poll, and results workflow. |
+| [`amc-run-auto-calibration`](amc-run-auto-calibration/SKILL.md) | Launches the AMC service/UI, verifies `/v1/ready`, runs the bundled sample, calibrates user `cam_*.mp4` videos, handles RTSP capture through VIOS, and runs approved sequential experiments to recommend custom-dataset settings with per-attempt evidence. |
 
-#### Installing AMC skills
+#### Installing the AMC skill
 
-Copy all AMC skill directories into your assistant's skill directory. Examples:
+Copy the AMC skill directory into your assistant's skill directory. Examples:
 
 ```bash
 # Claude Code user-level
 mkdir -p ~/.claude/skills
-cp -r skills/amc-* ~/.claude/skills/
+cp -r skills/amc-run-auto-calibration ~/.claude/skills/
 
 # Codex user-level
 mkdir -p ~/.codex/skills
-cp -r skills/amc-* ~/.codex/skills/
+cp -r skills/amc-run-auto-calibration ~/.codex/skills/
 ```
 
-Restart or reopen the coding assistant after copying the skills.
+Restart or reopen the coding assistant after copying the skill.
 
 #### Example prompts
 

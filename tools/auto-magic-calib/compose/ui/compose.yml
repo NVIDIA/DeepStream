@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   auto-magic-calib-ui:
     image: nvcr.io/nvidia/vss-core/vss-auto-calibration-ui:3.3.0
