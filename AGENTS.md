@@ -123,8 +123,11 @@ After the first install, clear the GStreamer plugin cache: `rm -rf ~/.cache/gstr
 - Don't install `deepstream_libraries-*.whl` for a bare-metal DS install or when the full
   SDK deb/tarball is already installed — it is a standalone Python package for CVCUDA,
   NvImageCodec, and PyNvVideoCodec reference app bindings only.
-- This project is **not accepting external contributions**; do not add
-  contribution/PR scaffolding.
+- Contributions are accepted under the process in `CONTRIBUTING.md`: sign off every
+  commit (`git commit -s`), use Conventional Commit titles, and open pull requests
+  against `develop`. Follow the minimum build and source4 sanity test in
+  `PULL_REQUEST_GUIDELINES.md`. Keep `CONTRIBUTING.md`, that guide, and the
+  PR/issue templates in sync with this file when workflow guidance changes.
 
 ## Inference Builder (`tools/inference_builder/`)
 

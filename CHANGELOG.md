@@ -19,6 +19,11 @@
 
 ## New Features
 
+- Contributions are now accepted through pull requests to the `develop` branch.
+  Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
+  [pull request guidelines](PULL_REQUEST_GUIDELINES.md) for the required full
+  build, source4 sanity test, and DCO sign-off.
+
 - Added a Python probe authoring framework for Service Maker: reusable Python
   probe modules (`add_message_meta_probe`, `measure_fps_probe`,
   `kitti_dump_probe`) plus flow-API and pipeline-API

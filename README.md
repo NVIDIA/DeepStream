@@ -4,7 +4,7 @@
 
 DeepStream pipelines combine hardware-accelerated decoding/encoding, TensorRT inference, object tracking, and message-broker integrations to deliver real-time video analytics across dGPU and Jetson platforms.
 
-DeepStream is published as a unified GitHub repository; sources are to be used under the project [LICENSE](LICENSE) (documentation: CC-BY-4.0; source code: Apache-2.0). GitHub Release assets specific license details can be referred at [Release Asset License](#release-asset-license) under [DeepStream Release Assets](#deepstream-release-assets). The project is actively maintained, but currently not accepting code contributions — refer to the [Contribution Guidelines](#contribution-guidelines) for more details.
+DeepStream is published as a unified GitHub repository; sources are to be used under the project [LICENSE](LICENSE) (documentation: CC-BY-4.0; source code: Apache-2.0). GitHub Release assets specific license details can be referred at [Release Asset License](#release-asset-license) under [DeepStream Release Assets](#deepstream-release-assets). The project is actively maintained and welcomes contributions — refer to the [Contribution Guidelines](#contribution-guidelines) for more details.
 
 # Overview
 
@@ -322,7 +322,20 @@ docker pull ghcr.io/nvidia/deepstream:9.2-triton-multiarch
 ```
 
 # Contribution Guidelines
-This project is currently not accepting contributions. The product roadmap is managed internally by NVIDIA.
+
+Contributions are welcome through pull requests to the `develop` branch. Read [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose a change, coding conventions, licensing, and the Developer Certificate of Origin (DCO) sign-off (`git commit -s`). For bugs and feature requests, open an issue first. The product roadmap is managed by NVIDIA, so large changes should be discussed in an issue before a pull request is opened.
+
+To submit a pull request:
+
+1. Create a working branch from `develop`.
+2. Make and review your changes.
+3. Build using the GitHub build script.
+4. Run `deepstream-app` with the source4 config for a sanity test on x86 or Jetson.
+5. Commit with contributor sign-off.
+6. Push the working branch.
+7. Open a pull request targeting `NVIDIA/DeepStream:develop`.
+
+For details on each step, refer to the [Pull Request Guidelines](PULL_REQUEST_GUIDELINES.md).
 
 ## Security
 - Vulnerability disclosure: File an issue at [Issues](https://github.com/NVIDIA/DeepStream/issues).
