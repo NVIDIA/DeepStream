@@ -82,7 +82,7 @@ With the support for de-packetization, `nvdsudpsrc` can now have five different 
 System can also have Gstreamer provided OSS implementation of udp source (`udpsrc`) component. In that case system would have two implementations for udp source - `udpsrc` and `nvdsudpsrc`.
 `nvdsudpsrc` component can only be used with NVIDIA ConnectX-5 and above cards after having installed `Rivermax` SDK and its license.
 
-* Download and setup the `Rivermax` 1.70.x SDK here: https://developer.nvidia.com/networking/rivermax-getting-started
+* Download and setup the `Rivermax` SDK here: https://developer.nvidia.com/networking/rivermax-getting-started. `nvdsudpsrc` is tested with Rivermax 1.91.21.
 
 *  Follow the instruction on the SDK page to obtain `Rivermax` development license.
 
@@ -173,6 +173,7 @@ The following table describes the Gst-nvdsudpsrc plugin’s Gst properties.
 | used-socket (read-only) | Socket currently in use for UDP reception; NULL means no socket | GObject (GSocket) |  | dGPU Jetson |
 | timeout | Posts a message after this many nanoseconds; 0 disables the timeout | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | timeout=0 | dGPU Jetson |
 | latency-offset | Offset in nanoseconds to add to buffer PTS/DTS when use-rtp-timestamp is enabled, to account for pipeline latency | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | latency-offset=0 | dGPU Jetson |
+| enable-dhds | Enable RTP Dynamic Header Data Split (DHDS) on the Rivermax device, to receive ST 2110-20 streams with more than one SRD per packet. Has no effect when header-size is 0. When DHDS is active, a header-size below 32 is raised to 32. If the interface does not support DHDS, the element logs a warning and receives without it | Boolean | enable-dhds=true | dGPU Jetson |
 
 ## Example pipelines
 
