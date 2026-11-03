@@ -47,10 +47,10 @@ namespace pydeepstreamdoc
                 :arg batch_id: Batch id of the buffer
                 :returns: Chunk id of the buffer)pydeepstream";
             constexpr const char* extract = R"pydeepstream(
-                Extract data from the buffer in the batch with given id to a tensor
+                Extract a filled RGB surface as a tensor. Other formats are unsupported.
 
-                :arg batch_id: *int* Batch id of the buffer
-                :returns: :class:`Tensor` Buffer data as tensor)pydeepstream";
+                :arg batch_id: *int* Nonnegative frame batch id (use frame metadata, not batch capacity)
+                :returns: :class:`Tensor`, or None for invalid buffers, unfilled/out-of-range ids, or unsupported surfaces)pydeepstream";
         }
 
         namespace FeederDoc
