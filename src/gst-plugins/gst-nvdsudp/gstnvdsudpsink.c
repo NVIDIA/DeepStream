@@ -2478,18 +2478,38 @@ gst_nvdsudpsink_render_raw_frame (GstBaseSink *bsink, GstBuffer *buffer)
       cudaError_t ret = cudaSuccess;
       if (sParams->streamType == VIDEO_2110_20_STREAM) {
         if (isNewBuffer) {
-          ret = cudaMemcpy2DAsync(
-            (void*)payload,   // dst: Destination pointer (GPU memory allocated for network packets)
-            bytesPerLine,     // dpitch: Destination pitch in bytes
-            inDataPtr,        // src: Source pointer
-            (sink->is_nvmm) ? surf->surfaceList[0].pitch : bytesPerLine, // spitch: Source pitch in bytes.
-            bytesPerLine,     // width: Width of the 2D memory copy in bytes (actual data per line)
-            sParams->height,  // height: Number of rows to copy
-            cudaMemcpyDefault, // kind: Type of transfer (device to device, host to device etc)
-            sink->cuda_stream // stream: CUDA stream for asynchronous operation
-          );
+          if (numFields == 2) {
+            size_t srcPitch = sink->is_nvmm
+                ? surf->surfaceList[0].pitch : bytesPerLine;
+            guint fieldHeight = sParams->height / numFields;
+
+            /* Pack alternating source rows into consecutive field payloads. */
+            for (guint field = 0; field < numFields; field++) {
+              ret = cudaMemcpy2DAsync(
+                  (guint8 *) payload + (size_t) field * fieldHeight * bytesPerLine,
+                  bytesPerLine,
+                  inDataPtr + (size_t) field * srcPitch,
+                  srcPitch * numFields,
+                  bytesPerLine,
+                  fieldHeight,
+                  cudaMemcpyDefault,
+                  sink->cuda_stream);
+              CHECK_CUDA(ret, "failed to copy interlaced field payload");
+            }
+          } else {
+            ret = cudaMemcpy2DAsync(
+              (void*)payload,   // dst: Destination pointer (GPU memory allocated for network packets)
+              bytesPerLine,     // dpitch: Destination pitch in bytes
+              inDataPtr,        // src: Source pointer
+              (sink->is_nvmm) ? surf->surfaceList[0].pitch : bytesPerLine, // spitch: Source pitch in bytes.
+              bytesPerLine,     // width: Width of the 2D memory copy in bytes (actual data per line)
+              sParams->height,  // height: Number of rows to copy
+              cudaMemcpyDefault, // kind: Type of transfer (device to device, host to device etc)
+              sink->cuda_stream // stream: CUDA stream for asynchronous operation
+            );
+            CHECK_CUDA(ret, "failed to copy chunk from device to device");
+          }
           isNewBuffer = false;
-          CHECK_CUDA(ret, "failed to copy chunk from device to device");
         }
       } else {
         GST_ERROR_OBJECT(sink, "Unsupported stream type");
