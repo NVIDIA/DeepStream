@@ -10,6 +10,8 @@
     UTC, so they work when the pipeline clock is not a REALTIME clock.
     `nvdsudpsrc` no longer changes the shared system clock to REALTIME.
   - `nvdsudpsink` keeps the parity bits of the ST 2110-40 Data Count word.
+  - `nvdsudpsink` sends the two fields of interlaced ST 2110-20 video
+    correctly.
   - `nvdsudpsink` sets the RTP timestamp 5 ticks before the media time, as the
     Rivermax dev kit does.
   - `gst-nvdsudp` is tested with Rivermax 1.91.21.
