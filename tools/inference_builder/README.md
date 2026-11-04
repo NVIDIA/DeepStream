@@ -245,8 +245,8 @@ You can now try out the [example prompts](prompts.md) using Claude Code.
 ## Development policy
 
 Inference Builder follows the DeepStream repository's development and licensing policy.
-The project is not accepting external code contributions; see the root
-[`README.md`](../../README.md#contribution-guidelines) for details.
+Contributions are welcome; see the root [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
+for the process, DCO sign-off, and licensing requirements.
 
 
 ## Project status and roadmap

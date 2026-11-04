@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <map>
 
 #ifndef M_PI
@@ -899,38 +900,57 @@ bool NvDsInferParseCustomRTDETRTAO (std::vector<NvDsInferLayerInfo> const &outpu
 
     // Process flattened format - all queries from all batches together
     int total_detections_found = 0;
-    
-    // Apply sigmoid to all logits
-    std::vector<float> prob(total_queries * num_classes);
-    for (int i = 0; i < total_queries * num_classes; i++) {
-        prob[i] = 1.0f / (1.0f + exp(-pred_logits[i]));
+
+    // Precompute thresholds in logit space so filtering below can compare
+    // raw logits directly instead of computing sigmoid over the whole
+    // total_queries x num_classes grid.
+    std::vector<float> logit_thresh(num_classes);
+    for (int c = 0; c < num_classes; c++) {
+        float t = detectionParams.perClassPreclusterThreshold[c];
+        if (t <= 0.0f) {
+            logit_thresh[c] = -std::numeric_limits<float>::infinity();
+        } else if (t >= 1.0f) {
+            logit_thresh[c] = std::numeric_limits<float>::infinity();
+        } else {
+            logit_thresh[c] = -logf(1.0f / t - 1.0f);
+        }
     }
 
-    // Get top-k indices (C++11 compatible)
-    std::vector<std::pair<float, int> > score_index_pairs;
-    for (int i = 0; i < total_queries * num_classes; i++) {
-        score_index_pairs.push_back(std::make_pair(prob[i], i));
+    // Per query: best class that passes its own threshold (logit space).
+    // Sigmoid is monotonic, so comparing raw logits is equivalent to
+    // comparing probabilities, and this yields at most one candidate per
+    // query without needing a global sort over all query*class pairs.
+    std::vector<std::pair<float, int> > cands;  // (logit, query_idx*num_classes+cls)
+    cands.reserve(total_queries);
+    for (int q = 0; q < total_queries; q++) {
+        int best = -1;
+        float best_logit = -std::numeric_limits<float>::infinity();
+        for (int c = 0; c < num_classes; c++) {
+            float l = pred_logits[q * num_classes + c];
+            if (l > best_logit && l >= logit_thresh[c]) {
+                best_logit = l;
+                best = c;
+            }
+        }
+        if (best >= 0) {
+            cands.emplace_back(best_logit, q * num_classes + best);
+        }
     }
-        
-    // Sort by score (descending) and take top-k - C++11 compatible
-    std::sort(score_index_pairs.begin(), score_index_pairs.end(),
-              [](const std::pair<float, int>& a, const std::pair<float, int>& b) { 
-                  return a.first > b.first; 
-              });
 
-    // Process top-k predictions
-    for (int k = 0; k < std::min(num_select, (int)score_index_pairs.size()); k++) {
-        float score = score_index_pairs[k].first;
-        int flat_index = score_index_pairs[k].second;
-        
+    // Take top num_select candidates (one per query) by score.
+    int select_count = std::min(num_select, (int)cands.size());
+    std::partial_sort(cands.begin(), cands.begin() + select_count, cands.end(),
+                       [](const std::pair<float, int>& a, const std::pair<float, int>& b) {
+                           return a.first > b.first;
+                       });
+
+    for (int k = 0; k < select_count; k++) {
+        float score = 1.0f / (1.0f + exp(-cands[k].first));
+        int flat_index = cands[k].second;
+
         // Extract query index and class index
         int query_idx = flat_index / num_classes;
         int class_id = flat_index % num_classes;
-        
-        // Check confidence threshold
-        if (score < detectionParams.perClassPreclusterThreshold[class_id]) {
-            continue;
-        }
 
         // Get corresponding box - flattened format
         int box_offset = query_idx * 4;

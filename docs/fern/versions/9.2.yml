@@ -218,9 +218,6 @@ navigation:
           - page: "Gst-nvdsbins"
             path: ../../text/DS_plugin_gst-nvdsbins.mdx
             slug: text/DS_plugin_gst-nvdsbins
-          - page: "Gst-nvdsframeselector"
-            path: ../../text/DS_plugin_gst-nvdsframeselector.mdx
-            slug: text/DS_plugin_gst-nvdsframeselector
           - page: "Gst-nvdslogger"
             path: ../../text/DS_plugin_gst-nvdslogger.mdx
             slug: text/DS_plugin_gst-nvdslogger

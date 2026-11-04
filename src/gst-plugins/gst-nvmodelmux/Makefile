@@ -23,7 +23,7 @@ PKGS:=gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 json-glib-1.0
 SRCS:=gstnvmodelmuxinit.c gstnvmodelmux.c gstnvmodelmux_bin.c gstnvmodelmux_config.c \
       gstnvmodelmux_control.c gstnvmodelmux_control_metadata.c gstnvmodelmux_debug.c \
       gstnvmodelmux_model_helpers.c gstnvmodelmux_model_status.c gstnvmodelmux_perf.c \
-      gstnvmodelmux_routing_table.c
+      gstnvmodelmux_routing_table.c gstnvmodelmux_sgie.c
 OBJS:=$(SRCS:.c=.o)
 LIB:=libnvdsgst_modelmux.so
 CFLAGS:=-fPIC -Wall -Werror -Wno-deprecated-declarations -Wmissing-prototypes -Wsign-compare \

@@ -46,6 +46,12 @@ For build and installation instructions, see [build/BUILD.md](../../build/BUILD.
 |---|---|---|
 | `nvds_analytics` | `libnvds_analytics.so` | Line-crossing, ROI, and direction analytics backend used by the nvdsanalytics plugin. See [README](nvds_analytics/README). |
 
+### Multi-Object Tracking
+
+| Library | Output | Description |
+|---|---|---|
+| `nvmultiobjecttracker` | `libnvds_nvmultiobjecttracker.so` | Low-level multi-object tracker (IOU, NvSORT, NvDeepSORT, NvDCF, MaskTracker, and 3D/multi-view tracking) loaded by `gst-nvtracker` through its `ll-lib-file` property. Build with `make CUDA_VER=<ver>` and install with `make install`. VPI headers are already present in the DS 9.2 build image; bare-metal x86 builds outside the image require the `vpi4-dev` package (see [build/BUILD.md](../../build/BUILD.md)). See the [model setup README](nvmultiobjecttracker/model/tracker_ReID/README). |
+
 ### Cloud Messaging
 
 | Library | Output | Description |

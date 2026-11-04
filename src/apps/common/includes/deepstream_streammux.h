@@ -60,6 +60,7 @@ typedef struct
   guint sync_inputs_ntp;
   guint failsafe_flush_count;
   gboolean drop_backward_sei;
+  gboolean drop_until_rtcp_sr;
 } NvDsStreammuxConfig;
 
 // Function to create the bin and set properties

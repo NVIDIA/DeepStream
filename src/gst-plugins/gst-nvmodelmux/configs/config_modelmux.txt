@@ -20,8 +20,6 @@
 enable=1
 # 1 = primary + shadow share ONE combined A/B batch
 unified-batch=1
-# 1 = block startup (PLAYING) until default model(s) are warmed (infer every frame from start, like nvinfer); 0 = warm async, streams passthrough until ready (runtime model/load always async).
-wait-for-default-models=1
 # max concurrent streams (>= app batch; element batch-size property overrides if set)
 batch-size=10
 # 1 = auto-shard on overflow (default); 0 = over-cap streams pass through (no inference)

@@ -67,11 +67,33 @@ GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
 #define DEFAULT_BATCH_SIZE             1
 #define DEFAULT_PER_MODEL_BATCH_SIZE   0      /* 0 => derive from batch-size */
 #define DEFAULT_UNIFIED_BATCH          TRUE
-#define DEFAULT_WAIT_FOR_DEFAULT_MODELS TRUE
 /* on by default: when a model goes idle as a lone redundant warm copy, move it
  * into the shared limbo pool so either role reuses it without a reload. */
 #define DEFAULT_COMPACT_IDLE_MODELS_ACROSS_POOLS  TRUE
 #define DEFAULT_MODEL_SHARDING          TRUE
+
+/* process-mode: values match nvinfer's (1 = primary/full-frame, 2 = secondary/
+ * objects) so deepstream-app configures this element correctly with no change to
+ * its call site -- it already sets process-mode=2 on whatever it builds at a
+ * [secondary-gieN] section. The NICKS are pgie/sgie rather than nvinfer's
+ * primary/secondary: this element already uses "primary" and "shadow" for the A/B
+ * lanes, and reusing "primary" for a position would collide with that. */
+#define DEFAULT_PROCESS_MODE  MM_PROCESS_MODE_PGIE
+
+#define GST_TYPE_MODELMUX_PROCESS_MODE (gst_modelmux_process_mode_get_type ())
+static GType
+gst_modelmux_process_mode_get_type (void)
+{
+  static GType t = 0;
+  static const GEnumValue vals[] = {
+    {MM_PROCESS_MODE_PGIE, "Primary (full frame)", "pgie"},
+    {MM_PROCESS_MODE_SGIE, "Secondary (objects)", "sgie"},
+    {0, NULL, NULL}
+  };
+  if (!t)
+    t = g_enum_register_static ("GstNvModelMuxProcessMode", vals);
+  return t;
+}
 
 /* ------------------------------------------------------------------ */
 /* Action signals (runtime control plane)                              */
@@ -114,6 +136,296 @@ null_if_empty (const gchar * s)
 /* ================================================================== */
 /* Build / teardown of the live sub-graph                             */
 /* ================================================================== */
+
+/* ================================================================== */
+/* Cross-stage template-name uniqueness                                */
+/* ================================================================== */
+
+/* Every model NAME declared in a [model-name-N] entry is the ADDRESS the control
+ * plane routes by -- it is how model/load|update reaches the right stage with no
+ * stage id in the payload. Two stages declaring the same name make that address
+ * ambiguous: both claim the request, and the first one downstream silently wins.
+ * There is no correct behaviour to fall back to, so a duplicate FAILS the state
+ * change with both stage names in the message. */
+static gboolean
+gst_modelmux_names_collide (GstNvModelMux * self, GstNvModelMux * other)
+{
+  guint i, j;
+
+  for (i = 0; i < self->config.num_models; i++) {
+    for (j = 0; j < other->config.num_models; j++) {
+      if (g_strcmp0 (self->config.models[i].name, other->config.models[j].name) != 0)
+        continue;
+      GST_ELEMENT_ERROR (self, RESOURCE, SETTINGS,
+          ("model name '%s' is declared by two stages ('%s' and '%s')",
+              self->config.models[i].name, GST_ELEMENT_NAME (self),
+              GST_ELEMENT_NAME (other)),
+          ("a [model-name-N] name is the control-plane ADDRESS of a model and must be "
+           "unique across the pipeline -- rename it in one of the two configs"));
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/* Effective gie ids a stage occupies: each model that DECLARES one takes that id, plus
+ * id+MM_SHADOW_GIE_OFFSET at a primary (its A/B twin). Only meaningful when the stage
+ * actually adopted the configured ids; a stage on the allocator occupies internal
+ * ranges that cannot clash with a declared value. Returns the count written to @out. */
+static guint
+gst_modelmux_effective_gie_ids (GstNvModelMux * self, gint * out, guint max)
+{
+  guint i, n = 0;
+
+  if (!self->config.gie_ids_from_config)
+    return 0;
+  for (i = 0; i < self->config.num_models && n + 2 <= max; i++) {
+    gint d = modelmux_config_file_gie_id (self->config.models[i].config_file);
+    if (d <= 0)
+      continue;                                   /* allocated, not declared */
+    out[n++] = d;
+    if (self->config.process_mode != MM_PROCESS_MODE_SGIE)
+      out[n++] = d + MM_SHADOW_GIE_OFFSET;        /* the shadow lane */
+  }
+  return n;
+}
+
+/* Cross-stage gie-id overlap. Two stages declaring the same id both stamp that identity
+ * into the meta, which makes provenance and any downstream `operate-on-gie-id` ambiguous.
+ *
+ * WARN, not error. Unlike a duplicate model NAME -- where the control plane genuinely has
+ * no correct stage to route to -- a duplicate id still produces a working pipeline, just
+ * one whose attribution is ambiguous; and the ids live in per-model infer configs that
+ * are routinely copied from stock samples, so failing here would break configs that run
+ * fine today. Reassigning silently is worse than saying so: an id is only useful because
+ * it is the value the operator wrote down. */
+static void
+gst_modelmux_warn_gie_id_overlap (GstNvModelMux * self, GstNvModelMux * other)
+{
+  gint mine[MM_MAX_MODELS * 2], theirs[MM_MAX_MODELS * 2];
+  guint nm, nt, i, j;
+
+  nm = gst_modelmux_effective_gie_ids (self, mine, G_N_ELEMENTS (mine));
+  nt = gst_modelmux_effective_gie_ids (other, theirs, G_N_ELEMENTS (theirs));
+  for (i = 0; i < nm; i++)
+    for (j = 0; j < nt; j++)
+      if (mine[i] == theirs[j]) {
+        GST_ELEMENT_WARNING (self, RESOURCE, SETTINGS,
+            ("gie-unique-id %d is used by two stages ('%s' and '%s')", mine[i],
+                GST_ELEMENT_NAME (self), GST_ELEMENT_NAME (other)),
+            ("both stamp that id into the object meta, so downstream provenance and "
+             "'operate-on-gie-id' cannot tell them apart. Give one of them a different "
+             "gie-unique-id in its model's infer config (a primary also occupies "
+             "<id>+%d for its A/B shadow lane)", MM_SHADOW_GIE_OFFSET));
+        return;                                   /* one warning is enough */
+      }
+}
+
+/* ================================================================== */
+/* Peer-stage traversal                                                */
+/*                                                                     */
+/* Every cross-stage question -- "does another stage declare this      */
+/* name?", "which stage hosts this model?", "what does each stage      */
+/* report?" -- is answered by walking the PIPELINE, never by following */
+/* pads.                                                               */
+/*                                                                     */
+/* Pads describe the DATA topology, and the two are not the same       */
+/* graph. deepstream-app hangs every secondary whose operate-on-gie-id */
+/* names the primary off one shared tee, each branch ending in its own */
+/* fakesink (deepstream_secondary_gie_bin.c:397,482,331). Stages are   */
+/* therefore SIBLINGS in parallel, not a chain -- and a downstream     */
+/* query forwarded across a tee stops at the first branch that answers */
+/* (gst_pad_query_default forwards until one returns TRUE), so every   */
+/* stage after the first is invisible. Two secondaries on the same     */
+/* detector is the ordinary shape for "classify and embed the same     */
+/* objects", so that is the normal case, not a corner.                 */
+/*                                                                     */
+/* Walking the pipeline finds them regardless of how they are wired.   */
+/* ================================================================== */
+
+/* Call @fn for every OTHER nvmodelmux in this element's pipeline. @fn returns FALSE
+ * to stop the walk early. Safe when the element has no parent yet (no peers). */
+G_GNUC_INTERNAL void
+modelmux_foreach_peer_stage (GstNvModelMux * self, ModelMuxPeerStageFunc fn,
+    gpointer udata)
+{
+  GstObject *top = GST_OBJECT (self), *p;
+  GstIterator *it;
+  GValue v = G_VALUE_INIT;
+  gboolean done = FALSE;
+
+  if (!self || !fn)
+    return;
+
+  while ((p = gst_object_get_parent (top))) {
+    if (top != GST_OBJECT (self))
+      gst_object_unref (top);
+    top = p;
+  }
+  if (top == GST_OBJECT (self) || !GST_IS_BIN (top)) {
+    if (top != GST_OBJECT (self))
+      gst_object_unref (top);
+    return;                             /* not in a bin: no peers to visit */
+  }
+
+  it = gst_bin_iterate_recurse (GST_BIN (top));
+  while (!done) {
+    switch (gst_iterator_next (it, &v)) {
+      case GST_ITERATOR_OK:{
+        GstElement *e = GST_ELEMENT (g_value_get_object (&v));
+        if (e != GST_ELEMENT (self) && GST_IS_NVMODELMUX (e)
+            && !fn (self, GST_NVMODELMUX (e), udata))
+          done = TRUE;
+        g_value_reset (&v);
+        break;
+      }
+      case GST_ITERATOR_RESYNC:
+        gst_iterator_resync (it);
+        break;
+      default:
+        done = TRUE;
+        break;
+    }
+  }
+  g_value_unset (&v);
+  gst_iterator_free (it);
+  gst_object_unref (top);
+}
+
+/* Marker field on a DELEGATED query copy. A stage that sees it answers for itself and
+ * does not walk its own peers -- exactly one level of delegation, so the fan-out is
+ * O(stages) and cannot cycle no matter how the pipeline is wired. */
+#define MM_QUERY_DELEGATED_FIELD "nvmodelmux-delegated"
+
+gboolean
+modelmux_stage_query_is_delegated (GstQuery * q)
+{
+  const GstStructure *s = q ? gst_query_get_structure (q) : NULL;
+  gboolean v = FALSE;
+
+  return s && gst_structure_get_boolean (s, MM_QUERY_DELEGATED_FIELD, &v) && v;
+}
+
+gboolean
+modelmux_stage_ask_peer (GstNvModelMux * peer, GstQuery * q, GstQuery ** out)
+{
+  GstQuery *fwd;
+  gboolean answered;
+
+  *out = NULL;
+  if (!peer || !peer->sinkpad || !q)
+    return FALSE;
+
+  /* a COPY, marked: the original keeps whatever verdict the caller already has, and
+   * the peer cannot re-enter the fan-out through it. */
+  fwd = gst_query_copy (q);
+  gst_structure_set (gst_query_writable_structure (fwd),
+      MM_QUERY_DELEGATED_FIELD, G_TYPE_BOOLEAN, TRUE, NULL);
+
+  /* Straight at the peer's OWN sink pad. This is the same delivery the pad-following
+   * version used -- a downstream query on a sink pad runs its QUERY_DOWNSTREAM probes
+   * -- only addressed to the stage we mean instead of to whatever the data path
+   * happens to lead to. */
+  answered = gst_pad_query (peer->sinkpad, fwd);
+  if (!answered) {
+    gst_query_unref (fwd);
+    return FALSE;
+  }
+  *out = fwd;                           /* transfer: caller unrefs */
+  return TRUE;
+}
+
+/* Visitor for the config-time conflict check. @udata is the gboolean verdict. */
+static gboolean
+gst_modelmux_conflict_visit (GstNvModelMux * self, GstNvModelMux * peer,
+    gpointer udata)
+{
+  gboolean *ok = (gboolean *) udata;
+
+  if (gst_modelmux_names_collide (self, peer)) {
+    *ok = FALSE;
+    return FALSE;                       /* fatal: stop the walk */
+  }
+  gst_modelmux_warn_gie_id_overlap (self, peer);
+  return TRUE;
+}
+
+/* Visitor for overlay-slot assignment: count the secondary stages whose element NAME
+ * sorts before mine. @udata is the running count. */
+static gboolean
+gst_modelmux_slot_visit (GstNvModelMux * self, GstNvModelMux * peer, gpointer udata)
+{
+  guint *before = (guint *) udata;
+
+  if (peer->config.process_mode == MM_PROCESS_MODE_SGIE
+      && g_strcmp0 (GST_ELEMENT_NAME (peer), GST_ELEMENT_NAME (self)) < 0)
+    (*before)++;
+  return TRUE;
+}
+
+/* Give this stage its line in the MM_OVERLAY stack.
+ *
+ * Ordered by ELEMENT NAME rather than by the order the walk happens to visit stages,
+ * so the same pipeline always puts the same stage on the same line -- a slot that
+ * moved between runs would be worse than no slot at all. Runs at READY->PAUSED
+ * because that is when every stage has parsed its config and can be recognised as a
+ * secondary at all. */
+static void
+gst_modelmux_assign_overlay_slot (GstNvModelMux * self)
+{
+  guint before = 0;
+
+  if (!self->modelmux_sgie_bin)
+    return;                             /* the primary owns the top line */
+  modelmux_foreach_peer_stage (self, gst_modelmux_slot_visit, &before);
+  modelmux_sgie_set_overlay_slot (self->modelmux_sgie_bin, before);
+}
+
+/* Cross-stage checks, run at READY->PAUSED: by then every nvmodelmux in the pipeline has
+ * completed NULL->READY, so all catalogs are parsed. models[] is fixed after parse (only
+ * versions[] mutates at runtime), so reading a sibling's catalog needs no lock.
+ *   duplicate model NAME -> hard error (the control plane has no correct stage to pick)
+ *   overlapping gie id   -> warning  (the pipeline still works; attribution is ambiguous)
+ * Returns FALSE only for the fatal case. */
+static gboolean
+gst_modelmux_check_stage_conflicts (GstNvModelMux * self)
+{
+  /* the shared walk: a name collision is fatal, an id overlap is only a warning, so
+   * the visitor stops on the first collision and carries the verdict out. */
+  gboolean ok = TRUE;
+
+  modelmux_foreach_peer_stage (self, gst_modelmux_conflict_visit, &ok);
+  return ok;
+}
+
+/* SECONDARY stage (process-mode=2): build the linear chain instead of the full
+ * ModelMuxBin. One model serves all streams on the already-batched buffer, so there is
+ * nothing to demux/re-batch -- see gstnvmodelmux_sgie.c. */
+static gboolean
+gst_modelmux_build_sgie (GstNvModelMux * self, const ModelMuxConfig * config)
+{
+  self->modelmux_sgie_bin = modelmux_sgie_new (GST_ELEMENT (self), GST_ELEMENT_NAME (self), config);
+  if (!self->modelmux_sgie_bin) {
+    GST_ELEMENT_ERROR (self, LIBRARY, INIT,
+        ("failed to create the secondary inference chain"), (NULL));
+    return FALSE;
+  }
+
+  gst_ghost_pad_set_target (GST_GHOST_PAD (self->sinkpad),
+      modelmux_sgie_get_sink (self->modelmux_sgie_bin));
+  gst_ghost_pad_set_target (GST_GHOST_PAD (self->srcpad),
+      modelmux_sgie_get_src (self->modelmux_sgie_bin));
+
+  /* the control plane is stage-agnostic: it addresses models by their globally unique
+   * [model-name-N] template, so a secondary answers only for the model it hosts. */
+  gst_modelmux_control_attach (self);
+
+  GST_INFO_OBJECT (self, "built (secondary): model='%s@%s' batch=%u",
+      modelmux_sgie_model_name (self->modelmux_sgie_bin),
+      modelmux_sgie_model_version (self->modelmux_sgie_bin), config->batch_size);
+  self->built = TRUE;
+  return TRUE;
+}
 
 /* Assemble @self->config from the config-file (if any) overlaid with the
  * individual GObject properties (properties always win), then materialise the
@@ -159,6 +471,11 @@ gst_modelmux_build (GstNvModelMux * self)
     return TRUE;
   }
 
+  /* SECONDARY stage: a much simpler graph -- fork here so the primary path below stays
+   * untouched. */
+  if (config->process_mode == MM_PROCESS_MODE_SGIE)
+    return gst_modelmux_build_sgie (self, config);
+
   /* Default primary model is OPTIONAL. When none is configured, no model is loaded at 
   init (zero VRAM) and any stream that resolves to "no model" -- because it requested
   nothing and there is no default, or it requested a model that does not exist and there
@@ -189,16 +506,18 @@ gst_modelmux_build (GstNvModelMux * self)
   gst_ghost_pad_set_target (GST_GHOST_PAD (self->srcpad),
       modelmux_bin_get_src (modelmux_bin));
 
-  /* Subscribe to the pipeline bus + install the
-   * data-plane auto-attach (the REST stream/model API is handled INTERNALLY). */
-  gst_modelmux_control_attach (self);
-
   /* Wire callbacks, THEN publish the bin atomically -- both under api_control_lock, so no
    * other thread ever sees a half-wired bin (control handlers lock; probes read lock-free). */
   g_mutex_lock (&self->api_control_lock);
   gst_modelmux_control_wire_ota_rollback (self, modelmux_bin);
   g_atomic_pointer_set (&self->modelmux_bin, modelmux_bin);
   g_mutex_unlock (&self->api_control_lock);
+
+  /* Subscribe to the pipeline bus + install the data-plane auto-attach and the
+   * GET/control query probes (the REST stream/model API is handled INTERNALLY).
+   * AFTER the publish above: the query probes read self->modelmux_bin, so attaching
+   * first would leave a window answering the empty shape for a bin that exists. */
+  gst_modelmux_control_attach (self);
 
   {
     const DefaultModelRef *bdp = modelmux_bin_get_default (modelmux_bin, FALSE);
@@ -242,6 +561,10 @@ gst_modelmux_teardown (GstNvModelMux * self)
 
   if (mm)
     modelmux_bin_free (mm);  /* removes its child bin from us */
+  if (self->modelmux_sgie_bin) {
+    modelmux_sgie_free (self->modelmux_sgie_bin);   /* removes its child bin from us */
+    self->modelmux_sgie_bin = NULL;
+  }
   if (self->passthru) {
     gst_element_set_state (self->passthru, GST_STATE_NULL);
     gst_bin_remove (GST_BIN (self), self->passthru);
@@ -253,6 +576,112 @@ gst_modelmux_teardown (GstNvModelMux * self)
   self->built = FALSE;
   self->initial_default_load_started = FALSE;
   g_mutex_unlock (&self->api_control_lock);
+}
+
+/* ================================================================== */
+/* Shared routing revision                                             */
+/*                                                                     */
+/* routing_revision is the if_revision CAS token, so a pipeline must    */
+/* have exactly ONE of them however many nvmodelmux stages it holds.    */
+/* The stages find the same counter through a GstContext -- GStreamer's */
+/* own facility for sharing a live object between element instances --  */
+/* rather than through a global or a hand-rolled registry, so it is     */
+/* scoped to the pipeline, needs no teardown ordering, and lets an      */
+/* application inject its own counter if it ever wants to.              */
+/* ================================================================== */
+
+/* Hand the negotiated counter to whichever bin this stage built. Safe to call
+ * before the build (both pointers NULL) -- the build calls it again afterwards. */
+static void
+gst_modelmux_publish_rev_shared (GstNvModelMux * self)
+{
+  if (!self->rev_shared)
+    return;
+  if (self->modelmux_bin)
+    modelmux_bin_set_rev_shared (self->modelmux_bin, self->rev_shared);
+  if (self->modelmux_sgie_bin)
+    modelmux_sgie_set_rev_shared (self->modelmux_sgie_bin, self->rev_shared);
+}
+
+/*
+ * Adopt a routing context published by another stage (or by the application).
+ *
+ * GstBin delivers this synchronously: when any stage posts have-context the
+ * pipeline caches it and sets it on every child, and when a stage posts
+ * need-context the pipeline answers straight from that cache. So whichever stage
+ * comes up first creates the counter and the rest simply receive it.
+ *
+ * FIRST one wins: swapping counters mid-run would move the revision under a
+ * controller that is holding it, which is precisely the failure the shared
+ * counter exists to prevent.
+ */
+static void
+gst_modelmux_set_context (GstElement * element, GstContext * context)
+{
+  GstNvModelMux *self = GST_NVMODELMUX (element);
+
+  if (context && !self->rev_shared
+      && g_strcmp0 (gst_context_get_context_type (context),
+          MODELMUX_CONTEXT_TYPE_ROUTING) == 0) {
+    const GstStructure *s = gst_context_get_structure (context);
+    const GValue *v = s ? gst_structure_get_value (s,
+        MODELMUX_CONTEXT_FIELD_REV) : NULL;
+
+    if (v && G_VALUE_HOLDS (v, MODELMUX_TYPE_REV_SHARED)) {
+      /* g_value_get_boxed BORROWS -- take our own ref, the context may go away */
+      self->rev_shared = modelmux_rev_shared_ref (g_value_get_boxed (v));
+      GST_DEBUG_OBJECT (self, "adopted the pipeline's shared routing revision "
+          "(currently %" G_GUINT64_FORMAT ")",
+          modelmux_rev_shared_get (self->rev_shared));
+      gst_modelmux_publish_rev_shared (self);
+    } else {
+      GST_WARNING_OBJECT (self, "a '%s' context arrived without a usable '%s' "
+          "field -- this stage will count its own revision instead",
+          MODELMUX_CONTEXT_TYPE_ROUTING, MODELMUX_CONTEXT_FIELD_REV);
+    }
+  }
+
+  /* ALWAYS chain up, for every context type: GstBin caches contexts and forwards
+   * them to our children (the model bins, nvinfer, ...), and skipping that would
+   * break context types we know nothing about. */
+  GST_ELEMENT_CLASS (parent_class)->set_context (element, context);
+}
+
+/* Make sure this stage has the pipeline's routing counter, creating and
+ * publishing one if we are the first stage up. Called at NULL->READY, before the
+ * sub-graph is built, so the bins are handed the counter as they are created. */
+static void
+gst_modelmux_ensure_rev_shared (GstNvModelMux * self)
+{
+  GstContext *ctx;
+  GstStructure *s;
+
+  if (self->rev_shared)
+    return;
+
+  /* 1. Ask. The pipeline answers from its context cache -- synchronously, from
+   *    inside this post -- if another stage has already published one, which is
+   *    what makes this work regardless of which stage reaches READY first. An
+   *    application may also answer it with a counter of its own. */
+  gst_element_post_message (GST_ELEMENT (self),
+      gst_message_new_need_context (GST_OBJECT (self),
+          MODELMUX_CONTEXT_TYPE_ROUTING));
+  if (self->rev_shared)                 /* set_context ran during the post */
+    return;
+
+  /* 2. Nobody has one: we are the first stage. Create it and publish, so the
+   *    pipeline caches it for every stage that comes up after us. */
+  self->rev_shared = modelmux_rev_shared_new ();
+  ctx = gst_context_new (MODELMUX_CONTEXT_TYPE_ROUTING, TRUE /* persistent */);
+  s = gst_context_writable_structure (ctx);
+  /* boxed: the structure takes its own ref, so the counter survives us */
+  gst_structure_set (s, MODELMUX_CONTEXT_FIELD_REV, MODELMUX_TYPE_REV_SHARED,
+      self->rev_shared, NULL);
+  gst_element_set_context (GST_ELEMENT (self), ctx);   /* cache it on ourselves */
+  GST_DEBUG_OBJECT (self, "published the pipeline's shared routing revision");
+  /* transfer-full: the message takes @ctx */
+  gst_element_post_message (GST_ELEMENT (self),
+      gst_message_new_have_context (GST_OBJECT (self), ctx));
 }
 
 /*
@@ -275,6 +704,10 @@ gst_modelmux_change_state (GstElement * element, GstStateChange transition)
   /* Build BEFORE chaining up so GstBin propagates the upward state change into
    * the freshly-added children. */
   if (transition == GST_STATE_CHANGE_NULL_TO_READY) {
+    /* BEFORE the build: the bins are handed the counter as they are created, so
+     * a control request that lands the instant we hit READY already reads the
+     * pipeline's revision and not this stage's fallback. */
+    gst_modelmux_ensure_rev_shared (self);
     if (!gst_modelmux_build (self)) {
       /* release any partially-assembled config / children so the leaked ModelMuxConfig
        * (parsed file + registered model defs) is freed and a subsequent NULL->READY
@@ -283,6 +716,15 @@ gst_modelmux_change_state (GstElement * element, GstStateChange transition)
       gst_modelmux_teardown (self);
       return GST_STATE_CHANGE_FAILURE;
     }
+    gst_modelmux_publish_rev_shared (self);   /* the bins exist now */
+  }
+
+  /* At READY->PAUSED every stage has parsed its catalog: check for cross-stage
+   * conflicts (duplicate model name = fatal, overlapping gie id = warning). */
+  if (transition == GST_STATE_CHANGE_READY_TO_PAUSED && self->built) {
+    if (!gst_modelmux_check_stage_conflicts (self))
+      return GST_STATE_CHANGE_FAILURE;
+    gst_modelmux_assign_overlay_slot (self);
   }
 
   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
@@ -299,22 +741,17 @@ gst_modelmux_change_state (GstElement * element, GstStateChange transition)
   /* Warm the default model(s) once the element (and its model bins) have reached
    * PLAYING -- sync_state_with_parent brings each model bin up and its nvinfer
    * deserializes/builds the engine, flipping it to READY.
-   *   wait-for-default-models = TRUE (default): BLOCK here until the defaults are
-   *     WARMED, so they infer on every frame (mirrors nvinfer's engine build at
-   *     the state transition). A default that FAILS to warm fails the transition.
-   *   FALSE: kick the warm async and return immediately -- streams added before it
-   *     completes passthrough until ready (legacy behaviour).
-   * Either way, RUNTIME model/load stays async; this gates only the startup default. */
+   * Block until the configured defaults are WARMED so they infer on every frame
+   * (mirrors nvinfer's engine build at the state transition); a default that FAILS
+   * to warm fails the transition. Runtime model/load stays async. */
   if (transition == GST_STATE_CHANGE_PAUSED_TO_PLAYING
       && self->modelmux_bin && !self->initial_default_load_started) {
     self->initial_default_load_started = TRUE;
-    if (!modelmux_bin_load_defaults (self->modelmux_bin, self->wait_for_default_models)
-        && self->wait_for_default_models) {
+    if (!modelmux_bin_load_defaults (self->modelmux_bin)) {
       GST_ELEMENT_ERROR (self, LIBRARY, INIT,
           ("a configured default model failed to warm up"),
-          ("wait-for-default-models=true and the default engine could not be "
-           "built/loaded -- see the nvinfer errors above; fix the model/engine or "
-           "set wait-for-default-models=false to start in passthrough"));
+          ("the default engine could not be built/loaded -- see the nvinfer errors "
+           "above and fix the model/engine"));
       return GST_STATE_CHANGE_FAILURE;
     }
   }
@@ -380,7 +817,7 @@ gst_modelmux_load_model (GstNvModelMux * self, const gchar * name,
     const gchar *eff = null_if_empty (config_file);   /* custom config, or NULL => catalog base */
     gint r;
     if (null_if_empty (engine_file) && basecfg) {     /* nvinfer: swap engine into a derived config */
-      derived = modelmux_config_derive (basecfg, engine_file, -1, name,
+      derived = modelmux_config_derive (basecfg, engine_file, -1, -1, name,
           null_if_empty (version) ? version : MM_MODEL_VERSION_DEFAULT);   /* match the @1 instance key */
       if (!derived) {
         /* an EXPLICIT engine that failed to derive must FAIL the load: the base
@@ -598,14 +1035,14 @@ gst_modelmux_set_property (GObject * object, guint prop_id, const GValue * value
     case PROP_UNIFIED_BATCH:
       self->unified_batch = g_value_get_boolean (value);
       break;
-    case PROP_WAIT_FOR_DEFAULT_MODELS:
-      self->wait_for_default_models = g_value_get_boolean (value);
-      break;
     case PROP_COMPACT_IDLE_MODELS_ACROSS_POOLS:
       self->compact_idle_models_across_pools = g_value_get_boolean (value);
       break;
     case PROP_MODEL_SHARDING:
       self->model_sharding = g_value_get_boolean (value);
+      break;
+    case PROP_PROCESS_MODE:
+      self->process_mode = g_value_get_enum (value);
       break;
     case PROP_PRIMARY_MODEL:
       set_str (&self->primary_model, g_value_get_string (value));
@@ -642,14 +1079,14 @@ gst_modelmux_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_UNIFIED_BATCH:
       g_value_set_boolean (value, self->unified_batch);
       break;
-    case PROP_WAIT_FOR_DEFAULT_MODELS:
-      g_value_set_boolean (value, self->wait_for_default_models);
-      break;
     case PROP_COMPACT_IDLE_MODELS_ACROSS_POOLS:
       g_value_set_boolean (value, self->compact_idle_models_across_pools);
       break;
     case PROP_MODEL_SHARDING:
       g_value_set_boolean (value, self->model_sharding);
+      break;
+    case PROP_PROCESS_MODE:
+      g_value_set_enum (value, self->process_mode);
       break;
     case PROP_PRIMARY_MODEL:
       g_value_set_string (value, self->primary_model);
@@ -686,6 +1123,10 @@ gst_modelmux_finalize (GObject * object)
   g_free (self->config_file_path);
   g_free (self->primary_model);
   g_free (self->shadow_model);
+  /* held for the element's whole life (not per state cycle) so a stop/start keeps
+   * the pipeline's revision monotonic; the counter dies with the last stage. */
+  modelmux_rev_shared_unref (self->rev_shared);
+  self->rev_shared = NULL;
   g_mutex_clear (&self->source_state_lock);
   g_mutex_clear (&self->api_control_lock);
 
@@ -718,6 +1159,7 @@ gst_modelmux_class_init (GstNvModelMuxClass * klass)
   gobject_class->dispose = GST_DEBUG_FUNCPTR (gst_modelmux_dispose);
   gobject_class->finalize = GST_DEBUG_FUNCPTR (gst_modelmux_finalize);
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_modelmux_change_state);
+  element_class->set_context = GST_DEBUG_FUNCPTR (gst_modelmux_set_context);
 
   /* properties that only take effect at (re)build are MUTABLE_READY */
   const GParamFlags rwc =
@@ -753,14 +1195,6 @@ gst_modelmux_class_init (GstNvModelMuxClass * klass)
           "Combine primary + shadow outputs into ONE batched buffer (A/B view)",
           DEFAULT_UNIFIED_BATCH, rwc));
 
-  g_object_class_install_property (gobject_class, PROP_WAIT_FOR_DEFAULT_MODELS,
-      g_param_spec_boolean ("wait-for-default-models", "Wait For Default Models",
-          "Block the pipeline's transition to PLAYING until the configured default "
-          "model(s) are warmed, so the defaults run inference on every frame from the "
-          "start (mirrors nvinfer). FALSE warms them asynchronously and streams "
-          "passthrough until ready. Runtime model/load is always async regardless.",
-          DEFAULT_WAIT_FOR_DEFAULT_MODELS, rwc));
-
   g_object_class_install_property (gobject_class, PROP_COMPACT_IDLE_MODELS_ACROSS_POOLS,
       g_param_spec_boolean ("compact-idle-models-across-pools",
           "Compact Idle Models Across Pools",
@@ -795,6 +1229,14 @@ gst_modelmux_class_init (GstNvModelMuxClass * klass)
           "FALSE: streams exceeding the cap are silently ignored (not processed), "
           "matching stock nvinfer behaviour.",
           DEFAULT_MODEL_SHARDING, rwc));
+
+  g_object_class_install_property (gobject_class, PROP_PROCESS_MODE,
+      g_param_spec_enum ("process-mode", "Process Mode",
+          "Which GIE position this element occupies: pgie (1, full frame) or "
+          "sgie (2, objects). Values match nvinfer's process-mode, so a host that "
+          "already sets it at a [secondary-gieN] section configures this element "
+          "with no change.",
+          GST_TYPE_MODELMUX_PROCESS_MODE, DEFAULT_PROCESS_MODE, rwc));
 
   /* -------- action signals (runtime control plane) --------
    * Generic (libffi) marshaller (NULL) handles the mixed signatures. Emit with
@@ -874,9 +1316,9 @@ gst_modelmux_init (GstNvModelMux * self)
   self->batch_size = 0;                 /* 0 => inherit from config-file / default */
   self->per_model_batch_size = DEFAULT_PER_MODEL_BATCH_SIZE;
   self->unified_batch = DEFAULT_UNIFIED_BATCH;
-  self->wait_for_default_models = DEFAULT_WAIT_FOR_DEFAULT_MODELS;
   self->compact_idle_models_across_pools = DEFAULT_COMPACT_IDLE_MODELS_ACROSS_POOLS;
   self->model_sharding = DEFAULT_MODEL_SHARDING;
+  self->process_mode = DEFAULT_PROCESS_MODE;
   g_mutex_init (&self->source_state_lock);      /* guards the auto-attach source-id table */
   g_mutex_init (&self->api_control_lock);       /* serializes control entry points vs teardown */
 

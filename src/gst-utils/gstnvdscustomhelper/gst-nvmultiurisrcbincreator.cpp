@@ -610,6 +610,11 @@ gst_nvmultiurisrcbincreator_init (gchar * binName, NvDsMultiUriMode mode,
             "drop-backward-sei", nvmultiurisrcbinCreator->muxConfig->drop_backward_sei,
             NULL);
       }
+      if (nvmultiurisrcbinCreator->muxConfig->drop_until_rtcp_sr) {
+        g_object_set (nvmultiurisrcbinCreator->streammux,
+            "drop-until-rtcp-sr",
+            nvmultiurisrcbinCreator->muxConfig->drop_until_rtcp_sr, NULL);
+      }
     } else {
       //using new nvstreammux
       if (nvmultiurisrcbinCreator->muxConfig->config_file_path) {
@@ -1039,17 +1044,25 @@ s_nvmultiurisrcbincreator_cb_newpad (GstElement * decodebin, GstPad * pad,
         GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
         s_nvmultiurisrcbincreator_probe_func_eos_handling, data, NULL);
 
-    /* Send NTP sync query if creation_time_ns is set */
-    if (sourceInfo->config->creation_time_ns > 0 && sourceInfo->muxSinkPad) {
+    /* Send NTP sync query if a base timestamp is set. file_start_time (the source's
+     * content start time, from metadata.file_start_time) takes precedence over
+     * creation_time when provided; nvstreammux uses this epoch-ns base to attach
+     * NvDsFrameMeta.ntp_timestamp (= base + buffer PTS). */
+    guint64 ntp_base_ns = sourceInfo->config->file_start_time_ns > 0 ?
+        sourceInfo->config->file_start_time_ns :
+        sourceInfo->config->creation_time_ns;
+    if (ntp_base_ns > 0 && sourceInfo->muxSinkPad) {
       GstQuery *ntp_query = gst_nvquery_ntp_sync_new ();
       if (ntp_query) {
         _NtpData ntp_data = { 0, 0, 0 };
-        ntp_data.ntp_time_epoch_ns = sourceInfo->config->creation_time_ns;
+        ntp_data.ntp_time_epoch_ns = ntp_base_ns;
         gst_nvquery_ntp_sync_set (ntp_query, &ntp_data);
 
         gboolean query_ret = gst_pad_query (sourceInfo->muxSinkPad, ntp_query);
         GST_DEBUG_OBJECT (nvmultiurisrcbinCreator->nvmultiurisrcbin,
-            "Sent NTP sync query with creation_time %" G_GUINT64_FORMAT " ns to sink pad, result: %d\n",
+            "Sent NTP sync query with base %" G_GUINT64_FORMAT " ns (file_start_time=%"
+            G_GUINT64_FORMAT ", creation_time=%" G_GUINT64_FORMAT ") to sink pad, result: %d\n",
+            ntp_base_ns, sourceInfo->config->file_start_time_ns,
             sourceInfo->config->creation_time_ns, query_ret);
         gst_query_unref (ntp_query);
       }

@@ -188,6 +188,10 @@ create_secondary_gie (NvDsGieConfig * configs1,
       subbin->secondary_gie =
           gst_element_factory_make ("nvdsvisionencoder", elem_name);
       break;
+    case NV_DS_GIE_PLUGIN_MULTIMODEL:
+      subbin->secondary_gie =
+          gst_element_factory_make ("nvmodelmux", elem_name);
+      break;
     default:
       NVGSTDS_ERR_MSG_V ("Failed to create %s on unknown plugin_type",
           elem_name);
@@ -211,33 +215,38 @@ create_secondary_gie (NvDsGieConfig * configs1,
       "config-file-path", GET_FILE_PATH (config->config_file_path),
       "process-mode", 2, NULL);
 
-  g_object_set (G_OBJECT (subbin->secondary_gie),
-      "input-tensor-meta", config->input_tensor_meta, NULL);
-
-  if (config->num_operate_on_class_ids != 0)
-    g_object_set (G_OBJECT (subbin->secondary_gie),
-        "infer-on-class-ids", operate_on_class_str, NULL);
-
   if (config->is_batch_size_set)
     g_object_set (G_OBJECT (subbin->secondary_gie),
         "batch-size", config->batch_size, NULL);
 
-  if (config->is_interval_set)
+  /* Per-INFERENCE knobs. nvmodelmux is a multi-model STAGE -- it owns its inference
+   * elements behind its own config and has none of these properties, so setting them
+   * would do nothing but emit a GObject critical per key. */
+  if (NV_DS_GIE_PLUGIN_MULTIMODEL != config->plugin_type) {
     g_object_set (G_OBJECT (subbin->secondary_gie),
-        "interval", config->interval, NULL);
+        "input-tensor-meta", config->input_tensor_meta, NULL);
 
-  if (config->is_unique_id_set)
-    g_object_set (G_OBJECT (subbin->secondary_gie),
-        "unique-id", config->unique_id, NULL);
+    if (config->num_operate_on_class_ids != 0)
+      g_object_set (G_OBJECT (subbin->secondary_gie),
+          "infer-on-class-ids", operate_on_class_str, NULL);
 
-  if (config->is_operate_on_gie_id_set)
-    g_object_set (G_OBJECT (subbin->secondary_gie),
-        "infer-on-gie-id", config->operate_on_gie_id, NULL);
+    if (config->is_interval_set)
+      g_object_set (G_OBJECT (subbin->secondary_gie),
+          "interval", config->interval, NULL);
 
-  if (config->raw_output_directory) {
-    g_object_set (G_OBJECT (subbin->secondary_gie),
-        "raw-output-generated-callback", out_callback,
-        "raw-output-generated-userdata", config, NULL);
+    if (config->is_unique_id_set)
+      g_object_set (G_OBJECT (subbin->secondary_gie),
+          "unique-id", config->unique_id, NULL);
+
+    if (config->is_operate_on_gie_id_set)
+      g_object_set (G_OBJECT (subbin->secondary_gie),
+          "infer-on-gie-id", config->operate_on_gie_id, NULL);
+
+    if (config->raw_output_directory) {
+      g_object_set (G_OBJECT (subbin->secondary_gie),
+          "raw-output-generated-callback", out_callback,
+          "raw-output-generated-userdata", config, NULL);
+    }
   }
 
   if (config->is_gpu_id_set &&

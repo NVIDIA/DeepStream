@@ -43,10 +43,22 @@ apt-get -y install libpango1.0-dev
 git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git -b 1.24.2
 pushd gstreamer
 #Place rtpjitterbuffer_eos_handling.patch at the appropriate location
-git apply "$SCRIPT_DIR/rtpjitterbuffer_eos_handling.patch"
-git apply "$SCRIPT_DIR/0001-rtspsrc-Fixes-related-to-slow-rtsp-inputs.patch"
-git apply "$SCRIPT_DIR/0002-rtspsrc-Resolve-hang-delete-rtsp-when-stream-ends-bug-5939802.patch"
-git apply "$SCRIPT_DIR/h264parser-Avoid-meta-parsing-conditionally.patch"
+apply_gst_patch() {
+    local patch="$1"
+    if [[ ! -f "$patch" ]]; then
+        echo "Error: patch not found: $patch" >&2
+        exit 1
+    fi
+    echo "Applying $patch..."
+    if ! git apply "$patch"; then
+        echo "Error: failed to apply patch: $patch" >&2
+        exit 1
+    fi
+}
+apply_gst_patch "$SCRIPT_DIR/rtpjitterbuffer_eos_handling.patch"
+apply_gst_patch "$SCRIPT_DIR/0001-rtspsrc-Fixes-related-to-slow-rtsp-inputs.patch"
+apply_gst_patch "$SCRIPT_DIR/0002-rtspsrc-Resolve-hang-delete-rtsp-when-stream-ends-bug-5939802.patch"
+apply_gst_patch "$SCRIPT_DIR/h264parser-Avoid-meta-parsing-conditionally.patch"
 #Build gstreamer 1.24.2 with the applied fix patch
 meson build --buildtype=release -Dbad=disabled -Dugly=disabled -Dexamples=disabled -Dlibav=disabled -Ddevtools=disabled -Dintrospection=disabled
 ninja -C build/

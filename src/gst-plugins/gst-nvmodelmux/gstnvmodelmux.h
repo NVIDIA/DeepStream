@@ -85,11 +85,11 @@ enum
   PROP_BATCH_SIZE,
   PROP_PER_MODEL_BATCH_SIZE,
   PROP_UNIFIED_BATCH,
-  PROP_WAIT_FOR_DEFAULT_MODELS,
   PROP_PRIMARY_MODEL,
   PROP_SHADOW_MODEL,
   PROP_COMPACT_IDLE_MODELS_ACROSS_POOLS,
   PROP_MODEL_SHARDING,
+  PROP_PROCESS_MODE,
   PROP_LAST
 };
 
@@ -104,11 +104,22 @@ struct _GstNvModelMux
 {
   GstBin parent;        /**< we are a bin                               */
 
-  /** the inference bin (NULL until built, or in passthrough mode) */
+  /** the PRIMARY-stage inference bin (NULL until built, or in passthrough mode) */
   ModelMuxBin *modelmux_bin;
+
+  /** the SECONDARY-stage inference bin, built instead of @modelmux_bin when
+   *  process-mode=2 (NULL at a primary stage or in passthrough mode) */
+  ModelMuxSgieBin *modelmux_sgie_bin;
 
   /** identity element, used when enable=FALSE (transparent passthrough) */
   GstElement *passthru;
+
+  /** the routing revision SHARED by every nvmodelmux stage in this pipeline,
+   *  negotiated at NULL->READY through MODELMUX_CONTEXT_TYPE_ROUTING and handed
+   *  to whichever bin this stage built. Owns a ref, released at finalize -- a
+   *  stopped-and-restarted pipeline keeps counting up rather than resetting to a
+   *  number a controller has already seen. */
+  ModelMuxRevShared *rev_shared;
 
   /** ghost sink/src pad (no-target until the sub-graph is built) */
   GstPad *sinkpad;
@@ -124,6 +135,11 @@ struct _GstNvModelMux
   gulong sink_event_probe_id;
   /** buffer probe: drop a source's buffers until it is attached (safety net) */
   gulong sink_probe_id;
+  /** QUERY probes on the sink: model/status + model/routing GET, and the
+   *  synchronous control admission. Installed for BOTH stages (a secondary has
+   *  no ModelMuxBin, so they cannot live on the bin's boundary pad). */
+  gulong sink_status_query_id;
+  gulong sink_control_query_id;
 
   /** serializes every control-plane ENTRY POINT (action signals, REST dispatch,
    *  pending-reroute poller) against each other AND against teardown: self->modelmux_bin
@@ -169,8 +185,9 @@ struct _GstNvModelMux
   guint per_model_batch_size;
   /** flag to enable unified A/B display batch */
   gboolean unified_batch;
-  /** wait-for-default-models: block PLAYING until configured defaults warmed */
-  gboolean wait_for_default_models;
+
+  /** which GIE position (1=primary full frame, 2=secondary objects) **/
+  gint process_mode;
   /** flag to compact idle models across pools on idle (dedup-on-idle) */
   gboolean compact_idle_models_across_pools;
   /** flag to enable model sharding on overflow */
@@ -195,6 +212,28 @@ GType gst_modelmux_get_type (void);
  * element (nvinfer convention) so it can update both self->config and the property
  * fields in one place. Defined in gstnvmodelmux_config.c. */
 gboolean gst_modelmux_parse_config_file (GstNvModelMux * self, const gchar * cfg_file);
+
+/* --- peer-stage traversal (gstnvmodelmux.c) ---
+ * Visit every OTHER nvmodelmux in this element's pipeline. This is how EVERY
+ * cross-stage question is answered -- config-time name/id conflicts, and at runtime
+ * the model-plane and GET-plane fan-out -- because pads describe the DATA topology
+ * and stages are not necessarily wired in series (deepstream-app hangs sibling
+ * secondaries off one tee, so a forwarded query reaches only the first). Walking the
+ * pipeline finds them however they are wired. @fn returns FALSE to stop early. */
+typedef gboolean (*ModelMuxPeerStageFunc) (GstNvModelMux * self,
+                                           GstNvModelMux * peer, gpointer udata);
+G_GNUC_INTERNAL void modelmux_foreach_peer_stage (GstNvModelMux * self,
+                                                  ModelMuxPeerStageFunc fn,
+                                                  gpointer udata);
+
+/* Deliver @q to @peer's own query probe and return TRUE if it answered.
+ * The copy handed over is MARKED, so the peer answers for itself and does not fan
+ * out again -- one level of delegation, no cycles however many stages there are.
+ * @q itself is never modified; the caller reads the answer from @out. */
+G_GNUC_INTERNAL gboolean modelmux_stage_ask_peer (GstNvModelMux * peer, GstQuery * q,
+                                                  GstQuery ** out);
+/* TRUE when this query is one a peer stage handed us: answer for THIS stage only. */
+G_GNUC_INTERNAL gboolean modelmux_stage_query_is_delegated (GstQuery * q);
 
 /* --- native-REST control plane (gstnvmodelmux_control.c) ---
  * Make the element self-contained: subscribe to the pipeline bus so the
