@@ -81,41 +81,54 @@ static std::vector<int> extract_chunk_ids_from_buffer(GstBuffer* buffer)
 class GstBufferTensorContext : public Tensor::Context {
  public:
   GstBufferTensorContext(GstBuffer *buffer) : buffer_(buffer) {
-//    gst_buffer_ref(buffer_);
+    gst_buffer_ref(buffer_);
   }
   virtual ~GstBufferTensorContext() {
-//    gst_buffer_unref(buffer_);
+    gst_buffer_unref(buffer_);
   }
  protected:
   GstBuffer* buffer_;
 };
 
-class TegraGstBufferTensorContext : public Tensor::Context
+class TegraGstBufferTensorContext : public GstBufferTensorContext
 {
 public:
-  TegraGstBufferTensorContext(GstBuffer *buffer, unsigned int batchId, CUgraphicsResource& cuGrphRes) : buffer_(buffer), batchId_(batchId), cuGrphRes_(cuGrphRes)
+  TegraGstBufferTensorContext(GstBuffer *buffer, unsigned int batchId,
+                             CUgraphicsResource cuGrphRes, CUcontext context)
+    : GstBufferTensorContext(buffer), batchId_(batchId), cuGrphRes_(cuGrphRes), context_(context)
   {
   }
-  virtual ~TegraGstBufferTensorContext()
+  ~TegraGstBufferTensorContext() override
   {
-    GstMapInfo map = GST_MAP_INFO_INIT;
-    gst_buffer_map(buffer_, &map, GST_MAP_READ);
-    NvBufSurface *surface_batch = (NvBufSurface *)map.data;
-    if (NvBufSurfaceUnMapEglImage(surface_batch, batchId_) != 0) {
-      printf("Error: Failed to unmap EGL image\n");
+    // Tensor destruction may happen on a different thread from extraction.
+    if (cuCtxPushCurrent(context_) != CUDA_SUCCESS) {
+      g_printerr("Failed to restore CUDA context for EGL cleanup\n");
+      return;
     }
-    cuCtxSynchronize();
+    if (cuCtxSynchronize() != CUDA_SUCCESS) {
+      g_printerr("Failed to synchronize CUDA before EGL cleanup\n");
+    }
     CUresult status = cuGraphicsUnregisterResource(cuGrphRes_);
     if (status != CUDA_SUCCESS) {
-      printf("Error: Failed to unregister CUDA graphics resource \n");
+      g_printerr("Failed to unregister CUDA graphics resource\n");
+    } else {
+      GstMapInfo map = GST_MAP_INFO_INIT;
+      if (gst_buffer_map(buffer_, &map, GST_MAP_READ)) {
+        if (map.data && map.size == sizeof(NvBufSurface) &&
+            NvBufSurfaceUnMapEglImage((NvBufSurface*)map.data, batchId_) != 0) {
+          g_printerr("Failed to unmap EGL image\n");
+        }
+        gst_buffer_unmap(buffer_, &map);
+      }
     }
-    gst_buffer_unmap(buffer_, &map);
+    CUcontext previous;
+    cuCtxPopCurrent(&previous);
   }
 
-protected:
-  GstBuffer *buffer_;
+private:
   unsigned int batchId_;
   CUgraphicsResource cuGrphRes_;
+  CUcontext context_;
 };
 
 static void
@@ -295,58 +308,85 @@ Tensor* Buffer::extract(unsigned int batchId) {
   Tensor* tensor = nullptr;
   if (buffer_) {
     GstMapInfo map = GST_MAP_INFO_INIT;
-    gst_buffer_map(buffer_, &map, GST_MAP_READ);
-    auto buf_size = map.size;
+    if (!gst_buffer_map(buffer_, &map, GST_MAP_READ)) {
+      return nullptr;
+    }
+    if (map.data == nullptr || map.size != sizeof(NvBufSurface)) {
+      gst_buffer_unmap(buffer_, &map);
+      return nullptr;
+    }
     NvBufSurface *surface_batch = (NvBufSurface*) map.data;
+    if (surface_batch->surfaceList == nullptr ||
+        batchId >= surface_batch->batchSize || batchId >= surface_batch->numFilled) {
+      gst_buffer_unmap(buffer_, &map);
+      return nullptr;
+    }
     NvBufSurfaceParams &surface = surface_batch->surfaceList[batchId];
-    if (buf_size == sizeof(NvBufSurface)) {
-      if (surface_batch->memType == NVBUF_MEM_CUDA_DEVICE ||
-          surface_batch->memType == NVBUF_MEM_CUDA_PINNED ||
-          surface_batch->memType == NVBUF_MEM_CUDA_UNIFIED ||
-          surface_batch->memType == NVBUF_MEM_DEFAULT) {
-        if (surface.colorFormat == NVBUF_COLOR_FORMAT_RGB) {
-          int64_t shape[] = {surface.height, surface.width, 3};
-          int64_t strides[] = {surface.pitch, 3, 1};
-          auto* ctx = new GstBufferTensorContext(buffer_);
-          tensor = new Tensor(3, Tensor::UNSIGNED, 8, shape, strides, surface.dataPtr, "HWC", surface_batch->gpuId, Tensor::DeviceType::GPU, ctx);
-        } else {
-          g_printerr("Only RGB format is supported for being extracted as a tensor\n");
-        }
+    if (surface_batch->memType == NVBUF_MEM_CUDA_DEVICE ||
+        surface_batch->memType == NVBUF_MEM_CUDA_PINNED ||
+        surface_batch->memType == NVBUF_MEM_CUDA_UNIFIED ||
+        surface_batch->memType == NVBUF_MEM_DEFAULT) {
+      if (surface.colorFormat == NVBUF_COLOR_FORMAT_RGB) {
+        int64_t shape[] = {surface.height, surface.width, 3};
+        int64_t strides[] = {surface.pitch, 3, 1};
+        auto* ctx = new GstBufferTensorContext(buffer_);
+        tensor = new Tensor(3, Tensor::UNSIGNED, 8, shape, strides, surface.dataPtr, "HWC", surface_batch->gpuId, Tensor::DeviceType::GPU, ctx);
+      } else {
+        g_printerr("Only RGB format is supported for being extracted as a tensor\n");
       }
-      #if defined(__aarch64__)
-      else if (surface_batch->memType == NVBUF_MEM_SURFACE_ARRAY || surface_batch->memType == NVBUF_MEM_HANDLE)
+    }
+    #if defined(__aarch64__)
+    else if (surface_batch->memType == NVBUF_MEM_SURFACE_ARRAY)
+    {
+      if (surface.colorFormat == NVBUF_COLOR_FORMAT_RGB)
       {
-        if (surface.colorFormat == NVBUF_COLOR_FORMAT_RGB)
-        {
-          int64_t shape[] = {surface.height, surface.width, 3};
-          int64_t strides[] = {surface.pitch, 3, 1};
-          CUeglFrame eglFrame;
-          CUgraphicsResource cuGrphRes;
-          CUresult cuStatus = CUDA_SUCCESS;
-          if (NvBufSurfaceMapEglImage(surface_batch, batchId) != 0)
-            g_printerr("EGL Image Map Failed\n");
-          cuStatus = cuGraphicsEGLRegisterImage(&cuGrphRes, surface.mappedAddr.eglImage, CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE);
-          if (cuStatus != CUDA_SUCCESS)
-            g_printerr("EGL Reguster Image Failed\n");
-          cuGraphicsResourceGetMappedEglFrame(&eglFrame, cuGrphRes, batchId, 0);
-          tensor = new Tensor(3, Tensor::UNSIGNED, 8, shape, strides, eglFrame.frame.pPitch[0], "HWC", surface_batch->gpuId, Tensor::DeviceType::GPU, new TegraGstBufferTensorContext(buffer_, batchId, cuGrphRes));
+        CUeglFrame eglFrame{};
+        CUgraphicsResource cuGrphRes = nullptr;
+        CUcontext context = nullptr;
+        if (cuCtxGetCurrent(&context) != CUDA_SUCCESS || context == nullptr) {
+          g_printerr("No current CUDA context for EGL extraction\n");
+          gst_buffer_unmap(buffer_, &map);
+          return nullptr;
         }
-        else
-        {
-          g_printerr("Only RGB format is supported for being extracted as a tensor\n");
+        if (NvBufSurfaceMapEglImage(surface_batch, batchId) != 0) {
+          g_printerr("EGL image map failed\n");
+          gst_buffer_unmap(buffer_, &map);
+          return nullptr;
+        }
+        CUresult cuStatus = cuGraphicsEGLRegisterImage(
+            &cuGrphRes, surface.mappedAddr.eglImage, CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE);
+        if (cuStatus != CUDA_SUCCESS) {
+          g_printerr("EGL image registration failed\n");
+          NvBufSurfaceUnMapEglImage(surface_batch, batchId);
+          gst_buffer_unmap(buffer_, &map);
+          return nullptr;
+        }
+        auto ctx = std::make_unique<TegraGstBufferTensorContext>(buffer_, batchId, cuGrphRes, context);
+        // The resource is one EGL image already selected by batchId. CUDA's
+        // index selects a cubemap face, not a DeepStream batch slot.
+        cuStatus = cuGraphicsResourceGetMappedEglFrame(&eglFrame, cuGrphRes, 0, 0);
+        if (cuStatus == CUDA_SUCCESS && eglFrame.frameType == CU_EGL_FRAME_TYPE_PITCH &&
+            eglFrame.planeCount == 1 && eglFrame.frame.pPitch[0] != nullptr) {
+          int64_t shape[] = {eglFrame.height, eglFrame.width, 3};
+          int64_t strides[] = {eglFrame.pitch, 3, 1};
+          tensor = new Tensor(3, Tensor::UNSIGNED, 8, shape, strides,
+                              eglFrame.frame.pPitch[0], "HWC", surface_batch->gpuId,
+                              Tensor::DeviceType::GPU, ctx.release());
+        } else {
+          g_printerr("Failed to obtain a pitched RGB EGL frame\n");
         }
       }
-      #endif
       else
       {
-        g_printerr("Only Buffer Surface Memory types are supported for being extracted as a tensor");
+        g_printerr("Only RGB format is supported for being extracted as a tensor\n");
       }
     }
+    #endif
     else
     {
-      g_printerr("We only support extracting buffer surface as a tensor\n");
+      g_printerr("Only Buffer Surface Memory types are supported for being extracted as a tensor");
     }
-  gst_buffer_unmap(buffer_, &map);
+    gst_buffer_unmap(buffer_, &map);
   }
 
   return tensor;
