@@ -35,6 +35,7 @@ This repository contains the complete source code for DeepStream 9.2.
 - [`deepstream-sop`](skills/deepstream-sop/SKILL.md) — SOP step-sequence compliance microservice
 - [`deepstream-import-vision-model`](skills/deepstream-import-vision-model/SKILL.md) — autonomous vision-model onboarding
 - [`deepstream-run-mv3dt`](skills/deepstream-run-mv3dt/SKILL.md) — run the MV3DT reference app on sample or custom datasets
+- [`deepstream-tune-mv3dt`](skills/deepstream-tune-mv3dt/SKILL.md) — tune MV3DT tracker parameters against ground truth
 - [`deepstream-setup-on-wsl`](skills/deepstream-setup-on-wsl/SKILL.md) — set up and verify DeepStream in Docker inside WSL2
 - [`inference-builder`](skills/inference-builder/SKILL.md) — generate deployable GPU inference pipelines from declarative configs
 - [`deepstream-eval-and-finetune`](skills/deepstream-eval-and-finetune/SKILL.md) — evaluate and improve object detectors for DeepStream
@@ -200,6 +201,7 @@ DeepStream/
 │   ├── deepstream-profile-pipeline/         # Nsight Systems profiling & config derivation
 │   ├── deepstream-sop/                      # SOP step-sequence compliance microservice
 │   ├── deepstream-import-vision-model/      # autonomous vision-model onboarding skill
+│   ├── deepstream-tune-mv3dt/               # MV3DT tracker tuning skill
 │   └── deepstream-run-mv3dt/                # MV3DT reference-app operations skill
 │   ├── rtvi-cv-customize-model/              # RTVI-CV model customization skill
 │   ├── rtvi-vlm-customize-model/             # RTVI VLM model customization skill

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tune Multi-View 3D Tracking"
+  short_description: "Tune MV3DT with metrics and visual diagnostics"
+  default_prompt: "Use $deepstream-tune-mv3dt to inspect my recordings, propose a tuning budget, and optimize the tracking configuration."
