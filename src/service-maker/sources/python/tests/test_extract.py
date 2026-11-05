@@ -31,6 +31,7 @@ def run_case(format_name: str, batched: bool) -> None:
             super().__init__()
             self.results = []
             self.errors = []
+            self.tensors = []
 
         def handle_buffer(self, buffer: Buffer) -> bool:
             # Never let test assertions escape a streaming-thread callback (#100).
@@ -41,6 +42,7 @@ def run_case(format_name: str, batched: bool) -> None:
                     assert tensor.shape == (48, 64, 3)
                     assert tensor.__dlpack_device__()[0] == 2
                     assert tensor.__dlpack__() is not None
+                    self.tensors.append(tensor)
                 else:
                     assert tensor is None
                 # In a capacity-four batch only slot zero holds a frame.
@@ -70,6 +72,11 @@ def run_case(format_name: str, batched: bool) -> None:
     pipeline.start().wait()
     assert not inspector.errors, inspector.errors
     assert inspector.results, "No frames reached extraction probe"
+    # Extracted tensors keep their GstBuffer alive after pipeline teardown.
+    for tensor in inspector.tensors:
+        copied = tensor.clone()
+        assert copied is not None
+        assert copied.shape == (48, 64, 3)
 
 
 if __name__ == "__main__":

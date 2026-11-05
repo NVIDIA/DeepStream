@@ -158,8 +158,9 @@ class Buffer {
 
   /**
    * @brief Create a tensor referencing a filled RGB surface in the buffer.
+   * The tensor retains the backing buffer until destruction.
    * @return An owned tensor, or nullptr for an invalid buffer, unfilled/out-of-range
-   * batchId, unsupported format, or unsupported memory type.
+   * batchId, unsupported format/memory layout, or failed EGL mapping.
    *
    */
   virtual Tensor* extract(unsigned int batchId);

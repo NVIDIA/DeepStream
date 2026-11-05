@@ -48,6 +48,7 @@ namespace pydeepstreamdoc
                 :returns: Chunk id of the buffer)pydeepstream";
             constexpr const char* extract = R"pydeepstream(
                 Extract a filled RGB surface as a tensor. Other formats are unsupported.
+                The tensor retains its backing buffer. EGL extraction requires pitched memory.
 
                 :arg batch_id: *int* Nonnegative frame batch id (use frame metadata, not batch capacity)
                 :returns: :class:`Tensor`, or None for invalid buffers, unfilled/out-of-range ids, or unsupported surfaces)pydeepstream";
