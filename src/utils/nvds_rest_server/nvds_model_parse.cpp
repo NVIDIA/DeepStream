@@ -1021,12 +1021,7 @@ nvds_rest_model_routing_parse (const Json::Value & in,
       if (d.isMember ("shadow")) {
         route_info->default_has_shadow = TRUE;
         if (d["shadow"].isNull ()) {
-          route_fail (route_info, "NOT_IMPLEMENTED",
-              "default \"shadow\": null (clear the default shadow) is not "
-              "available yet",
-              "per-stream shadow clear works today: route the streams with "
-              "\"shadow\": null");
-          return false;
+          route_info->default_shadow_null = TRUE;
         } else {
           std::string err, code;
           if (!parse_route_ref (d["shadow"], &route_info->default_shadow,

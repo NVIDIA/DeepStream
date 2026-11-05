@@ -346,15 +346,15 @@ if [[ -d "$DS_ROOT/sources/libs/nvds_msgapi" ]]; then
   cd - >/dev/null
 fi
 
-# tracker_ReID (README) ships at sources/ top level, relocated out of the
-# nvmultiobjecttracker copy. The rest of nvmultiobjecttracker source is not
-# shipped under sources/libs (only its built .so ships in lib/).
+# tracker_ReID (README) also ships at sources/ top level for existing install
+# paths. The tracker library itself is open source and stays under
+# sources/libs/nvmultiobjecttracker; libnvds_nvmultiobjecttracker.so is built
+# from that tree and is not part of the proprietary binaries packages.
 if [[ -d "$DS_ROOT/sources/libs/nvmultiobjecttracker/model/tracker_ReID" ]]; then
   rm -rf "$DS_ROOT/sources/tracker_ReID"
-  mv "$DS_ROOT/sources/libs/nvmultiobjecttracker/model/tracker_ReID" "$DS_ROOT/sources/tracker_ReID"
-  log "Relocated tracker_ReID -> sources/tracker_ReID"
+  cp -a "$DS_ROOT/sources/libs/nvmultiobjecttracker/model/tracker_ReID" "$DS_ROOT/sources/tracker_ReID"
+  log "Copied tracker_ReID -> sources/tracker_ReID"
 fi
-rm -rf "$DS_ROOT/sources/libs/nvmultiobjecttracker"
 
 # nvds_logger ships under sources/tools, not sources/libs.
 if [[ -d "$DS_ROOT/sources/libs/nvds_logger" ]]; then

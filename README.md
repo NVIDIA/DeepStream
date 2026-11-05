@@ -38,10 +38,7 @@ This repository contains the complete source code for DeepStream 9.2.
 - [`deepstream-setup-on-wsl`](skills/deepstream-setup-on-wsl/SKILL.md) — set up and verify DeepStream in Docker inside WSL2
 - [`inference-builder`](skills/inference-builder/SKILL.md) — generate deployable GPU inference pipelines from declarative configs
 - [`deepstream-eval-and-finetune`](skills/deepstream-eval-and-finetune/SKILL.md) — evaluate and improve object detectors for DeepStream
-- [`amc-setup-calibration-stack`](skills/amc-setup-calibration-stack/SKILL.md) — launch the AutoMagicCalib microservice and UI
-- [`amc-run-sample-calibration`](skills/amc-run-sample-calibration/SKILL.md) — verify AMC with the bundled sample dataset
-- [`amc-run-video-calibration`](skills/amc-run-video-calibration/SKILL.md) — calibrate user-provided MP4 camera videos
-- [`amc-run-rtsp-calibration`](skills/amc-run-rtsp-calibration/SKILL.md) — calibrate live RTSP camera streams through VIOS capture
+- [`amc-run-auto-calibration`](skills/amc-run-auto-calibration/SKILL.md) — launch AMC, verify the sample dataset, calibrate MP4 videos, or calibrate RTSP streams
 - [`rtvi-cv-customize-model`](skills/rtvi-cv-customize-model/SKILL.md) — swap the CV detection model in RTVI-CV
 - [`rtvi-vlm-customize-model`](skills/rtvi-vlm-customize-model/SKILL.md) — swap the VLM in the VSS Alerts Blueprint
 - [`rtvi-cv-scaffold-vss-service`](skills/rtvi-cv-scaffold-vss-service/SKILL.md) — scaffold a custom RTVI CV microservice that publishes to VSS via Kafka
@@ -197,10 +194,7 @@ DeepStream/
 │   ├── rtpmanager/update_rtpmanager.sh      # rtpjitterbuffer/rtsp EOS-hang fix script + patch files
 │   └── print_env.sh                         # env diagnostic helper for bug reports
 ├── skills/
-│   ├── amc-run-sample-calibration/          # AMC sample-dataset calibration skill
-│   ├── amc-run-video-calibration/           # AMC custom-video calibration skill
-│   ├── amc-run-rtsp-calibration/            # AMC RTSP-stream calibration skill
-│   ├── amc-setup-calibration-stack/         # AMC microservice + UI launch skill
+│   ├── amc-run-auto-calibration/            # AMC setup, sample, video, and RTSP calibration skill
 │   ├── deepstream-dev/                      # general DS development skill
 │   ├── deepstream-generate-pipeline/        # interactive gst-launch pipeline builder
 │   ├── deepstream-profile-pipeline/         # Nsight Systems profiling & config derivation

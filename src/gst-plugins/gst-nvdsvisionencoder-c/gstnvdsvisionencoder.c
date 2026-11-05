@@ -569,7 +569,9 @@ gst_nvdsvisionencoder_init (GstNvDsVisionEncoder *nvdsvisionencoder)
 #endif
 
   gst_base_transform_set_in_place (GST_BASE_TRANSFORM (nvdsvisionencoder), TRUE);
-  gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (nvdsvisionencoder), FALSE);
+  /* PASSTHROUGH, like gst-nvinfer: this element only reads the input and annotates
+   * NvDsBatchMeta; otherwise a shared buffer is copied and its output is discarded. */
+  gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (nvdsvisionencoder), TRUE);
 }
 
 /**

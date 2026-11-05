@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# SECONDARY stage (process-mode=2). One model classifies the objects the primary
+# detected, over ALL streams: no A/B, no per-stream routing, no sharding. The
+# pgie-only keys (unified-batch, per-model-batch-size, [muxer], shadow-model,
+# [stream-model-*]) are IGNORED here, so this file stays small on purpose.
+[multimodel]
+# 1 = run inference; 0 = passthrough
+enable=1
+# position of this stage, following nvinfer's values: 1 = primary, 2 = secondary
+process-mode=2
+# streams reaching this stage, not cameras: N normally, 2N when the primary runs A/B.
+batch-size=4
+# fps + latency in model/status, measured at this stage's boundary (0 = off, no overhead)
+attach-perf-metric=0
+perf-metric-interval-sec=5
+# the model this stage serves. COMPULSORY at a secondary, and must name a
+# [model-name-N] entry below.
+primary-model=VehicleTypes;1
+
+# MODEL CATALOG. A model NAME is the control-plane ADDRESS used by model/load and
+# model/update, so it must be UNIQUE ACROSS THE WHOLE PIPELINE -- these names are
+# deliberately distinct from the primary stage's (Trafficcamnet / Car / Person).
+[model-name-0]
+name=VehicleTypes
+config=config_infer_secondary_vehicletypes.txt
+
+
+# PER-VERSION artifacts (OPTIONAL) -- [model-<name>-<version>] gives a version its own engine
+# and/or config. Omit a block => that version runs the model's base config+checkpoint, so two
+# versions differ ONLY if you give one its own engine/config (else the A/B scores the same model).
+#   engine = <path>   # this version's checkpoint (swapped in as model-engine-file)
+#   config = <path>   # custom config for this version (instead of the catalog base)
+# Example (commented out -- set real paths to enable):
+[model-VehicleTypes-1]
+config=config_infer_secondary_vehicletypes.txt

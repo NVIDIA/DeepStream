@@ -31,9 +31,12 @@
 G_GNUC_INTERNAL gchar *
 get_infer_engine_str (ModelBin * model_bin)
 {
+  const ModelBackendInfo *be = modelmux_backend (model_bin->type);
   gchar *eng = NULL;
-  if (model_bin->type == MODEL_INFER)
-    g_object_get (G_OBJECT (model_bin->infer), "model-engine-file", &eng, NULL);
+  /* the backend's OWN engine property where it has one; otherwise the config-file
+   * basename, which is the only stable identity such a backend exposes. */
+  if (be->engine_prop)
+    g_object_get (G_OBJECT (model_bin->infer), be->engine_prop, &eng, NULL);
   else if (model_bin->config_file)
     eng = g_path_get_basename (model_bin->config_file);
   return eng;

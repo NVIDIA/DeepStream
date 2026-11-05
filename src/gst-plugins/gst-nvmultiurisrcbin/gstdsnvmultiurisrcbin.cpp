@@ -104,6 +104,7 @@
 #define DEFAULT_ALIGN_FIRST_BATCH FALSE
 #define DEFAULT_SYNC_INPUTS_NTP 0 
 #define DEFAULT_DROP_BACKWARD_SEI FALSE
+#define DEFAULT_DROP_UNTIL_RTCP_SR FALSE
 
 /** nvstreammux props: */
 #define DEFAULT_BATCH_METHOD 1
@@ -1079,6 +1080,13 @@ gst_ds_nvmultiurisrc_bin_class_init (GstDsNvMultiUriBinClass * klass)
           DEFAULT_DROP_BACKWARD_SEI,
           (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_DROP_UNTIL_RTCP_SR,
+      g_param_spec_boolean ("drop-until-rtcp-sr", "Drop Until RTCP SR",
+          "Drop input buffers on each source until an RTCP Sender Report derived "
+          "NTP timestamp is available (forwarded to the internal nvstreammux)",
+          DEFAULT_DROP_UNTIL_RTCP_SR,
+          (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   /** @} */
 
   gst_element_class_set_details_simple (gstelement_class,
@@ -1382,6 +1390,9 @@ gst_ds_nvmultiurisrc_bin_set_property (GObject * object, guint prop_id,
     case PROP_DROP_BACKWARD_SEI:
       muxConfig->drop_backward_sei = g_value_get_boolean (value);
       break;
+    case PROP_DROP_UNTIL_RTCP_SR:
+      muxConfig->drop_until_rtcp_sr = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1636,6 +1647,9 @@ gst_ds_nvmultiurisrc_bin_get_property (GObject * object, guint prop_id,
     case PROP_DROP_BACKWARD_SEI:
       g_value_set_boolean (value, muxConfig->drop_backward_sei);
       break;
+    case PROP_DROP_UNTIL_RTCP_SR:
+      g_value_set_boolean (value, muxConfig->drop_until_rtcp_sr);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1690,6 +1704,7 @@ gst_ds_nvmultiurisrc_bin_init (GstDsNvMultiUriBin * nvmultiurisrcbin)
   nvmultiurisrcbin->muxConfig->buffer_cache_timeout = DEFAULT_CACHED_BUFFER_TIMEOUT;
   nvmultiurisrcbin->muxConfig->sync_inputs_ntp = DEFAULT_SYNC_INPUTS_NTP;
   nvmultiurisrcbin->muxConfig->drop_backward_sei = DEFAULT_DROP_BACKWARD_SEI;
+  nvmultiurisrcbin->muxConfig->drop_until_rtcp_sr = DEFAULT_DROP_UNTIL_RTCP_SR;
   nvmultiurisrcbin->config->skip_frames_type =
       (NvDsUriSrcBinDecSkipFrame) DEFAULT_DEC_SKIP_FRAME_TYPE;
   nvmultiurisrcbin->config->rtp_protocol =
@@ -2757,6 +2772,21 @@ s_stream_api_impl (NvDsServerStreamInfo * stream_info, void *ctx)
             nvmultiurisrcbin->config->creation_time_ns);
       } else {
         nvmultiurisrcbin->config->creation_time_ns = 0;
+      }
+
+      /* Parse and set file_start_time (from metadata) if provided. When present it
+       * seeds this source's nvstreammux NTP base (takes precedence over
+       * creation_time), so frame ntp_timestamp = file_start_time + buffer PTS.
+       * Mainly for file sources, which carry no RTCP NTP of their own. */
+      if (!stream_info->metadata_file_start_time.empty ()) {
+        nvmultiurisrcbin->config->file_start_time_ns =
+            parse_iso8601_to_ntp_ns (stream_info->metadata_file_start_time.c_str ());
+        GST_DEBUG_OBJECT (nvmultiurisrcbin,
+            "Parsed file_start_time [%s] to %" G_GUINT64_FORMAT " ns\n",
+            stream_info->metadata_file_start_time.c_str (),
+            nvmultiurisrcbin->config->file_start_time_ns);
+      } else {
+        nvmultiurisrcbin->config->file_start_time_ns = 0;
       }
 
       gboolean ret =

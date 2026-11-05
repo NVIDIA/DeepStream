@@ -1,0 +1,183 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+skill: amc-run-auto-calibration
+cases:
+  - id: setup_launch_stack
+    prompt: Launch the AutoMagicCalib service stack from my DeepStream checkout.
+    should:
+      - route_to: references/setup.md
+      - use_repo_root_path: "$DEEPSTREAM_REPO/tools/auto-magic-calib/compose/compose.yml"
+      - check_ready_endpoint: "/v1/ready"
+      - require_ubuntu_version: "24.04"
+      - require_nvidia_driver: "590+"
+      - require_x86_64_and_nvenc: true
+      - report_ui_and_swagger_urls: true
+      - protect_credentials: true
+      - require_user_confirmation_for_chown: true
+    should_not:
+      - include_user_home_path: true
+      - reference_other_repositories_for_compose_or_assets: true
+      - run_docker_with_sudo_as_fallback: true
+
+  - id: sample_dataset_run
+    prompt: Verify AMC by running the sdg_08_2_sample_data_010926.zip sample dataset.
+    should:
+      - route_to: references/sample-dataset.md
+      - check_dataset_path: "$DEEPSTREAM_REPO/tools/auto-magic-calib/assets/sdg_08_2_sample_data_010926.zip"
+      - restore_tracked_deepstream_amc_directory_if_missing: true
+      - allow_public_amc_repo_fetch_if_still_missing: "https://github.com/NVIDIA-AI-IOT/auto-magic-calib"
+      - upload_videos_sorted: true
+      - upload_gt_zip_for_metrics: true
+      - stage_or_rectify_linear_media_before_calibration: true
+      - run_vggt_first_when_ready: true
+      - run_layout_postprocess_after_vggt_and_amc: true
+      - report_output_path: "$DEEPSTREAM_REPO/tools/auto-magic-calib/projects/project_<project_id>/output/"
+      - prefer_scripted_helper: "$DEEPSTREAM_REPO/skills/amc-run-auto-calibration/scripts/run_sample_calibration.py"
+    should_not:
+      - hardcode_internal_repo_url: true
+      - invent_api_payload_when_openapi_is_available: true
+      - fabricate_evaluation_metrics: true
+      - reference_removed_split_skill_helpers: true
+
+  - id: local_mp4_calibration
+    prompt: Calibrate these four synchronized MP4 camera videos with AMC.
+    should:
+      - route_to: references/video-files.md
+      - validate_input_files: true
+      - accept_arbitrary_mp4_filenames: true
+      - prepare_repo_rooted_data_directory: "$DEEPSTREAM_REPO/data/amc/<run-name>/videos/"
+      - upload_videos_sorted: true
+      - honor_detector_from_settings_json: true
+      - require_explicit_linear_media_decision: true
+      - use_original_alignment_coordinates_for_external_files: true
+      - use_rectified_alignment_coordinates_only_for_rectified_points: true
+      - run_vggt_first_when_ready: true
+      - run_layout_postprocess_after_vggt_and_amc: true
+      - compare_vggt_and_amc_results: true
+      - require_plan_confirmation_before_calibrate: true
+      - report_job_id_and_outputs: true
+      - prefer_scripted_helper: "$DEEPSTREAM_REPO/skills/amc-run-auto-calibration/scripts/run_video_calibration.py"
+    should_not:
+      - copy_external_files_without_user_approval: true
+      - write_outputs_into_source_config_directories: true
+      - silently_default_custom_detector: true
+
+  - id: rtsp_calibration
+    prompt: Calibrate my live RTSP cameras with AutoMagicCalib.
+    should:
+      - route_to: references/rtsp.md
+      - redact_rtsp_credentials: true
+      - verify_vios_sensor_list: true
+      - validate_stream_reachability: true
+      - start_one_bounded_capture_with_all_streams: true
+      - enforce_capture_duration_seconds: "60-1200"
+      - poll_automatic_ingest_until_ingested: true
+      - stage_or_rectify_linear_media_before_calibration: true
+      - run_vggt_first_when_ready: true
+      - run_layout_postprocess_after_vggt_and_amc: true
+      - report_redacted_stream_ids_and_outputs: true
+      - prefer_scripted_helper: "$DEEPSTREAM_REPO/skills/amc-run-auto-calibration/scripts/run_rtsp_calibration.py"
+    should_not:
+      - print_rtsp_passwords: true
+      - run_staggered_multi_camera_captures: true
+      - reuse_sample_assets_for_rtsp_scene: true
+      - call_removed_manual_ingest_endpoint: true
+
+  - id: troubleshooting_failed_job
+    prompt: My AMC calibration job failed after startup. Help me debug it.
+    should:
+      - route_to: references/troubleshooting.md
+      - inspect_compose_ps_and_logs: true
+      - classify_failure_type: true
+      - provide_next_remediation: true
+    should_not:
+      - suppress_real_findings: true
+      - hand_edit_generated_calibration_files: true
+
+  - id: swagger_sample_walkthrough
+    prompt: I do not want Python. Walk me through the sample calibration in Swagger UI.
+    should:
+      - route_to: references/sample-dataset.md
+      - provide_docs_url: "http://<HOST_IP>:<AUTO_MAGIC_CALIB_MS_PORT>/docs"
+      - list_endpoint_sequence_in_order: true
+      - include_verify_before_calibrate: true
+      - include_linear_media_stage_before_calibrate: true
+      - include_vggt_before_amc_when_ready: true
+      - include_postprocess_after_each_completed_calibration: true
+    should_not:
+      - invoke_python_or_shell_tooling: true
+
+  - id: general_calibration_question
+    prompt: Explain intrinsic versus extrinsic calibration in general.
+    should:
+      - answer_conceptually_without_runtime_workflow: true
+    should_not:
+      - invoke_amc_runtime_workflow: true
+      - probe_localhost_ports: true
+
+  - id: custom_dataset_tuning
+    prompt: AMC and VGGT are ready. Tune this custom dataset without GT.
+    should:
+      - route_to: references/tuning.md
+      - compare_detectors_from_runtime_defaults: true
+      - explain_runtime_and_limit_to_five_amc_attempts: true
+      - continue_after_baselines_when_safe_evidence_remains: true
+    should_not:
+      - ask_user_to_choose_the_tuning_detector: true
+      - invoke_the_normal_helper_end_to_end_for_tuning: true
+
+  - id: evidence_driven_tuning
+    prompt: A later tuning experiment improved mean error but worsened the weakest camera pair.
+    should:
+      - consult_parameter_meanings_and_automation_limits: true
+      - preserve_the_incumbent_when_full_evidence_degrades: true
+    should_not:
+      - select_only_on_mean_error: true
+      - lower_min_matched_tracklets_below_3: true
+
+  - id: tuning_vggt_preservation
+    prompt: Explain VGGT and AMC execution and artifact preservation for each tuning attempt.
+    should:
+      - use_the_same_project_for_both_result_types: true
+      - postprocess_and_preserve_vggt_before_amc: true
+      - postprocess_and_preserve_completed_multicamera_amc: true
+      - poll_each_result_state_independently: true
+    should_not:
+      - run_workloads_concurrently: true
+      - count_vggt_as_an_amc_attempt: true
+
+  - id: tuning_project_names
+    prompt: Plan five tuning projects and recover from a name rejected with HTTP 422 before calibration.
+    should:
+      - use_one_stable_slug_and_zero_padded_attempts: true
+      - preserve_readable_detector_and_delta_suffixes_within_schema_limits: true
+      - report_validation_and_retry_without_counting_a_rejected_creation: true
+    should_not:
+      - rename_existing_projects: true
+
+  - id: reuse_normal_project
+    prompt: Continue tuning from a completed normal calibration whose settings may have changed in the UI.
+    should:
+      - recover_effective_config_and_verify_baseline_equivalence_before_reuse: true
+      - preserve_existing_results_or_start_a_fresh_baseline_if_unverifiable: true
+    should_not:
+      - treat_current_global_config_as_historical_project_evidence: true
+
+  - id: tuning_configuration_handoff
+    prompt: Finish tuning on a shared backend, report the result, prepare a later defaults-based run, and offer cleanup.
+    should:
+      - require_exclusive_config_access_during_tuning: true
+      - report_all_attempts_and_distinguish_active_settings_from_the_winner: true
+      - prevent_later_defaults_runs_from_inheriting_tuned_settings: true
+      - preserve_artifacts_and_request_exact_id_approval_before_deletion: true
+    should_not:
+      - reset_completed_projects_to_change_global_settings: true
+
+  - id: tuning_vggt_cli_setup
+    prompt: VGGT is required for tuning, but hf and pip are missing.
+    should:
+      - use_isolated_uv_or_pipx_and_verify_hf_help: true
+      - keep_credentials_out_of_chat: true
+    should_not:
+      - assume_pip_exists_or_bypass_system_python_protection: true

@@ -22,6 +22,7 @@
  */
 
 #include "gstnvmodelmux_priv.h"
+#include "gstnvmodelmux.h"   /* sibling stages: the SECONDARY rows below */
 
 #include <stdarg.h>
 #include <stdlib.h>
@@ -317,6 +318,74 @@ modelmux_dump_pool_perf (ModelPool * rb, GPtrArray * rows)
   }
 }
 
+/* Append one models_table row per SECONDARY nvmodelmux in this pipeline. */
+static void
+modelmux_dump_secondaries (ModelMuxBin * modelmux_bin, GPtrArray * rows)
+{
+  GstObject *top, *p;
+  GstIterator *it;
+  GValue v = G_VALUE_INIT;
+  gboolean done = FALSE;
+
+  if (!modelmux_bin || !modelmux_bin->parent_pipeline)
+    return;
+  top = GST_OBJECT (modelmux_bin->parent_pipeline);
+  gst_object_ref (top);
+  while ((p = gst_object_get_parent (top))) {
+    gst_object_unref (top);
+    top = p;
+  }
+  if (!GST_IS_BIN (top)) {
+    gst_object_unref (top);
+    return;
+  }
+
+  it = gst_bin_iterate_recurse (GST_BIN (top));
+  while (!done) {
+    switch (gst_iterator_next (it, &v)) {
+      case GST_ITERATOR_OK:{
+        GstElement *e = GST_ELEMENT (g_value_get_object (&v));
+        if (GST_IS_NVMODELMUX (e) && GST_NVMODELMUX (e)->modelmux_sgie_bin) {
+          const gchar *name = "-", *ver = "-", *backend = "-", *state = "-";
+          guint gie = 0, batch = 0, i;
+          gboolean serving = FALSE;
+          gint gpu = 0;
+          gchar *eng = NULL, *eng_base;
+          gchar c_gie[16], c_gpu[16], c_bat[16];
+          /* one row per RESIDENT model, not just the serving one: a model/load here
+           * builds a second model that is warm and idle until a route promotes it, and
+           * a row is the only place that VRAM shows up. The "default" column marks
+           * which one actually infers. */
+          for (i = 0; modelmux_sgie_get_info (GST_NVMODELMUX (e)->modelmux_sgie_bin, i,
+                  &name, &ver, &backend, &gie, &gpu, &batch, &state, &serving, &eng);
+              i++) {
+            eng_base = (eng && *eng) ? g_path_get_basename (eng) : g_strdup ("-");
+            g_snprintf (c_gie, sizeof (c_gie), "%u", gie);
+            g_snprintf (c_gpu, sizeof (c_gpu), "%d", gpu);
+            g_snprintf (c_bat, sizeof (c_bat), "%u", batch);   /* live stream count */
+            modelmux_grid_add (rows, 11, "Secondary", name, backend, ver,
+                serving ? "yes" : "-", c_gie, "-", c_gpu, state, c_bat, eng_base);
+            g_free (eng);
+            g_free (eng_base);
+            eng = NULL;
+          }
+        }
+        g_value_reset (&v);
+        break;
+      }
+      case GST_ITERATOR_RESYNC:
+        gst_iterator_resync (it);
+        break;
+      default:
+        done = TRUE;
+        break;
+    }
+  }
+  g_value_unset (&v);
+  gst_iterator_free (it);
+  gst_object_unref (top);
+}
+
 static gboolean
 modelmux_dump_state_idle (gpointer data)
 {
@@ -385,6 +454,13 @@ modelmux_dump_state_idle (gpointer data)
         g_free (eng_base);
       }
     }
+    /* SECONDARY stages. They are separate ELEMENTS with their own linear chain (no
+     * pools), so the walk above cannot see them -- yet omitting them from a table
+     * headed "active model bins" hides a live inference stage from the dump. Find
+     * the siblings in this pipeline and add one row each. No routing_table row:
+     * a secondary serves every stream, so it has nothing per-stream to show. */
+    modelmux_dump_secondaries (modelmux_bin, rows);
+
     modelmux_grid (s, "models_table  —  active model bins (role → name → infer-plugin → status)",
         11, hdr, rows);
     g_ptr_array_set_size (rows, 0);

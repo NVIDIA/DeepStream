@@ -49,6 +49,9 @@ public:
     virtual bool HandleEvent (GstEvent *event) = 0;
     // TODO: Add getProperty as well
 
+    // Returned string ownership is transferred to nvdsvideotemplate.
+    // Implementations must allocate it with new[].
+    // The plugin frees it with delete[].
     virtual char* QueryProperties () = 0;
 
     /* Get GetCompatibleOutputCaps */
