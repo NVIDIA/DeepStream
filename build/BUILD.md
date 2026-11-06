@@ -17,6 +17,52 @@ limitations under the License.
 
 # DeepStream — Build & Run Guide
 
+## TensorRT 11 upgrade branch
+
+The source port in this branch targets x86 CUDA 13.2 / TensorRT 11.4.0.106,
+Jetson JetPack 7.2.2+ CUDA 13.2.2 / TensorRT 11.4.1.31, and generic SBSA
+CUDA 13.4.1 / TensorRT 11.4.1.31. ARM uses VPI 4.1.6; x86 retains its existing
+VPI version. The table below describes the original published baseline, not
+qualification of this upgrade. IGX's separate legacy stack is not upgraded here.
+
+Use matching runtime binaries for the selected upgrade stack. Do not combine
+these sources with opaque binaries from an older TensorRT stack merely because
+the SDK version is also 9.2. A source build still needs all development packages
+and component-specific prerequisites documented below.
+
+For an engineering drop retaining **all** supplied SDK runtime binaries, first
+extract the trusted complete SDK package into a private directory (this does not
+install it):
+
+```bash
+mkdir -p /absolute/path/sdk-input
+dpkg-deb -x /absolute/path/deepstream-9.2_9.2.0-1_amd64.deb /absolute/path/sdk-input
+bash build/build.sh --package \
+  --package-from=/absolute/path/sdk-input/opt/nvidia/deepstream/deepstream-9.2 \
+  --package-platform=x86
+```
+
+This route skips downloads, dependency installation, SDK compilation and system
+integration. It packages the supplied runtime plus the selected public sources;
+it does not establish that those binaries were built from those sources. Verify
+the package's build/source identity separately. Do not add proprietary binaries,
+vendor snapshots, internal manifests or build caches to Git.
+
+`--package-platform=jetson` and `--package-platform=sbsa` select ARM packaging;
+they do not perform a cross-build. Runtime inference ELF architecture and
+TensorRT ABI are checked before staging. This is not a complete ABI/runtime audit.
+During local development only, add `--include-untracked-sources` to include new,
+non-ignored files within the source allowlist. Normal packaging remains tracked-only.
+Custom staging directories must be empty or carry this packager's matching
+ownership sidecar. Repository sources, build scripts, runtime inputs and broad
+system directories are never valid disposable staging locations.
+
+The package includes conversion scripts under `samples/modelopt`. Conversion and
+target engine building happen explicitly after installation; see
+[`tools/modelopt/README.md`](../tools/modelopt/README.md). Original ONNX filenames
+remain canonical; preserved originals use the `fp32_` prefix. No ModelOpt venv,
+CUDA toolkit download cache or generated engine is added by these source rules.
+
 ## Prerequisites
 
 ### NVIDIA Compute Stack
@@ -413,7 +459,7 @@ automatically at the very end, but **only** after a full build succeeds (it is
 skipped for `--only=` scoped builds and never runs if any stage failed):
 
 ```bash
-# Full build, then emit both .deb and .tar.gz into build/
+# Full build, then emit both .deb and .tbz2 into build/
 bash build/build.sh --package
 
 # Full build, then emit only the Debian package
@@ -453,6 +499,9 @@ bash build/package.sh --help
 | `--output-dir=PATH` | Where to write the `.deb` / `.tar.gz` (default: `build/`) |
 | `--stage-dir=PATH` | Scratch staging directory (default: `build/.pkg-stage`) |
 | `--keep-stage` | Do not delete the staging directory on exit (useful for inspection) |
+| `--runtime-root=PATH` | Complete extracted SDK directory instead of the installed `/opt` tree |
+| `--platform=x86\|jetson\|sbsa` | Select platform-specific dependencies and tarball name |
+| `--include-untracked-sources` | Local validation only: include non-ignored new source files |
 
 Environment overrides: `NVDS_VERSION` (default `9.2.0`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
 (default: same as `NVDS_VERSION`).
@@ -463,7 +512,7 @@ Packages are written to the output directory (default `build/`) and named:
 
 ```text
 deepstream-<NVDS_VERSION>_<PKG_VERSION>-<revision>_<arch>.deb
-deepstream-<NVDS_VERSION>_<PKG_VERSION>-<revision>_<arch>.tar.gz
+deepstream_sdk_v<full-version>_<x86_64|jetson|sbsa>.tbz2
 ```
 
 The generated `.deb` can then be installed on a target machine with:

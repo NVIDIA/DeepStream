@@ -80,7 +80,7 @@ static void setRuntimeDim4Reid(TrtModule *trtModule, const std::vector<int>& siz
                 trtModule->m_engine->getIOTensorName(ind)
             );
             lastInputDims.d[0] = batchSize;
-            trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(ind), lastInputDims);
+            trtModule->setInputShape(trtModule->m_engine->getIOTensorName(ind), lastInputDims);
         }
     }
 }

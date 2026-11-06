@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <cstring>
+#include <stdexcept>
 #include <NvInfer.h>
 #include <NvOnnxParser.h>
 #include "nvdsinfer_context.h"
@@ -69,12 +70,13 @@ public:
     std::string m_engineFilePath; //!< Reid engine path.
     std::string m_calibrationTableFilePath; //!< Reid int8 calibration table file path.
     nvinfer1::DataType m_networkMode; //!< Reid network precision.
-    //!< Integer 0: FP32 1: INT8 2: FP16.
+    //!< Integer 0: FP32 1: FP16 2: INT8.
     int m_builderOptimizationLevel; //!< Engine builder optimization level.
     int m_debugVerboseLevel; //!< Debug message verbose mode level.
 };
 
 /** @brief ReID int8 calibrator used for TensorRT int8 precision inference. */
+#if NV_TENSORRT_MAJOR < 11
 class TrackerInt8EntropyCalibrator : public nvinfer1::IInt8EntropyCalibrator
 {
 public:
@@ -132,6 +134,7 @@ private:
     std::string m_CalibrationTableFile;
     std::vector<char> m_CalibrationCache;
 };
+#endif
 
 /** @brief TRT module to perform various deep learning inference. */
 class TrtModule
@@ -172,7 +175,8 @@ public:
      * @param[in] config TensorRT builder configuration.
      * @return Decoded engine.
      */
-    nvinfer1::ICudaEngine* decodeTltModel(nvinfer1::IBuilder* const builder, nvinfer1::IBuilderConfig* const config);
+    std::shared_ptr<nvinfer1::ICudaEngine> decodeTltModel(
+        nvinfer1::IBuilder* const builder, nvinfer1::IBuilderConfig* const config);
 
     /**
      * @brief Load reid TRT engine.
@@ -197,13 +201,27 @@ public:
      */
     void setCudaStream(cudaStream_t cuStream) { m_cuStream = cuStream; };
 
+    /** @brief Set a named input shape, rejecting an uninitialized context or invalid shape. */
+    void setInputShape(const char* name, const nvinfer1::Dims& dims)
+    {
+        if (!m_context || !m_context->setInputShape(name, dims))
+        {
+            throw std::runtime_error("Failed to set tracker input shape");
+        }
+    }
+
     TRTConfigParams m_params; //!< TRT module config.
     std::shared_ptr<nvinfer1::ICudaEngine> m_engine; //!< TensorRT engine for reid.
     std::shared_ptr<nvinfer1::IExecutionContext> m_context; //!< TensorRT execution context.
     cudaStream_t m_cuStream; //!< Cuda stream to run all GPU tasks.
 protected:
+    void resetModel();
+    void validateEngineIO() const;
+
     std::shared_ptr<nvinfer1::IRuntime> m_runtime; //!< TensorRT runtime used to deserialize engines.
+#if NV_TENSORRT_MAJOR < 11
     std::shared_ptr<TrackerInt8EntropyCalibrator> m_calibrator; //!< TensorRT int8 calibrator.
+#endif
     std::string m_absModelFilePath; //!< Absolute model file path.
     std::function<void(
         nvinfer1::INetworkDefinition *network, nvinfer1::IBuilder *builder, nvinfer1::IBuilderConfig *config,

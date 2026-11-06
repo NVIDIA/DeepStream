@@ -22,6 +22,300 @@ PREPROCESS_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/configs
 NETWORK_WIDTH="${NETWORK_WIDTH:-0}"
 NETWORK_HEIGHT="${NETWORK_HEIGHT:-0}"
 MSDA_PLUGIN_PATH="${MSDA_PLUGIN_PATH:-/opt/nvidia/deepstream/deepstream/sources/sparse4d/libmsda_fp16.so}"
+TRTEXEC="${TRTEXEC:-trtexec}"
+SPARSE4D_MODEL_PYTHON="${SPARSE4D_MODEL_PYTHON:-python3}"
+SPARSE4D_SETUP_SCRIPT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+
+model_preparation_tool() {
+  local tool="${SPARSE4D_MODELOPT_PREPARE:-/opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_model.py}"
+  if [[ ! -f "$tool" && -z "${SPARSE4D_MODELOPT_PREPARE+x}" ]]; then
+    # Source-tree invocation; installed packages use samples/modelopt above.
+    tool="$(dirname -- "$SPARSE4D_SETUP_SCRIPT")/../../../../../tools/modelopt/prepare_model.py"
+  fi
+  [[ -f "$tool" ]] || { echo "[ERROR] Missing model preparation helper: $tool" >&2; return 1; }
+  printf '%s\n' "$tool"
+}
+
+detect_tensorrt_version() {
+  "$SPARSE4D_MODEL_PYTHON" -B - <<'PY'
+import ctypes
+library = ctypes.CDLL("libnvinfer.so")
+version = library.getInferLibVersion()
+major, minor, patch = version // 10000, version // 100 % 100, version % 100
+if major < 10:
+    raise SystemExit("Sparse4D setup requires TensorRT10 or11 runtime libraries, not linker stubs")
+build = library.getInferLibBuildVersion() if hasattr(library, "getInferLibBuildVersion") else "unknown"
+print(f"{major}.{minor}.{patch}.{build}")
+PY
+}
+
+validate_pretyped_model() {
+  # Inspect, never convert, the model with its real custom-op signature intact.
+  local tool
+  tool=$(model_preparation_tool) || return 1
+  "$SPARSE4D_MODEL_PYTHON" -B - "$1" "$2" "$tool" "${3:-SPARSE4D}" <<'PY'
+import importlib.util
+import sys
+try:
+    import onnx
+except ImportError:
+    raise SystemExit("TRT11 typed-model inspection requires onnx in SPARSE4D_MODEL_PYTHON; no dependencies are installed automatically")
+source, typed = (onnx.load(path, load_external_data=True) for path in sys.argv[1:3])
+def signature(model):
+    return [[(value.name, value.type.SerializeToString(deterministic=True)) for value in values]
+            for values in (model.graph.input, model.graph.output)]
+if signature(source) != signature(typed):
+    raise SystemExit("Typed model changed the original external I/O contract; preserve FP32 floating I/O and masks")
+for value in list(typed.graph.input) + list(typed.graph.output):
+    if (not value.type.HasField("tensor_type") or value.type.tensor_type.elem_type not in
+            (onnx.TensorProto.FLOAT, onnx.TensorProto.INT32, onnx.TensorProto.INT64, onnx.TensorProto.BOOL)):
+        raise SystemExit(f"Sparse4D/OCR requires FP32 external floating I/O: {value.name}")
+role = sys.argv[4]
+if role in ("OCD", "OCR"):
+    initializers = {tensor.name for tensor in typed.graph.initializer}
+    inputs = {value.name: value.type.tensor_type.elem_type for value in typed.graph.input
+              if value.name not in initializers}
+    outputs = {value.name: value.type.tensor_type.elem_type for value in typed.graph.output}
+    expected_outputs = ({"pred": onnx.TensorProto.FLOAT} if role == "OCD" else
+                        {"output_prob": onnx.TensorProto.FLOAT, "output_id": onnx.TensorProto.INT32})
+    if inputs != {"input": onnx.TensorProto.FLOAT} or outputs != expected_outputs:
+        raise SystemExit(f"{role} model does not match nvOCDR's input/output names and types: "
+                         f"inputs={inputs}, outputs={outputs}; expected FLOAT input and {expected_outputs}")
+def custom_ops(model):
+    return [(node.domain, node.op_type, len(node.input), len(node.output),
+             tuple(attribute.SerializeToString(deterministic=True) for attribute in node.attribute))
+            for node in model.graph.node if node.domain not in ("", "ai.onnx")]
+if custom_ops(source) != custom_ops(typed):
+    raise SystemExit("Typed model changed custom-op/MSDA signatures; supply a matching explicitly validated export")
+spec = importlib.util.spec_from_file_location("sparse4d_model_preparation", sys.argv[3])
+preparation = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(preparation)
+try:
+    preparation.reduced_arithmetic(typed, onnx)
+except preparation.PreparationError as error:
+    raise SystemExit(str(error)) from error
+print("[INFO] Typed model preserves external I/O/custom-op signatures and has live input-dependent FP16 arithmetic; target correctness/performance still require validation")
+PY
+}
+
+prepare_ocr_model() {
+  # Return only the selected path on stdout. Conversion/validation logs go to
+  # stderr so command substitution cannot accidentally turn a log into a path.
+  local source="$1" typed="$2" calibration="$3" output="$4" role="$5" tool
+  if [[ -n "$typed" && -n "$calibration" ]]; then
+    echo "[ERROR] $role: select a typed ONNX override OR representative calibration, not both" >&2
+    return 1
+  fi
+  if [[ -n "$calibration" ]]; then
+    [[ -n "$output" ]] || { echo "[ERROR] $role: set ${role}_TRT11_PREPARED_DIR to a private output directory" >&2; return 1; }
+    tool=$(model_preparation_tool) || return 1
+    "$SPARSE4D_MODEL_PYTHON" -B "$tool" --input "$source" --output-dir "$output" \
+      --output-name model.modelopt-fp16.onnx --calibration-data "$calibration" >&2 || return 1
+    typed="$output/model.modelopt-fp16.onnx"
+  fi
+  # An already typed source can be selected directly. An ordinary FP32 model
+  # fails this validation instead of silently building an FP32 OCR engine.
+  typed="${typed:-$source}"
+  if ! validate_pretyped_model "$source" "$typed" "$role" >&2; then
+    echo "[ERROR] $role: supply ${role}_TRT11_ONNX_MODEL_PATH, or use ${role}_TRT11_CALIBRATION_DATA and ${role}_TRT11_PREPARED_DIR with the pinned ModelOpt Python environment" >&2
+    return 1
+  fi
+  printf '%s\n' "$typed"
+}
+
+engine_inputs_identity() {
+  # Both publications must be disjoint from the complete model closure and
+  # build/preparation inputs. Unknown closure is not safe for publication,
+  # including the TRT10 route: provision an ONNX inspector, never guess paths.
+  local model="$1" engine="$2" marker="$3" builder="$4" plugin="$5" tool input preload
+  local -a inputs=("$SPARSE4D_SETUP_SCRIPT" "$builder") preloads=()
+  tool=$(model_preparation_tool) || return 1
+  for input in "$plugin" "${SPARSE4D_ENGINE_CALIBRATION_DATA:-}"; do
+    [[ -z "$input" ]] || inputs+=("$input")
+  done
+  for input in "${CONFIG_FILE_PATH:-}" "${PREPROCESS_FILE_PATH:-}" "${OCR_CONFIG_FILE:-}" "${DICT_FILE:-}"; do
+    if [[ -n "$input" && ( -e "$input" || -L "$input" ) ]]; then inputs+=("$input"); fi
+  done
+  IFS=': ' read -r -a preloads <<< "${LD_PRELOAD:-}"
+  for preload in "${preloads[@]}"; do
+    if [[ "$preload" == /* && -r "$preload" ]]; then inputs+=("$preload"); fi
+  done
+  "$SPARSE4D_MODEL_PYTHON" -B - "$model" "$engine" "$marker" "$tool" \
+    "${SPARSE4D_ENGINE_SOURCE_MODEL:-$model}" "${inputs[@]}" <<'PY'
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+try:
+    import onnx
+    spec = importlib.util.spec_from_file_location("sparse4d_model_preparation", sys.argv[4])
+    preparation = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(preparation)
+    protected = set()
+    model_files = set()
+    models = {}
+    for name in (sys.argv[1], sys.argv[5]):
+        source = Path(name).resolve(strict=True)
+        if source in models:
+            continue
+        proto = onnx.load(str(source), load_external_data=False)
+        external = preparation.external_files(proto, source)
+        models[source] = {"model": preparation.identity(source), "external_data": external}
+        protected.add(source)
+        protected.update((source.parent / relative).resolve(strict=True) for relative in external)
+        model_files.add(source)
+        model_files.update((source.parent / relative).resolve(strict=True) for relative in external)
+        # ModelOpt's immutable prepared artifact includes its provenance/log;
+        # publishing an engine must not destroy that reusable deliverable.
+        for name in ("provenance.json", "conversion.log"):
+            candidate = source.parent / name
+            if candidate.exists() or candidate.is_symlink():
+                protected.add(candidate.resolve(strict=True))
+    for name in [sys.argv[4], *sys.argv[6:]]:
+        source = Path(name).resolve(strict=True)
+        if source.is_dir():
+            # A representative calibration input may be a directory of NPZs.
+            protected.update(path.resolve(strict=True) for path in source.glob("*.npz"))
+            protected.add(source)
+        else:
+            protected.add(source)
+    outputs = [Path(name).resolve() for name in sys.argv[2:4]]
+    for index, output in enumerate(outputs):
+        if output.is_dir():
+            raise ValueError(f"Engine/identity output is a directory: {output}")
+        for source in protected:
+            if output == source or (output.exists() and output.samefile(source)):
+                raise ValueError(f"Engine/identity output would overwrite a protected input: {output} -> {source}")
+        if index and (output == outputs[0] or
+                      (output.exists() and outputs[0].exists() and output.samefile(outputs[0]))):
+            raise ValueError("Engine and identity outputs must be distinct")
+    closure = {"models": [{"path": str(path), **value} for path, value in sorted(models.items())],
+               "other_inputs": {str(path): preparation.identity(path) for path in sorted(protected - model_files)
+                                if path.is_file()}}
+    print(hashlib.sha256(json.dumps(closure, sort_keys=True).encode()).hexdigest())
+except Exception as error:
+    print(f"[ERROR] Unsafe or uninspectable engine publication: {error}. "
+          "Complete ONNX/external-weight inspection is required before building "
+          "(also for TRT10); provide onnx in SPARSE4D_MODEL_PYTHON. No dependencies are installed automatically.",
+          file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+resolve_cuda_device_identity() {
+  # Driver ordinals follow the same CUDA visibility/order as the engine builder.
+  # UUID v2 identifies MIG instances too; physical nvidia-smi indexes do not.
+  "${SPARSE4D_MODEL_PYTHON:-python3}" -B - "${GPU_ID:-0}" <<'PY'
+import ctypes
+import sys
+import uuid
+
+try:
+    ordinal = int(sys.argv[1])
+    if not 0 <= ordinal <= 2147483647:
+        raise ValueError("CUDA device ordinal outside int range")
+    driver = ctypes.CDLL("libcuda.so.1")
+    driver.cuInit.argtypes = [ctypes.c_uint]
+    driver.cuDeviceGet.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+    identity = (ctypes.c_ubyte * 16)()
+    get_uuid = driver.cuDeviceGetUuid_v2
+    get_uuid.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    status = driver.cuInit(0)
+    if status:
+        raise RuntimeError(f"cuInit status {status}")
+    device = ctypes.c_int()
+    status = driver.cuDeviceGet(ctypes.byref(device), ordinal)
+    if status:
+        raise RuntimeError(f"cuDeviceGet({ordinal}) status {status}")
+    status = get_uuid(ctypes.byref(identity), device)
+    if status or not any(identity):
+        raise RuntimeError(f"cuDeviceGetUuid_v2 status {status}, or empty UUID")
+    print("cuda-device-uuid:" + str(uuid.UUID(bytes=bytes(identity))))
+except (AttributeError, OSError, RuntimeError, ValueError) as error:
+    print(f"[WARN] CUDA device identity unavailable; cache reuse disabled: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+build_cached_engine() (
+  set -o pipefail
+  local model="$1" engine="$2" plugin="$3"; shift 3
+  local -a flags=("$@")
+  local device_identity model_identity builder_path builder_identity fingerprint engine_hash saved expected before
+  local temporary="" temporary_dir="" temporary_marker="" marker preload
+  trap '[[ -z "$temporary" ]] || rm -f -- "$temporary"; [[ -z "$temporary_marker" ]] || rm -f -- "$temporary_marker"; [[ -z "$temporary_dir" ]] || rmdir -- "$temporary_dir"' EXIT
+  # The parser must resolve external weights beside the same canonical model
+  # whose closure is hashed, not beside a symlink in another directory.
+  model=$(realpath -e -- "$model") || return 1
+  marker="${engine}.sparse4d-setup.identity"
+  builder_path=$(command -v -- "$TRTEXEC") || return 1
+  model_identity=$(engine_inputs_identity "$model" "$engine" "$marker" "$builder_path" "$plugin") || return 1
+  device_identity=$(resolve_cuda_device_identity) || device_identity=""
+  builder_identity=$(sha256sum -- "$builder_path") || return 1
+  # A preload can change registered TensorRT plugin creators even for OCR.
+  # Hash identifiable files; unknown loader search names disable cache reuse.
+  local -a preloads=()
+  IFS=': ' read -r -a preloads <<< "${LD_PRELOAD:-}"
+  for preload in "${preloads[@]}"; do
+    if [[ -n "$preload" && ( "$preload" != /* || ! -r "$preload" ) ]]; then
+      echo "[WARN] Unidentified LD_PRELOAD entry; cache reuse disabled: $preload" >&2
+      device_identity=""
+    fi
+  done
+  fingerprint_inputs() {
+    {
+    printf '%s\0' 'sparse4d-setup-cache-v6-protected-model-closure' "$TRT_VERSION" "$device_identity" "$model_identity" "$builder_identity" \
+      "${GPU_ID:-0}" "${CUDA_VISIBLE_DEVICES-unset}" "${CUDA_DEVICE_ORDER-unset}" "${NVIDIA_VISIBLE_DEVICES-unset}"
+    printf '%s\0' "${flags[@]}"
+    sha256sum -- "$model" "$SPARSE4D_SETUP_SCRIPT" || return 1
+    if [[ -n "$plugin" ]]; then sha256sum -- "$plugin" || return 1; fi
+    for preload in "${preloads[@]}"; do
+      if [[ -n "$preload" && "$preload" == /* && -r "$preload" ]]; then sha256sum -- "$preload" || return 1; fi
+    done
+    } | sha256sum | cut -d' ' -f1
+  }
+  fingerprint=$(fingerprint_inputs) || return 1
+  if [[ -n "$device_identity" && -n "$model_identity" && "$TRT_VERSION" != *.unknown && "${FORCE_ENGINE_REBUILD:-False}" != True && -f "$engine" && -f "$marker" ]]; then
+    engine_hash=$(sha256sum -- "$engine" | cut -d' ' -f1)
+    saved=$(<"$marker")
+    expected=$(printf '%s\n%s' "$fingerprint" "$engine_hash")
+    if [[ "$saved" == "$expected" ]]; then
+      echo "[INFO] Reusing engine with matching TRT/model-closure/builder/plugin/device/shape identity: $engine"
+      return 0
+    fi
+  fi
+  mkdir -p -- "$(dirname -- "$engine")" || return 1
+  temporary_dir=$(mktemp -d "${engine}.build.XXXXXX") || return 1
+  # Cleanup must stay in the directory we created even if an output parent
+  # symlink is changed during the build. Publication aliases are checked again.
+  temporary_dir=$(realpath -e -- "$temporary_dir") || return 1
+  temporary="${temporary_dir}/model.engine"
+  if ! "$TRTEXEC" --onnx="$model" --saveEngine="$temporary" --device="${GPU_ID:-0}" "${flags[@]}"; then
+    return 1
+  fi
+  [[ -s "$temporary" ]] || { echo "[ERROR] trtexec did not create an engine: $temporary" >&2; return 1; }
+  # A long build must not publish a plan under an identity captured before a
+  # model/weight/plugin/builder replacement. Recheck publication aliases too;
+  # a parent symlink may have changed while the builder was running.
+  before="$fingerprint"
+  model_identity=$(engine_inputs_identity "$model" "$engine" "$marker" "$builder_path" "$plugin") || return 1
+  builder_identity=$(sha256sum -- "$builder_path") || return 1
+  fingerprint=$(fingerprint_inputs) || return 1
+  if [[ "$fingerprint" != "$before" ]]; then
+    echo "[ERROR] Engine inputs changed during build; previous engine retained" >&2
+    return 1
+  fi
+  engine_hash=$(sha256sum -- "$temporary" | cut -d' ' -f1) || return 1
+  if [[ -f "$engine" ]]; then chmod --reference="$engine" -- "$temporary" || return 1; fi
+  temporary_marker="${temporary_dir}/identity"
+  printf '%s\n%s\n' "$fingerprint" "$engine_hash" > "$temporary_marker" || return 1
+  # Separate atomic file replacements, not a cross-process transaction. A
+  # missing/mismatched marker never authorizes reuse of the newly published plan.
+  mv -f -- "$temporary" "$engine" || return 1
+  mv -f -- "$temporary_marker" "$marker"
+)
 
 fetch_yaml_property_value() {
   yaml_file="$1"
@@ -224,6 +518,15 @@ update_preprocessed_dims() {
   return 0
 }
 
+# Runtime selection only; the existing TensorRT10 build/reuse paths below are
+# retained. TensorRT11 uses explicit typed models and private engine builds.
+TRT_VERSION=$(detect_tensorrt_version) || exit 1
+TRT_MAJOR=${TRT_VERSION%%.*}
+if (( TRT_MAJOR >= 11 )); then
+  TRTEXEC="${NVDS_ENGINE_BUILDER:-/opt/nvidia/deepstream/deepstream/bin/nvdsinfer-engine-builder}"
+  command -v "$TRTEXEC" >/dev/null || { echo "Missing SDK engine builder: $TRTEXEC" >&2; exit 1; }
+fi
+
 # Check if DS-Configurator path exists
 if [[ -d "${SPARSE4D_CONFIG_PATH}" ]]; then
   echo "[INFO] DS-Configurator path: ${SPARSE4D_CONFIG_PATH}"
@@ -279,7 +582,7 @@ ENGINE_FILE_PATH=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "engine_file"
 # Check if the force_engine_rebuild flag is set to True
 # If it is, remove the local engine file
 FORCE_ENGINE_REBUILD=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "force_engine_rebuild")
-if [[ "${FORCE_ENGINE_REBUILD}" == "True" ]]; then
+if (( TRT_MAJOR < 11 )) && [[ "${FORCE_ENGINE_REBUILD}" == "True" ]]; then
   echo "[INFO] Force engine rebuild is set to True, removing local engine file ${ENGINE_FILE_PATH}"
   rm -f "${ENGINE_FILE_PATH}"
 fi
@@ -303,7 +606,16 @@ MODEL_NAME=$(basename "${ONNX_MODEL_PATH}" .onnx)
 PRE_BUILT_ENGINE_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/${GPU_ARCH}-${MODEL_NAME}.engine"
 
 # Check if the local engine file already exists
-if [[ -f "${ENGINE_FILE_PATH}" ]]; then
+if (( TRT_MAJOR >= 11 )); then
+  GPU_ID=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "gpu_id")
+  if [[ -n "${SPARSE4D_TRT11_ONNX_MODEL_PATH:-}" ]]; then
+    validate_pretyped_model "$ONNX_MODEL_PATH" "$SPARSE4D_TRT11_ONNX_MODEL_PATH" || exit 1
+    ONNX_MODEL_PATH="$SPARSE4D_TRT11_ONNX_MODEL_PATH"
+    update_yaml "${CONFIG_FILE_PATH}" "onnx_file" "$ONNX_MODEL_PATH"
+  fi
+  validate_file_exists "TRT11 MSDA plugin" "$MSDA_PLUGIN_PATH"
+  echo "[INFO] TensorRT11 main Sparse4D engine creation is deferred to the application; setup has not built an engine."
+elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
   echo "[INFO] Using Saved TensorRT engine file for Sparse4D Model: ${ENGINE_FILE_PATH}"
 # Check if the shared engine file already exists and FORCE_ENGINE_REBUILD is not set to True
 elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" && "${FORCE_ENGINE_REBUILD}" != "True" ]]; then
@@ -383,7 +695,17 @@ if [[ "${OCR_INFERENCE}" == "True" ]]; then
     exit 1
   fi
   # Engine file generation
-  if [[ -f "${ENGINE_FILE_PATH}" ]]; then
+  if (( TRT_MAJOR >= 11 )); then
+    OCD_SOURCE_MODEL_PATH="$OCD_MODEL_PATH"
+    OCD_MODEL_PATH=$(prepare_ocr_model "$OCD_MODEL_PATH" "${OCD_TRT11_ONNX_MODEL_PATH:-}" \
+      "${OCD_TRT11_CALIBRATION_DATA:-}" "${OCD_TRT11_PREPARED_DIR:-}" OCD) || exit 1
+    SPARSE4D_ENGINE_SOURCE_MODEL="$OCD_SOURCE_MODEL_PATH" \
+    SPARSE4D_ENGINE_CALIBRATION_DATA="${OCD_TRT11_CALIBRATION_DATA:-}" \
+    build_cached_engine "$OCD_MODEL_PATH" "$ENGINE_FILE_PATH" "" --fp16 \
+      --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
+      --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
+      --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} || exit 1
+  elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
     echo "[INFO] Using Saved TensorRT engine file for OCDNet Model: ${ENGINE_FILE_PATH}"
   elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" ]]; then
     cp "${PRE_BUILT_ENGINE_FILE_PATH}" "${ENGINE_FILE_PATH}" 
@@ -427,7 +749,17 @@ if [[ "${OCR_INFERENCE}" == "True" ]]; then
   MODEL_DIMS_STR=$(echo "${MODEL_DIMS_STR}" | tr -d '[]' | tr -d ' ')
   IFS=',' read -r -a MODEL_DIMS <<< "${MODEL_DIMS_STR}"
   # Engine file generation
-  if [[ -f "${ENGINE_FILE_PATH}" ]]; then
+  if (( TRT_MAJOR >= 11 )); then
+    OCR_SOURCE_MODEL_PATH="$OCR_MODEL_PATH"
+    OCR_MODEL_PATH=$(prepare_ocr_model "$OCR_MODEL_PATH" "${OCR_TRT11_ONNX_MODEL_PATH:-}" \
+      "${OCR_TRT11_CALIBRATION_DATA:-}" "${OCR_TRT11_PREPARED_DIR:-}" OCR) || exit 1
+    SPARSE4D_ENGINE_SOURCE_MODEL="$OCR_SOURCE_MODEL_PATH" \
+    SPARSE4D_ENGINE_CALIBRATION_DATA="${OCR_TRT11_CALIBRATION_DATA:-}" \
+    build_cached_engine "$OCR_MODEL_PATH" "$ENGINE_FILE_PATH" "" --fp16 \
+      --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
+      --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
+      --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} || exit 1
+  elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
     echo "[INFO] Using Saved TensorRT engine file for OCRNet Model: ${ENGINE_FILE_PATH}"
   elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" ]]; then
     cp "${PRE_BUILT_ENGINE_FILE_PATH}" "${ENGINE_FILE_PATH}" 

@@ -51,6 +51,7 @@ class NvDsInferUniquePtr : public std::unique_ptr<T, void (*)(T *)>
             {}
 };
 
+#if NV_TENSORRT_MAJOR < 11
 class NvDsInferInt8Calibrator : public nvinfer1::IInt8EntropyCalibrator2
 {
 public:
@@ -100,6 +101,7 @@ private:
     std::string m_CalibrationTableFile;
     std::vector<char> m_CalibrationCache;
 };
+#endif
 
 static int read_node_name_length(std::ifstream& in_stream)
 {
@@ -229,26 +231,35 @@ EtltOnnxModelParser::parseModel(nvinfer1::INetworkDefinition& network)
 }
 
 
-extern "C"
-//WINDOWS
+namespace nvdsinfer {
+
 #ifdef _WIN32
 __declspec(dllexport)
 #else
 __attribute__ ((visibility ("default")))
 #endif
-bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
+std::unique_ptr<TrtEngine>
+buildTltModelEngine(nvinfer1::IBuilder * const builder,
         nvinfer1::IBuilderConfig * const builderConfig,
-        const NvDsInferContextInitParams * const initParams,
-        nvinfer1::DataType dataType,
-        nvinfer1::ICudaEngine *& cudaEngine)
+        const NvDsInferContextInitParams * const initParams)
 {
     /* Check if UFF file is provided. */
     if (string_empty(initParams->tltEncodedModelFilePath))
     {
         fprintf(stderr, "%s: TLT encoded model file path not provided\n",
                 __func__);
-        return false;
+        return nullptr;
     };
+
+#if NV_TENSORRT_MAJOR >= 11
+    if (!string_empty(initParams->int8CalibrationFilePath))
+    {
+        fprintf(stderr, "%s: TensorRT 11 does not support legacy INT8 calibration "
+                "caches. Use an explicitly quantized ONNX model with Q/DQ nodes "
+                "and remove int8-calib-file.\n", __func__);
+        return nullptr;
+    }
+#endif
 
     std::shared_ptr<DlLibHandle> dlHandle;
     if (!string_empty(initParams->customLibPath))
@@ -258,12 +269,13 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
         {
             fprintf (stderr, "%s: Failed to open custom lib for parsing model\n",
                     __func__);
-            return false;
+            return nullptr;
         }
     }
 
     std::unique_ptr<TrtModelBuilder> modelBuilder =
         std::make_unique<TrtModelBuilder>(initParams->gpuID, *gTrtLogger, dlHandle);
+#if NV_TENSORRT_MAJOR < 11
     if (!string_empty(initParams->int8CalibrationFilePath) &&
         file_accessible(initParams->int8CalibrationFilePath))
     {
@@ -271,8 +283,17 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
             initParams->int8CalibrationFilePath);
         modelBuilder->setInt8Calibrator(std::move(calibrator));
     }
+#endif
     modelBuilder->m_BuilderConfig.reset(builderConfig);
     modelBuilder->m_Builder.reset(builder);
+    // These objects belong to the caller. Release them on every exit, including
+    // parser/configuration failures, before destroying the temporary builder.
+    auto releaseBorrowed = [](TrtModelBuilder* temporary) {
+        temporary->m_BuilderConfig.release();
+        temporary->m_Builder.release();
+    };
+    std::unique_ptr<TrtModelBuilder, decltype(releaseBorrowed)> borrowedGuard(
+        modelBuilder.get(), releaseBorrowed);
 
     /* Read input node name string length */
     std::ifstream in_stream(initParams->tltEncodedModelFilePath);
@@ -280,7 +301,7 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
     {
         fprintf(stderr, "%s: Failed to open TLT encoded model file %s\n", __func__,
                 safeStr(initParams->tltEncodedModelFilePath));
-        return NVDSINFER_CONFIG_FAILED;
+        return nullptr;
     }
 
     int node_name_size_i = read_node_name_length(in_stream);
@@ -290,7 +311,7 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
     {
         fprintf (stderr, "%s: UFF model support has been deprecated.\n",
                  __func__);
-        return false;
+        return nullptr;
     }
     else
     {
@@ -299,14 +320,18 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
 
         if (!parser->isValid())
         {
-            return false;
+            return nullptr;
         }
 
         std::unique_ptr<BuildParams> buildOptions;
 
         //onnx parser only supports explicit batch dim
+#if NV_TENSORRT_MAJOR >= 11
+        const uint32_t explicitBatch = 0;
+#else
         const auto explicitBatch = 1U << static_cast<uint32_t>(
             nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+#endif
         buildOptions = modelBuilder->createDynamicParams(*initParams);
 
         std::unique_ptr<nvinfer1::INetworkDefinition> network (modelBuilder->m_Builder->createNetworkV2(explicitBatch));
@@ -315,9 +340,11 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
         NvDsInferStatus status = parser->parseModel(*network);
         if (status != NVDSINFER_SUCCESS) {
             dsInferError("Failed to build network, error in model parsing.");
-            return false;
+            return nullptr;
         }
 
+        // Keep the decoded model's types. TRT 11 precision validation is shared
+        // with normal ONNX builds; prepare the source ONNX offline for FP16.
         modelBuilder->m_Network = std::move(network);
         modelBuilder->m_Options = std::move(buildOptions);
         modelBuilder->m_Parser = std::move(parser);
@@ -325,9 +352,46 @@ bool NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
 
     std::unique_ptr<TrtEngine> engine = modelBuilder->buildEngine();
 
-    cudaEngine = engine->m_Engine.release();
-    modelBuilder->m_BuilderConfig.release();
-    modelBuilder->m_Builder.release();
+    if (!engine)
+    {
+        dsInferError("Failed to build engine from TLT model.");
+        return nullptr;
+    }
 
+    return engine;
+}
+
+} // namespace nvdsinfer
+
+extern "C"
+#ifdef _WIN32
+__declspec(dllexport)
+#else
+__attribute__ ((visibility ("default")))
+#endif
+bool NvDsInferCudaEngineGetFromTltModel(nvinfer1::IBuilder * const builder,
+        nvinfer1::IBuilderConfig * const builderConfig,
+        const NvDsInferContextInitParams * const initParams,
+        nvinfer1::DataType dataType,
+        nvinfer1::ICudaEngine *& cudaEngine)
+{
+#if NV_TENSORRT_MAJOR >= 11
+    // This legacy API cannot transfer ownership of the runtime required by the
+    // returned engine. The SDK's TLT path keeps both in the TrtEngine wrapper.
+    cudaEngine = nullptr;
+    fprintf(stderr, "%s: TensorRT 11 TLT models must be built through the "
+            "DeepStream inference context to retain runtime ownership.\n",
+            __func__);
+    return false;
+#else
+    std::unique_ptr<TrtEngine> engine =
+        buildTltModelEngine(builder, builderConfig, initParams);
+    if (!engine)
+    {
+        cudaEngine = nullptr;
+        return false;
+    }
+    cudaEngine = engine->m_Engine.release();
     return true;
+#endif
 }

@@ -68,6 +68,9 @@ DEB_ARCH=""
 OUTPUT_DIR="$SCRIPT_DIR"
 STAGE_DIR="$SCRIPT_DIR/.pkg-stage"
 KEEP_STAGE=0
+RUNTIME_ROOT=""
+PLATFORM=""
+INCLUDE_UNTRACKED=0
 
 usage() {
   cat <<'EOF'
@@ -89,6 +92,9 @@ Options:
   --output-dir=PATH   Where to write the .deb / .tbz2 (default: build/)
   --stage-dir=PATH    Scratch staging directory (default: build/.pkg-stage)
   --keep-stage        Do not delete the staging dir on exit
+  --runtime-root=PATH Complete SDK runtime directory (default: /opt/.../deepstream-9.2)
+  --platform=NAME     x86 | jetson | sbsa (default: native platform)
+  --include-untracked-sources Include non-ignored new source files for local testing
 
 Environment overrides (CLI flags take precedence):
   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.0)
@@ -104,6 +110,12 @@ while [[ $# -gt 0 ]]; do
     --output-dir=*)   OUTPUT_DIR="${1#*=}" ;;
     --stage-dir=*)    STAGE_DIR="${1#*=}" ;;
     --keep-stage)     KEEP_STAGE=1 ;;
+    --runtime-root=*)
+      RUNTIME_ROOT="${1#*=}"
+      [[ -n "$RUNTIME_ROOT" ]] || { echo "error: --runtime-root requires a directory" >&2; exit 1; }
+      ;;
+    --platform=*)     PLATFORM="${1#*=}" ;;
+    --include-untracked-sources) INCLUDE_UNTRACKED=1 ;;
     *) echo "error: unknown argument: $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
@@ -133,6 +145,16 @@ IS_AARCH64=0
 [[ "$DEB_ARCH" = "arm64" ]] && IS_AARCH64=1
 
 DS_INSTALL_ROOT=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}
+[[ -z "$RUNTIME_ROOT" ]] || DS_INSTALL_ROOT="$RUNTIME_ROOT"
+if [[ -z "$PLATFORM" ]]; then
+  if [[ "$DEB_ARCH" = amd64 ]]; then PLATFORM=x86
+  elif [[ -f /etc/nv_tegra_release ]]; then PLATFORM=jetson
+  else PLATFORM=sbsa; fi
+fi
+case "$PLATFORM:$DEB_ARCH" in
+  x86:amd64|jetson:arm64|sbsa:arm64) ;;
+  *) echo "error: incompatible package platform/architecture: $PLATFORM/$DEB_ARCH" >&2; exit 1 ;;
+esac
 DS_REL="opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 DS_ROOT="$STAGE_DIR/$DS_REL"
 
@@ -147,9 +169,54 @@ require() {
 # Sanity checks
 # ---------------------------------------------------------------------------
 require "$DS_INSTALL_ROOT" "built DeepStream install tree (run build/build.sh first)"
+DS_INSTALL_ROOT=$(realpath "$DS_INSTALL_ROOT")
+# Staging is disposable; never remove an input SDK or the repository through an
+# overlapping --stage-dir. Resolve symlinks before comparing ancestor paths.
+STAGE_DIR=$(realpath -m "$STAGE_DIR")
+case "$DS_INSTALL_ROOT/" in "$STAGE_DIR/"*) echo "error: staging overlaps runtime input" >&2; exit 1 ;; esac
+case "$REPO_ROOT/" in "$STAGE_DIR/"*) echo "error: staging overlaps repository" >&2; exit 1 ;; esac
+case "$STAGE_DIR/" in "$DS_INSTALL_ROOT/"*) echo "error: staging is inside runtime input" >&2; exit 1 ;; esac
+DS_ROOT="$STAGE_DIR/$DS_REL"
 for sub in bin lib samples service-maker LicenseAgreement.pdf; do
   require "$DS_INSTALL_ROOT/$sub" "$DS_INSTALL_ROOT/$sub"
 done
+require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT 11 SDK inference runtime"
+command -v readelf >/dev/null || { echo "error: readelf (binutils) is required to verify runtime inputs" >&2; exit 1; }
+_infer_header=$(LC_ALL=C readelf -h "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
+_infer_dynamic=$(LC_ALL=C readelf -d "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
+case "$DEB_ARCH" in
+  amd64) _elf_machine='Advanced Micro Devices X86-64' ;;
+  arm64) _elf_machine='AArch64' ;;
+esac
+if ! grep -q "Machine:.*${_elf_machine}" <<< "$_infer_header" ||
+   ! grep -Fq '[libnvinfer.so.11]' <<< "$_infer_dynamic" ||
+   grep -Fq '[libnvinfer.so.10]' <<< "$_infer_dynamic"; then
+  echo "error: runtime must contain matching $DEB_ARCH TensorRT 11 inference binaries" >&2
+  exit 1
+fi
+
+# Only discard scratch owned by this packager. Ancestor checks alone would
+# still allow a tracked source subtree or an unrelated populated directory.
+case "$STAGE_DIR" in
+  /|/tmp|/var/tmp|/home|"${HOME:-/nonexistent}")
+    echo "error: refusing broad staging directory: $STAGE_DIR" >&2; exit 1 ;;
+esac
+case "$SCRIPT_DIR/" in "$STAGE_DIR/"*)
+  echo "error: staging overlaps build scripts" >&2; exit 1 ;;
+esac
+if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+   [[ -n "$(git -C "$REPO_ROOT" ls-files -- "$STAGE_DIR")" ]]; then
+  echo "error: staging contains tracked repository files" >&2; exit 1
+fi
+STAGE_OWNER="${STAGE_DIR}.deepstream-package-owner"
+if [[ -d "$STAGE_DIR" && -n "$(find "$STAGE_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  if [[ ! -f "$STAGE_OWNER" || "$(<"$STAGE_OWNER")" != "$REPO_ROOT" ]]; then
+    echo "error: refusing to delete unowned staging directory; choose a new empty --stage-dir" >&2
+    exit 1
+  fi
+fi
+mkdir -p "$(dirname "$STAGE_DIR")"
+printf '%s\n' "$REPO_ROOT" > "$STAGE_OWNER"
 
 log "Packaging DeepStream $NVDS_VERSION (pkg $PKG_VERSION-$PKG_REVISION, arch $DEB_ARCH, aarch64=$IS_AARCH64)"
 log "Source install tree : $DS_INSTALL_ROOT"
@@ -208,12 +275,18 @@ trap cleanup_mirror EXIT
 if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   SRC_MIRROR=$(mktemp -d "${TMPDIR:-/tmp}/ds-srcmirror.XXXXXX")
   log "Mirroring git-tracked sources only (excluding untracked files)"
-  git -C "$REPO_ROOT" ls-files -z -- \
+  _source_flags=(--cached)
+  if [[ "$INCLUDE_UNTRACKED" -eq 1 ]]; then
+    _source_flags+=(--others --exclude-standard)
+    log "Including non-ignored new source files (local validation mode)"
+  fi
+  git -C "$REPO_ROOT" ls-files "${_source_flags[@]}" -z -- \
       includes \
       src/apps/sample_apps src/apps/common \
       src/gst-plugins src/utils src/gst-utils src/service-maker \
       scripts \
       tools/deepstream-otelcol \
+      tools/modelopt \
     | rsync -a --files-from=- --from0 "$REPO_ROOT/" "$SRC_MIRROR/"
   REPO_ROOT="$SRC_MIRROR"
 else
@@ -264,6 +337,14 @@ copy_contents_into "$REPO_ROOT/src/service-maker" "$DS_ROOT/service-maker"
 # tools/deepstream-otelcol).
 log "Staging tools/deepstream-otelcol -> otelcol/"
 copy_contents_into "$REPO_ROOT/tools/deepstream-otelcol" "$DS_ROOT/otelcol"
+
+# Conversion is an explicit post-install step, never a packaging dependency.
+if [[ -d "$REPO_ROOT/tools/modelopt" ]]; then
+  mkdir -p "$DS_ROOT/samples/modelopt"
+  for helper in prepare_model.py prepare_samples.py requirements.txt README.md; do
+    copy_into "$REPO_ROOT/tools/modelopt/$helper" "$DS_ROOT/samples/modelopt"
+  done
+fi
 
 # 3. sources/ tree (also creates sources/apps).
 log "Staging sources/ tree"
@@ -610,13 +691,15 @@ log "  removed $rules_pruned Rules.mk file(s)"
 # OpenTelemetry collector documentation shipped with otelcol.
 log "Pruning README.md files from staged tree (except otelcol/README.md)"
 readmes_pruned=$(find "$DS_ROOT" -type f -name 'README.md' \
-  ! -path "$DS_ROOT/otelcol/README.md" -print -delete | wc -l)
+  ! -path "$DS_ROOT/otelcol/README.md" ! -path "$DS_ROOT/samples/modelopt/README.md" -print -delete | wc -l)
 log "  removed $readmes_pruned README.md file(s)"
 
 # ---------------------------------------------------------------------------
 # Emit tarball
 # ---------------------------------------------------------------------------
-if [[ "$DEB_ARCH" = "arm64" ]]; then
+if [[ "$PLATFORM" = sbsa ]]; then
+  TAR_PLATFORM="sbsa"
+elif [[ "$DEB_ARCH" = "arm64" ]]; then
   TAR_PLATFORM="jetson"
 else
   TAR_PLATFORM="x86_64"
@@ -654,12 +737,17 @@ build_deb() {
   # with `apt install ./pkg.deb`; a plain `dpkg -i` still needs them removed
   # first). Harmless no-op when the artifacts were installed via tar (no
   # registered dpkg owner).
-  local depends conflicts
+  local depends conflicts cuda_deb trt_min
+  case "$PLATFORM" in
+    x86) cuda_deb=13-2; trt_min=11.4.0.106 ;;
+    jetson) cuda_deb=13-2; trt_min=11.4.1.31 ;;
+    sbsa) cuda_deb=13-4; trt_min=11.4.1.31 ;;
+  esac
   if [[ "$DEB_ARCH" = "arm64" ]]; then
-    depends="cuda-cudart-13-0 | cuda-cudart-13-2, cuda-cudart-dev-13-0 | cuda-cudart-dev-13-2, libnpp-13-0 | libnpp-13-2, libnpp-dev-13-0 | libnpp-dev-13-2, libcufft-13-0 | libcufft-13-2, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer10 (>= 10.0.0), libnvinfer-dev (>= 10.0.0), libnvonnxparsers10 (>= 10.0.0), libnvonnxparsers-dev (>= 10.0.0), libnvinfer-plugin10 (>= 10.0.0), libnvinfer-plugin-dev (>= 10.0.0), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4, libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1)"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< 11.5), libnvinfer-dev (>= ${trt_min}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< 11.5), libnvonnxparsers-dev (>= ${trt_min}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< 11.5), libnvinfer-plugin-dev (>= ${trt_min}), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4 (>= 4.1.6), libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="deepstream-binaries-aarch64, deepstream-sample-data"
   else
-    depends="cuda-cudart-13-0 | cuda-cudart-13-2, cuda-cudart-dev-13-0 | cuda-cudart-dev-13-2, libnpp-13-0 | libnpp-13-2, libnpp-dev-13-0 | libnpp-dev-13-2, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer10 (>= 10.0.0), libnvinfer-dev (>= 10.0.0), libnvonnxparsers10 (>= 10.0.0), libnvonnxparsers-dev (>= 10.0.0), libnvinfer-plugin10 (>= 10.0.0), libnvinfer-plugin-dev (>= 10.0.0), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1)"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< 11.5), libnvinfer-dev (>= ${trt_min}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< 11.5), libnvonnxparsers-dev (>= ${trt_min}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< 11.5), libnvinfer-plugin-dev (>= ${trt_min}), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="libglapi-amber, deepstream-binaries-x86, deepstream-sample-data"
   fi
 
@@ -760,6 +848,7 @@ esac
 
 if [[ "$KEEP_STAGE" -eq 0 ]]; then
   rm -rf "$STAGE_DIR"
+  rm -f "$STAGE_OWNER"
 else
   log "Keeping staging directory: $STAGE_DIR"
 fi

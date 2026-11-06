@@ -87,6 +87,10 @@ Options:
                           into build/ via build/package.sh
   --package-format=FMT    Package format: deb | tar | both (default: both);
                           implies --package
+  --package-from=PATH     Package a complete extracted SDK runtime plus repo
+                          sources; no downloads, compilation or system install
+  --package-platform=NAME x86 | jetson | sbsa (with --package-from)
+  --include-untracked-sources Include non-ignored new sources for local validation
   --deepstream-libraries-wheel[=DIR]
                           Build the DeepStream Libraries wheel only. DIR defaults
                           to artifacts/.
@@ -130,13 +134,14 @@ Artifact install method (--install-method=):
 Packaging (--package / --package-format=):
   When --package (or --package-format=) is given, a full successful build is
   followed by build/package.sh, which stages the installed tree and emits a
-  .deb and/or .tar.gz into build/. Skipped for --only= scoped builds.
+  .deb and/or .tbz2 into build/. Skipped for --only= scoped builds.
+  --package-from instead uses an existing complete SDK runtime directory.
   deb   Debian package only.
   tar   Tarball only.
   both  Both (default).
 
 Environment variables (alternative to CLI):
-  CUDA_VER                CUDA toolkit version (default: 13.0 on IGX; 13.2 otherwise)
+  CUDA_VER                Toolkit directory version (13.0 IGX; 13.4 SBSA; 13.2 otherwise)
   NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.0); the install
                           tree uses MAJOR.MINOR only. GitHub Release
                           proprietary-libs / sample-data assets are always
@@ -227,6 +232,9 @@ esac
 if [[ "$PLATFORM" == "aarch64" ]] && is_igx_system; then
   CUDA_VER_DEFAULT=13.0
 fi
+if [[ "$PLATFORM" == "sbsa" ]]; then
+  CUDA_VER_DEFAULT=13.4
+fi
 
 SKIP_DEPS=0
 # SBSA bare-metal DeepStream installation is not supported; artifacts are shipped
@@ -244,6 +252,9 @@ NVDS_VERSION=${NVDS_VERSION:-9.2.0}
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 DO_PACKAGE=0
 PACKAGE_FORMAT=both
+PACKAGE_FROM=""
+PACKAGE_PLATFORM=""
+PACKAGE_WORKTREE_SOURCES=0
 BUILD_DEEPSTREAM_LIBRARIES_WHEEL=0
 DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT=
 DEEPSTREAM_LIBRARIES_WHEEL_VERSION=1.4
@@ -271,6 +282,12 @@ while [[ $# -gt 0 ]]; do
       INSTALL_METHOD="$1"
       ;;
     --package)         DO_PACKAGE=1 ;;
+    --package-from=*)
+      PACKAGE_FROM="${1#*=}"; DO_PACKAGE=1
+      [[ -n "$PACKAGE_FROM" ]] || { echo "error: --package-from requires a directory" >&2; exit 1; }
+      ;;
+    --package-platform=*) PACKAGE_PLATFORM="${1#*=}" ;;
+    --include-untracked-sources) PACKAGE_WORKTREE_SOURCES=1 ;;
     --deepstream-libraries-wheel)
       BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
       ;;
@@ -373,6 +390,10 @@ ARTIFACTS_STAGE_STATE_FILE="$SCRIPT_DIR/.stage-state.artifacts"
 cd "$SCRIPT_DIR/.."
 ARTIFACTS_DIR="$(pwd)/artifacts"
 
+if [[ -n "$PACKAGE_FROM" && "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
+  echo "error: --package-from cannot be combined with wheel builds" >&2
+  exit 1
+fi
 if [[ "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
   if [[ -z "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" ]]; then
     DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT="$(pwd)/artifacts"
@@ -412,6 +433,28 @@ case "$PACKAGE_FORMAT" in
   deb|tar|both) ;;
   *) echo "error: invalid --package-format '$PACKAGE_FORMAT' (valid: deb | tar | both)" >&2; exit 1 ;;
 esac
+
+# Repackage a complete, already-built SDK without installing it or rebuilding
+# public components. This is deliberately distinct from the source-build path.
+if [[ -n "$PACKAGE_FROM" ]]; then
+  if [[ ${#ONLY_STAGES[@]} -ne 0 || "$RESUME" -eq 1 || "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
+    echo "error: --package-from cannot be combined with --only, --resume or wheel builds" >&2
+    exit 1
+  fi
+  _package_args=(--format="$PACKAGE_FORMAT" --runtime-root="$PACKAGE_FROM")
+  case "$PACKAGE_PLATFORM" in
+    x86) _package_args+=(--arch=amd64) ;;
+    jetson|sbsa) _package_args+=(--arch=arm64) ;;
+  esac
+  [[ -z "$PACKAGE_PLATFORM" ]] || _package_args+=(--platform="$PACKAGE_PLATFORM")
+  [[ "$PACKAGE_WORKTREE_SOURCES" -eq 0 ]] || _package_args+=(--include-untracked-sources)
+  exec env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" \
+    bash "$SCRIPT_DIR/package.sh" "${_package_args[@]}"
+fi
+if [[ -n "$PACKAGE_PLATFORM" || "$PACKAGE_WORKTREE_SOURCES" -ne 0 ]]; then
+  echo "error: --package-platform and --include-untracked-sources require --package-from" >&2
+  exit 1
+fi
 
 for s in "${ONLY_STAGES[@]}"; do
   valid=0

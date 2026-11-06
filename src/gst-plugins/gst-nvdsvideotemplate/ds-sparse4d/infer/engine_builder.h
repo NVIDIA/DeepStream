@@ -28,11 +28,6 @@
 #include "../utils/log_utils.h"
 
 
-// Define TensorRT 10.3 constants if needed
-#define TRT_MAJOR_VERSION 10
-#define TRT_MINOR_VERSION 3
-#define TRT_PATCH_VERSION 0
-
 // Smart pointer types for TensorRT objects to ensure proper cleanup
 struct TRTDeleter {
     template <typename T>
@@ -74,7 +69,8 @@ private:
 
 /**
  * Builds a TensorRT engine from an ONNX model and saves it to the specified file path.
- * Compatible with TensorRT 10.3.
+ * Compatible with TensorRT 10/11; external weights resolve beside the canonical
+ * ONNX filename, independently of the application's working directory.
  *
  * @param onnxFilePath Path to the input ONNX model
  * @param engineFilePath Path where the output engine should be saved
@@ -92,5 +88,14 @@ bool buildEngineFromOnnx(
     bool fp16Mode,
     PrettyLogger* logger = nullptr
 );
+
+// Reuse only an engine whose complete ONNX/external-weight closure and
+// plugin/TRT/GPU/shape identity still match. Optional CPU ONNX inspection uses
+// SPARSE4D_MODEL_PYTHON/SPARSE4D_MODELOPT_PREPARE; without it, build a private
+// uncached plan instead of trusting a protobuf-only model fingerprint.
+bool prepareSparse4dEngine(const std::string& onnxFilePath,
+    std::string& engineFilePath, int batchSize, int numSensors,
+    int width, int height, int gpuId, bool fp16Mode, bool forceRebuild,
+    PrettyLogger* logger);
 
 #endif // ENGINE_BUILDER_H

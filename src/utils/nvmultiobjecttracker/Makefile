@@ -24,7 +24,7 @@
 # the final .so; all other symbols are hidden via a GNU ld version script.
 #
 # Build prerequisites (see build/BUILD.md):
-#   - CUDA toolkit (nvcc, cudart, cufft, cublas) and TensorRT 10.x development files
+#   - CUDA toolkit (nvcc, cudart, cufft, cublas) and matching TensorRT development files
 #   - libeigen3-dev, nlohmann-json3-dev, libyaml-cpp-dev, libmosquitto-dev, libcurl4-openssl-dev
 #   - vpi4-dev, which provides the VPI headers under /opt/nvidia/vpi4/include
 #   - libnvds_inferlogger, libnvds_inferutils, libnvbufsurface, libnvbufsurftransform,
@@ -89,6 +89,7 @@ INC_PATHS:= \
 	include \
 	../../../includes \
 	../nvdsinferutils/include \
+	../nvdsinfer \
 	../nvds_msgapi/mqtt_protocol_adaptor \
 	../nvds_msgapi/common_src \
 	$(VPI_DIR)/include \
@@ -126,7 +127,7 @@ LIBS:= \
 	-L$(VPI_LIB_DIR) \
 	-lnvinfer -lnvinfer_plugin -lnvonnxparser \
 	-lcudart -lcuda -lcufft -lcublas \
-	-lnvds_inferlogger -lnvds_inferutils \
+	-lnvds_infer -lnvds_inferlogger -lnvds_inferutils \
 	-lnvbufsurface -lnvbufsurftransform \
 	-lnvds_mqtt_proto -l:libnvvpi.so.4 \
 	-lyaml-cpp -lcurl -lmosquitto \

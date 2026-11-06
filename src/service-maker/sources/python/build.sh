@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e -o pipefail
+
 # Function to display usage
 usage() {
     echo "Usage: $0 [options]"
@@ -30,7 +32,6 @@ usage() {
     echo "  $0 --arch aarch64                     # Cross-compile for aarch64"
     echo "  $0 --minor-ver 9 --output-dir /tmp/build --arch aarch64  # Cross-compile for aarch64 with python3.9"
     exit 1
-    return 1
 }
 
 # Default values
@@ -79,9 +80,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-OUTPUT_DIR=$(realpath $OUTPUT_DIR)
+OUTPUT_DIR=$(realpath "$OUTPUT_DIR") || exit $?
 
-SCRIPT_DIR=$(dirname $(realpath $0))
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
 
 # pybind11 and dlpack are installed as headers by
 # scripts/install_opensource_deps.sh; override to build against copies
@@ -92,18 +93,26 @@ DLPACK_ROOT=${DLPACK_ROOT:-/opt/dlpack}
 # Absolute paths: python -m build copies the tree into a temporary sdist
 # directory and builds the wheel from there, so anything resolved relative to
 # CMAKE_CURRENT_SOURCE_DIR would no longer reach the repository.
-SM_INCLUDE_DIR=$(realpath $SCRIPT_DIR/../../includes)
-DS_INCLUDE_DIR=$(realpath $SCRIPT_DIR/../../../../includes)
+SM_INCLUDE_DIR=$(realpath "$SCRIPT_DIR/../../includes")
+DS_INCLUDE_DIR=$(realpath "$SCRIPT_DIR/../../../../includes")
 
 export CMAKE_ARGS="-DPYBIND11_ROOT=$PYBIND11_ROOT -DDLPACK_ROOT=$DLPACK_ROOT \
 -DSM_INCLUDE_DIR=$SM_INCLUDE_DIR -DDS_INCLUDE_DIR=$DS_INCLUDE_DIR"
+
+# Keep wheel and cross-toolchain outputs private to this invocation. A stale
+# dist/ directory or another build's toolchain is not evidence of success.
+WHEEL_BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pyservicemaker-wheel.XXXXXX") || exit $?
+cleanup_wheel_build() {
+    rm -rf -- "$WHEEL_BUILD_DIR"
+}
+trap cleanup_wheel_build EXIT
 
 # Set up cross-compilation for aarch64 if specified
 if [[ "$TARGET_ARCH" == "aarch64" ]]; then
     echo "Setting up cross-compilation for aarch64..."
 
     # Create CMake toolchain file for aarch64
-    TOOLCHAIN_FILE="$SCRIPT_DIR/aarch64-toolchain.cmake"
+    TOOLCHAIN_FILE="$WHEEL_BUILD_DIR/aarch64-toolchain.cmake"
     cat > "$TOOLCHAIN_FILE" << 'EOF'
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
@@ -140,21 +149,23 @@ echo "PYBIND11_ROOT: $PYBIND11_ROOT"
 echo "DLPACK_ROOT: $DLPACK_ROOT"
 echo "TARGET_ARCH: ${TARGET_ARCH:-native}"
 echo "CMAKE_ARGS: $CMAKE_ARGS"
-cd $SCRIPT_DIR/src
+cd "$SCRIPT_DIR/src" || exit $?
 
-$PYTHON_VER -m build
-
-cp dist/pyservicemaker*.whl "$OUTPUT_DIR/"
-
-rm -rf dist/
-rm -rf ./*.egg-info
-cd $OUTPUT_DIR
-
-# Clean up toolchain file if it was created
-if [[ -f "$SCRIPT_DIR/aarch64-toolchain.cmake" ]]; then
-    rm -f "$SCRIPT_DIR/aarch64-toolchain.cmake"
+if "$PYTHON_VER" -m build --outdir "$WHEEL_BUILD_DIR"; then
+    :
+else
+    build_status=$?
+    echo "Error: Service Maker wheel build failed (exit $build_status)" >&2
+    exit "$build_status"
 fi
 
-WHL_FILE=$(ls pyservicemaker*.whl)
+shopt -s nullglob
+WHEEL_FILES=("$WHEEL_BUILD_DIR"/pyservicemaker*.whl)
+if [[ ${#WHEEL_FILES[@]} -ne 1 ]]; then
+    echo "Error: Service Maker build must produce exactly one fresh wheel" >&2
+    exit 1
+fi
+cp -- "${WHEEL_FILES[0]}" "$OUTPUT_DIR/" || exit $?
+WHL_FILE=$(basename "${WHEEL_FILES[0]}")
 
 echo "Wheel file generated at $OUTPUT_DIR/$WHL_FILE"

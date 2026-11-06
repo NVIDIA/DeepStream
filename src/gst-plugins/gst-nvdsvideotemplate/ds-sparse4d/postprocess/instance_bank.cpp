@@ -27,7 +27,7 @@
  * @param inputs Vector of tensors to select from based on confidence indices
  * @return Tuple containing selected confidence tensor and vector of selected input tensors
  */
-std::tuple<torch::Tensor, std::vector<torch::Tensor>> topk(
+static std::tuple<torch::Tensor, std::vector<torch::Tensor>> topk(
     const torch::Tensor& confidence,
     int k,
     const std::vector<torch::Tensor>& inputs) {

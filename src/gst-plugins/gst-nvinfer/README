@@ -16,6 +16,11 @@
 Refer to the DeepStream SDK documentation for a description of the "nvinfer"
 plugin and "NvDsInfer" API.
 
+TensorRT 11: see src/utils/nvdsinfer/README and tools/modelopt/README.md for the
+model-declared precision contract. FP16/mixed preparation is an explicit
+post-install step, not an automatic conversion inside this plugin. Legacy INT8
+calibration/BEST/layer-precision overrides are not accepted on this route.
+
 --------------------------------------------------------------------------------
 Pre-requisites:
 - GStreamer-1.0 Development package

@@ -26,6 +26,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <unordered_set>
 
 #include <NvInferPlugin.h>
 #include <NvOnnxParser.h>
@@ -39,6 +40,7 @@
 
 namespace nvdsinfer {
 
+#if NV_TENSORRT_MAJOR < 11
 /* Helper function to check if TensorRT version is 10.x or higher */
 static bool isTrt10OrHigher()
 {
@@ -49,6 +51,195 @@ static bool isTrt10OrHigher()
 
 /* Thread-local flag to track if kFP16 was set (for retry logic on TRT 10.x) */
 static thread_local bool g_fp16FlagWasSet = false;
+#endif
+
+#if NV_TENSORRT_MAJOR >= 11
+/* Check the model's declared precision once, before engine construction. Model
+ * preparation is offline (for example, NVIDIA ModelOpt AutoCast), not a graph
+ * rewrite inside the SDK. This validator never downgrades the request. */
+#ifdef _WIN32
+__declspec(dllexport)
+#else
+__attribute__((visibility("default")))
+#endif
+NvDsInferStatus
+validateTrt11Precision(nvinfer1::INetworkDefinition& network, const BuildParams& params)
+{
+    if (!params.int8CalibrationFilePath.empty())
+    {
+        dsInferError("TensorRT 11 does not support INT8 calibration caches. "
+            "Use an explicitly quantized model with Q/DQ nodes.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    if (params.networkMode == NvDsInferNetworkMode_BEST)
+    {
+        dsInferError("TensorRT 11 cannot apply legacy BEST precision flags. "
+            "Prepare a typed FP16 or INT8 Q/DQ model and select its network-mode.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    if (!params.layerDevicePrecisions.empty())
+    {
+        dsInferError("TensorRT 11 does not support legacy layer-device-precision "
+            "overrides. Encode the required precision in the model instead.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    if (params.networkMode == NvDsInferNetworkMode_FP32)
+        return NVDSINFER_SUCCESS; // Keep the model's existing declared types.
+
+    bool hasHalfComputation = false;
+    bool hasInt8Quantization = false;
+    // A HALF output alone does not establish HALF value computation: casts,
+    // reshapes, routing and nearest-neighbor sampling can just move values.
+    // Recognize operations whose semantics compute values, including comparison
+    // operations such as ReLU, max pooling and TopK. Opaque plugins and unknown
+    // layer types cannot certify arithmetic from their output type alone.
+    auto computesValues = [](const nvinfer1::ILayer& layer) {
+        using nvinfer1::LayerType;
+        using nvinfer1::InterpolationMode;
+        switch (layer.getType())
+        {
+            case LayerType::kCONVOLUTION:
+            case LayerType::kDECONVOLUTION:
+            case LayerType::kACTIVATION:
+            case LayerType::kPOOLING:
+            case LayerType::kLRN:
+            case LayerType::kSCALE:
+            case LayerType::kSOFTMAX:
+            case LayerType::kRAGGED_SOFTMAX:
+            case LayerType::kELEMENTWISE:
+            case LayerType::kUNARY:
+            case LayerType::kREDUCE:
+            case LayerType::kTOPK:
+            case LayerType::kMATRIX_MULTIPLY:
+            case LayerType::kPARAMETRIC_RELU:
+            case LayerType::kEINSUM:
+            case LayerType::kNORMALIZATION:
+            case LayerType::kCUMULATIVE:
+            case LayerType::kATTENTION_OUTPUT:
+            case LayerType::kROTARY_EMBEDDING:
+            case LayerType::kMOE:
+                return true;
+            case LayerType::kRESIZE:
+            {
+                const auto mode = static_cast<const nvinfer1::IResizeLayer&>(layer).getResizeMode();
+                return mode == InterpolationMode::kLINEAR || mode == InterpolationMode::kCUBIC;
+            }
+            case LayerType::kGRID_SAMPLE:
+            {
+                const auto mode = static_cast<const nvinfer1::IGridSampleLayer&>(layer).getInterpolationMode();
+                return mode == InterpolationMode::kLINEAR || mode == InterpolationMode::kCUBIC;
+            }
+            default:
+                return false;
+        }
+    };
+    std::unordered_map<const nvinfer1::ITensor*, const nvinfer1::ILayer*> producers;
+    std::unordered_map<const nvinfer1::ITensor*, std::vector<const nvinfer1::ILayer*>> consumers;
+    for (int i = 0; i < network.getNbLayers(); ++i)
+    {
+        const auto* layer = network.getLayer(i);
+        for (int o = 0; o < layer->getNbOutputs(); ++o)
+        {
+            if (const auto* output = layer->getOutput(o))
+                producers.emplace(output, layer);
+        }
+        if (params.networkMode == NvDsInferNetworkMode_FP16)
+        {
+            for (int in = 0; in < layer->getNbInputs(); ++in)
+            {
+                if (const auto* input = layer->getInput(in))
+                    consumers[input].push_back(layer);
+            }
+        }
+    }
+    // Constant-only or shape-only HALF expressions need no HALF value kernel.
+    std::unordered_set<const nvinfer1::ILayer*> valueDependent;
+    if (params.networkMode == NvDsInferNetworkMode_FP16)
+    {
+        std::vector<const nvinfer1::ITensor*> values;
+        for (int in = 0; in < network.getNbInputs(); ++in)
+            values.push_back(network.getInput(in));
+        for (size_t next = 0; next < values.size(); ++next)
+        {
+            const auto found = consumers.find(values[next]);
+            if (found == consumers.end())
+                continue;
+            for (const auto* layer : found->second)
+            {
+                if (layer->getType() == nvinfer1::LayerType::kSHAPE ||
+                    !valueDependent.insert(layer).second)
+                    continue;
+                for (int o = 0; o < layer->getNbOutputs(); ++o)
+                {
+                    if (const auto* output = layer->getOutput(o))
+                        values.push_back(output);
+                }
+            }
+        }
+    }
+    // A disconnected low-precision branch must not validate an FP32 model.
+    std::vector<const nvinfer1::ITensor*> pending;
+    for (int o = 0; o < network.getNbOutputs(); ++o)
+        pending.push_back(network.getOutput(o));
+    std::unordered_set<const nvinfer1::ILayer*> reachable;
+    while (!pending.empty())
+    {
+        const auto* tensor = pending.back();
+        pending.pop_back();
+        const auto producer = producers.find(tensor);
+        if (producer == producers.end() || !reachable.insert(producer->second).second)
+            continue;
+        const auto* layer = producer->second;
+        const auto type = layer->getType();
+        if (type == nvinfer1::LayerType::kSHAPE)
+            continue; // Output dimensions do not depend on the input values.
+        for (int i = 0; i < layer->getNbInputs(); ++i)
+        {
+            if (const auto* input = layer->getInput(i))
+                pending.push_back(input);
+        }
+        if (type == nvinfer1::LayerType::kQUANTIZE)
+        {
+            const auto* output = layer->getOutput(0);
+            hasInt8Quantization |= output && output->getType() == nvinfer1::DataType::kINT8;
+        }
+        else if (type == nvinfer1::LayerType::kDEQUANTIZE)
+        {
+            // Prequantized weights can have a DQ boundary without a Q layer.
+            const auto* input = layer->getInput(0);
+            hasInt8Quantization |= input && input->getType() == nvinfer1::DataType::kINT8;
+        }
+        if (valueDependent.count(layer) && computesValues(*layer))
+        {
+            for (int o = 0; o < layer->getNbOutputs(); ++o)
+            {
+                const auto* output = layer->getOutput(o);
+                hasHalfComputation |= output && output->getType() == nvinfer1::DataType::kHALF;
+            }
+        }
+    }
+    if (params.networkMode == NvDsInferNetworkMode_INT8 && !hasInt8Quantization)
+    {
+        dsInferError("INT8 requested, but the model has no explicit INT8 Q/DQ "
+            "boundary. Quantize the model before building with TensorRT 11; "
+            "refusing to fall back to floating point.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    if (params.networkMode == NvDsInferNetworkMode_FP16 && !hasHalfComputation)
+    {
+        dsInferError("FP16 requested, but the SDK cannot verify input-dependent "
+            "FP16 value computation on a path to a model output. HALF casts, "
+            "data movement and opaque/unknown layer types alone are not proof. "
+            "Prepare a typed FP16/mixed ONNX model offline with NVIDIA ModelOpt "
+            "AutoCast (samples/modelopt/prepare_model.py), preserving the required "
+            "input/output types, then rebuild the TensorRT 11 engine. "
+            "Raw FP32 models are not automatically converted; use network-mode=0 "
+            "to retain their declared precision. No silent FP32 fallback is used.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    return NVDSINFER_SUCCESS;
+}
+#endif
 
 /* Default data type for bound layers  - FP32 */
 constexpr nvinfer1::DataType kDefaultTensorDataType = nvinfer1::DataType::kFLOAT;
@@ -416,6 +607,31 @@ TrtModelBuilder::getCudaEngineFromCustomLib(NvDsInferCudaEngineGetFcnDeprecated 
             return nullptr;
     }
 
+#if NV_TENSORRT_MAJOR >= 11
+    if (!string_empty(initParams.int8CalibrationFilePath) ||
+        initParams.forceImplicitBatchDimension ||
+        initParams.numLayerDevicePrecisions ||
+        initParams.networkMode == NvDsInferNetworkMode_BEST)
+    {
+        dsInferError("TensorRT 11 custom engine creation requires explicit "
+            "batching and model-declared precision, without legacy calibration, "
+            "BEST or layer-device-precision overrides.");
+        return nullptr;
+    }
+    // Opaque callbacks may have relied on the removed DS-provided precision
+    // flags. Only the built-in TLT path validates its parsed typed graph here.
+    if (networkMode != NvDsInferNetworkMode_FP32 &&
+        cudaEngineGetFcn != NvDsInferCudaEngineGetFromTltModel)
+    {
+        dsInferError("TensorRT 11 cannot verify the requested FP16/INT8 precision "
+            "of a legacy custom engine callback. Use the typed ONNX/Q-DQ model "
+            "path or a separately qualified TensorRT 11 engine.");
+        return nullptr;
+    }
+    // Preserve the existing callback data-type contract; never manufacture INT8 I/O.
+    if (networkMode == NvDsInferNetworkMode_FP16)
+        modelDataType = nvinfer1::DataType::kHALF;
+#else
     if ((networkMode == NvDsInferNetworkMode_INT8) || (networkMode == NvDsInferNetworkMode_BEST))
     {
         /* Check if platform supports INT8 else use FP16 */
@@ -473,6 +689,7 @@ TrtModelBuilder::getCudaEngineFromCustomLib(NvDsInferCudaEngineGetFcnDeprecated 
     {
         modelDataType = nvinfer1::DataType::kFLOAT;
     }
+#endif
 
     /* Set the maximum batch size */
     //m_Builder->setMaxBatchSize(initParams.maxBatchSize);
@@ -487,6 +704,15 @@ TrtModelBuilder::getCudaEngineFromCustomLib(NvDsInferCudaEngineGetFcnDeprecated 
     /* Use DLA if specified. */
     if (initParams.useDLA)
     {
+#if NV_TENSORRT_MAJOR >= 11
+        if (initParams.dlaCore < 0 || initParams.dlaCore >= m_Builder->getNbDLACores() ||
+            networkMode == NvDsInferNetworkMode_FP32)
+        {
+            dsInferError("TensorRT 11 DLA requires an available core and a typed "
+                "FP16 or explicit INT8 model; no automatic FP32-to-FP16 fallback.");
+            return nullptr;
+        }
+#endif
         m_BuilderConfig->setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
         m_BuilderConfig->setDLACore(initParams.dlaCore);
         m_BuilderConfig->setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
@@ -498,6 +724,15 @@ TrtModelBuilder::getCudaEngineFromCustomLib(NvDsInferCudaEngineGetFcnDeprecated 
                     "in FP16 mode instead.");
         }
     }
+
+#if NV_TENSORRT_MAJOR >= 11
+    if (cudaEngineGetFcn == NvDsInferCudaEngineGetFromTltModel)
+    {
+        // Returning only a raw ICudaEngine would destroy its owning runtime in
+        // the TLT wrapper. Preserve both objects through the internal path.
+        return buildTltModelEngine(m_Builder.get(), m_BuilderConfig.get(), &initParams);
+    }
+#endif
 
     /* Get the  cuda engine from the library */
     nvinfer1::ICudaEngine *engine = nullptr;
@@ -532,8 +767,18 @@ TrtModelBuilder::buildModel(const NvDsInferContextInitParams& initParams,
     std::string modelPath;
     NvDsInferNetworkMode networkMode;
 
+#if NV_TENSORRT_MAJOR < 11
     /* Reset FP16 flag tracker for this build */
     g_fp16FlagWasSet = false;
+#else
+    if (!string_empty(initParams.int8CalibrationFilePath) ||
+        initParams.forceImplicitBatchDimension)
+    {
+        dsInferError("TensorRT 11 requires explicit batching and does not "
+            "support legacy INT8 calibration caches.");
+        return nullptr;
+    }
+#endif
 
     /* check if custom library provides NvDsInferCudaEngineGet interface. */
     NvDsInferEngineCreateCustomFunc cudaEngineGetFcn = nullptr;
@@ -721,6 +966,14 @@ TrtModelBuilder::buildNetwork(const NvDsInferContextInitParams& initParams)
 
     std::unique_ptr<BuildParams> buildOptions;
     nvinfer1::NetworkDefinitionCreationFlags netDefFlags = 0;
+#if NV_TENSORRT_MAJOR >= 11
+    if (!parser->hasFullDimsSupported() || initParams.forceImplicitBatchDimension)
+    {
+        dsInferError("TensorRT 11 requires an explicit-batch model/parser.");
+        return NVDSINFER_CONFIG_FAILED;
+    }
+    buildOptions = createDynamicParams(initParams);
+#else
     /* Create build parameters to build the network as a full dimension network
      * only if the parser supports it and DLA is not to be used. Otherwise build
      * the network as an implicit batch dim network. */
@@ -745,6 +998,7 @@ TrtModelBuilder::buildNetwork(const NvDsInferContextInitParams& initParams)
                  nvinfer1::NetworkDefinitionCreationFlag::kSTRONGLY_TYPED));
         dsInferInfo("Enabling strongly typed network mode for enhanced type inference");
     }
+#endif
 
     std::unique_ptr<nvinfer1::INetworkDefinition> network (m_Builder->createNetworkV2(netDefFlags));
     assert(network);
@@ -923,8 +1177,12 @@ TrtModelBuilder::buildEngine(nvinfer1::INetworkDefinition& network,
        runtime->setDLACore(options.dlaCore);
      }
 
-    auto serializedEngine = m_Builder->buildSerializedNetwork(network, *m_BuilderConfig);
+    // Deserialization does not transfer ownership of the serialized payload.
+    // Release it on both success and failure, including legacy retry paths.
+    std::unique_ptr<nvinfer1::IHostMemory> serializedEngine(
+        m_Builder->buildSerializedNetwork(network, *m_BuilderConfig));
 
+#if NV_TENSORRT_MAJOR < 11
     /* TensorRT 10.x compatibility: If build failed and kFP16 was set, retry without kFP16.
      * This handles cases where FP16 ONNX models cause TRT 10.x to fail when kFP16 flag
      * is explicitly set (TRT 10.x has stricter validation for this case). */
@@ -937,8 +1195,9 @@ TrtModelBuilder::buildEngine(nvinfer1::INetworkDefinition& network,
         m_BuilderConfig->clearFlag(nvinfer1::BuilderFlag::kFP16);
         g_fp16FlagWasSet = false;
 
-        serializedEngine = m_Builder->buildSerializedNetwork(network, *m_BuilderConfig);
+        serializedEngine.reset(m_Builder->buildSerializedNetwork(network, *m_BuilderConfig));
     }
+#endif
 
     if (!serializedEngine)
     {
@@ -970,6 +1229,10 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
     int inputLayerNum = network.getNbInputs();
     int outputLayerNum = network.getNbOutputs();
 
+#if NV_TENSORRT_MAJOR >= 11
+    RETURN_NVINFER_ERROR(validateTrt11Precision(network, params),
+        "model precision is incompatible with TensorRT 11");
+#endif
     if(!validateIOTensorNames(params, network))
     {
         dsInferError("Invalid layer name specified for TensorIOFormats");
@@ -982,7 +1245,16 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
         nvinfer1::ITensor* input = network.getInput(iL);
         if ((int)params.inputFormats.size() > iL)
         {
+#if NV_TENSORRT_MAJOR >= 11
+            if (input->getType() != std::get<0>(params.inputFormats[iL]))
+            {
+                dsInferError("Input type override for '%s' differs from the "
+                    "typed model. Encode the required type/casts in the model.", input->getName());
+                return NVDSINFER_CONFIG_FAILED;
+            }
+#else
             input->setType(std::get<0>(params.inputFormats[iL]));
+#endif
             input->setAllowedFormats(std::get<1>(params.inputFormats[iL]));
         }
     }
@@ -995,11 +1267,21 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
             != params.outputFormats.end())
             {
                 auto curFmt = params.outputFormats.at(output->getName());
+#if NV_TENSORRT_MAJOR >= 11
+                if (output->getType() != std::get<0>(curFmt))
+                {
+                    dsInferError("Output type override for '%s' differs from the "
+                        "typed model. Encode the required type/casts in the model.", output->getName());
+                    return NVDSINFER_CONFIG_FAILED;
+                }
+#else
                 output->setType(std::get<0>(curFmt));
+#endif
                 output->setAllowedFormats(std::get<1>(curFmt));
             }
     }
 
+#if NV_TENSORRT_MAJOR < 11
     if(!params.layerDevicePrecisions.empty())
     {
       /*Check*/
@@ -1072,6 +1354,7 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
             params.networkMode = NvDsInferNetworkMode_FP32;
         }
     }
+#endif
 
     /* Set DLA parameters if specified. */
     if (params.dlaCore >= 0)
@@ -1081,9 +1364,19 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
             dsInferError("DLA core id is not valid, check nvinfer params.");
             return NVDSINFER_CONFIG_FAILED;
         }
+#if NV_TENSORRT_MAJOR >= 11
+        if (params.networkMode != NvDsInferNetworkMode_FP16 &&
+            params.networkMode != NvDsInferNetworkMode_INT8)
+        {
+            dsInferError("TensorRT 11 DLA requires a typed FP16 or explicit "
+                "INT8 model; refusing to change FP32 precision implicitly.");
+            return NVDSINFER_CONFIG_FAILED;
+        }
+#endif
         builderConfig.setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
         builderConfig.setDLACore(params.dlaCore);
         builderConfig.setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
+#if NV_TENSORRT_MAJOR < 11
         if ((params.networkMode != NvDsInferNetworkMode_INT8) && (params.networkMode != NvDsInferNetworkMode_BEST))
         {
             // DLA supports only INT8 or FP16
@@ -1091,6 +1384,7 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
             builderConfig.setFlag(nvinfer1::BuilderFlag::kFP16);
             g_fp16FlagWasSet = true;
         }
+#endif
     }
 
     return NVDSINFER_SUCCESS;

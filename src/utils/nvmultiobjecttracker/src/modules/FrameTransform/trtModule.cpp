@@ -18,6 +18,7 @@
 #include "modules/FrameTransform/trtModule.hpp"
 #include "nvdsinfer_logger.h"
 #include "nvdsinfer_tlt.h"
+#include "nvdsinfer_model_builder.h"
 
 using std::cout;
 using std::endl;
@@ -44,7 +45,90 @@ static bool getAbsolutePath(const std::string& path, std::string& absPath)
 
 /** @brief Construct a TrtModule instance. */
 TrtModule::TrtModule()
+    : m_cuStream(nullptr)
 {
+}
+
+/* Tracker configuration uses TensorRT's numbering (0 FP32, 1 FP16, 2 INT8),
+ * which differs from NvDsInferNetworkMode. Never cast between these enums. */
+static NvDsInferNetworkMode getInferNetworkMode(nvinfer1::DataType mode)
+{
+    switch (mode)
+    {
+        case nvinfer1::DataType::kFLOAT: return NvDsInferNetworkMode_FP32;
+        case nvinfer1::DataType::kHALF: return NvDsInferNetworkMode_FP16;
+        case nvinfer1::DataType::kINT8: return NvDsInferNetworkMode_INT8;
+        default: throw std::runtime_error("Unsupported tracker network precision");
+    }
+}
+
+static void validatePrecisionConfig(const TRTConfigParams& params)
+{
+    (void)getInferNetworkMode(params.m_networkMode);
+#if NV_TENSORRT_MAJOR >= 11
+    if (!params.m_calibrationTableFilePath.empty())
+    {
+        throw std::runtime_error("TensorRT 11 does not support tracker INT8 calibration caches. "
+            "Use a prepared INT8 Q/DQ model and remove calibrationTableFile.");
+    }
+#endif
+}
+
+void TrtModule::resetModel()
+{
+    // Deleters also retain these dependencies when callers keep shared copies.
+    m_context.reset();
+    m_engine.reset();
+    m_runtime.reset();
+#if NV_TENSORRT_MAJOR < 11
+    m_calibrator.reset();
+#endif
+}
+
+void TrtModule::validateEngineIO() const
+{
+    if (!m_engine || m_engine->getNbIOTensors() == 0)
+    {
+        throw std::runtime_error("Tracker engine has no input/output tensors");
+    }
+    bool hasInput = false;
+    bool hasOutput = false;
+    for (int i = 0; i < m_engine->getNbIOTensors(); ++i)
+    {
+        const char* name = m_engine->getIOTensorName(i);
+        if (!name || !*name)
+        {
+            throw std::runtime_error("Tracker engine has an unnamed input/output tensor");
+        }
+        const auto mode = m_engine->getTensorIOMode(name);
+        hasInput |= mode == nvinfer1::TensorIOMode::kINPUT;
+        hasOutput |= mode == nvinfer1::TensorIOMode::kOUTPUT;
+        const auto dims = m_engine->getTensorShape(name);
+        if (mode == nvinfer1::TensorIOMode::kNONE || dims.nbDims < 0 ||
+            m_engine->getTensorDataType(name) != nvinfer1::DataType::kFLOAT ||
+            m_engine->getTensorLocation(name) != nvinfer1::TensorLocation::kDEVICE)
+        {
+            throw std::runtime_error(std::string("Tracker requires named FP32 device I/O tensors: ") + name);
+        }
+        for (int profile = 0; profile < std::max(1, m_engine->getNbOptimizationProfiles()); ++profile)
+        {
+            if (m_engine->getTensorFormat(name, profile) != nvinfer1::TensorFormat::kLINEAR)
+            {
+                throw std::runtime_error(std::string("Tracker requires linear I/O tensors: ") + name);
+            }
+        }
+        for (int d = 0; d < dims.nbDims; ++d)
+        {
+            if (dims.d[d] < -1)
+            {
+                throw std::runtime_error(std::string("Invalid tracker tensor shape: ") + name);
+            }
+        }
+    }
+    if (!hasInput || !hasOutput)
+    {
+        throw std::runtime_error("Tracker engine requires both input and output tensors");
+    }
 }
 
 /** @brief Print TensorRT engine tensor metadata. */
@@ -102,19 +186,35 @@ void TrtModule::initializeModel(
     /// Check existing engine if failed create a new one in constructor stage.
     m_onnxProfileFunc = onnxProfileFunc;
     m_setRuntimeDimFunc = setRuntimeDimeFunc;
-
-    if(!loadTRTEngine())
+    resetModel();
+    // Validate cache requests too; TensorRT 11 must not silently ignore them.
+    validatePrecisionConfig(m_params);
+    try
     {
-        cout << "[NvMultiObjectTracker] Load engine failed. Create engine again." << endl;
-        /// Engine file doesn't exist.
-        /// Create from model file.
-        createInferEngine();
+        if(!loadTRTEngine())
+        {
+            cout << "[NvMultiObjectTracker] Load engine failed. Create engine again." << endl;
+            /// Engine file doesn't exist. Create from model file.
+            createInferEngine();
+        }
+
+        validateEngineIO();
+        auto engine = m_engine;
+        m_context = std::shared_ptr<nvinfer1::IExecutionContext>(
+            engine->createExecutionContext(), [engine](nvinfer1::IExecutionContext* context) {
+                delete context;
+            });
+        if (!m_context)
+        {
+            throw std::runtime_error("Failed to create tracker execution context");
+        }
+        printEngineInfo();
     }
-
-    m_context = std::shared_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
-
-    printEngineInfo();
-
+    catch (...)
+    {
+        resetModel();
+        throw;
+    }
 }
 
 /**
@@ -133,7 +233,7 @@ void TrtModule::parseOnnxModel(
     }
 
     parser = std::unique_ptr<nvonnxparser::IParser>(nvonnxparser::createParser(network, logger));
-    if (!parser->parseFromFile(m_params.m_onnxFilePath.c_str(),
+    if (!parser || !parser->parseFromFile(m_params.m_onnxFilePath.c_str(),
         (int)nvinfer1::ILogger::Severity::kWARNING))
     {
         throw std::runtime_error("Fail to parse ONNX network");
@@ -145,10 +245,11 @@ void TrtModule::parseOnnxModel(
  * @param[in] builder TensorRT engine builder.
  * @param[in] config TensorRT builder configuration.
  */
-nvinfer1::ICudaEngine* TrtModule::decodeTltModel(
+std::shared_ptr<nvinfer1::ICudaEngine> TrtModule::decodeTltModel(
     nvinfer1::IBuilder* const builder, nvinfer1::IBuilderConfig* const config
 )
 {
+    validatePrecisionConfig(m_params);
     /// Check if UFF file is provided.
     if ( !getAbsolutePath(m_params.m_tltEncodedModelFilePath, m_absModelFilePath) )
     {
@@ -164,27 +265,31 @@ nvinfer1::ICudaEngine* TrtModule::decodeTltModel(
     initParams.netInputOrder = (NvDsInferTensorOrder) m_params.m_inputOrder;
     /// CHW.
     initParams.inferInputDims = {(uint) m_params.m_channel, (uint) m_params.m_height, (uint) m_params.m_width};
-    initParams.networkMode = (NvDsInferNetworkMode) m_params.m_networkMode;
+    initParams.networkMode = getInferNetworkMode(m_params.m_networkMode);
     initParams.workspaceSize = m_params.m_workspaceSize;
 
     std::strncpy(initParams.int8CalibrationFilePath, m_params.m_calibrationTableFilePath.c_str(), _PATH_MAX-1);
     std::strncpy(initParams.tltEncodedModelFilePath, m_params.m_tltEncodedModelFilePath.c_str(), _PATH_MAX-1);
     std::strncpy(initParams.tltModelKey, m_params.m_tltModelKey.c_str(), _MAX_STR_LENGTH-1);
 
-    nvinfer1::ICudaEngine* engineTlt = nullptr;
-    if (! NvDsInferCudaEngineGetFromTltModel(builder,
-        config, &initParams, nvinfer1::DataType(0), engineTlt))
+    // Keep the complete SDK wrapper as the owner of this aliasing shared pointer.
+    // A raw-engine callback cannot transfer its TensorRT runtime ownership.
+    std::shared_ptr<nvdsinfer::TrtEngine> owner =
+        nvdsinfer::buildTltModelEngine(builder, config, &initParams);
+    if (!owner)
     {
         throw std::runtime_error("Fail to decode TAO model");
     }
 
-    return engineTlt;
+    return std::shared_ptr<nvinfer1::ICudaEngine>(owner, &owner->engine());
 }
 
 /** @brief Build and serialize a TensorRT inference engine. */
 void TrtModule::createInferEngine()
 {
-    cudaGetDevice(&m_params.m_gpuId);
+    resetModel();
+    validatePrecisionConfig(m_params);
+    CUDA_CHECK(cudaGetDevice(&m_params.m_gpuId));
 
     /// Create engine builder.
     nvinfer1::ILogger* logger = getLogger();
@@ -201,6 +306,7 @@ void TrtModule::createInferEngine()
     const std::map<nvinfer1::DataType, std::string> networkModeMap{
         {nvinfer1::DataType::kINT8, "int8"}, {nvinfer1::DataType::kHALF, "fp16"}, {nvinfer1::DataType::kFLOAT, "fp32"}
     };
+#if NV_TENSORRT_MAJOR < 11
     if (m_params.m_networkMode == nvinfer1::DataType::kINT8 && !builder->platformHasFastInt8())
     {
         /// When int8 not supported, try fp16.
@@ -219,6 +325,7 @@ void TrtModule::createInferEngine()
         m_params.m_networkMode = nvinfer1::DataType::kFLOAT;
         CLOG("Precision fp16 is not supported. Using fp32 instead.");
     }
+#endif
 
     std::unique_ptr<nvinfer1::IBuilderConfig> config(builder->createBuilderConfig());
 
@@ -230,7 +337,7 @@ void TrtModule::createInferEngine()
     if (!m_params.m_tltEncodedModelFilePath.empty())
     {
         /// Use nvdsinferutils API to decode ETLT model and generate engine.
-        m_engine = std::shared_ptr<nvinfer1::ICudaEngine>(decodeTltModel(builder.get(), config.get()));
+        m_engine = decodeTltModel(builder.get(), config.get());
     }
     else
     {
@@ -238,8 +345,10 @@ void TrtModule::createInferEngine()
         nvinfer1::NetworkDefinitionCreationFlags netDefFlags = 0;
 
         /// UFF model uses implicit batch, and ONNX model uses explicit batch.
+#if NV_TENSORRT_MAJOR < 11
         if (!m_params.m_onnxFilePath.empty())
             netDefFlags |= (1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH));
+#endif
 
         /// Create network and load UFF/ONNX models into network.
         std::unique_ptr<nvinfer1::INetworkDefinition> network(builder->createNetworkV2(netDefFlags));
@@ -264,6 +373,17 @@ void TrtModule::createInferEngine()
             );
         }
 
+#if NV_TENSORRT_MAJOR >= 11
+        nvdsinfer::ExplicitBuildParams options;
+        options.networkMode = getInferNetworkMode(m_params.m_networkMode);
+        options.int8CalibrationFilePath = m_params.m_calibrationTableFilePath;
+        if (nvdsinfer::validateTrt11Precision(*network, options) != NVDSINFER_SUCCESS)
+        {
+            throw std::runtime_error("Tracker model does not implement the requested TensorRT 11 precision; "
+                "prepare a typed FP16/mixed source ONNX offline with NVIDIA ModelOpt AutoCast "
+                "(tools/modelopt/prepare_model.py), preserving tracker I/O types");
+        }
+#else
         if (m_params.m_networkMode == nvinfer1::DataType::kINT8)
         {
             m_calibrator = std::make_shared<TrackerInt8EntropyCalibrator>(m_params.m_calibrationTableFilePath);
@@ -278,6 +398,7 @@ void TrtModule::createInferEngine()
         {
             config->setFlag(nvinfer1::BuilderFlag::kFP16);
         }
+#endif
 
         config->setBuilderOptimizationLevel(m_params.m_builderOptimizationLevel);
 
@@ -289,15 +410,23 @@ void TrtModule::createInferEngine()
             throw std::runtime_error("Failed to create runtime engine");
         }
 
-        auto serializedEngine = builder->buildSerializedNetwork(*network, *config);
-
-        m_engine.reset (runtime->deserializeCudaEngine(serializedEngine->data(), serializedEngine->size()));
+        std::unique_ptr<nvinfer1::IHostMemory> serializedEngine(
+            builder->buildSerializedNetwork(*network, *config));
+        if (!serializedEngine)
+        {
+            throw std::runtime_error("Tracker serialized engine build failed");
+        }
+        m_engine = std::shared_ptr<nvinfer1::ICudaEngine>(
+            runtime->deserializeCudaEngine(serializedEngine->data(), serializedEngine->size()),
+            [runtime](nvinfer1::ICudaEngine* engine) { delete engine; });
+        m_runtime = std::move(runtime);
     }
 
     if (!m_engine)
     {
         throw std::runtime_error("Engine build failed");
     }
+    validateEngineIO();
 
     /// Save engine to hard drive.
     std::unique_ptr<nvinfer1::IHostMemory> serializedModel(m_engine->serialize());
@@ -315,16 +444,21 @@ void TrtModule::createInferEngine()
     /// Engine file format: xxx.uff_bx_gpux_<mode>.engine.
     std::string absEngineFilePath = m_absModelFilePath + "_b" + std::to_string(m_params.m_maxBatchSize) + \
         "_gpu" + std::to_string(m_params.m_gpuId) + "_" + networkModeMap.at(m_params.m_networkMode) + ".engine";
-    outFile.open(absEngineFilePath);
+    outFile.open(absEngineFilePath, std::ios::binary);
     outFile << modelStream.rdbuf();
+    const bool saved = outFile.good();
     outFile.close();
-
-    cout << "[NvMultiObjectTracker] Serialized plan file cached at location: " << absEngineFilePath << endl;
+    if (saved)
+        cout << "[NvMultiObjectTracker] Serialized plan file cached at location: " << absEngineFilePath << endl;
+    else
+        CLOG(std::string("Unable to cache tracker engine at: " + absEngineFilePath).c_str());
 }
 
 /** @brief Load a serialized TensorRT engine. */
 bool TrtModule::loadTRTEngine()
 {
+    resetModel();
+    validatePrecisionConfig(m_params);
     std::string planFilePath;
     if ( !getAbsolutePath(m_params.m_engineFilePath, planFilePath) )
     {
@@ -336,7 +470,7 @@ bool TrtModule::loadTRTEngine()
     cout << "[NvMultiObjectTracker] Loading TRT Engine for model: " << planFilePath << endl;
     std::stringstream trtModelStream;
     trtModelStream.seekg(0, trtModelStream.beg);
-    std::ifstream cache(planFilePath);
+    std::ifstream cache(planFilePath, std::ios::binary);
     if (!cache.good())
     {
         CLOG("Load TRT engine error");
@@ -347,7 +481,12 @@ bool TrtModule::loadTRTEngine()
 
     /// Calculating model size.
     trtModelStream.seekg(0, std::ios::end);
-    const int modelSize = trtModelStream.tellg();
+    const std::streamoff modelSize = trtModelStream.tellg();
+    if (modelSize <= 0)
+    {
+        CLOG("Tracker engine file is empty or unreadable");
+        return false;
+    }
     trtModelStream.seekg(0, std::ios::beg);
     std::shared_ptr<void> modelMem(malloc(modelSize), free);
     if (!modelMem)
@@ -356,6 +495,11 @@ bool TrtModule::loadTRTEngine()
         return false;
     }
     trtModelStream.read((char*) modelMem.get(), modelSize);
+    if (!trtModelStream)
+    {
+        CLOG("Failed to read tracker engine file");
+        return false;
+    }
 
     /// Create engine.
     nvinfer1::ILogger* logger = getLogger();
@@ -363,18 +507,29 @@ bool TrtModule::loadTRTEngine()
     {
         logger = gTrtLogger.get();
     }
-    m_runtime = std::shared_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(*logger));
-    if (!m_runtime)
+    std::shared_ptr<nvinfer1::IRuntime> runtime(nvinfer1::createInferRuntime(*logger));
+    if (!runtime)
     {
         CLOG("Failed to create runtime engine");
         return false;
     }
 
-    m_engine = std::shared_ptr<nvinfer1::ICudaEngine>(m_runtime->deserializeCudaEngine( modelMem.get(), modelSize));
+    m_engine = std::shared_ptr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(
+        modelMem.get(), modelSize), [runtime](nvinfer1::ICudaEngine* engine) { delete engine; });
     if (!m_engine)
     {
         CLOG("Engine build failed");
         return false;
+    }
+    m_runtime = std::move(runtime);
+    try
+    {
+        validateEngineIO();
+    }
+    catch (...)
+    {
+        resetModel();
+        throw;
     }
 
     cout << "[NvMultiObjectTracker] Loading Complete!" << endl;
@@ -390,6 +545,10 @@ bool TrtModule::loadTRTEngine()
  */
 void TrtModule::submitInput(std::vector<void *>& bindings, const std::vector<int>& batchSize, cudaStream_t& cuStream)
 {
+    if (!m_engine || !m_context)
+    {
+        throw std::runtime_error("Tracker inference model is not initialized");
+    }
     if (m_engine->getNbIOTensors() != int32_t(bindings.size()))
     {
         throw std::runtime_error("The number of input bindings does not match engine");
@@ -409,15 +568,31 @@ void TrtModule::submitInput(std::vector<void *>& bindings, const std::vector<int
     /// When input batch size is not specified, specifyDimInputIndList is not empty, need to update batch size in input dim.
     if (m_setRuntimeDimFunc)
     {
+        if (batchSize.empty())
+            throw std::runtime_error("Tracker runtime shape parameters are empty");
         m_setRuntimeDimFunc(this, batchSize);
     }
-    /// Make sure all input dimensions are specified.
-    if (!m_context->allInputDimensionsSpecified())
+    // allInputDimensionsSpecified does not support the name-based shape API.
+    // Query resolved inputs without adding synchronization or shape inference.
+    for (int32_t i = 0, e = m_engine->getNbIOTensors(); i < e; ++i)
     {
-        throw std::runtime_error("Not all dimensions are specified in explicit dimension mode");
+        const char* name = m_engine->getIOTensorName(i);
+        if (m_engine->getTensorIOMode(name) != nvinfer1::TensorIOMode::kINPUT)
+            continue;
+        const auto dims = m_context->getTensorShape(name);
+        if (dims.nbDims < 0)
+            throw std::runtime_error("Invalid tracker input shape");
+        for (int d = 0; d < dims.nbDims; ++d)
+        {
+            if (dims.d[d] < 0)
+                throw std::runtime_error("Not all tracker input dimensions are specified");
+        }
     }
 
-    m_context->enqueueV3(cuStream);
+    if (!m_context->enqueueV3(cuStream))
+    {
+        throw std::runtime_error("Tracker inference enqueue failed");
+    }
 }
 
 /** @brief Construct a TRTConfigParams instance. */
