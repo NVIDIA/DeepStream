@@ -62,10 +62,18 @@ bool NvDsParseCustomPoseClassification(std::vector<NvDsInferLayerInfo> const &ou
     bool attrFound = false;
     NvDsInferAttribute attr;
 
-    NvDsInferDimsCHW dims;
-    getDimsCHWFromDims (dims, outputLayersInfo[0].inferDims);
-    unsigned int numClasses = dims.c;
-    float *outputCoverageBuffer = (float *) outputLayersInfo[0].buffer;
+    const NvDsInferLayerInfo *output = nullptr;
+    for (const auto &layer : outputLayersInfo) {
+        if (layer.layerName && !strcmp(layer.layerName, "fc_pred"))
+            output = &layer;
+    }
+    if (!output || output->dataType != FLOAT || !output->buffer ||
+        output->inferDims.numElements != sizeof(classes_str) / sizeof(classes_str[0])) {
+        std::cerr << "Missing or invalid six-class FLOAT output 'fc_pred'" << std::endl;
+        return false;
+    }
+    unsigned int numClasses = output->inferDims.numElements;
+    float *outputCoverageBuffer = (float *) output->buffer;
     /* Iterate through all the probabilities that the object belongs to
         * each class. Find the maximum probability and the corresponding class
         * which meets the minimum threshold. */
