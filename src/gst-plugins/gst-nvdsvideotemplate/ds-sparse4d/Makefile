@@ -37,6 +37,7 @@ LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 # PyTorch (see configs/install_dependencies.sh). Override TORCH_PATH if needed.
 TORCH_PATH?=/usr/local/lib/python3/dist-packages/torch
+TORCH_CXX11_ABI?=$(shell sed -n 's/.*_GLIBCXX_USE_CXX11_ABI=\([01]\).*/\1/p' "$(TORCH_PATH)/share/cmake/Torch/TorchConfig.cmake" 2>/dev/null | head -n 1)
 
 CFLAGS:= -fPIC -std=c++17 -Wall -Werror -Wno-deprecated-declarations \
 	-DHAVE_CONFIG_H -fexceptions
@@ -44,6 +45,8 @@ CFLAGS:= -fPIC -std=c++17 -Wall -Werror -Wno-deprecated-declarations \
 CFLAGS+= -I. \
 	 -I../includes \
 	 -I../../../../includes \
+	 -I../../../utils/nvdsinfer \
+	 -I../../../utils/nvdsinferutils/include \
 	 -I../../gst-nvdspreprocess \
 	 -I../../gst-nvdspreprocess/include \
 	 -I/usr/local/cuda-$(CUDA_VER)/include \
@@ -51,6 +54,7 @@ CFLAGS+= -I. \
 	 -I$(TORCH_PATH)/include/torch/csrc/api/include
 
 CFLAGS+= $(shell pkg-config --cflags eigen3)
+CFLAGS+= $(if $(TORCH_CXX11_ABI),-D_GLIBCXX_USE_CXX11_ABI=$(TORCH_CXX11_ABI))
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 CFLAGS+= $(shell pkg-config --cflags $(PKGS))
@@ -72,7 +76,7 @@ LIBS:= -shared -Wl,-no-undefined -Wl,--no-as-needed \
 	-lnvbufsurface -lnvbufsurftransform -lnvdsbufferpool \
 	-L$(GST_INSTALL_DIR) -lnvdsgst_preprocess \
 	-L$(TORCH_PATH)/lib -ltorch -ltorch_cpu -ltorch_cuda -lc10 -lc10_cuda \
-	-lyaml-cpp -lnvinfer -lnvonnxparser \
+	-lyaml-cpp -lnvds_infer -lnvinfer -lnvonnxparser \
 	-ldl -lpthread \
 	-Wl,-rpath,$(LIB_INSTALL_DIR) \
 	-Wl,-rpath,$(GST_INSTALL_DIR) \

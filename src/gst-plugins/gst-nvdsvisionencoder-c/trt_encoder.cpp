@@ -36,6 +36,9 @@
 #include <NvOnnxParser.h>
 #include <gst/gst.h>
 #include "trt_encoder.h"
+#if NV_TENSORRT_MAJOR >= 11
+#include "nvdsinfer_model_builder.h"
+#endif
 
 using namespace nvinfer1;
 using namespace nvonnxparser;
@@ -76,7 +79,9 @@ static time_t GetFileModTime(const std::string& path) {
 
 /**
  * Generate engine path from ONNX path following nvinfer convention:
- *   {onnx_base}_b{batchSize}_gpu{gpuId}_fp16.engine
+ * TRT < 11: {onnx_base}_b{batchSize}_gpu{gpuId}_fp16.engine
+ * TRT >= 11: version the offline-typed model policy so a previously automatic
+ * conversion cache cannot bypass validation of the supplied model's types.
  */
 static std::string GenerateEnginePath(const std::string& onnx_path, int batch_size) {
     std::string base = onnx_path;
@@ -89,7 +94,11 @@ static std::string GenerateEnginePath(const std::string& onnx_path, int batch_si
 
     return base + "_b" + std::to_string(batch_size)
                + "_gpu" + std::to_string(gpu_id)
+#if NV_TENSORRT_MAJOR >= 11
+               + "_trt" + std::to_string(NV_TENSORRT_MAJOR) + "_model_typed_v2.engine";
+#else
                + "_fp16.engine";
+#endif
 }
 
 /**
@@ -200,7 +209,7 @@ public:
         GST_DEBUG("  ONNX: %s", onnx_path.c_str());
         GST_DEBUG("  Output: %s", engine_path.c_str());
         GST_DEBUG("  Batch size: %d", batch_size);
-        
+
         // Create builder
         IBuilder* builder = createInferBuilder(gTRTLogger);
         if (!builder) {
@@ -208,12 +217,16 @@ public:
             return false;
         }
         
-        // Create network with explicit batch (deprecated warning but still recommended)
+        // TensorRT 11 networks are explicit-batch and strongly typed by default.
+#if NV_TENSORRT_MAJOR >= 11
+        INetworkDefinition* network = builder->createNetworkV2(0);
+#else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         const auto explicitBatch = 1U << static_cast<uint32_t>(NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
         INetworkDefinition* network = builder->createNetworkV2(explicitBatch);
 #pragma GCC diagnostic pop
+#endif
         if (!network) {
             GST_ERROR("Failed to create network");
             delete builder;
@@ -269,6 +282,23 @@ public:
                     network->getOutput(0)->getName());
         }
         
+#if NV_TENSORRT_MAJOR >= 11
+        // TensorRT 11 uses the model's declared types. Prepare the image graph
+        // offline rather than rewriting it in this engine builder.
+        nvdsinfer::ExplicitBuildParams precision;
+        precision.networkMode = NvDsInferNetworkMode_FP16;
+        if (nvdsinfer::validateTrt11Precision(*network, precision) != NVDSINFER_SUCCESS) {
+            GST_ERROR("Vision encoder requires a qualified FP16/mixed ONNX model for TensorRT 11. "
+                      "Prepare it offline with NVIDIA ModelOpt AutoCast "
+                      "(samples/modelopt/prepare_model.py), preserving the required I/O types, "
+                      "or supply an explicit compatible engine");
+            delete parser;
+            delete network;
+            delete builder;
+            return false;
+        }
+#endif
+
         // Create builder config
         IBuilderConfig* config = builder->createBuilderConfig();
         if (!config) {
@@ -305,7 +335,12 @@ public:
             config->addOptimizationProfile(profile);
         }
         
-        // Enable FP16 if supported (using deprecated API for compatibility)
+        // TensorRT 11 uses the offline-prepared graph tensor types. Keep the
+        // original automatic FP16 builder preference on older TensorRT versions.
+#if NV_TENSORRT_MAJOR >= 11
+        g_print("nvdsvisionencoder [TRT]: Using the offline-prepared model's "
+                "declared precision; no automatic graph conversion.\n");
+#else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         if (builder->platformHasFastFp16()) {
@@ -313,6 +348,7 @@ public:
             GST_DEBUG("FP16 mode enabled");
         }
 #pragma GCC diagnostic pop
+#endif
         
         // Set max workspace size (e.g., 2GB)
         config->setMemoryPoolLimit(MemoryPoolType::kWORKSPACE, 2ULL << 30);
@@ -488,6 +524,14 @@ private:
             GST_DEBUG("  %s '%s': %s", is_input ? "Input " : "Output", name, dims_str);
             
             if (is_input && dims.nbDims == 4) {
+                // Preprocessing and Infer pass float NCHW buffers directly.
+                // Model-internal FP16 is supported; external HALF I/O is not.
+                if (engine_->getTensorDataType(name) != DataType::kFLOAT ||
+                    engine_->getTensorFormat(name) != TensorFormat::kLINEAR ||
+                    engine_->getTensorLocation(name) != TensorLocation::kDEVICE) {
+                    GST_ERROR("Image input '%s' must use FP32 linear device I/O", name);
+                    return false;
+                }
                 // NCHW image input: [batch, channels, height, width]
                 input_height_ = dims.d[2];
                 input_width_ = dims.d[3];
@@ -515,6 +559,12 @@ private:
                         "(dims=%s, elem_size=%zu) — will bind zeros\n",
                         name, dims_str, ei.elem_size);
             } else if (!is_input && dims.nbDims == 2) {
+                if (engine_->getTensorDataType(name) != DataType::kFLOAT ||
+                    engine_->getTensorFormat(name) != TensorFormat::kLINEAR ||
+                    engine_->getTensorLocation(name) != TensorLocation::kDEVICE) {
+                    GST_ERROR("Embedding output '%s' must use FP32 linear device I/O", name);
+                    return false;
+                }
                 // Output: [batch, embedding_dim]
                 embedding_dim_ = dims.d[1];
                 output_tensor_name_ = name;

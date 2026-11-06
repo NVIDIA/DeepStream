@@ -72,6 +72,10 @@ See [`src/README.md`](src/README.md) for component-specific READMEs, prerequisit
 
 **Supported Platforms**
 
+For the TensorRT 11 upgrade targets and packaging an existing complete SDK
+runtime with these sources, see [the upgrade build workflow](build/BUILD.md#tensorrt-11-upgrade-branch).
+The published baseline below is not qualification of the upgrade branch.
+
 | Platform | Architecture | Notes |
 |---|---|---|
 | x86 dGPU | x86_64 | Ubuntu 24.04, CUDA 13.2, TensorRT 10.16.x, driver 595+ |

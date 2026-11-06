@@ -39,14 +39,16 @@ SRCS:= nvdsinfer_context_impl.cpp  nvdsinfer_context_impl_capi.cpp \
 
 INCS:= $(wildcard *.h)
 LIB:=libnvds_infer.so
+ENGINE_BUILDER:=nvdsinfer-engine-builder
 
 NVDS_VERSION:=9.2
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
+BIN_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
 
 CFLAGS+= -fPIC -Wno-deprecated-declarations -std=c++14 \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
-	 -I ../../../includes -DNDEBUG
+	 -I ../../../includes -I ../nvdsinferutils/include -DNDEBUG
 
 ifeq ($(WITH_OPENCV),1)
 CFLAGS+= -DWITH_OPENCV \
@@ -69,7 +71,7 @@ LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_helper -lnvdsgst_meta -lnvds_meta \
 OBJS:= $(SRCS:.cpp=.o)
 OBJS:= $(OBJS:.cu=.o)
 
-all: $(LIB)
+all: $(LIB) $(ENGINE_BUILDER)
 
 %.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
@@ -82,8 +84,14 @@ $(LIB): $(OBJS) $(DEP) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -o $@ $(OBJS) $(LIBS)
 
-install: $(LIB)
+$(ENGINE_BUILDER): nvdsinfer_engine_builder.cpp $(INCS) $(LIB) Makefile
+	$(CXX) $(CFLAGS) -o $@ $< -L. -lnvds_infer $(filter-out -shared,$(LIBS)) \
+		-Wl,-rpath,'$$ORIGIN:$$ORIGIN/../lib'
+
+install: $(LIB) $(ENGINE_BUILDER)
 	cp -rv $(LIB) $(LIB_INSTALL_DIR)
+	mkdir -p $(BIN_INSTALL_DIR)
+	cp -v $(ENGINE_BUILDER) $(BIN_INSTALL_DIR)
 
 clean:
-	rm -rf $(OBJS) $(LIB)
+	rm -rf $(OBJS) $(LIB) $(ENGINE_BUILDER)

@@ -29,7 +29,7 @@ inline bool CHECK_(int e, int iLine, const char *szFile) {
 #define ck(call) CHECK_(call, __LINE__, __FILE__)
 
 // Helper function to create directory if it doesn't exist
-bool createDumpDirectory(const std::string& dirPath) {
+static bool createDumpDirectory(const std::string& dirPath) {
     struct stat st = {0};
 
     // Check if directory exists
@@ -46,7 +46,7 @@ bool createDumpDirectory(const std::string& dirPath) {
 }
 
 // Helper function to determine optimal grid layout for tiling images
-std::pair<int, int> getOptimalGridSize(int batchSize) {
+static std::pair<int, int> getOptimalGridSize(int batchSize) {
     // Find factors of batchSize to determine rows and columns
     int rows = 1;
     int cols = batchSize;

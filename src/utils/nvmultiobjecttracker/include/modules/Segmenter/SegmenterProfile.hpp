@@ -53,8 +53,8 @@ static void createOnnxProfile4NanoSamDecoder(
 static void setRuntimeDim4NanoSamDecoder(TrtModule *trtModule, const std::vector<int>& sizes)
 {
     trtModule->m_context->setOptimizationProfileAsync(0, trtModule->m_cuStream);
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims3(1, 2, 2));
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(1, 2));
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims3(1, 2, 2));
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(1, 2));
 }
 
 /**
@@ -98,7 +98,7 @@ static void setRuntimeDim4EVSamEncoder(TrtModule *trtModule, const std::vector<i
                 trtModule->m_engine->getIOTensorName(ind)
             );
             lastInputDims.d[0] = 1;
-            trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(ind), lastInputDims);
+            trtModule->setInputShape(trtModule->m_engine->getIOTensorName(ind), lastInputDims);
         }
     }
 }
@@ -139,8 +139,8 @@ static void createOnnxProfile4EVSamDecoder(
 static void setRuntimeDim4EVSamDecoder(TrtModule *trtModule, const std::vector<int>& sizes)
 {
     trtModule->m_context->setOptimizationProfileAsync(0, trtModule->m_cuStream);
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims2(1, 2 * 2));
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(1, 2));
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims2(1, 2 * 2));
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(1, 2));
 }
 
 /**
@@ -193,11 +193,11 @@ static void setRuntimeDim4Sam2MaskDecoder(TrtModule *trtModule, const std::vecto
     int pointNum = sizes.at(0);
     int batchSize = (sizes.size() >= 2) ? sizes.at(1) : 1;
     trtModule->m_context->setOptimizationProfileAsync(0, trtModule->m_cuStream);
-    trtModule->m_context->setInputShape(
+    trtModule->setInputShape(
         trtModule->m_engine->getIOTensorName(0), nvinfer1::Dims3(batchSize, pointNum, 2)
     );
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims2(batchSize, pointNum));
-    trtModule->m_context->setInputShape(
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(1), nvinfer1::Dims2(batchSize, pointNum));
+    trtModule->setInputShape(
         trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims4(batchSize, 256, 64, 64)
     );
 }
@@ -256,12 +256,12 @@ static void setRuntimeDim4Sam2MemAttn(TrtModule *trtModule, const std::vector<in
 {
     int batchSize = sizes.at(0), numObjPtrs = sizes.at(1), numMaskMem = sizes.at(2), numFrames = sizes.at(3);
     trtModule->m_context->setOptimizationProfileAsync(0, trtModule->m_cuStream);
-    trtModule->m_context->setInputShape(
+    trtModule->setInputShape(
         trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims3(batchSize, numObjPtrs, 256)
     );
     nvinfer1::Dims inputDim = {5, {batchSize,numMaskMem,64,64,64}};
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(3), inputDim);
-    trtModule->m_context->setInputShape(
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(3), inputDim);
+    trtModule->setInputShape(
         trtModule->m_engine->getIOTensorName(4), nvinfer1::Dims3(batchSize, numMaskMem*4096 + 4*numFrames, 64)
     );
 }
@@ -306,8 +306,8 @@ static void setRuntimeDim4Sam2MemEncoder(TrtModule *trtModule, const std::vector
 {
     int batchSize = sizes.at(0);
     trtModule->m_context->setOptimizationProfileAsync(0, trtModule->m_cuStream);
-    trtModule->m_context->setInputShape(
+    trtModule->setInputShape(
         trtModule->m_engine->getIOTensorName(0), nvinfer1::Dims4(batchSize, 1, 1024, 1024)
     );
-    trtModule->m_context->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(batchSize, 1));
+    trtModule->setInputShape(trtModule->m_engine->getIOTensorName(2), nvinfer1::Dims2(batchSize, 1));
 }
