@@ -303,6 +303,44 @@ class PackageFlowTests(unittest.TestCase):
         self.assertNotIn("libnvinfer10", metadata)
         self.assert_no_build_or_install()
 
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    def test_default_version_packages_921_in_92_install_tree(self):
+        self.env.pop("NVDS_VERSION")
+        self.run_command(self.package_command("--format=both", "--keep-stage"))
+        package = self.output / "deepstream_sdk_v9.2.1_x86_64.tbz2"
+        self.assertTrue(package.is_file(), "default tarball must use SDK version 9.2.1")
+        with tarfile.open(package, "r:bz2") as archive:
+            self.assertEqual(archive.extractfile(f"{SDK_PATH}/version").read().splitlines()[0],
+                             b"Version: 9.2.1")
+            self.assertEqual(archive.getmember("opt/nvidia/deepstream/deepstream").linkname,
+                             "deepstream-9.2")
+            self.assertFalse(any(name.startswith("opt/nvidia/deepstream/deepstream-9.2.1/")
+                                 for name in archive.getnames()))
+        deb = self.output / "deepstream-9.2_9.2.1-1_amd64.deb"
+        self.assertTrue(deb.is_file(), "default Debian filename must use 9.2.1 and package family 9.2")
+        self.assertEqual(self.run_command(["dpkg-deb", "-f", str(deb), "Package"]).stdout.strip(),
+                         "deepstream-9.2")
+        self.assertEqual(self.run_command(["dpkg-deb", "-f", str(deb), "Version"]).stdout.strip(),
+                         "9.2.1-1")
+        self.assertEqual((self.stage / SDK_PATH / "version").read_text().splitlines()[0],
+                         "Version: 9.2.1")
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_driver_defaults_to_921_without_version_override(self):
+        self.env.pop("NVDS_VERSION")
+        self.run_command(["bash", str(self.repo / "build/build.sh"),
+                          f"--package-from={self.runtime}", "--package-platform=x86",
+                          "--package-format=tar"])
+        package = self.repo / "build/deepstream_sdk_v9.2.1_x86_64.tbz2"
+        self.assertTrue(package.is_file(), "build driver must forward its default SDK version 9.2.1")
+        with tarfile.open(package, "r:bz2") as archive:
+            self.assertEqual(archive.extractfile(f"{SDK_PATH}/version").read().splitlines()[0],
+                             b"Version: 9.2.1")
+            self.assertEqual(archive.getmember("opt/nvidia/deepstream/deepstream").linkname,
+                             "deepstream-9.2")
+        self.assert_no_build_or_install()
+
     @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
     def test_driver_packages_untracked_sources_without_building(self):
         library = self.runtime / "lib/libfixture.so.1"

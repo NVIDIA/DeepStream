@@ -26,7 +26,7 @@ OBJS:=$(SRCS:.c=.o)
 OBJS:=$(OBJS:.cpp=.o)
 LIB:=libnvdsgst_infereval.so
 CFLAGS:=-fPIC -std=c++11 -fno-exceptions -Wall -Werror -Wno-deprecated-declarations -Wsign-compare \
-        -DDS_VERSION=\"9.2.0\" -I. -I../../../includes -I../../gst-utils/gstnvdscustomhelper \
+        -DDS_VERSION=\"9.2.1\" -I. -I../../../includes -I../../gst-utils/gstnvdscustomhelper \
         -I../../gst-utils/gstnvdshelper -I../gst-nvmodelmux -I/usr/local/cuda-$(CUDA_VER)/include
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
 LIBS:=-shared -Wl,-no-undefined -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart \

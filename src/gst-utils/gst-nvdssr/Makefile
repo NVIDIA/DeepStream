@@ -37,7 +37,7 @@ LIB:=libnvdsgst_smartrecord.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.2.1\" \
 	  -I../../../includes \
       -shared
 

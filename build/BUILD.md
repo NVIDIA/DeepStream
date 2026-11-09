@@ -19,6 +19,11 @@ limitations under the License.
 
 ## TensorRT 11 upgrade branch
 
+Source builds and packages in this branch default to **DeepStream 9.2.1**; the
+install directory remains `deepstream-9.2`. Published release-asset pins remain
+independent of this source version. A version bump does not rebuild or relabel
+existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
+
 The source port in this branch targets x86 CUDA 13.2 / TensorRT 11.4.0.106,
 Jetson JetPack 7.2.2+ CUDA 13.2.2 / TensorRT 11.4.1.31, and generic SBSA
 CUDA 13.4.1 / TensorRT 11.4.1.31. ARM uses VPI 4.1.6; x86 retains its existing
@@ -36,7 +41,7 @@ install it):
 
 ```bash
 mkdir -p /absolute/path/sdk-input
-dpkg-deb -x /absolute/path/deepstream-9.2_9.2.0-1_amd64.deb /absolute/path/sdk-input
+dpkg-deb -x /absolute/path/deepstream-9.2_9.2.1-1_amd64.deb /absolute/path/sdk-input
 bash build/build.sh --package \
   --package-from=/absolute/path/sdk-input/opt/nvidia/deepstream/deepstream-9.2 \
   --package-platform=x86
@@ -298,7 +303,7 @@ bash build/build.sh --help
 | `--deepstream-libraries-wheel[=DIR]` | Build only the DeepStream Libraries wheel. Output defaults to `artifacts/`; a relative `DIR` is resolved from the repository root. |
 | `--deepstream-libraries-wheel-version=VERSION` | Build the DeepStream Libraries wheel at `VERSION` (default: `1.4`). |
 
-Environment variables may also be passed on the command line: `CUDA_VER=13.2`, `NVDS_VERSION=9.2.0`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
+Environment variables may also be passed on the command line: `CUDA_VER=13.2`, `NVDS_VERSION=9.2.1`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
 
 ### Examples
 
@@ -352,13 +357,13 @@ Default CUDA version is `13.2` (`13.0` for IGX Thor systems). Set `CUDA_VER` acc
 CUDA_VER=13.2 bash build/build.sh
 ```
 
-To override the DeepStream version (default: `9.2.0`, must be `MAJOR.MINOR.PATCH`;
+To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
 the install tree uses the truncated `MAJOR.MINOR` form). The GitHub Release
 proprietary-libs / sample-data assets are always fetched from the `v9.2.0`
 release (hardcoded, not derived from `NVDS_VERSION`):
 
 ```bash
-NVDS_VERSION=9.2.0 bash build/build.sh
+NVDS_VERSION=9.2.1 bash build/build.sh
 ```
 
 If a user-local `cmake` wrapper shadows the system CMake, either remove it from `PATH` or point the build script at a known-good binary:
@@ -397,13 +402,13 @@ rm -rf ~/.cache/gstreamer-1.0/
 To remove a DeepStream installation from `/opt`:
 
 ```bash
-# Remove DeepStream 9.2 (default version 9.2.0 → install tree deepstream-9.2/)
+# Remove DeepStream 9.2 (default version 9.2.1 → install tree deepstream-9.2/)
 sudo bash scripts/uninstall.sh
 
 # Remove a specific version (MAJOR.MINOR.PATCH)
-sudo bash scripts/uninstall.sh 9.2.0
+sudo bash scripts/uninstall.sh 9.2.1
 # or equivalently:
-sudo PREV_DS_VER=9.2.0 bash scripts/uninstall.sh
+sudo PREV_DS_VER=9.2.1 bash scripts/uninstall.sh
 ```
 
 `uninstall.sh` removes binaries, libs, samples, and service-maker files from
@@ -503,7 +508,7 @@ bash build/package.sh --help
 | `--platform=x86\|jetson\|sbsa` | Select platform-specific dependencies and tarball name |
 | `--include-untracked-sources` | Local validation only: include non-ignored new source files |
 
-Environment overrides: `NVDS_VERSION` (default `9.2.0`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
+Environment overrides: `NVDS_VERSION` (default `9.2.1`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
 (default: same as `NVDS_VERSION`).
 
 ### Output

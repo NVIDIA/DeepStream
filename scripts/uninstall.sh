@@ -30,20 +30,20 @@ if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
 fi
 
 # DeepStream version to remove. Override via the first argument, PREV_DS_VER,
-# or NVDS_VERSION; defaults to 9.2.0. Must be MAJOR.MINOR.PATCH.
-#   sudo ./uninstall.sh 9.2.0
-#   sudo PREV_DS_VER=9.2.0 ./uninstall.sh
-#   sudo NVDS_VERSION=9.2.0 ./uninstall.sh
-PREV_DS_VER="${1:-${PREV_DS_VER:-${NVDS_VERSION:-9.2.0}}}"
+# or NVDS_VERSION; defaults to 9.2.1. Must be MAJOR.MINOR.PATCH.
+#   sudo ./uninstall.sh 9.2.1
+#   sudo PREV_DS_VER=9.2.1 ./uninstall.sh
+#   sudo NVDS_VERSION=9.2.1 ./uninstall.sh
+PREV_DS_VER="${1:-${PREV_DS_VER:-${NVDS_VERSION:-9.2.1}}}"
 if [[ -z "${PREV_DS_VER}" ]]; then
-  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.2.0)"
+  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.2.1)"
   exit 1
 fi
 if [[ ! "$PREV_DS_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid version '$PREV_DS_VER' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid version '$PREV_DS_VER' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
-# Install tree still uses MAJOR.MINOR for now; strip .PATCH so 9.2.0 removes
+# Install tree still uses MAJOR.MINOR for now; strip .PATCH so 9.2.1 removes
 # deepstream-9.2/.
 PREV_DS_VER="${PREV_DS_VER%.*}"
 

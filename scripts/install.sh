@@ -15,11 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). Install tree still
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). Install tree still
 # uses MAJOR.MINOR for now (e.g. deepstream-9.2/); strip the patch for paths.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 # update-alternatives priority: MAJOR*10000 + MINOR*100 + PATCH

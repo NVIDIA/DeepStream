@@ -42,7 +42,7 @@ LIB:=libnvdsgst_preprocess.so
 
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -std=c++17 -Wall -Werror -DDS_VERSION=\"9.2.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I include \
 	 -I ../../../includes

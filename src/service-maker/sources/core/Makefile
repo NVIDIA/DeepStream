@@ -51,7 +51,7 @@ LIB:=libnvds_service_maker.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DHAVE_CONFIG_H -DHAVE_X11 -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DHAVE_CONFIG_H -DHAVE_X11 -DDS_VERSION=\"9.2.1\" \
 	 -Wall -Wno-deprecated-declarations \
 	 -I../../includes \
 	 -I../../includes/lib \

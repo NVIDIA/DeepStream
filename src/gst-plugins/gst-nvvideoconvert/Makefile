@@ -35,7 +35,7 @@ GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugi
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 CFLAGS:= -fPIC -ansi -std=c99 -DHAVE_CONFIG_H -DNEW_METADATA \
-	 -Wunused-function -Wunused-variable -Wall -DDS_VERSION=\"9.2.0\"
+	 -Wunused-function -Wunused-variable -Wall -DDS_VERSION=\"9.2.1\"
 
 CFLAGS+= -I../../../includes \
 	 -I/usr/local/cuda-$(CUDA_VER)/include

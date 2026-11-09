@@ -23,7 +23,7 @@ LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
 CFLAGS:= -Wall -std=c++11 -shared -fPIC
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.2\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.2.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../../includes
 

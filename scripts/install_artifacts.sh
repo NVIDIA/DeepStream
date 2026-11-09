@@ -31,12 +31,12 @@
 # Usage:
 #   sudo bash scripts/install_artifacts.sh
 #   sudo INSTALL_METHOD=tar bash scripts/install_artifacts.sh
-#   sudo NVDS_VERSION=9.2.0 bash scripts/install_artifacts.sh
+#   sudo NVDS_VERSION=9.2.1 bash scripts/install_artifacts.sh
 #   sudo PLATFORM=x86 bash scripts/install_artifacts.sh
 #
 # Environment:
 #   INSTALL_METHOD            deb (default) | tar
-#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.0); the install
+#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.1); the install
 #                             tree uses MAJOR.MINOR only. GitHub Release
 #                             proprietary-libs / sample-data assets are always
 #                             fetched from the v9.2.0 release (hardcoded;
@@ -64,9 +64,9 @@ GITHUB_RELEASE_TAG="9.2.0"
 GITHUB_ASSET_VERSION="9.2.0"
 
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"

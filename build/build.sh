@@ -142,7 +142,7 @@ Packaging (--package / --package-format=):
 
 Environment variables (alternative to CLI):
   CUDA_VER                Toolkit directory version (13.0 IGX; 13.4 SBSA; 13.2 otherwise)
-  NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.0); the install
+  NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.1); the install
                           tree uses MAJOR.MINOR only. GitHub Release
                           proprietary-libs / sample-data assets are always
                           fetched from the v9.2.0 release (hardcoded; not
@@ -248,7 +248,7 @@ KEEP_ASSETS=0
 ONLY_STAGES=()
 JOBS=$(nproc 2>/dev/null || echo 4)
 CUDA_VER=${CUDA_VER:-$CUDA_VER_DEFAULT}
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 DO_PACKAGE=0
 PACKAGE_FORMAT=both
@@ -370,12 +370,12 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). MAJOR.MINOR alone is
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). MAJOR.MINOR alone is
 # rejected so install paths and packaging stay unambiguous; the install tree
 # and every downstream make/install.sh invocation use the truncated
 # MAJOR.MINOR form below.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"

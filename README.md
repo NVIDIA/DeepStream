@@ -74,6 +74,8 @@ See [`src/README.md`](src/README.md) for component-specific READMEs, prerequisit
 
 For the TensorRT 11 upgrade targets and packaging an existing complete SDK
 runtime with these sources, see [the upgrade build workflow](build/BUILD.md#tensorrt-11-upgrade-branch).
+This branch defaults source builds and packages to **9.2.1**, retaining the
+`deepstream-9.2` install directory. Published asset versions below are unchanged.
 The published baseline below is not qualification of the upgrade branch.
 
 | Platform | Architecture | Notes |

@@ -38,7 +38,7 @@
 #   --keep-stage            Do not delete the staging dir on exit
 #
 # Environment overrides (CLI flags take precedence):
-#   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.0)
+#   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -46,13 +46,13 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). MAJOR.MINOR alone is
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). MAJOR.MINOR alone is
 # rejected. The install tree and deb package name still stay at MAJOR.MINOR for
 # now; PKG_VERSION and output filenames use the full version.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"
@@ -97,7 +97,7 @@ Options:
   --include-untracked-sources Include non-ignored new source files for local testing
 
 Environment overrides (CLI flags take precedence):
-  NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.0)
+  NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
 EOF
 }

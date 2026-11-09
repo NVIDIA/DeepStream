@@ -39,7 +39,7 @@ LIB:=libpostprocess_impl.so
 
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.2.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../../includes -I../includes  -I../../eigen/ -I./
 

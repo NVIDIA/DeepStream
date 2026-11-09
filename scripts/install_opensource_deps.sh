@@ -41,13 +41,13 @@
 #             nlohmann-json, Eigen, OpenCV)
 #
 # Usage:
-#   sudo PLATFORM=x86 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.0]
-#   sudo PLATFORM=aarch64 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.0]
-#   sudo PLATFORM=sbsa bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.0]
+#   sudo PLATFORM=x86 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.1]
+#   sudo PLATFORM=aarch64 bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.1]
+#   sudo PLATFORM=sbsa bash scripts/install_opensource_deps.sh [NVDS_VERSION=9.2.1]
 #     (SBSA/DGX Spark Docker: stages 1–3 and 5–7 skipped; azure-iot still built)
 #
 # Environment:
-#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.0).
+#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.1).
 #                             Install path still uses MAJOR.MINOR for now.
 #   RESUME=1                  Skip stages already marked DONE (used by build.sh --resume).
 #                             Default 0: always rebuild/install; stage state is reset first.
@@ -57,11 +57,11 @@ set -e
 
 export DEBIAN_FRONTEND=noninteractive
 
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). MAJOR.MINOR alone is
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). MAJOR.MINOR alone is
 # rejected. Install tree still uses MAJOR.MINOR for now (e.g. deepstream-9.2/).
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_VERSION="${NVDS_VERSION%.*}"

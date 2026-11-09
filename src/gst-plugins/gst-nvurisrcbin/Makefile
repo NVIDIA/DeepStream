@@ -38,7 +38,7 @@ LIB:=libnvdsgst_nvurisrcbin.so
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream/lib/gst-plugins/
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.2.1\" \
      -I../../../includes \
      -I../../apps/common/includes/ \
  	 -I/usr/local/cuda-$(CUDA_VER)/include \

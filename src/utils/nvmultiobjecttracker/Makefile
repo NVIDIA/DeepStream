@@ -41,7 +41,7 @@ NVCC:= /usr/local/cuda-$(CUDA_VER)/bin/nvcc
 NVDS_VERSION:=9.2
 NVDS_VERSION_MAJOR:=9
 NVDS_VERSION_MINOR:=2
-NVDS_VERSION_MICRO:=0
+NVDS_VERSION_MICRO:=1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 VPI_DIR?=/opt/nvidia/vpi4
