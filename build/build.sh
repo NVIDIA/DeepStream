@@ -1157,8 +1157,6 @@ if begin_stage tao_apps; then
   else
     echo "==> git submodules already initialized"
   fi
-  run_as_root cp  src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/Makefile.nvocdr \
-    src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/nvocdr/deepstream/Makefile
   run_submake -C src/apps/tao_apps "${MK[@]}" || FAILED_BUILDS+=("src/apps/tao_apps")
   if ! stage_had_failures "$_fb_before"; then
     finish_stage tao_apps

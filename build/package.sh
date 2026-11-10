@@ -253,11 +253,12 @@ DS_ROOT="$STAGE_DIR/$DS_REL"
 for sub in bin lib samples service-maker LicenseAgreement.pdf; do
   require "$DS_INSTALL_ROOT/$sub" "$DS_INSTALL_ROOT/$sub"
 done
-# Runtime directories must be materialized before packaging. Preserving a
-# directory symlink with cp -a would redirect later overlays/pruning back into
-# the input (or an unrelated absolute path), not into disposable staging.
-# Ordinary library/file symlinks are retained; colliding overlay files are
-# replaced without following their previous destination below.
+# Directory aliases in writable runtime trees can redirect overlays into the
+# input. Keep those trees materialized, except for relative sample aliases whose
+# targets stay in samples. Normalize accepted aliases in staging before writes;
+# ordinary library/file symlinks and the input SDK itself remain unchanged.
+_sample_dir_links=()
+_sample_dir_targets=()
 if [[ -L "$DS_INSTALL_ROOT/sources" ]]; then
   echo 'error: runtime sources is a directory symlink; supply a materialized SDK tree' >&2
   exit 1
@@ -271,11 +272,70 @@ for sub in bin lib samples service-maker sources/sparse4d; do
   fi
   [[ -d "$_runtime_tree" ]] || { echo "error: runtime directory required: $_runtime_tree" >&2; exit 1; }
   while IFS= read -r -d '' _runtime_link; do
+    if [[ "$sub" = samples ]]; then
+      # A broken link or resolution loop cannot be classified as a safe file or
+      # directory alias. Fail before discarding an existing package stage.
+      if ! _runtime_target=$(realpath -e -- "$_runtime_link"); then
+        echo "error: unresolved runtime symlink: $_runtime_link" >&2
+        exit 1
+      fi
+    fi
     if [[ -d "$_runtime_link" ]]; then
+      _runtime_value=$(readlink -- "$_runtime_link")
+      if [[ "$sub" = samples && "$_runtime_value" != /* &&
+            "$_runtime_target/" = "$_runtime_tree/"* ]]; then
+        # Reject paths that escape and re-enter samples: their meaning can
+        # change when copied underneath a differently prefixed staging root.
+        _runtime_relative=${_runtime_link#"$DS_INSTALL_ROOT/samples/"}
+        _runtime_depth=0
+        if [[ "$_runtime_relative" = */* ]]; then
+          IFS=/ read -r -d '' -a _runtime_parts < <(printf '%s\0' "${_runtime_relative%/*}")
+          _runtime_depth=${#_runtime_parts[@]}
+        fi
+        IFS=/ read -r -d '' -a _runtime_parts < <(printf '%s\0' "$_runtime_value")
+        for _runtime_part in "${_runtime_parts[@]}"; do
+          case "$_runtime_part" in
+            ''|.) ;;
+            ..)
+              if [[ "$_runtime_depth" -eq 0 ]]; then
+                echo "error: runtime directory symlink escapes samples: $_runtime_link" >&2
+                exit 1
+              fi
+              _runtime_depth=$((_runtime_depth - 1))
+              ;;
+            *) _runtime_depth=$((_runtime_depth + 1)) ;;
+          esac
+        done
+        _sample_dir_links+=("${_runtime_link#"$DS_INSTALL_ROOT/"}")
+        _sample_dir_targets+=("${_runtime_target#"$DS_INSTALL_ROOT/"}")
+        continue
+      fi
       echo "error: runtime directory symlink: $_runtime_link; supply a materialized SDK tree" >&2
       exit 1
     fi
   done < <(find -P "$_runtime_tree" -type l -print0)
+done
+
+# realpath detects link-resolution loops, but not directory graphs such as
+# a/self -> . or a/to_b -> ../b combined with b/to_a -> ../a. Reject those too,
+# while allowing multiple aliases to share the same acyclic model directory.
+_sample_dir_states=()
+check_sample_directory_graph() {
+  local index=$1 next
+  case "${_sample_dir_states[index]:-0}" in
+    1) echo "error: cyclic runtime directory symlink: ${_sample_dir_links[index]}" >&2; exit 1 ;;
+    2) return 0 ;;
+  esac
+  _sample_dir_states[index]=1
+  for next in "${!_sample_dir_links[@]}"; do
+    if [[ "${_sample_dir_links[next]}" = "${_sample_dir_targets[index]}/"* ]]; then
+      check_sample_directory_graph "$next"
+    fi
+  done
+  _sample_dir_states[index]=2
+}
+for _sample_index in "${!_sample_dir_links[@]}"; do
+  check_sample_directory_graph "$_sample_index"
 done
 require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT $PACKAGE_TRT_MAJOR SDK inference runtime"
 command -v readelf >/dev/null || { echo "error: readelf (binutils) is required to verify runtime inputs" >&2; exit 1; }
@@ -396,6 +456,14 @@ fi
 log "Staging runtime (bin, lib, samples, service-maker, LicenseAgreement.pdf)"
 for item in bin lib samples service-maker LicenseAgreement.pdf; do
   copy_into "$DS_INSTALL_ROOT/$item" "$DS_ROOT"
+done
+# Canonical relative aliases point only into the copied samples tree, even when
+# the original traversed other aliases. Never rewrite a link in the input SDK.
+for _sample_index in "${!_sample_dir_links[@]}"; do
+  _sample_link="$DS_ROOT/${_sample_dir_links[_sample_index]}"
+  _sample_target="$DS_ROOT/${_sample_dir_targets[_sample_index]}"
+  _sample_value=$(realpath --relative-to="${_sample_link%/*}" -- "$_sample_target")
+  ln -sfn -- "$_sample_value" "$_sample_link"
 done
 # Keep only the top-level license; the duplicate bundled with samples is excluded.
 rm -f "$DS_ROOT/samples/LicenseAgreement.pdf"

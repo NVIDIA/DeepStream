@@ -44,10 +44,10 @@ SRCFILES:= nvds_stats.cpp
 
 TARGET_LIB:= libnvds_stats.so
 
-NVML_LIB:= -lnvidia-ml
+# CUDA stubs supply the NVML linker name on x86/SBSA, not a runtime library.
+# Keep this directory out of runtime search paths. Jetson retains its BSP library.
+NVML_LIB:= -L/usr/local/cuda-$(CUDA_VER)/lib64/stubs -lnvidia-ml
 
-# Jetson needs its architecture-specific NVML location. SBSA provides the
-# standard linker name, so preserve the default when build.sh sets this flag.
 ifeq ($(TARGET_DEVICE),aarch64)
 ifneq ($(AARCH64_IS_SBSA),1)
 	NVML_LIB:= /usr/lib/aarch64-linux-gnu/nvidia/libnvidia-ml.so.1
@@ -60,8 +60,8 @@ LIBS:= -shared -Wl,-no-undefined \
 
 all: $(TARGET_LIB)
 
-$(TARGET_LIB): $(SRCFILES)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+$(TARGET_LIB): $(SRCFILES) Makefile
+	$(CC) -o $@ $(SRCFILES) $(CFLAGS) $(LIBS)
 
 install: $(TARGET_LIB)
 	cp -rv $(TARGET_LIB) $(LIB_INSTALL_DIR)

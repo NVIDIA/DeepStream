@@ -149,7 +149,15 @@ echo "PYBIND11_ROOT: $PYBIND11_ROOT"
 echo "DLPACK_ROOT: $DLPACK_ROOT"
 echo "TARGET_ARCH: ${TARGET_ARCH:-native}"
 echo "CMAKE_ARGS: $CMAKE_ARGS"
-cd "$SCRIPT_DIR/src" || exit $?
+# setuptools creates egg-info in the project directory even with --outdir.
+# Build from a private copy so metadata and intermediates never modify sources;
+# the absolute header paths above still select this checkout's matching headers.
+mkdir "$WHEEL_BUILD_DIR/src"
+tar -C "$SCRIPT_DIR/src" --exclude='./build' --exclude='./dist' \
+    --exclude='./*.egg-info' --exclude='__pycache__' --exclude='*.pyc' \
+    --exclude='./pyservicemaker/_pydeepstream*.so' -cf - . \
+    | tar -C "$WHEEL_BUILD_DIR/src" -xf -
+cd "$WHEEL_BUILD_DIR/src" || exit $?
 
 if "$PYTHON_VER" -m build --outdir "$WHEEL_BUILD_DIR"; then
     :

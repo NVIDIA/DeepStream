@@ -226,6 +226,98 @@ class PackageFlowTests(unittest.TestCase):
         self.assert_no_build_or_install()
 
     @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_internal_sample_directory_aliases_package_without_input_changes(self):
+        model = self.runtime / "samples/triton_model_repo/Primary_Detector/model.bin"
+        self.write(model, b"model alias fixture\x00\xff")
+        aliases = {
+            "triton_tao_model_repo/Primary_Detector": "../triton_model_repo/Primary_Detector",
+            "trtis_model_repo": "triton_model_repo",
+            "another_model_repo": "triton_model_repo",
+            "chained_model_repo": "another_model_repo",
+        }
+        for relative, target in aliases.items():
+            link = self.runtime / "samples" / relative
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(target, target_is_directory=True)
+        self.run_command(self.package_command("--keep-stage"))
+        archive = next(self.output.glob("*.tbz2"))
+        with tarfile.open(archive) as packaged:
+            for relative, target in aliases.items():
+                original = self.runtime / "samples" / relative
+                staged = self.stage / SDK_PATH / "samples" / relative
+                self.assertEqual(original.readlink(), Path(target))
+                self.assertTrue(staged.is_symlink())
+                expected = (self.stage / SDK_PATH / "samples/triton_model_repo" /
+                            ("Primary_Detector" if relative.endswith("Primary_Detector") else ""))
+                self.assertEqual(staged.resolve(), expected.resolve())
+                entry = packaged.getmember(f"{SDK_PATH}/samples/{relative}")
+                self.assertTrue(entry.issym())
+                self.assertEqual(entry.linkname, str(staged.readlink()))
+        self.assertEqual(model.read_bytes(), b"model alias fixture\x00\xff")
+        self.assertTrue((self.stage / SDK_PATH / "lib/libfixture.so").is_symlink())
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_sample_alias_overlays_and_pruning_change_only_staging(self):
+        configs = self.runtime / "samples/original-configs"
+        foreign = configs / "source1_csi_dec_infer_resnet.txt"
+        self.write(foreign, "input configuration must survive\n")
+        alias = self.runtime / "samples/configs/deepstream-app"
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to("../original-configs", target_is_directory=True)
+        (self.runtime / "samples/modelopt").symlink_to("models", target_is_directory=True)
+        self.run_command(self.package_command("--keep-stage"))
+        staged = self.stage / SDK_PATH / "samples"
+        self.assertFalse((staged / "configs/deepstream-app" / foreign.name).exists())
+        self.assertEqual(foreign.read_text(), "input configuration must survive\n")
+        self.assertTrue((staged / "modelopt/prepare_model.py").is_file())
+        self.assertFalse((self.runtime / "samples/models/prepare_model.py").exists())
+        self.assertEqual(alias.readlink(), Path("../original-configs"))
+        self.assert_no_build_or_install()
+
+    def test_unsafe_sample_directory_aliases_preserve_input_and_existing_stage(self):
+        marker = self.stage / "must-survive.txt"
+        self.write(marker, "preserve existing stage\n")
+        self.write(Path(str(self.stage) + ".deepstream-package-owner"), str(self.repo.resolve()) + "\n")
+        inside = self.runtime / "samples/model-data"
+        outside = self.root / "external-model-data"
+        self.write(inside / "model.bin", b"inside model")
+        self.write(outside / "model.bin", b"external model")
+        link = self.runtime / "samples/alias"
+        # The last target escapes to / and re-enters the original samples tree.
+        # Canonical input containment alone would accept it, but cp -a would
+        # preserve a route out of disposable staging back to the original SDK.
+        reentry = "../" * (len(link.parent.parts) + 2) + str(inside).lstrip("/")
+        targets = (str(inside), str(outside), "../../external-model-data", reentry,
+                   "missing-directory", ".", "alias")
+        for target in targets:
+            with self.subTest(target=target):
+                self.write(marker, "preserve existing stage\n")
+                link.symlink_to(target, target_is_directory=True)
+                try:
+                    result = self.run_command(self.package_command(), expected=None)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertTrue(marker.is_file(), "rejected input discarded existing stage")
+                    self.assertEqual((inside / "model.bin").read_bytes(), b"inside model")
+                    self.assertEqual((outside / "model.bin").read_bytes(), b"external model")
+                finally:
+                    link.unlink()
+        self.assert_no_build_or_install()
+
+    def test_sample_directory_alias_graph_cycles_are_rejected(self):
+        first = self.runtime / "samples/first/link"
+        second = self.runtime / "samples/second/link"
+        first.parent.mkdir(parents=True)
+        second.parent.mkdir(parents=True)
+        first.symlink_to("../second", target_is_directory=True)
+        second.symlink_to("../first", target_is_directory=True)
+        result = self.run_command(self.package_command(), expected=None)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertFalse(self.stage.exists())
+        self.assertFalse(self.output.exists())
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
     def test_runtime_root_symlink_alias_is_supported(self):
         alias = self.root / "runtime-root-alias"
         alias.symlink_to(self.runtime, target_is_directory=True)
@@ -765,6 +857,204 @@ class PackageFlowTests(unittest.TestCase):
         self.assertIn("libnvinfer11 (>= 11.4.1.31)", dependencies)
         self.assertIn("libnvinfer11 (<< 11.4.1.32)", dependencies)
         self.assert_no_build_or_install()
+
+
+@unittest.skipUnless(shutil.which("make"), "requires make for owned build fixtures")
+class BuildSourcePurityTests(unittest.TestCase):
+    """Execute real build entrypoints with local, non-installing tool fixtures."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="ds-source-purity-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        self.tools = self.root / "tools"
+        self.tools.mkdir()
+        self.scratch = self.root / "scratch"
+        self.scratch.mkdir()
+        self.trace = self.root / "trace"
+        self.env = os.environ.copy()
+        for key in ("BASH_ENV", "ENV", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "CMAKE_ARGS",
+                    "CUDA_VER", "PREBUILT_SO", "_PYTHON_HOST_PLATFORM", "ARCHFLAGS"):
+            self.env.pop(key, None)
+        self.env.update(PATH=str(self.tools) + os.pathsep + self.env["PATH"],
+                        TMPDIR=str(self.scratch), PURITY_TRACE=str(self.trace))
+        for command in ("sudo", "apt", "apt-get", "pip", "pip3", "curl", "wget", "cmake"):
+            self.write(self.tools / command, "#!/bin/bash\nexit 97\n", executable=True)
+
+    write = staticmethod(PackageFlowTests.write)
+
+    def run_command(self, command, cwd=None, expected=0):
+        run = subprocess.run(command, cwd=cwd or self.repo, env=self.env, text=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+        if expected is not None:
+            self.assertEqual(run.returncode, expected, run.stdout)
+        return run
+
+    def make_python_fixture(self):
+        python = self.repo / "src/service-maker/sources/python"
+        python.mkdir(parents=True)
+        shutil.copy2(BUILD_DIR.parent / "src/service-maker/sources/python/build.sh", python)
+        self.project = python / "src"
+        self.write(self.project / "pyservicemaker/module.py", "# source fixture\n")
+        self.write(self.project / "bindings/source.h", "// binding fixture\n")
+        self.write(self.project / "pyservicemaker.egg-info/PKG-INFO", "existing metadata\n")
+        self.write(self.project / "build/stale.o", "existing build product\n")
+        self.write(self.project / "dist/pyservicemaker-stale.whl", "stale wheel\n")
+        self.write(self.project / "pyservicemaker/_pydeepstream.so", "stale extension\n")
+        for headers in (self.repo / "src/service-maker/includes", self.repo / "includes"):
+            self.write(headers / "fixture.h", "// matching checkout headers\n")
+        self.env["PURITY_PROJECT"] = str(self.project)
+        self.env["PURITY_SM_INCLUDE"] = str(self.repo / "src/service-maker/includes")
+        self.env["PURITY_DS_INCLUDE"] = str(self.repo / "includes")
+        interpreter = '''#!/bin/bash
+set -e
+printf '%s\\n' "$PWD" >> "$PURITY_TRACE"
+[[ "$1 $2 $3" == '-m build --outdir' ]]
+[[ "$PWD" != "$PURITY_PROJECT" ]]
+cmp pyservicemaker/module.py "$PURITY_PROJECT/pyservicemaker/module.py"
+cmp bindings/source.h "$PURITY_PROJECT/bindings/source.h"
+[[ ! -e pyservicemaker.egg-info && ! -e build && ! -e dist ]]
+[[ ! -e pyservicemaker/_pydeepstream.so ]]
+[[ "$CMAKE_ARGS" == *"-DSM_INCLUDE_DIR=$PURITY_SM_INCLUDE"* ]]
+[[ "$CMAKE_ARGS" == *"-DDS_INCLUDE_DIR=$PURITY_DS_INCLUDE"* ]]
+[[ -f "$PURITY_SM_INCLUDE/fixture.h" && -f "$PURITY_DS_INCLUDE/fixture.h" ]]
+if [[ "${_PYTHON_HOST_PLATFORM:-}" == linux-aarch64 ]]; then
+    [[ "$CMAKE_ARGS" == *"-DCMAKE_TOOLCHAIN_FILE="* ]]
+    [[ -f "${CMAKE_ARGS##*-DCMAKE_TOOLCHAIN_FILE=}" ]]
+fi
+mkdir -p pyservicemaker.egg-info build
+printf 'new metadata\\n' > pyservicemaker.egg-info/PKG-INFO
+if [[ "${PURITY_BUILD_STATUS:-0}" != 0 ]]; then exit "$PURITY_BUILD_STATUS"; fi
+for ((i=0; i<${PURITY_WHEEL_COUNT:-1}; i++)); do
+    printf 'fresh wheel %s\\n' "$i" > "$4/pyservicemaker-$i.whl"
+done
+'''
+        for name in ("python3", "python3.12"):
+            self.write(self.tools / name, interpreter, executable=True)
+        self.output = self.root / "wheels"
+        self.output.mkdir()
+        return ["bash", str(python / "build.sh"), "--output-dir", str(self.output)]
+
+    def assert_python_sources_unchanged(self):
+        self.assertEqual((self.project / "pyservicemaker.egg-info/PKG-INFO").read_text(),
+                         "existing metadata\n")
+        self.assertEqual((self.project / "build/stale.o").read_text(), "existing build product\n")
+        self.assertEqual((self.project / "dist/pyservicemaker-stale.whl").read_text(), "stale wheel\n")
+        self.assertEqual((self.project / "pyservicemaker/_pydeepstream.so").read_text(), "stale extension\n")
+        self.assertEqual(list(self.scratch.iterdir()), [], "private build must be cleaned")
+
+    def test_python_wheel_build_uses_private_source_and_matching_headers(self):
+        command = self.make_python_fixture()
+        for options in ([], ["--minor-ver", "12", "--arch", "aarch64"]):
+            with self.subTest(options=options):
+                self.run_command(command + options)
+                self.assertEqual((self.output / "pyservicemaker-0.whl").read_text(), "fresh wheel 0\n")
+                self.assert_python_sources_unchanged()
+
+    def test_python_wheel_failure_preserves_status_sources_and_existing_output(self):
+        command = self.make_python_fixture()
+        self.env["PURITY_BUILD_STATUS"] = "7"
+        self.write(self.output / "old.whl", "existing output\n")
+        self.run_command(command, expected=7)
+        self.assertEqual((self.output / "old.whl").read_text(), "existing output\n")
+        self.assert_python_sources_unchanged()
+
+    def test_python_wheel_requires_exactly_one_fresh_output(self):
+        command = self.make_python_fixture()
+        for count in ("0", "2"):
+            with self.subTest(count=count):
+                self.env["PURITY_WHEEL_COUNT"] = count
+                self.run_command(command, expected=1)
+                self.assertEqual(list(self.output.iterdir()), [])
+                self.assert_python_sources_unchanged()
+
+    def make_nvocdr_fixture(self):
+        source = BUILD_DIR.parent / "src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app"
+        app = self.repo / "app"
+        app.mkdir()
+        for name in ("Makefile", "Makefile.nvocdr"):
+            shutil.copy2(source / name, app / name)
+        self.write(app / "deepstream_nvocdr_app.cpp", "// app fixture\n")
+        self.write(self.repo / "common/ds_yml_parse.cpp", "// common fixture\n")
+        self.write(app / "nvocdr/Makefile",
+                   '.PHONY: all clean\nall:\n\t@echo core-all >> "$$PURITY_TRACE"\n'
+                   '\t@touch libnvocdr.so\nclean:\n\t@echo core-clean >> "$$PURITY_TRACE"\n'
+                   '\t@rm -f libnvocdr.so\n')
+        self.original_makefile = app / "nvocdr/deepstream/Makefile"
+        self.write(self.original_makefile, "$(error tracked submodule Makefile must stay unused)\n")
+        self.write(app / "nvocdr/deepstream/nvocdrlib_impl.cpp", "// wrapper fixture\n")
+        self.write(self.tools / "pkg-config", "#!/bin/bash\nexit 0\n", executable=True)
+        self.write(self.tools / "gcc", "#!/bin/bash\necho x86_64-linux-gnu\n", executable=True)
+        self.write(self.tools / "g++", '''#!/bin/bash
+set -e
+printf 'compile %s\\n' "$*" >> "$PURITY_TRACE"
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == -o ]]; then printf 'fixture binary\\n' > "$2"; exit 0; fi
+    shift
+done
+exit 96
+''', executable=True)
+        return app
+
+    def test_nvocdr_all_and_install_revisit_libraries_without_source_copy(self):
+        app = self.make_nvocdr_fixture()
+        original = self.original_makefile.read_bytes()
+        self.run_command(["make", "-j4", "CUDA_VER=13.4"], cwd=app)
+        wrapper = app / "nvocdr/deepstream/libnvocdr_impl.so"
+        self.assertTrue(wrapper.is_file())
+        wrapper.unlink()  # Remove only this fixture's generated output.
+        self.run_command(["make", "CUDA_VER=13.4"], cwd=app)
+        self.assertTrue(wrapper.is_file(), "current app must not skip missing library rebuild")
+        self.assertEqual(self.trace.read_text().count("core-all\n"), 2)
+        libraries, binaries = self.root / "lib", self.root / "bin"
+        libraries.mkdir()
+        binaries.mkdir()
+        self.run_command(["make", "install", "CUDA_VER=13.4",
+                          "LIB_INSTALL_DIR=" + str(libraries), "APP_INSTALL_DIR=" + str(binaries)], cwd=app)
+        for name in ("libnvocdr.so", "libnvocdr_impl.so"):
+            self.assertTrue((libraries / name).is_file())
+        self.assertTrue((binaries / "deepstream-nvocdr-app").is_file())
+        self.assertEqual(self.original_makefile.read_bytes(), original)
+
+    def test_nvocdr_provider_edits_recompile_and_clean_needs_no_cuda(self):
+        app = self.make_nvocdr_fixture()
+        wrapper = app / "nvocdr/deepstream"
+        provider = app / "Makefile.nvocdr"
+        self.run_command(["make", "-f", "../../Makefile.nvocdr", "CUDA_VER=13.4"], cwd=wrapper)
+        # Fixed fixture mtimes isolate the selected provider from the unused Makefile.
+        for path in (self.original_makefile, wrapper / "nvocdrlib_impl.cpp"):
+            os.utime(path, (1, 1))
+        for path in (wrapper / "nvocdrlib_impl.o", wrapper / "libnvocdr_impl.so"):
+            os.utime(path, (2, 2))
+        os.utime(provider, (3, 3))
+        previous = self.trace.read_text()
+        self.run_command(["make", "-f", "../../Makefile.nvocdr", "CUDA_VER=13.4"], cwd=wrapper)
+        self.assertGreater(self.trace.read_text().count("compile "), previous.count("compile "))
+        self.run_command(["make", "clean"], cwd=app)
+        self.assertFalse((wrapper / "libnvocdr_impl.so").exists())
+        self.assertFalse((wrapper / "nvocdrlib_impl.o").exists())
+        self.assertIn("core-clean\n", self.trace.read_text())
+        self.assertIn("must stay unused", self.original_makefile.read_text())
+
+    def test_tao_driver_stage_does_not_overwrite_submodule_makefile(self):
+        source = (BUILD_DIR / "build.sh").read_text()
+        stage = source.split("if begin_stage tao_apps; then\n", 1)[1].split(
+            "# Stage: reference_apps", 1)[0]
+        script = '''
+begin_stage() { return 0; }
+git() { printf ' initialized submodule\\n'; }
+run_as_root() { echo 'unexpected privileged source mutation' >&2; return 98; }
+run_submake() { printf '%s\\n' "$*" >> "$PURITY_TRACE"; }
+stage_had_failures() { return 1; }
+finish_stage() { :; }
+FAILED_BUILDS=()
+MK=()
+if begin_stage tao_apps; then
+''' + stage
+        self.run_command(["bash", "-ec", script])
+        self.assertIn("-C src/apps/tao_apps", self.trace.read_text())
 
 
 if __name__ == "__main__":

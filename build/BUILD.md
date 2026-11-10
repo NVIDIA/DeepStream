@@ -431,12 +431,18 @@ archive pair qualified separately for the legacy IGX stack; it guesses no URL
 and does not establish compatibility merely from matching release numbers.
 
 Supply materialized runtime directories (`bin`, `lib`, `samples`, `service-maker`
-and optional `sources/sparse4d`). Top-level and nested directory symlinks in those
-trees are rejected before an existing stage is changed: overlays and pruning
-must never follow an alias back into the input installation. A symlink alias for
-the `--package-from` root itself is resolved normally, and ordinary library/file
-symlinks are preserved. If a source overlay replaces a file symlink, it replaces
-the staged entry without writing through to the original target.
+and optional `sources/sparse4d`). Top-level directory aliases and nested directory
+aliases outside `samples` are rejected before an existing stage is changed.
+Within `samples`, relative directory aliases such as the Triton model-repository
+links are supported when their targets stay inside `samples`. Absolute aliases,
+paths escaping and re-entering `samples`, and cyclic directory graphs are
+rejected. All sample links must resolve; dangling links and resolution loops
+fail closed. Accepted directory aliases are normalized only in staging so that
+overlays and pruning cannot follow them into the input installation. The input
+SDK is not rewritten. A symlink alias for the `--package-from` root itself is
+resolved normally; ordinary library/file links are otherwise preserved. If a
+source overlay replaces a file symlink, it replaces the staged entry without
+writing through to the original target.
 
 The existing `build/.stage-state` now records platform, CUDA family, declared
 TensorRT/cuDNN versions, SDK version and explicitly supplied provider paths.
@@ -655,27 +661,55 @@ python3.12 build/validate_pr.py --stage full --headless --allow-system-changes
 The opt-in is significant: source/dependency builds can run sudo, APT and pip,
 install into `/opt`, and update the test environment. Model setup can download
 its isolated tool environment and rewrite sample models/configurations. The
-account must be able to write the test SDK's model/configuration directories;
-use an appropriately provisioned test container rather than broad chmod/chown.
+runner extracts the freshly built SDK tarball into a private, user-owned
+`runtime-sdk` beneath its report directory. Model conversion, locks, engines,
+sample configuration updates and the isolated tool cache use that workspace;
+the models/runtime stages do not change `/opt` ownership, the installed models,
+system Python or the canonical SDK symlink. Do not run the whole runner as root.
 The runner itself does not repair missing providers or change drivers/BSP.
 
 `full` runs CPU checks, the real source build/package with `--skip-artifacts`,
-explicit platform pins and no `--resume`, post-install ModelOpt setup, then two
+explicit platform pins and no `--resume`, workspace ModelOpt setup, then two
 source4 pipeline runs. It rejects old source objects rather than deleting them.
 Default public artifact downloads remain pinned to 9.2.0, so the matching
 9.2.1 runtime must be provisioned beforehand. This does **not** use
 `--package-from` as a substitute for compiling the PR.
 
 Individual stages are available with `--stage build`, `models`, or `runtime` and
-the same explicit opt-in. Runtime checks assert SDK 9.2.1, inspect selected plugin
-paths, import Service Maker 0.0.1 and require successful application completion,
+the same explicit opt-in. To retry after a successful build without compiling
+again:
+
+```bash
+python3.12 build/validate_pr.py --stage models --allow-system-changes
+# Use the runtime-sdk path printed above and recorded in runtime-workspace.json:
+python3.12 build/validate_pr.py --stage runtime --headless \
+  --runtime-workspace /absolute/path/to/previous-report/runtime-sdk \
+  --allow-system-changes
+```
+
+`models` defaults to this platform's tarball in `build/`; `--runtime-package`
+can explicitly select another matching tarball for this standalone stage. `full`
+always uses its own freshly built artifact. Extraction does not execute install
+scripts. Unsafe archive paths, external links and mismatched packaged ModelOpt
+helpers fail closed. The manifest records the package hash, helper identities,
+relocated workspace files and model-preparation status. Runtime requires the
+same successfully prepared workspace; it does not silently recreate an SDK and
+lose its engines. The private workspace/cache is retained for inspection and
+retry, not automatically deleted. A partial model setup is not a completed pass.
+
+Runtime checks assert SDK 9.2.1, inspect selected plugin and linked DS-library
+paths, import Service Maker 0.0.1 from the packaged wheel privately (no pip
+install), verify its Python/loaded DS-library providers, and require successful application completion,
 EOS and positive FPS from all four sources. `--headless` uses a unique temporary
-configuration beside the installed source4 config to preserve relative paths;
-only sink0 is changed to a clocked fakesink. The original is not modified and
+configuration beside the workspace source4 config to preserve relative paths;
+workspace-only SDK path relocation selects its own tracker library. Only sink0
+is changed to a clocked fakesink by the headless option. The source installation
+is not modified and
 the owned copy is removed afterward. Two runs are not automatically cold/warm
 benchmarks; engine-cache snapshots are recorded without deleting engines.
-`--service-maker-tests` also runs the existing pytest inference tests (requires
-pytest and additional GPU time). Import alone does not qualify Service Maker.
+`--service-maker-tests` also runs owned copies of the existing pytest inference
+tests, relocating only their SDK paths and selecting the packaged Python module
+(requires pytest and additional GPU time). Import alone does not qualify Service Maker.
 
 The aggregate `full` suite is x86-only because some existing CPU fixtures are
 x86-specific. Select the individual native build/models/runtime stages on

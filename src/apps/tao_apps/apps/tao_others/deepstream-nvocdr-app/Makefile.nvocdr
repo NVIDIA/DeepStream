@@ -15,6 +15,8 @@
 # limitations under the License.
 ################################################################################
 
+WRAPPER_MAKEFILE := $(lastword $(MAKEFILE_LIST))
+
 CUDA_VER?=
 # Require CUDA_VER for every goal except a clean-only invocation.
 # A bare `make` has empty MAKECMDGOALS and still checks.
@@ -70,11 +72,11 @@ LIBS+=$(shell pkg-config --libs $(PKGS))
 
 all: $(LIB)
 
-%.o: %.cpp $(INCS) Makefile
+%.o: %.cpp $(INCS) $(WRAPPER_MAKEFILE)
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(LIB): $(OBJS) $(DEP) Makefile
+$(LIB): $(OBJS) $(DEP) $(WRAPPER_MAKEFILE)
 	@echo $(CFLAGS)
 	$(CXX) -o $@ $(OBJS) $(LIBS)
 
