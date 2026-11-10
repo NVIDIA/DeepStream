@@ -72,12 +72,9 @@ With the support for de-packetization, `nvdsudpsrc` can now have five different 
 
     To reconstruct the RTP timestamp that nvdsudpsink sent, the sender and receiver hosts must have their system clocks (CLOCK_REALTIME) synchronized to the same time, normally by PTP, with the system clock on UTC. When `use-rtp-timestamp` is enabled, nvdsudpsrc offers the system clock to the pipeline. It converts between the pipeline clock and CLOCK_REALTIME using an offset taken when the first packet arrives, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
 
-  -  The `adjust-leap-seconds` property is used to subtract the leap-seconds (37) from the received RTP timestamp in TAI time, so that it matches the UTC time. Use it, if nvdsudpsrc is expected to receive RTP packets in TAI time and your pipeline is using UTC time for buffer PTS/DTS.
+  - The `adjust-leap-seconds` property is for RTP timestamps in TAI, which is 37 s ahead of UTC. It removes that difference from buffer PTS/DTS. It has no effect unless `use-rtp-timestamp` is enabled.
 
-     For most scenarios "nvdsudpsink" component will sent TAI time as RTP timestamps, so this property should be enabled. Exception comes when `pass-rtp-timestamp` is employed by `nvdsudpsink` and its upstream component does not provide timestamps in TAI time.
-     It is the user's responsibility to identify if TAI time based timestamps are expected in such cases.
-
-     If `use-rtp-timestamp` is not enabled, then `adjust-leap-seconds` will have no effect.
+    nvdsudpsink sends TAI RTP timestamps in most cases, so this property should normally be enabled. The exception is when nvdsudpsink uses `pass-rtp-timestamp` and the `GstRTPTimestampMeta` from its upstream component carries timestamps that are not TAI. It is the user's responsibility to identify which timestamps are expected in that case.
 
 System can also have Gstreamer provided OSS implementation of udp source (`udpsrc`) component. In that case system would have two implementations for udp source - `udpsrc` and `nvdsudpsrc`.
 `nvdsudpsrc` component can only be used with NVIDIA ConnectX-5 and above cards after having installed `Rivermax` SDK and its license.
@@ -264,7 +261,7 @@ In this mode, `nvdsudpsrc` depayloads RFC 8331 RTP packets back into ST2038 wire
   ```text
   gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> \
     local-iface-ip=<ip addr of NIC> \
-    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    use-rtp-timestamp=1 adjust-leap-seconds=1 header-size=20 \
     caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
     ! identity silent=0 ! fakesink dump=true -v
   ```
@@ -275,7 +272,7 @@ In this mode, `nvdsudpsrc` depayloads RFC 8331 RTP packets back into ST2038 wire
   gst-launch-1.0 nvdsudpsrc \
     st2022-7-streams=<address1>:<port1>,<address2>:<port2> \
     local-iface-ip=<ip addr of NIC1>,<ip addr of NIC2> \
-    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    use-rtp-timestamp=1 adjust-leap-seconds=1 header-size=20 \
     caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
     ! identity silent=0 ! fakesink dump=true -v
   ```

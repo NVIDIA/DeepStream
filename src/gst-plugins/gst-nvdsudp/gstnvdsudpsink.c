@@ -2033,9 +2033,10 @@ init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
     } else {
       GST_DEBUG_OBJECT (sink, "No RTP timestamp metadata found");
       /* Fall back to legacy method; may differ slightly from actual rtp_ticks. */
-      sParams->timestampTick = time_to_rtp_timestamp (sParams->firstPacketTime,
-          sParams->sampleRate);
       sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
+      sParams->timestampTick = time_to_rtp_timestamp (
+          sParams->firstPacketTime + sParams->pass_rtp_ts_offset,
+          sParams->sampleRate);
     }
 
     if (sink->rtp_timestamp_offset > 0) {
