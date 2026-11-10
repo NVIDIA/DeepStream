@@ -16,9 +16,36 @@
 
 set -e
 
+# Neither legacy JetPack26.04 archives nor stock SBSA26.10 inputs qualify the
+# JetPack7.2.2/TRT11.4.1 target. Require a reviewed explicit server/client pair
+# for either ARM path before mkdir, APT, download or any host mutation.
+case "${DEEPSTREAM_VARIANT:-${PLATFORM:-}}" in
+    sbsa) TRITON_SETUP_SBSA=1 ;;
+    jetson|tegra|aarch64) TRITON_SETUP_SBSA=0 ;;
+    "")
+        TRITON_SETUP_SBSA=0
+        if [[ "$(uname -m)" == aarch64 && ! -f /etc/nv_tegra_release ]]; then
+            TRITON_SETUP_SBSA=1
+        fi
+        ;;
+    *) echo 'Select DEEPSTREAM_VARIANT=jetson|tegra|sbsa for ARM backend setup' >&2; exit 1 ;;
+esac
+if [[ -z "${TRITON_PKG_PATH:-}" || -z "${TRITON_CLIENT_SDK_PKG_PATH:-}" ]]; then
+    if [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
+        echo 'SBSA uses the matching Triton26.10 ARM64 container/runtime, not the JetPack26.04 archive default.' >&2
+    else
+        echo 'Jetson requires explicit JetPack7.2.2/TRT11.4.1-qualified server/client archives; the legacy26.04 pair is not a fallback.' >&2
+    fi
+    echo 'An archive install requires explicit matching TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH; no image is pulled by this script.' >&2
+    exit 1
+fi
+if [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
+    echo 'Explicit SBSA Triton archive overrides selected; target compatibility remains unverified.' >&2
+else
+    echo 'Explicit Jetson Triton archive overrides selected; target compatibility remains unverified.' >&2
+fi
+
 TRITON_DOWNLOADS=/tmp/triton_server_downloads
-TRITON_PKG_PATH=${TRITON_PKG_PATH:=https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip}
-TRITON_CLIENT_SDK_PKG_PATH=${TRITON_CLIENT_SDK_PKG_PATH:=https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip}
 TRITON_BACKEND_DIR=/opt/tritonserver/backends
 DEEPSTREAM_LIB_DIR=${DEEPSTREAM_LIB_DIR:=/opt/nvidia/deepstream/deepstream/lib}
 TRITON_SERVER_BIN=/opt/tritonserver/bin

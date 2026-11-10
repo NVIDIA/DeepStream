@@ -42,7 +42,9 @@ class PackageFlowTests(unittest.TestCase):
         for name in ("build.sh", "package.sh"):
             shutil.copy2(BUILD_DIR / name, self.repo / "build" / name)
         self.env = os.environ.copy()
-        for name in ("NVDS_VERSION", "PKG_VERSION", "CUDA_VER", "BASH_ENV", "ENV"):
+        for name in ("NVDS_VERSION", "PKG_VERSION", "CUDA_VER", "TRT_VER", "CUDNN_VERSION",
+                     "SKIP_SPARSE4D_OCR", "DEEPSTREAM_VARIANT", "PLATFORM",
+                     "TRITON_PKG_PATH", "TRITON_CLIENT_SDK_PKG_PATH", "BASH_ENV", "ENV"):
             self.env.pop(name, None)
         self.env["NVDS_VERSION"] = "9.2.0"
         self.env["CUDA_VER"] = "13.2"
@@ -123,7 +125,9 @@ class PackageFlowTests(unittest.TestCase):
             )
         for helper in ("prepare_classification_test_video.sh", "prepare_ds_triton_tao_model_repo.sh",
                        "prepare_ds_triton_model_repo.sh", "triton_backend_setup.sh"):
-            files[f"scripts/{helper}"] = "#!/bin/bash\nexit 98 # package only\n"
+            files[f"scripts/{helper}"] = "#!/bin/bash\nset -e\nexit 98 # package only\n"
+        files["scripts/triton_backend_setup.sh"] = (
+            BUILD_DIR.parent / "scripts/triton_backend_setup.sh").read_text()
         for helper in ("prepare_model.py", "prepare_samples.py", "requirements.txt", "README.md"):
             files[f"tools/modelopt/{helper}"] = "model preparation fixture; never executed\n"
         for path, content in files.items():
@@ -186,6 +190,85 @@ class PackageFlowTests(unittest.TestCase):
                                 f"--package-from={self.root / 'absent'}"], expected=None)
         self.assertNotEqual(run.returncode, 0, run.stdout)
         self.assertIn("missing", run.stdout.lower())
+        self.assert_no_build_or_install()
+
+    def test_runtime_directory_symlinks_rejected_before_staging_changes(self):
+        marker = self.stage / "must-survive.txt"
+        self.write(marker, "owned staging must remain unchanged on rejected input\n")
+        self.write(Path(str(self.stage) + ".deepstream-package-owner"), str(self.repo.resolve()) + "\n")
+        for relative in ("bin", "lib", "samples", "service-maker", "samples/configs/deepstream-app",
+                         "sources", "sources/sparse4d", "sources/sparse4d/configs"):
+            with self.subTest(relative=relative):
+                original = self.runtime / relative
+                original.mkdir(parents=True, exist_ok=True)
+                external = self.root / ("external-" + relative.replace("/", "-"))
+                original.rename(external)
+                original.symlink_to(external, target_is_directory=True)
+                sentinel = external / "LicenseAgreement.pdf"
+                self.write(sentinel, "runtime input must not be modified\n")
+                try:
+                    result = self.run_command(self.package_command(), expected=None)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn("directory symlink", result.stdout)
+                    self.assertTrue(sentinel.is_file(), "input was modified through a stage symlink")
+                    self.assertTrue(marker.is_file(), "rejected input discarded the existing stage")
+                finally:
+                    original.unlink()
+                    external.rename(original)
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_runtime_root_symlink_alias_is_supported(self):
+        alias = self.root / "runtime-root-alias"
+        alias.symlink_to(self.runtime, target_is_directory=True)
+        self.run_command(self.package_command(f"--runtime-root={alias}", "--keep-stage"))
+        self.assertTrue((self.stage / SDK_PATH / "lib/libfixture.so").is_symlink())
+        self.assertEqual((self.runtime / "lib/libfixture.so").readlink(), Path("libfixture.so.1"))
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_source_overlay_replaces_file_symlink_without_modifying_target(self):
+        original = self.root / "external-service-source"
+        self.write(original, "private runtime input must survive source overlay\n")
+        destination = self.runtime / "service-maker/sources/core/Makefile"
+        destination.parent.mkdir(parents=True)
+        destination.symlink_to(original)
+        self.run_command(self.package_command("--keep-stage"))
+        self.assertEqual(original.read_text(), "private runtime input must survive source overlay\n")
+        staged = self.stage / SDK_PATH / "service-maker/sources/core/Makefile"
+        self.assertFalse(staged.is_symlink())
+        self.assertIn("INC_DIR?=", staged.read_text())
+        self.assert_no_build_or_install()
+
+    def test_jetson_triton_setup_requires_both_providers_before_mutation(self):
+        setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
+        command = ["bash", "-c",
+                   'mkdir() { echo PREPARATION_REACHED; return 97; }; '
+                   'export -f mkdir; exec bash "$1"', "guarded-setup", str(setup)]
+        server = "https://example.invalid/v2.74.0/server.zip"
+        client = "https://example.invalid/v2.74.0/client.zip"
+        for variant in ("jetson", "tegra", "aarch64"):
+            self.env["DEEPSTREAM_VARIANT"] = variant
+            for providers in ({}, {"TRITON_PKG_PATH": server},
+                              {"TRITON_CLIENT_SDK_PKG_PATH": client},
+                              {"TRITON_PKG_PATH": "", "TRITON_CLIENT_SDK_PKG_PATH": client}):
+                with self.subTest(variant=variant, providers=providers):
+                    self.env.pop("TRITON_PKG_PATH", None)
+                    self.env.pop("TRITON_CLIENT_SDK_PKG_PATH", None)
+                    self.env.update(providers)
+                    result = self.run_command(command, expected=None)
+                    self.assertEqual(result.returncode, 1, result.stdout)
+                    self.assertIn("explicit", result.stdout)
+                    self.assertNotIn("PREPARATION_REACHED", result.stdout)
+        self.env.update(TRITON_PKG_PATH=server, TRITON_CLIENT_SDK_PKG_PATH=client)
+        # A reviewed explicit pair reaches the first possible mutation, which
+        # is intercepted; no installer, download or mkdir actually executes.
+        result = self.run_command(command, expected=97)
+        self.assertIn("PREPARATION_REACHED", result.stdout)
+        self.env["TRITON_CLIENT_SDK_PKG_PATH"] = "https://example.invalid/v2.73.0/client.zip"
+        result = self.run_command(command, expected=1)
+        self.assertIn("versions must match", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.assert_no_build_or_install()
 
     def test_empty_runtime_argument_is_rejected_before_build(self):
@@ -372,6 +455,142 @@ class PackageFlowTests(unittest.TestCase):
                 self.assertTrue(package.is_file())
                 with tarfile.open(package, "r:bz2") as archive:
                     self.assertEqual(archive.extractfile(f"{SDK_PATH}/lib/libnvds_infer.so").read(), bytes(elf))
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    def test_platform_debian_stack_defaults(self):
+        self.env.pop("CUDA_VER", None)
+        self.env.pop("TRT_VER", None)
+        self.env.pop("SKIP_SPARSE4D_OCR", None)
+        inference = self.runtime / "lib/libnvds_infer.so"
+        native = inference.read_bytes()
+        for target, arch, cuda, trt, upper in (
+            ("x86", "amd64", "13-4", "11.4.0.106", "11.4.0.107"),
+            ("jetson", "arm64", "13-2", "11.4.1.31", "11.4.1.32"),
+            ("sbsa", "arm64", "13-4", "11.4.0.106", "11.4.0.107"),
+        ):
+            with self.subTest(target=target):
+                metadata = bytearray(native)
+                if arch == "arm64":
+                    metadata[18:20] = (183).to_bytes(2, "little")
+                inference.write_bytes(metadata)
+                self.run_command(self.package_command("--format=deb", f"--arch={arch}",
+                                                       f"--platform={target}"))
+                package = self.output / f"deepstream-9.2_9.2.0-1_{arch}.deb"
+                dependencies = self.run_command(["dpkg-deb", "-f", str(package), "Depends"]).stdout
+                self.assertIn(f"cuda-cudart-{cuda},", dependencies)
+                for library in ("libnvinfer11", "libnvinfer-dev", "libnvonnxparsers11",
+                                "libnvonnxparsers-dev", "libnvinfer-plugin11", "libnvinfer-plugin-dev"):
+                    self.assertIn(f"{library} (>= {trt})", dependencies)
+                    self.assertIn(f"{library} (<< {upper})", dependencies)
+        self.assert_no_build_or_install()
+
+    def test_invalid_stack_selection_preserves_existing_stage(self):
+        marker = self.stage / "must-survive.txt"
+        self.write(marker, "existing unrelated content\n")
+        for name, value in (("TRT_VER", "10.16.0.72"), ("TRT_VER", ""),
+                            ("CUDA_VER", "invalid"), ("SKIP_SPARSE4D_OCR", "yes")):
+            with self.subTest(name=name, value=value):
+                previous = self.env.get(name)
+                self.env[name] = value
+                result = self.run_command(self.package_command(), expected=None)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(name, result.stdout)
+                self.assertTrue(marker.is_file())
+                if previous is None:
+                    self.env.pop(name)
+                else:
+                    self.env[name] = previous
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_sbsa_packaged_setup_rejects_jetson_defaults_before_mutation(self):
+        inference = self.runtime / "lib/libnvds_infer.so"
+        metadata = bytearray(inference.read_bytes())
+        metadata[18:20] = (183).to_bytes(2, "little")
+        inference.write_bytes(metadata)
+        self.env.pop("CUDA_VER", None)
+        self.run_command(self.package_command("--arch=arm64", "--platform=sbsa", "--keep-stage"))
+        setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
+        # Intercept the first possible mutation if the early guard regresses.
+        command = ['bash', '-c',
+                   'mkdir() { echo mkdir >> "$PACKAGE_TEST_FORBIDDEN"; return 97; }; '
+                   'export -f mkdir; exec bash "$1"', 'guarded-setup', str(setup)]
+        result = self.run_command(command, expected=None)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("SBSA", result.stdout)
+        self.assertIn("26.10", result.stdout)
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_arm_reduced_ocr_survives_source_overlay_and_external_config_import(self):
+        sparse = "src/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d"
+        configs = self.repo / sparse / "configs"
+        self.write(configs / "config.yaml", "generate_2d_bbox: True\ngenerate_3d_bbox: True\n")
+        for name in ("deepstream_test5_app_sparse4d.txt", "deepstream_test5_app_sparse4d_filesrc.txt",
+                     "deepstream_test5_app_sparse4d_realtime.txt"):
+            self.write(configs / name, "[primary-gie]\nenable=1\n[secondary-pre-process0]\nenable=1\n")
+        setup = ('#!/bin/bash\nset -e\nCONFIG_FILE_PATH="$1"\ncp "$2" "$CONFIG_FILE_PATH"\n'
+                 'OCR_INFERENCE=$(sed -n "s/generate_2d_bbox: //p" "$CONFIG_FILE_PATH")\n'
+                 'if [[ "$OCR_INFERENCE" == True ]]; then touch "$3"; fi\n')
+        self.write(configs / "sparse4d_setup.sh", setup, executable=True)
+        for name in ("config_preprocess_ocr.txt", "config_ocr.yaml"):
+            self.write(configs / name, "OCR-only fixture configuration\n")
+        self.write(self.repo / sparse / "Makefile",
+                   "INC:= -I../../../utils/nvdsinfer -I../../../utils/nvdsinferutils/include\n")
+        self.write(self.repo / sparse / "README", "Synthetic Sparse4D source fixture\n")
+        self.write(self.repo / "src/utils/nvmultiobjecttracker/Makefile",
+                   "INC:= ../nvds_msgapi/mqtt_protocol_adaptor ../nvds_msgapi/common_src\n")
+        self.run_command(["git", "add", "src"])
+        original_yaml = (configs / "config.yaml").read_bytes()
+        for name in ("libcustom_preprocess_ocr.so", "libnvocdr.so", "libmsda_fp16.so"):
+            self.write(self.runtime / "sources/sparse4d" / name, b"opaque runtime fixture")
+        inference = self.runtime / "lib/libnvds_infer.so"
+        metadata = bytearray(inference.read_bytes())
+        metadata[18:20] = (183).to_bytes(2, "little")
+        inference.write_bytes(metadata)
+        self.env.pop("CUDA_VER", None)
+        self.run_command(self.package_command("--arch=arm64", "--platform=sbsa", "--keep-stage"))
+        for relative in ("sources/sparse4d/configs",
+                         "sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/configs"):
+            root = self.stage / SDK_PATH / relative
+            self.assertIn("generate_2d_bbox: False", (root / "config.yaml").read_text())
+            self.assertIn("generate_3d_bbox: True", (root / "config.yaml").read_text())
+            self.assertFalse((root / "config_ocr.yaml").exists())
+            for config in root.glob("deepstream_test5_app_sparse4d*.txt"):
+                text = config.read_text()
+                self.assertIn("[primary-gie]\nenable=1", text)
+                self.assertIn("[secondary-pre-process0]\nenable=0", text)
+            imported = self.root / "imported.yaml"
+            external = self.root / "external.yaml"
+            ocr_action = self.root / "ocr-should-not-run"
+            self.write(external, "generate_2d_bbox: True\n")
+            self.run_command(["bash", str(root / "sparse4d_setup.sh"), str(imported), str(external), str(ocr_action)])
+            self.assertIn("generate_2d_bbox: False", imported.read_text())
+            self.assertFalse(ocr_action.exists())
+            self.assertTrue((root / "sparse4d_setup.sh").stat().st_mode & 0o111)
+        runtime = self.stage / SDK_PATH / "sources/sparse4d"
+        self.assertFalse((runtime / "libnvocdr.so").exists())
+        self.assertFalse((runtime / "libcustom_preprocess_ocr.so").exists())
+        self.assertTrue((runtime / "libmsda_fp16.so").exists())
+        self.assertTrue((self.runtime / "sources/sparse4d/libnvocdr.so").exists())
+        self.assertEqual((configs / "config.yaml").read_bytes(), original_yaml)
+        source = self.stage / SDK_PATH / "sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/Makefile"
+        self.assertIn("../../../libs/nvdsinferutils", source.read_text())
+        tracker = self.stage / SDK_PATH / "sources/libs/nvmultiobjecttracker/Makefile"
+        self.assertIn("../nvds_msgapi_common_src", tracker.read_text())
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    def test_explicit_stack_overrides_reach_package_metadata(self):
+        self.env["CUDA_VER"] = "13.2"
+        self.env["TRT_VER"] = "11.4.1.31"
+        self.run_command(self.package_command("--format=deb"))
+        package = self.output / "deepstream-9.2_9.2.0-1_amd64.deb"
+        dependencies = self.run_command(["dpkg-deb", "-f", str(package), "Depends"]).stdout
+        self.assertIn("cuda-cudart-13-2,", dependencies)
+        self.assertIn("libnvinfer11 (>= 11.4.1.31)", dependencies)
+        self.assertIn("libnvinfer11 (<< 11.4.1.32)", dependencies)
         self.assert_no_build_or_install()
 
 

@@ -14,8 +14,13 @@
 # limitations under the License.
 
 
-FROM nvcr.io/nvidia/tritonserver:26.03-py3
+ARG TRITON_NGC_VERSION=26.10
+ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3-sdk
+ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
+FROM --platform=linux/amd64 ${TRITON_SDK_IMAGE} AS triton_client_sdk
+FROM --platform=linux/amd64 ${TRITON_RUNTIME_IMAGE}
 
+ARG DS_SDK_TARBALL=deepstream_sdk_v9.2.1_x86_64.tbz2
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
@@ -129,7 +134,7 @@ RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
         dpkg-dev \
         dpkg \
         curl && \
-        tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+        tar --version && tar -xvf "/tmp/docker/${DS_SDK_TARBALL}" -C / && /opt/nvidia/deepstream/deepstream/install.sh && \
         /tmp/docker/gRPC_installation.sh && \
         cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
         cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
@@ -160,24 +165,21 @@ RUN pip3 install setuptools==78.1.1 jaraco.context==6.1.0
 # Fix CVE-2025-62727 (Starlette) 
 RUN pip3 install starlette==0.52.1 fastapi
 
-RUN mkdir -p /opt/tritonclient/ && \
-        mkdir -p /tmp/temp_triton99 && \
+COPY --from=triton_client_sdk /workspace/install/lib/. /opt/tritonclient/lib/
+COPY --from=triton_client_sdk /workspace/install/include/. /opt/tritonclient/include/
+
+RUN test -f /opt/tritonclient/lib/libgrpcclient.so && \
+        test -f /opt/tritonclient/include/grpc_client.h && \
+        readelf -h /opt/tritonclient/lib/libgrpcclient.so | grep -E 'Machine:.*X86-64' && \
         mkdir -p /opt/proto && \
         mkdir -p /tmp/temp_proto99 && \
         mkdir -p /opt/half && \
         mkdir -p /tmp/half99 && \
-        cd /tmp/temp_triton99 && \
-        wget https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -nv && \
-        /usr/bin/unzip -q tritonserver-sdk-2.67.0+nv26.03-*.zip && \
-        mv tritonserver_sdk/install/lib64   /opt/tritonclient/lib && \
-        mv tritonserver_sdk/install/include /opt/tritonclient/include && \
-        rm -rf tritonserver_sdk && \
         cd /tmp/temp_proto99 && \
         cd /tmp/half99 && \
         wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
         /usr/bin/unzip /tmp/half99/half-2.1.0.zip -d /opt/half && \
         cd / && \
-        rm -rf /tmp/temp_triton99 && \
         rm -rf /tmp/temp_proto99 && \
         rm -rf /tmp/half99
 
@@ -232,7 +234,7 @@ RUN apt-get update && \
 
 ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphics,utility
 
-ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13.4/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 
 ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
 

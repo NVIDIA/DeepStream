@@ -18,8 +18,8 @@ Refer to the DeepStream SDK documentation for the description of the
 
 Dependencies:
 - Triton Inference Server library (/opt/tritonserver/lib/libtritonserver.so)
-- Triton gRPC client library v26.01 for X86
-- Triton gRPC client library v25.08 for aarch64 and SBSA/Spark
+- Matching Triton26.10 gRPC client SDK for x86 and genericSBSA/Spark
+- Separately qualified JetPack7.2.2/TRT11.4.1 client/server inputs for Jetson
 - Google Protobuf compiler v3.21.12
 - Half - Half precision floating point C++ library v2.1.0 
 

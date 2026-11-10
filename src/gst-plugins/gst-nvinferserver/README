@@ -20,48 +20,37 @@ plugin and "nvdsinferserver" API.
 Pre-requisites:
 - GStreamer-1.0 Development package
 - GStreamer-1.0 Base Plugins Development package
-- CUDA Runtime 13.2
+- CUDA Runtime13.4.3 (CUDA_VER=13.4) for x86/SBSA, or13.2.2
+  (CUDA_VER=13.2) for the JetPack7.2.2 Jetson upgrade target
 
 Install gstreamer developement packages using:
    sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
         libprotobuf-dev protobuf-compiler
 
 Other dependencies:
-- Triton client SDK v2.67.0 (nv26.03) for X86
-- Triton client SDK v2.68.0 (nv26.04) for aarch64
+- Matching Triton26.10 C++ client SDK for x86/genericSBSA
+- Separately qualified JetPack7.2.2/TRT11.4.1-compatible SDK for Jetson
 - Google Protobuf compiler v3.21.12
 
-Install other dependencies (Needs sudo or root privilege):
-A. For X86 Device -
-1. Triton client SDK into "/opt/tritonclient":
-mkdir -p /opt/tritonclient/
-rm -rf /opt/tritonclient/lib /opt/tritonclient/include
-wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
-unzip -q -o /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -d /tmp/tritonclient-sdk
-mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-rm -rf /tmp/tritonclient-sdk /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
+Install other dependencies (writing /opt requires root privileges):
+1. Preprovision the complete matching client SDK at /opt/tritonclient, containing
+include/grpc_client.h, include/common.h and the C++ libraries under lib/.
+For x86/SBSA, the vendor26.10-py3-sdk container supplies /workspace/install;
+select the matching architecture. No26.10 SDK ZIP URL is assumed or invented.
+The build driver never pulls this image automatically. See build/BUILD.md and
+https://github.com/triton-inference-server/server/releases/tag/v2.74.0.
+For the dependency stage an alternate complete location may be supplied using
+TRITON_CLIENT_SDK_ROOT; a standalone Makefile uses TRITON_GRPC_CLIENT instead.
+Headers/library presence alone does not prove SDK release provenance.
 
-2. Protobuf compiler v3.21.12 into "/opt/proto":
+A. Protobuf compiler v3.21.12 for x86 into "/opt/proto":
 mkdir /opt/proto
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
 curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip
 unzip protoc-21.12-linux-x86_64.zip -d /opt/proto
 
-B. For Jetson Device -
-1. Triton client SDK into "/opt/tritonclient" (the exact asset name/version
-   may change between Triton releases — check
-   https://github.com/triton-inference-server/server/releases for the latest
-   aarch64 SDK zip). Example commands :
-mkdir -p /opt/tritonclient/
-rm -rf /opt/tritonclient/lib /opt/tritonclient/include
-wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
-unzip -q -o /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -d /tmp/tritonclient-sdk
-mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-rm -rf /tmp/tritonclient-sdk /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
-
-2. Protobuf compiler v3.21.12 into "/opt/proto":
+B. Jetson requires its qualified matching SDK, not the genericSBSA image or a
+legacy26.04 archive assumed compatible with TRT11.4.1. Protobuf compilerv3.21.12:
 mkdir /opt/proto
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
 curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip

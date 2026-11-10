@@ -40,6 +40,9 @@
 # Environment overrides (CLI flags take precedence):
 #   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
+#   CUDA_VER       Toolkit family override (default: 13.4 x86/SBSA, 13.2 Jetson)
+#   TRT_VER        Full TensorRT11 build override (platform defaults below)
+#   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -99,6 +102,9 @@ Options:
 Environment overrides (CLI flags take precedence):
   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
+  CUDA_VER       Toolkit family override (13.4 x86/SBSA, 13.2 Jetson)
+  TRT_VER        Full TensorRT11 version (11.4.0.106 x86/SBSA, 11.4.1.31 Jetson)
+  SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 EOF
 }
 
@@ -155,6 +161,27 @@ case "$PLATFORM:$DEB_ARCH" in
   x86:amd64|jetson:arm64|sbsa:arm64) ;;
   *) echo "error: incompatible package platform/architecture: $PLATFORM/$DEB_ARCH" >&2; exit 1 ;;
 esac
+# Match the source-build profiles. Explicit build overrides must also reach the
+# package metadata; a same-major SONAME is not exact TensorRT patch provenance.
+case "$PLATFORM" in
+  x86|sbsa) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
+  jetson) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
+esac
+PACKAGE_CUDA_VER=${CUDA_VER-$_cuda_default}
+PACKAGE_TRT_VER=${TRT_VER-$_trt_default}
+if [[ ! "$PACKAGE_CUDA_VER" =~ ^[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  echo "error: invalid CUDA_VER='$PACKAGE_CUDA_VER' (expected toolkit family, e.g. 13.4)" >&2
+  exit 1
+fi
+if [[ ! "$PACKAGE_TRT_VER" =~ ^11\.[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]]; then
+  echo "error: invalid TRT_VER='$PACKAGE_TRT_VER' (expected four-part TensorRT 11 version)" >&2
+  exit 1
+fi
+SKIP_SPARSE4D_OCR=${SKIP_SPARSE4D_OCR-$IS_AARCH64}
+case "$SKIP_SPARSE4D_OCR" in
+  0|1) ;;
+  *) echo 'error: SKIP_SPARSE4D_OCR must be 0 or 1' >&2; exit 1 ;;
+esac
 DS_REL="opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 DS_ROOT="$STAGE_DIR/$DS_REL"
 
@@ -179,6 +206,30 @@ case "$STAGE_DIR/" in "$DS_INSTALL_ROOT/"*) echo "error: staging is inside runti
 DS_ROOT="$STAGE_DIR/$DS_REL"
 for sub in bin lib samples service-maker LicenseAgreement.pdf; do
   require "$DS_INSTALL_ROOT/$sub" "$DS_INSTALL_ROOT/$sub"
+done
+# Runtime directories must be materialized before packaging. Preserving a
+# directory symlink with cp -a would redirect later overlays/pruning back into
+# the input (or an unrelated absolute path), not into disposable staging.
+# Ordinary library/file symlinks are retained; colliding overlay files are
+# replaced without following their previous destination below.
+if [[ -L "$DS_INSTALL_ROOT/sources" ]]; then
+  echo 'error: runtime sources is a directory symlink; supply a materialized SDK tree' >&2
+  exit 1
+fi
+for sub in bin lib samples service-maker sources/sparse4d; do
+  _runtime_tree="$DS_INSTALL_ROOT/$sub"
+  [[ -e "$_runtime_tree" || -L "$_runtime_tree" ]] || continue
+  if [[ -L "$_runtime_tree" ]]; then
+    echo "error: runtime directory symlink: $_runtime_tree; supply a materialized SDK tree" >&2
+    exit 1
+  fi
+  [[ -d "$_runtime_tree" ]] || { echo "error: runtime directory required: $_runtime_tree" >&2; exit 1; }
+  while IFS= read -r -d '' _runtime_link; do
+    if [[ -d "$_runtime_link" ]]; then
+      echo "error: runtime directory symlink: $_runtime_link; supply a materialized SDK tree" >&2
+      exit 1
+    fi
+  done < <(find -P "$_runtime_tree" -type l -print0)
 done
 require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT 11 SDK inference runtime"
 command -v readelf >/dev/null || { echo "error: readelf (binutils) is required to verify runtime inputs" >&2; exit 1; }
@@ -233,14 +284,14 @@ copy_into() {  # copy_into <src> <dest-dir>   (preserves attrs, copies the entry
   local src=$1 dest=$2
   require "$src" "$src"
   mkdir -p "$dest"
-  cp -a "$src" "$dest/"
+  cp -a --remove-destination "$src" "$dest/"
 }
 
 copy_contents_into() {  # copy_contents_into <src-dir> <dest-dir>  (copies dir contents)
   local src=$1 dest=$2
   require "$src" "$src"
   mkdir -p "$dest"
-  cp -a "$src"/. "$dest/"
+  cp -a --remove-destination "$src"/. "$dest/"
 }
 
 # Literal (non-regex) in-place replacement on a STAGED file only. Handles
@@ -461,6 +512,50 @@ if [[ -d "$SPARSE4D_SRC/configs" ]]; then
   copy_into "$SPARSE4D_SRC/README" "$DS_ROOT/sources/sparse4d"
 fi
 
+# The parent TRT11 ARM engineering drop retains Sparse4D but omits OCR. Overlaying
+# source configs must not silently re-enable the omitted libraries, including
+# when setup later imports a DS-Configurator YAML. Transform staged copies only.
+if [[ "$SKIP_SPARSE4D_OCR" -eq 1 ]]; then
+  for config_root in "$DS_ROOT/sources/sparse4d/configs" \
+      "$DS_ROOT/sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/configs"; do
+    [[ -d "$config_root" ]] || continue
+    case "$(realpath "$config_root")/" in
+      "$STAGE_DIR/"*) ;;
+      *) echo 'error: Sparse4D config directory escapes package staging' >&2; exit 1 ;;
+    esac
+    require "$config_root/config.yaml" "Sparse4D configuration"
+    _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+    awk '/^[[:blank:]]*generate_2d_bbox[[:blank:]]*:/ { n++; print "generate_2d_bbox: False"; next }
+         { print } END { if (n != 1) exit 1 }' "$config_root/config.yaml" > "$_ocr_tmp"
+    chmod --reference="$config_root/config.yaml" "$_ocr_tmp"
+    mv -f -- "$_ocr_tmp" "$config_root/config.yaml"
+    for config in deepstream_test5_app_sparse4d.txt deepstream_test5_app_sparse4d_filesrc.txt \
+        deepstream_test5_app_sparse4d_realtime.txt; do
+      require "$config_root/$config" "Sparse4D sample configuration"
+      _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+      awk '/^\[/ { ocr=($0 == "[secondary-pre-process0]"); if (ocr) sections++ }
+           ocr && /^[[:blank:]]*enable[[:blank:]]*=/ { n++; print "enable=0"; next }
+           { print } END { if (sections != 1 || n != 1) exit 1 }' \
+          "$config_root/$config" > "$_ocr_tmp"
+      chmod --reference="$config_root/$config" "$_ocr_tmp"
+      mv -f -- "$_ocr_tmp" "$config_root/$config"
+    done
+    require "$config_root/sparse4d_setup.sh" "Sparse4D setup script"
+    _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+    awk '/^OCR_INFERENCE=/ {
+           n++; print "# OCR is omitted from this ARM engineering package."
+           print "sed -i \"s/^[[:blank:]]*generate_2d_bbox[[:blank:]]*:.*/generate_2d_bbox: False/\" \"${CONFIG_FILE_PATH}\""
+           print "OCR_INFERENCE=False"; next }
+         { print } END { if (n != 1) exit 1 }' "$config_root/sparse4d_setup.sh" > "$_ocr_tmp"
+    chmod --reference="$config_root/sparse4d_setup.sh" "$_ocr_tmp"
+    mv -f -- "$_ocr_tmp" "$config_root/sparse4d_setup.sh"
+    rm -f -- "$_ocr_tmp" "$config_root/config_preprocess_ocr.txt" "$config_root/config_ocr.yaml"
+  done
+  rm -f -- "$DS_ROOT/sources/sparse4d/libcustom_preprocess_ocr.so" \
+    "$DS_ROOT/sources/sparse4d/libnvocdr.so"
+  log 'SKIP_SPARSE4D_OCR=1: retained Sparse4D, disabled OCR in both packaged config trees'
+fi
+
 # 4. Scripts shipped at DS_ROOT root / samples.
 log "Staging install/uninstall + helper scripts"
 copy_into "$REPO_ROOT/scripts/uninstall.sh" "$DS_ROOT"
@@ -478,6 +573,9 @@ done
 if [[ "$IS_AARCH64" -eq 1 ]]; then
   log "aarch64 packaging: including triton_backend_setup.sh in samples/"
   copy_into "$REPO_ROOT/scripts/triton_backend_setup.sh" "$DS_ROOT/samples"
+  patch_staged_file "samples/triton_backend_setup.sh" 'set -e' \
+    "set -e
+DEEPSTREAM_VARIANT=\${DEEPSTREAM_VARIANT:-$PLATFORM}"
 fi
 
 # 4b. Patch staged Makefiles so paths resolve against the installed sources/
@@ -488,6 +586,16 @@ fi
 # (SonarQube S1192: avoid repeating the '../../libs' literal).
 LIBS_REL_PATH="../../libs"
 log "Patching staged Makefile paths (utils -> libs)"
+if [[ -f "$DS_ROOT/sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/Makefile" ]]; then
+  patch_staged_file "sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/Makefile" \
+    '../../../utils/nvdsinfer' '../../../libs/nvdsinfer'
+fi
+if [[ -f "$DS_ROOT/sources/libs/nvmultiobjecttracker/Makefile" ]]; then
+  patch_staged_file "sources/libs/nvmultiobjecttracker/Makefile" \
+    '../nvds_msgapi/mqtt_protocol_adaptor' '../mqtt_protocol_adaptor'
+  patch_staged_file "sources/libs/nvmultiobjecttracker/Makefile" \
+    '../nvds_msgapi/common_src' '../nvds_msgapi_common_src'
+fi
 for p in gst-nvinfer gst-nvinferserver gst-nvmsgconv gst-nvmultistream2 \
          gst-nvmultiurisrcbin gst-nvds3dbridge gst-nvds3dfilter gst-nvds3dmixer \
          gst-nvdsbins gst-nvdslogger gst-nvmodelmux gst-nvmultistream gst-nvsegvisual \
@@ -737,17 +845,16 @@ build_deb() {
   # with `apt install ./pkg.deb`; a plain `dpkg -i` still needs them removed
   # first). Harmless no-op when the artifacts were installed via tar (no
   # registered dpkg owner).
-  local depends conflicts cuda_deb trt_min
-  case "$PLATFORM" in
-    x86) cuda_deb=13-2; trt_min=11.4.0.106 ;;
-    jetson) cuda_deb=13-2; trt_min=11.4.1.31 ;;
-    sbsa) cuda_deb=13-4; trt_min=11.4.1.31 ;;
-  esac
+  local depends conflicts cuda_deb trt_min trt_upper trt_dep
+  cuda_deb=${PACKAGE_CUDA_VER/./-}
+  trt_min=$PACKAGE_TRT_VER
+  trt_upper="${trt_min%.*}.$((10#${trt_min##*.} + 1))"
+  trt_dep="libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
   if [[ "$DEB_ARCH" = "arm64" ]]; then
-    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< 11.5), libnvinfer-dev (>= ${trt_min}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< 11.5), libnvonnxparsers-dev (>= ${trt_min}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< 11.5), libnvinfer-plugin-dev (>= ${trt_min}), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4 (>= 4.1.6), libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7), libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="deepstream-binaries-aarch64, deepstream-sample-data"
   else
-    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< 11.5), libnvinfer-dev (>= ${trt_min}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< 11.5), libnvonnxparsers-dev (>= ${trt_min}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< 11.5), libnvinfer-plugin-dev (>= ${trt_min}), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="libglapi-amber, deepstream-binaries-x86, deepstream-sample-data"
   fi
 

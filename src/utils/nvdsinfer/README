@@ -17,6 +17,10 @@ Refer to the DeepStream SDK documentation for a description of the "nvinfer"
 plugin and "NvDsInfer" API.
 
 TensorRT 11 upgrade:
+- The upgrade targets are TensorRT11.4.0.106 with CUDA13.4.3 (CUDA_VER=13.4)
+  on x86 and generic SBSA, and TensorRT11.4.1.31 with CUDA13.2.2
+  (CUDA_VER=13.2) on eligible Jetson/JetPack7.2.2 systems. These are distinct
+  platform inputs, not interchangeable ARM64 stacks or completed runtime tests.
 - Build with matching system TensorRT development headers and libraries. Vendor
   link stubs or copied legacy headers cannot restore removed APIs.
 - network-mode=2 requires genuine FP16/mixed arithmetic in the model graph;

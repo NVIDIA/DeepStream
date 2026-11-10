@@ -25,7 +25,8 @@
 #
 # Additional prerequisites installed:
 #   half               v2.1.0             -> /opt/half
-#   triton client SDK  x86 v2.67.0 nv26.03 / aarch64 v2.68.0 nv26.04 (zip) -> /opt/tritonclient
+#   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
+#                      x86/SBSA: 26.10-py3-sdk; Jetson: JP/TRT11.4.1-qualified SDK
 #   protobuf compiler  v3.21.12           -> /opt/proto
 #   pybind11           v2.12.0 (headers)  -> /opt/pybind11
 #   dlpack             v0.8    (headers)  -> /opt/dlpack
@@ -52,6 +53,12 @@
 #   RESUME=1                  Skip stages already marked DONE (used by build.sh --resume).
 #                             Default 0: always rebuild/install; stage state is reset first.
 #   DEPS_STAGE_STATE_FILE     Stage resume file (default: build/.stage-state.deps)
+#   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
+#                            Must contain include/ and lib/ (or lib64/); no image
+#                            pull or unverified legacy SDK download is performed.
+#   VPI_DIR                  ARM vendor VPI4.1.6 installation (default: /opt/nvidia/vpi4).
+#   TORCH_PATH               Optional preprovisioned CUDA ABI1 LibTorch provider;
+#                            preserved by the Sparse4D helper, never replaced by pip.
 
 set -e
 
@@ -66,7 +73,6 @@ if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 NVDS_VERSION="${NVDS_VERSION%.*}"
 INSTALL_DIR=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib
-BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 STAGE_STATE_FILE="${DEPS_STAGE_STATE_FILE:-$SCRIPT_DIR/../build/.stage-state.deps}"
 RESUME=${RESUME:-0}
@@ -86,6 +92,15 @@ if [[ -z "${PLATFORM:-}" ]]; then
     *)  echo "Unsupported architecture: $ARCH"; exit 1 ;;
   esac
 fi
+case "$PLATFORM" in
+  x86|aarch64|sbsa) ;;
+  *) echo "error: unsupported PLATFORM='$PLATFORM'" >&2; exit 1 ;;
+esac
+if [[ "$PLATFORM" == sbsa && ! -f /.dockerenv && ! -f /run/.containerenv ]]; then
+  echo "error: SBSA dependency installation requires the matching DeepStream SBSA container, not a bare-metal host." >&2
+  exit 1
+fi
+BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
 
 stage_is_done() {
   local stage=$1
@@ -297,44 +312,64 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Triton client SDK (x86 v2.67.0 nv26.03 / aarch64 v2.68.0 nv26.04)
+# 6. Triton client SDK: preserve the selected server/platform provider
 # ---------------------------------------------------------------------------
 echo ""
-if [[ "$PLATFORM" = "sbsa" ]]; then
-  echo "--- Triton client SDK (skipped, preinstalled on SBSA) ---"
-  mark_stage_done deps-tritonclient
-elif stage_is_done deps-tritonclient; then
+TRITON_CLIENT_SDK_ROOT=${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}
+TRITON_CLIENT_SDK_LIB_DIR="$TRITON_CLIENT_SDK_ROOT/lib"
+[[ -d "$TRITON_CLIENT_SDK_LIB_DIR" ]] || TRITON_CLIENT_SDK_LIB_DIR="$TRITON_CLIENT_SDK_ROOT/lib64"
+for header in grpc_client.h common.h; do
+  if [[ ! -r "$TRITON_CLIENT_SDK_ROOT/include/$header" ]]; then
+    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/$header)." >&2
+    echo "x86/SBSA use the 26.10-py3-sdk image's /workspace/install; Jetson needs a JetPack/TRT11.4.1-qualified SDK." >&2
+    exit 1
+  fi
+done
+for library in libgrpcclient_static.a libgrpc++.a libprotobuf.a libcares.a; do
+  if [[ ! -r "$TRITON_CLIENT_SDK_LIB_DIR/$library" ]]; then
+    echo "error: missing Triton client dependency $TRITON_CLIENT_SDK_LIB_DIR/$library; provision the complete matching SDK." >&2
+    exit 1
+  fi
+done
+if [[ ! -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.so" &&
+      ! -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.a" ]]; then
+  echo "error: missing linkable Triton client libgrpcclient.so or libgrpcclient.a in $TRITON_CLIENT_SDK_LIB_DIR; libgrpcclient_static.a alone does not satisfy -lgrpcclient." >&2
+  exit 1
+fi
+echo "--- Triton client SDK: caller/preinstalled provider $TRITON_CLIENT_SDK_ROOT ---"
+echo "    File checks do not prove provider release identity; use a reviewed matching SDK."
+install_triton_client_tree() {
+  local source=$1 destination=$2 source_path destination_path
+  [[ "$source" -ef "$destination" ]] && return 0
+  source_path=$(cd "$source" && pwd -P)
+  destination_path=$(realpath -m "$destination")
+  case "$destination_path/" in
+    "$source_path/"*)
+      echo "error: Triton SDK destination must not be nested inside its source: $destination" >&2
+      return 1
+      ;;
+  esac
+  mkdir -p "$destination"
+  # Replace colliding entries, not the targets of links left by another SDK.
+  cp -a --remove-destination "$source/." "$destination/"
+}
+if stage_is_done deps-tritonclient &&
+    [[ "$TRITON_CLIENT_SDK_ROOT/include" -ef /opt/tritonclient/include ]] &&
+    [[ "$TRITON_CLIENT_SDK_LIB_DIR" -ef /opt/tritonclient/lib ]]; then
   echo "--- Triton client SDK (skipped, already DONE) ---"
 else
-  echo "--- Triton client SDK (PLATFORM=$PLATFORM) ---"
-  mkdir -p /opt/tritonclient/
-  # Clear any prior target dirs so the mv below renames (lib64 -> lib) instead of
-  # moving into an existing dir. Keeps this stage idempotent across re-runs.
-  rm -rf /opt/tritonclient/lib /opt/tritonclient/include
-  if [[ "$PLATFORM" = "x86" ]]; then
-    # x86_64: download the prebuilt Triton SDK and lay headers/libs into
-    # /opt/tritonclient (lib64 -> lib so consumers see a single lib dir).
-    TRITON_SDK_ZIP=tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
-    rm -f "/tmp/${TRITON_SDK_ZIP}"   # wget -P does not overwrite a stale copy
-    wget -q -O "/tmp/${TRITON_SDK_ZIP}" https://github.com/triton-inference-server/server/releases/download/v2.67.0/${TRITON_SDK_ZIP}
-    rm -rf /tmp/tritonclient-sdk
-    unzip -q -o "/tmp/${TRITON_SDK_ZIP}" -d /tmp/tritonclient-sdk
-    mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-    mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-    rm -rf /tmp/tritonclient-sdk "/tmp/${TRITON_SDK_ZIP}"
-  else
-    # aarch64 (Jetson): download the prebuilt aarch64 Triton SDK zip (same flow
-    # as x86). lib64 -> lib so consumers see a single lib dir. The public asset
-    # name uses an underscore (tritonserver_sdk) plus a release build id.
-    TRITON_SDK_ZIP=tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
-    rm -f "/tmp/${TRITON_SDK_ZIP}"   # wget -P does not overwrite a stale copy
-    wget -q -O "/tmp/${TRITON_SDK_ZIP}" https://github.com/triton-inference-server/server/releases/download/v2.68.0/${TRITON_SDK_ZIP}
-    rm -rf /tmp/tritonclient-sdk
-    unzip -q -o "/tmp/${TRITON_SDK_ZIP}" -d /tmp/tritonclient-sdk
-    mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-    mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-    rm -rf /tmp/tritonclient-sdk "/tmp/${TRITON_SDK_ZIP}"
+  # Even a provider already rooted at /opt/tritonclient may use lib64/. The
+  # public Makefiles consume lib/, so normalize it rather than skipping copy.
+  install_triton_client_tree "$TRITON_CLIENT_SDK_ROOT/include" /opt/tritonclient/include
+  # -lgrpcclient prefers .so over .a. A selected static-only provider must not
+  # silently link an older shared client left in the merge destination. Remove
+  # only that entry (never a symlink target), and leave self-copy unchanged.
+  if [[ ! "$TRITON_CLIENT_SDK_LIB_DIR" -ef /opt/tritonclient/lib &&
+        ! -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.so" &&
+        -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.a" ]]; then
+    rm -f -- /opt/tritonclient/lib/libgrpcclient.so
   fi
+  install_triton_client_tree "$TRITON_CLIENT_SDK_LIB_DIR" /opt/tritonclient/lib
   mark_stage_done deps-tritonclient
   echo "    Stage deps-tritonclient: DONE"
 fi
@@ -519,10 +554,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 14. Sparse4D (ds-sparse4d) — PyTorch + remaining apt deps
+# 14. Sparse4D (ds-sparse4d) — selected LibTorch + remaining apt deps
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-sparse4d; then
+# Explicit providers are rechecked even on resume, rather than trusting a marker
+# for a provider that may have disappeared or changed in place.
+if [[ ! -v TORCH_PATH ]] && stage_is_done deps-sparse4d; then
   echo "--- Sparse4D dependencies (skipped, already DONE) ---"
 else
   echo "--- Sparse4D dependencies ---"
@@ -537,10 +574,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# VPI4 development headers (required by src/utils/nvmultiobjecttracker)
+# VPI4 development headers (ARM must retain the target vendor4.1.6 provider)
 # ---------------------------------------------------------------------------
 echo ""
-if stage_is_done deps-vpi4; then
+if [[ "$PLATFORM" == aarch64 && -r /proc/device-tree/model ]] &&
+    [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]; then
+  echo "--- VPI (IGX keeps its existing platform stack; this upgrade does not install a replacement) ---"
+  mark_stage_done deps-vpi4
+elif [[ "$PLATFORM" == aarch64 || "$PLATFORM" == sbsa ]]; then
+  VPI_DIR=${VPI_DIR-/opt/nvidia/vpi4}
+  VPI_HEADER="$VPI_DIR/include/vpi/VersionDef.h"
+  if [[ ! -r "$VPI_HEADER" ]]; then
+    echo "error: ARM requires authentic VPI4.1.6 development headers at $VPI_DIR; install the matching vendor package first." >&2
+    exit 1
+  fi
+  VPI_VERSION=$(printf '%s\n' 'NV_VPI_VERSION_MAJOR NV_VPI_VERSION_MINOR NV_VPI_VERSION_PATCH' |
+    cc -E -P -x c -include "$VPI_HEADER" -) || exit 1
+  VPI_VERSION=$(echo "$VPI_VERSION" | xargs | tr ' ' '.')
+  if [[ "$VPI_VERSION" != 4.1.6 ]]; then
+    echo "error: ARM requires VPI4.1.6; selected headers declare $VPI_VERSION." >&2
+    exit 1
+  fi
+  echo "--- VPI4.1.6 (using existing ARM vendor headers; no x86 repository added) ---"
+  mark_stage_done deps-vpi4
+elif stage_is_done deps-vpi4; then
   echo "--- VPI4 (skipped, already DONE) ---"
 else
   echo "--- VPI4 ---"
@@ -552,7 +609,14 @@ else
     add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main'
   fi
   apt-get update
-  apt-get install -y vpi4-dev
+  # Keep the existing x86 VPI4.1.3 baseline instead of selecting a newer
+  # repository candidate merely because ARM uses VPI4.1.6.
+  VPI_PACKAGE_VERSION=$(apt-cache madison vpi4-dev | awk '$3 ~ /^4\.1\.3(-|$)/ {print $3; exit}')
+  if [[ -z "$VPI_PACKAGE_VERSION" ]]; then
+    echo "error: the configured x86 repository has no VPI4.1.3 development package; provision the reviewed matching vendor package." >&2
+    exit 1
+  fi
+  apt-get install -y "vpi4-dev=$VPI_PACKAGE_VERSION"
   mark_stage_done deps-vpi4
   echo "    Stage deps-vpi4: DONE"
 fi

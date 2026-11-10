@@ -25,7 +25,7 @@ This repository contains the complete source code for DeepStream 9.2.
 - [`auto-magic-calib`](https://github.com/NVIDIA-AI-IOT/auto-magic-calib/tree/bc5b1d9b3154d4242f147c35754670bc7981d37a) — camera auto-calibration tool
 - [`yolo_deepstream`](tools/yolo_deepstream/README.md) — YOLO + TensorRT integration
 - [`sam2-onnx-tensorrt`](tools/sam2-onnx-tensorrt/README.md) — SAM2 ONNX-to-TensorRT conversion
-- [`deepstream-host-provisioning`](tools/deepstream-host-provisioning/README.md) — Ansible playbooks to provision Ubuntu hosts (x86_64 & ARM SBSA) with the full NVIDIA compute stack (driver, CUDA, cuDNN, TensorRT, Docker) and DeepStream dependencies
+- [`deepstream-host-provisioning`](tools/deepstream-host-provisioning/README.md) — Ansible host provisioning; its checked-in defaults remain the legacy stack, not this branch's TRT11 target. Review and override the platform variables before using it.
 - [`deepstream-otelcol`](tools/deepstream-otelcol/README.md) — OpenTelemetry Collector setup for streaming metrics
 
 **AI agent skills** ([`skills/`](skills/README.md), for Claude Code & compatible coding agents):
@@ -77,6 +77,42 @@ runtime with these sources, see [the upgrade build workflow](build/BUILD.md#tens
 This branch defaults source builds and packages to **9.2.1**, retaining the
 `deepstream-9.2` install directory. Published asset versions below are unchanged.
 The published baseline below is not qualification of the upgrade branch.
+
+The local upgrade branch selects these separate compute-stack targets:
+
+| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | ARM VPI |
+|---|---|---|---|---|
+| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | Unchanged x86 input |
+| Generic SBSA | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.6 |
+| Jetson, JetPack 7.2.2 | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+
+These are build targets, not completed platform qualification. IGX's existing
+stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
+matching development and runtime inputs. Provision the matching Triton client SDK
+as described in [the build guide](build/BUILD.md); the build does not pull Docker
+images automatically. For optional container creation, x86 and SBSA use matching
+Triton 26.10 runtime/client-SDK images; Jetson requires explicitly supplied
+JetPack-qualified base images, not the stock SBSA image. See
+[Docker build instructions](deepstream_dockers/README.md).
+
+The published `9.2.0` artifact pins below remain unchanged until reviewed matching
+assets are available. Do not treat an older opaque binary bundle as rebuilt for
+these targets. An explicitly supplied complete GVS runtime can be assembled with
+`--package-from`; this does not rebuild its binaries or establish source/stack
+provenance. Matching proprietary inputs and real hardware validation remain
+required for a release.
+
+`--package-from` needs materialized runtime directories (`bin`, `lib`, `samples`,
+`service-maker` and optional `sources/sparse4d`), not directory symlinks back into
+another installation. Nested directory aliases are rejected before staging is
+changed. Ordinary library/file symlinks are preserved; a source overlay replaces
+a colliding file symlink without modifying its original target.
+
+ARM engineering packages retain the explicitly reduced `SKIP_SPARSE4D_OCR=1`
+policy from the initial source port, independently of later parent SDK defaults.
+Both shipped sample-config trees and
+setup disable OCR; this is not OCR enablement. Service Maker remains included,
+and `pyservicemaker` retains its independent `0.0.1` version.
 
 | Platform | Architecture | Notes |
 |---|---|---|
@@ -134,13 +170,14 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 
 Prepare Triton dependencies and sample models on Jetson.
 
-> **Building `gst-nvinferserver` standalone?** `bash build/build.sh` sets up the Triton client SDK under `/opt/tritonclient` automatically. If you instead build the plugin standalone (bypassing `build/build.sh`) — including rebuilding it from the `sources/` tree shipped inside a [`build/package.sh`](build/BUILD.md)-produced `.deb`/tarball, which does not bundle the Triton client SDK — set up the Triton client SDK yourself first. See the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
+> **Building `gst-nvinferserver`?** Preprovision the matching Triton C++ client SDK at `/opt/tritonclient` or set `TRITON_CLIENT_SDK_ROOT` for the dependency stage. This applies to both `build/build.sh` and standalone builds; the SDK package does not bundle that development SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
 
 ```bash
 # Run from the cloned repository root after the DeepStream build has completed.
 
-# Installs the Jetson-compatible Triton server libraries and backends.
-sudo ./scripts/triton_backend_setup.sh
+# Install only reviewed, matching JetPack7.2.2/TRT11.4.1 server/client inputs.
+# Both archive URLs must be supplied explicitly; there is no legacy26.04 fallback.
+sudo -E DEEPSTREAM_VARIANT=jetson ./scripts/triton_backend_setup.sh
 
 # Clear the plugin cache after the Triton libraries are installed.
 rm -rf ~/.cache/gstreamer-1.0/
@@ -153,8 +190,10 @@ cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app-triton
 deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 ```
 
-> **Jetson only.** `triton_backend_setup.sh` downloads and installs the
-> Jetson-compatible Triton components under `/opt`. For remote Triton inference
+> **Explicit provider required for the upgrade.** Set reviewed matching
+> `TRITON_PKG_PATH` and `TRITON_CLIENT_SDK_PKG_PATH` before using this installer.
+> Both Jetson and SBSA refuse missing or empty archive selections before any
+> installation; legacy26.04 is not an automatic fallback. For remote Triton inference
 > over gRPC, use `samples/configs/deepstream-app-triton-grpc/` and start
 > `tritonserver` separately.
 

@@ -22,8 +22,22 @@
 # first and expect a long build: opentelemetry-cpp and gRPC compile from
 # source under emulation.
 
-cd sbsa_dockerfiles
-
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.0-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
-
-cd ..
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+for variable in VPI_LIB_URL VPI_DEV_URL VPI_LIB_SHA256 VPI_DEV_SHA256; do
+    if [[ -z "${!variable:-}" ]]; then
+        echo "Missing ${variable}: supply genuine SBSA VPI4.1.6 inputs before Docker build." >&2
+        exit 1
+    fi
+done
+for digest in "$VPI_LIB_SHA256" "$VPI_DEV_SHA256"; do
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo 'VPI checksums must be lowercase SHA256.' >&2; exit 1; }
+done
+sdk_tarball=${DS_SDK_TARBALL:-deepstream_sdk_v${NVDS_VERSION:-9.2.1}_sbsa.tbz2}
+[[ -f "sbsa_dockerfiles/$sdk_tarball" ]] || { echo "Stage the matching SDK tarball: sbsa_dockerfiles/$sdk_tarball" >&2; exit 1; }
+sudo docker build --platform linux/arm64 --network host --progress=plain \
+    --build-arg "DS_SDK_TARBALL=$sdk_tarball" \
+    --build-arg "VPI_LIB_URL=$VPI_LIB_URL" --build-arg "VPI_DEV_URL=$VPI_DEV_URL" \
+    --build-arg "VPI_LIB_SHA256=$VPI_LIB_SHA256" --build-arg "VPI_DEV_SHA256=$VPI_DEV_SHA256" \
+    -t "deepstream:${NVDS_VERSION:-9.2.1}-triton-arm-sbsa-local" \
+    -f sbsa_dockerfiles/Dockerfile_SBSA_Triton "$@" .
