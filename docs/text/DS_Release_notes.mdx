@@ -8,9 +8,11 @@ title: "DeepStream SDK 9.2 for NVIDIA dGPU/X86 and Jetson"
 
 1.1 [What’s New](#whats-new)
 
-1.1.1 [DS 9.2](#ds-92)
+1.1.1 [DS 9.2.1 Stack Upgrade Targets](#ds-921-stack-upgrade-targets)
 
-1.1.2 [DS 9.1 (Previous Release)](#ds-91-previous-release)
+1.1.2 [DS 9.2](#ds-92)
+
+1.1.3 [DS 9.1 (Previous Release)](#ds-91-previous-release)
 
 1.2 [Differences since Deepstream 6.1 and Above](#differences-since-deepstream-61-and-above)
 
@@ -32,9 +34,43 @@ NVIDIA<sup>®</sup> Jetson Thor<sup>™</sup>.
 
 ## What’s New
 
-The following new features are supported in this DeepStream SDK release:
+The current stack-upgrade targets are listed first. Earlier release features and
+version references are retained below as history, not as the 9.2.1 dependency
+selection or a statement of new platform qualification.
+
+## DS 9.2.1 Stack Upgrade Targets
+
+This monorepo checkout targets SDK 9.2.1 with the following platform split:
+
+| Item | x86 dGPU | Generic SBSA / DGX Spark | Jetson |
+| --- | --- | --- | --- |
+| Triton inputs | Matching `26.10-py3` / `26.10-py3-sdk` images, AMD64 | Matching `26.10-py3` / `26.10-py3-sdk` images, ARM64 | Explicit matching JetPack-compatible runtime, server and client SDK providers; not stock SBSA 26.10 |
+| CUDA toolkit | 13.4.3 (`CUDA_VER=13.4`) | 13.4.3 (`CUDA_VER=13.4`) | 13.2.2 (`CUDA_VER=13.2`) |
+| TensorRT | 11.4.0.106 | 11.4.0.106 | 11.4.1.31 |
+| cuDNN | 9.27.0.42 | 9.27.0.42 | 9.20.0.46 |
+| VPI | Existing x86 4.1.3 provider | Genuine matching SBSA 4.1.6 provider required | JetPack 4.1.6 |
+| OS / Python | Ubuntu 24.04 / Python 3.12 | Ubuntu 24.04 / Python 3.12 | JetPack 7.2.2+ / Python 3.12 |
+
+The x86/SBSA core versions align with the
+[CUDA DL 26.10 contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+Jetson uses the distinct
+[TensorRT 11.4.1 JetPack support path](https://docs.nvidia.com/deeplearning/tensorrt/11.4.1/getting-started/release-notes-11/11.4.1.html).
+Do not replace TensorRT beneath an older Triton backend or treat all ARM64
+providers as interchangeable.
+
+These are configured build targets. Matching source/runtime assets, explicit
+Jetson providers, SBSA VPI inputs, full image builds and target runtime validation
+are required before claiming qualification. See
+[Quickstart](/text/DS_Quickstart) and the
+[monorepo Dockerfiles guide](https://github.com/NVIDIA/DeepStream/tree/develop/deepstream_dockers)
+for the local build requirements. The existing published 9.2.0 asset pins/links
+remain separate; they are not renamed 9.2.1 or evidence of this upgrade, and this
+section does not announce a new published image tag.
 
 ## DS 9.2
+
+The following feature notes describe the earlier DS 9.2 baseline. In particular,
+its JetPack version is historical; use the 9.2.1 targets above for this checkout.
 
 -  Support for NVIDIA GB300
 
@@ -155,8 +191,11 @@ Jetson instead.
 This section provides details about issues discovered during development
 and QA but not resolved in this release.
 
--  DeepStream on Jetson is based on L4T BSP version r39.2. Refer to
-   “Known Issues” section in [Jetson release notes](https://docs.nvidia.com/jetson/archives/r39.2/ReleaseNotes/Jetson_Linux_Release_Notes_r39.2.pdf).
+-  For the 9.2.1 Jetson target, use the BSP delivered with the selected JetPack
+   7.2.2+ environment and review its corresponding Jetson Linux release notes.
+   The earlier DS 9.2 baseline referred to
+   [r39.2 release notes](https://docs.nvidia.com/jetson/archives/r39.2/ReleaseNotes/Jetson_Linux_Release_Notes_r39.2.pdf);
+   that archived reference is not a BSP pin for the new target.
 
 -  With V4L2 codecs only MAX 1024 (decode + encode) instances are
    provided. The maximum number of instances can be increased by making

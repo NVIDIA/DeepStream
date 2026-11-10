@@ -89,7 +89,7 @@ Options:
                           implies --package
   --package-from=PATH     Package a complete extracted SDK runtime plus repo
                           sources; no downloads, compilation or system install
-  --package-platform=NAME x86 | jetson | sbsa (with --package-from)
+  --package-platform=NAME x86 | jetson | sbsa | igx (with --package-from)
   --include-untracked-sources Include non-ignored new sources for local validation
   --deepstream-libraries-wheel[=DIR]
                           Build the DeepStream Libraries wheel only. DIR defaults
@@ -491,7 +491,7 @@ if [[ -n "$PACKAGE_FROM" ]]; then
   _package_args=(--format="$PACKAGE_FORMAT" --runtime-root="$PACKAGE_FROM")
   case "$PACKAGE_PLATFORM" in
     x86) _package_args+=(--arch=amd64) ;;
-    jetson|sbsa) _package_args+=(--arch=arm64) ;;
+    jetson|sbsa|igx) _package_args+=(--arch=arm64) ;;
   esac
   [[ -z "$PACKAGE_PLATFORM" ]] || _package_args+=(--platform="$PACKAGE_PLATFORM")
   [[ "$PACKAGE_WORKTREE_SOURCES" -eq 0 ]] || _package_args+=(--include-untracked-sources)
@@ -787,8 +787,10 @@ finalize_install() {
 # with --package / --package-format. Artifacts are written to build/.
 run_package() {
   echo "==> Packaging DeepStream (format=$PACKAGE_FORMAT) via build/package.sh"
+  local package_platform="$STACK_PLATFORM"
+  [[ "$package_platform" != aarch64 ]] || package_platform=jetson
   env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" TRT_VER="$TRT_VER" \
-    bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT"
+    bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT" --platform="$package_platform"
 }
 
 # ---------------------------------------------------------------------------

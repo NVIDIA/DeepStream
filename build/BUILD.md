@@ -416,9 +416,19 @@ toolkit family; environment and CLI overrides are not overwritten:
 CUDA_VER=13.4 bash build/build.sh
 ```
 
-Offline `--package-from --package-platform=jetson|sbsa|x86` uses the selected
+Offline `--package-from --package-platform=jetson|sbsa|x86|igx` uses the selected
 package target's defaults, not the packaging host's defaults. It still bypasses
 dependency installation, compilation, stage state and system integration.
+The legacy `igx` target retains CUDA 13.0 and requires an explicit full TensorRT10
+`TRT_VER` for offline packaging. Native IGX packaging can instead read the selected
+`NvInferVersion.h` (`TRT_INCLUDE_DIR`, default `/usr/include/aarch64-linux-gnu`;
+preprocessed with `CC`, default `cc`). Its inference runtime must be ARM64/TRT10;
+the other three targets still require TRT11. The ELF check does not prove the
+declared full TensorRT patch/build provenance. IGX tarballs use the `_igx` suffix,
+not `_jetson`; the existing ARM reduced OCR/Sparse4D payload default is unchanged.
+The packaged IGX Triton helper also requires an explicit matching server/client
+archive pair qualified separately for the legacy IGX stack; it guesses no URL
+and does not establish compatibility merely from matching release numbers.
 
 Supply materialized runtime directories (`bin`, `lib`, `samples`, `service-maker`
 and optional `sources/sparse4d`). Top-level and nested directory symlinks in those
@@ -603,3 +613,103 @@ The generated `.deb` can then be installed on a target machine with:
 ```bash
 sudo apt install ./deepstream-<NVDS_VERSION>_<PKG_VERSION>-1_<arch>.deb
 ```
+
+## Run the PR validation helper
+
+`build/validate_pr.py` runs the existing checks and saves each command, exit code,
+duration and log, plus `summary.json` and `junit.xml`. It records Git HEAD,
+working-tree changes and submodules. Local uncommitted changes are labelled;
+they are not validation of the pushed PR. It never clones/switches branches,
+cleans files, installs prerequisites automatically, pushes or merges.
+
+Start with CPU-only checks from the repository root:
+
+```bash
+python3.12 build/validate_pr.py
+```
+
+These execute shell syntax checks and the existing `build/test_*.py` and
+`tools/modelopt/test_*.py` unit tests. Use an existing Python environment with
+`numpy` and `onnx` via `--test-python /path/to/venv/bin/python` if needed. This
+keeps CPU test dependencies separate from `--python`, the SDK runtime Python.
+Packaging
+fixtures also need `cc`, `git`, `readelf`, `rsync`, `dpkg-deb`, `tar` and `bzip2`.
+Missing dependencies or skipped tests are not a complete pass. No GPU, dependency
+installation or SDK installation is attempted by the default mode.
+
+Preview the x86 sequence without executing it:
+
+```bash
+python3.12 build/validate_pr.py --stage full --headless --dry-run
+```
+
+On a **designated x86 test environment** with the matching complete SDK runtime,
+compute stack and development inputs already provisioned:
+
+```bash
+# Non-root builds require cached sudo credentials before the detached commands.
+sudo -v
+python3.12 build/validate_pr.py --stage full --headless --allow-system-changes
+```
+
+The opt-in is significant: source/dependency builds can run sudo, APT and pip,
+install into `/opt`, and update the test environment. Model setup can download
+its isolated tool environment and rewrite sample models/configurations. The
+account must be able to write the test SDK's model/configuration directories;
+use an appropriately provisioned test container rather than broad chmod/chown.
+The runner itself does not repair missing providers or change drivers/BSP.
+
+`full` runs CPU checks, the real source build/package with `--skip-artifacts`,
+explicit platform pins and no `--resume`, post-install ModelOpt setup, then two
+source4 pipeline runs. It rejects old source objects rather than deleting them.
+Default public artifact downloads remain pinned to 9.2.0, so the matching
+9.2.1 runtime must be provisioned beforehand. This does **not** use
+`--package-from` as a substitute for compiling the PR.
+
+Individual stages are available with `--stage build`, `models`, or `runtime` and
+the same explicit opt-in. Runtime checks assert SDK 9.2.1, inspect selected plugin
+paths, import Service Maker 0.0.1 and require successful application completion,
+EOS and positive FPS from all four sources. `--headless` uses a unique temporary
+configuration beside the installed source4 config to preserve relative paths;
+only sink0 is changed to a clocked fakesink. The original is not modified and
+the owned copy is removed afterward. Two runs are not automatically cold/warm
+benchmarks; engine-cache snapshots are recorded without deleting engines.
+`--service-maker-tests` also runs the existing pytest inference tests (requires
+pytest and additional GPU time). Import alone does not qualify Service Maker.
+
+The aggregate `full` suite is x86-only because some existing CPU fixtures are
+x86-specific. Select the individual native build/models/runtime stages on
+Jetson or SBSA, using their actual matching providers. A platform selector is
+not a cross-build or qualification of another platform. The helper checks
+Debian compute-package identities; a tar-only compute installation needs
+separate verification rather than bypassing this check.
+
+For optional **x86 Docker assembly**, first produce the matching SDK tarball and
+provision the three reviewed GStreamer files under `CONTENT/x86/gst` as described
+in `deepstream_dockers/README.md`:
+
+```bash
+python3.12 build/validate_pr.py --stage docker \
+  --gst-input-root /absolute/path/to/reviewed/CONTENT \
+  --allow-system-changes
+```
+
+This stages inputs and invokes the existing setup/build scripts. Different
+existing context files are not overwritten. It can pull images and install
+packages inside the Docker build; it does not run or publish the final image.
+Use `--docker-kind samples` for the samples recipe. ARM Docker providers are
+not automated by this helper.
+
+Results default to a unique private directory under
+`~/deepstream-validation-results/`; `--output-dir` selects another parent outside
+the repository. Logs are retained on failure or interruption. Long commands have
+timeouts; termination is limited to their process group, and privileged children
+may need operator inspection. No unrelated process or Docker image is cleaned up.
+For an exact submitted revision, use `--expected-commit FULL_SHA --require-clean`.
+Review logs before attaching them to a public PR.
+
+Exit codes: **0** requested checks passed (or explicitly labelled dry run),
+**1** test failure, **2** unavailable/incomplete validation, **130** interrupted.
+A `PASS` covers only requested checks. Fresh installation in a second matching
+environment, final-image inference, output accuracy, performance acceptance,
+stress and other platforms remain separate gates before release qualification.

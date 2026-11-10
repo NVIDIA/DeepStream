@@ -4,9 +4,53 @@ title: "Installation"
 
 NVIDIA <sup>®</sup> DeepStream Software Development Kit (SDK) is an accelerated AI framework to build intelligent video analytics (IVA) pipelines. DeepStream runs on NVIDIA <sup>®</sup> T4, NVIDIA® Hopper, NVIDIA <sup>®</sup> Blackwell, NVIDIA <sup>®</sup> Ampere, NVIDIA <sup>®</sup> ADA, NVIDIA® DGX Spark, and platforms such as NVIDIA <sup>®</sup> Jetson AGX Thor, NVIDIA <sup>®</sup> Jetson Orin and NVIDIA <sup>®</sup> IGX Thor. For dGPU platforms Enterprise GPUs are highly recommended for deployments that are expected to run 24x7. Gaming GPUs are not designed to perform in such type of environments.
 
+## DeepStream 9.2.1 upgrade targets
+
+This checkout's source and packaging version is **9.2.1**; its installation
+directory remains `/opt/nvidia/deepstream/deepstream-9.2/`. The configured upgrade
+targets below are separate from the older published 9.2.0 packages and container
+tags. A configured target is not a completed build or runtime qualification.
+
+| Platform | Environment / container input | CUDA | TensorRT | cuDNN | VPI |
+| --- | --- | --- | --- | --- | --- |
+| x86 dGPU | Ubuntu 24.04 / Python 3.12; matching AMD64 Triton 26.10 server/client images | 13.4.3 | 11.4.0.106 | 9.27.0.42 | 4.1.3 |
+| Generic SBSA / DGX Spark | Ubuntu 24.04 / Python 3.12 container; matching ARM64 Triton 26.10 server/client images | 13.4.3 | 11.4.0.106 | 9.27.0.42 | 4.1.6, genuine SBSA inputs required |
+| Jetson AGX Orin / Thor | JetPack 7.2.2+ with matching BSP; explicitly supplied compatible Python 3.12 image(s) | 13.2.2 | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+
+The x86/SBSA core versions follow the [NVIDIA 26.10 container contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+Jetson eligibility follows the [TensorRT 11.4.1 Jetson migration guide](https://docs.nvidia.com/deeplearning/tensorrt/11.4.1/api/migration/tensorrt-10x-to-11x-jetson.html).
+The separate IGX legacy target is unchanged by this upgrade. DLA with TensorRT
+11.4.1 is an AGX Orin / JetPack path, not a Thor or generic SBSA capability.
+
+`CUDA_VER` selects the toolkit family directory: **13.4** for x86/SBSA and
+**13.2** for Jetson. It does not install or verify the full patch release.
+Containers still need a compatible host NVIDIA driver or Jetson BSP. Use a
+driver supported by the selected CUDA/container release; the old 595.58.03
+baseline in the historical tables below is not the new driver recommendation.
+
+The monorepo Dockerfiles assemble a matching SDK tarball; they do not compile the
+SDK sources. Use the source-matched 9.2.1 runtime and the provider requirements in
+`deepstream_dockers/README.md`. No new published image tag is implied. Jetson
+requires its own reviewed provider rather than stock SBSA Triton 26.10. See
+[Docker Containers](/text/DS_docker_containers#deepstream-921-upgrade-recipes).
+
 ## Install from the GitHub Mono-repo (Build from Source)
 
-The DeepStream mono-repo at https://github.com/NVIDIA/DeepStream is the recommended starting point for DeepStream 9.2. It contains the open-source components (GStreamer plugins, utilities, sample, reference and TAO applications, and Service Maker) together with `build/build.sh`, a single script that downloads the prebuilt proprietary runtime from the GitHub release, installs the open-source dependencies, builds the source components, and installs everything to `/opt/nvidia/deepstream/deepstream-9.2/`.
+The DeepStream mono-repo at https://github.com/NVIDIA/DeepStream contains the
+open-source components (GStreamer plugins, utilities, sample, reference and TAO
+applications, and Service Maker) together with `build/build.sh`. It can install
+release artifacts, build source components, or assemble a supplied complete SDK
+runtime with the available sources. The installation directory is
+`/opt/nvidia/deepstream/deepstream-9.2/`.
+
+<Note>
+The default artifact pins still select the published **v9.2.0** assets. Do not
+combine those older binaries with the TensorRT 11 upgrade merely because the
+installation directory is also named `9.2`. For the upgrade, provision a matching
+rebuilt runtime and use `--skip-artifacts` when rebuilding sources, or
+`--package-from` when assembling an approved complete runtime. Neither option
+converts older binaries to the new stack.
+</Note>
 
 ### Choose an installation method
 
@@ -18,7 +62,9 @@ The DeepStream mono-repo at https://github.com/NVIDIA/DeepStream is the recommen
 
 ### Prerequisites
 
-- The NVIDIA compute stack (driver, CUDA, cuDNN and TensorRT) for your platform. Install it by following the Jetson, dGPU or dGPU on ARM sections below, and match the versions listed in [Platform and OS Compatibility](#platform-and-os-compatibility).
+- The NVIDIA compute stack (driver, CUDA, cuDNN and TensorRT) for your platform.
+  Match the [9.2.1 upgrade targets](#deepstream-921-upgrade-targets), not the
+  older published-release tables, when building this upgrade.
 - `git`, `git-lfs`, `cmake` and `wget`.
 - SBSA / DGX Spark: bare-metal installation is not supported. Build inside the DeepStream SBSA container instead. See [FAQ for DeepStream GitHub Mono-repo](/text/DS_Monorepo_FAQ).
 
@@ -33,11 +79,20 @@ sudo apt-get install git-lfs && git lfs install
 # Clone the repo with submodules
 git clone --recurse-submodules https://github.com/NVIDIA/DeepStream.git && cd DeepStream
 
-# Build and install. The script prompts for sudo only when writing to system paths.
-bash build/build.sh
+# Check out the reviewed upgrade revision; the default remote branch is not
+# evidence that its sources and runtime inputs match your selected drop.
+: "${DS_SOURCE_REVISION:?Set the reviewed DeepStream 9.2.1 source revision}"
+git checkout "$DS_SOURCE_REVISION"
+git submodule update --init --recursive
+
+# Upgrade source build: first provision the matching SDK runtime, compute stack,
+# Triton client SDK and development dependencies described in build/BUILD.md.
+# Do not install the older default release artifacts over that runtime.
+bash build/build.sh --skip-artifacts
 ```
 
-`build/build.sh` detects the platform and runs these stages in order:
+For a full build without stage-skipping options, `build/build.sh` detects the
+platform and runs these stages in order:
 
 1. `artifacts`: downloads the prebuilt runtime libraries and sample data from the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) and installs them (x86 and Jetson).
 2. `deps`: builds and installs the open-source dependencies.
@@ -58,11 +113,29 @@ Commonly used options:
 | `-j N` | Number of parallel build jobs. |
 | `--verbose` | Show sub-make errors. |
 
-The defaults are `CUDA_VER=13.2` (13.0 on IGX) and `NVDS_VERSION=9.2.0`. Run `bash build/build.sh --help` for all options.
+Source/package defaults are `NVDS_VERSION=9.2.1` and `CUDA_VER=13.4` on x86/SBSA
+or `13.2` on Jetson (`13.0` on unchanged IGX). `pyservicemaker` keeps its
+independent version **0.0.1**. Run `bash build/build.sh --help` for all options.
+For offline assembly without downloading, installing dependencies or compiling:
+
+```bash
+bash build/build.sh --package \
+  --package-from=/absolute/path/extracted-sdk/opt/nvidia/deepstream/deepstream-9.2 \
+  --package-platform=x86
+```
+
+Use `--package-platform=jetson` or `sbsa` for a matching ARM runtime. This is
+packaging, not a cross-build or proof that supplied binaries match the sources.
 
 ### Verify the installation
 
-After the first install, clear the GStreamer plugin cache, then run the reference application with a sample configuration:
+After installation, follow `samples/modelopt/README.md` to prepare FP16/mixed
+models for TensorRT 11. Original ONNX filenames remain canonical; preserved FP32
+models use the `fp32_` prefix. Preparation installs its own tool dependencies only
+when explicitly run, and target engines are built afterward. Validate accuracy,
+latency and memory on the target; conversion alone is not qualification.
+
+Then clear the GStreamer plugin cache and run the reference application:
 
 ```bash
 rm -rf ~/.cache/gstreamer-1.0/
@@ -89,7 +162,11 @@ Steps to install DeepStream SDK locally, assume that `~/.local/bin/` has been ad
 
 ### Install Jetson SDK components
 
-Download NVIDIA SDK Manager from https://developer.nvidia.com/embedded/jetpack. You will use this to install JetPack 7.2.1 GA (corresponding to L4T 39.2 release)
+Download NVIDIA SDK Manager from https://developer.nvidia.com/embedded/jetpack.
+For the TensorRT 11 upgrade, provision JetPack **7.2.2+** and its matching BSP on
+an eligible **AGX Orin or Thor** device, with the component versions in the
+[upgrade target matrix](#deepstream-921-upgrade-targets). Do not infer support for
+other Orin modules from an earlier DeepStream release's compatibility table.
 
 - NVIDIA SDK Manager is a graphical application which flashes and installs the JetPack packages.
 - The flashing procedure takes approximately 10-30 minutes, depending on the host system.
@@ -180,22 +257,26 @@ sudo apt-get update && sudo apt-get install confluent-platform
 sudo apt-get install librdkafka-dev
 ```
 
-#### Install latest NVIDIA BSP packages
+#### Install matching NVIDIA BSP packages
 
-Installation of JetPack 7.2.1 GA will ensure that latest NVIDIA BSP packages are installed.
+Keep the BSP and user-space packages matched to the selected JetPack release.
+Do not replace just TensorRT beneath older Triton backends. For Docker delivery,
+use the explicit Jetson image providers described in the monorepo Docker guide.
 
 ### Install the DeepStream SDK
 
 <Note>
-**Recommended for new users:** use **Method 4 (Docker container)** for the
-quickest, dependency-free setup. For native installs, the Debian (Method 3)
-and tar (Method 2) packages are published as GitHub release assets at
+For the **9.2.1 upgrade**, use a matching rebuilt package or the monorepo Docker
+recipes; the older published assets below are not upgrade inputs. Methods 1–3
+describe the **published 9.2.0 baseline**, whose stack must be kept separate.
+Those native Debian and tar assets are listed at
 https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0.
 </Note>
 
 - **Method 1**: Using SDK Manager
 
-  Select `DeepStreamSDK` from the `Additional SDKs` section along with JP 7.2.1 GA software components for installation.
+  For the published 9.2.0 baseline, select `DeepStreamSDK` with its supported
+  JetPack components if offered. This does not install the 9.2.1 upgrade stack.
 
 - **Method 2**: Using the DeepStream tar package: https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0
 
@@ -220,9 +301,10 @@ $ sudo apt-get install ./deepstream-9.2_9.2.0-1_arm64.deb
 
 - **Method 4**: Use Docker containers
 
-  DeepStream Docker container images are distributed through the
-  [DeepStream package on GitHub Container Registry (GHCR)](https://github.com/orgs/NVIDIA/packages/container/package/deepstream)
-  under the `ghcr.io/nvidia/deepstream` image namespace. See the [Docker Containers](/text/DS_docker_containers) section to learn about developing and deploying DeepStream using docker containers.
+  For the upgrade, build a matching image using the monorepo Jetson recipes and
+  explicit compatible providers. Existing GHCR `9.2-*` images describe the
+  published baseline, not automatic qualification of the new stack. See
+  [Docker Containers](/text/DS_docker_containers).
 
 <Note>
 For scripted or headless downloads of the release assets using `curl` or `wget`, see [FAQ for DeepStream GitHub Mono-repo](/text/DS_Monorepo_FAQ).
@@ -242,7 +324,8 @@ Steps to install DeepStream SDK locally, assume that `~/.local/bin/` has been ad
 
 <Note>
 This document uses the term dGPU (“discrete GPU”) to refer to NVIDIA GPU expansion card products such as NVIDIA Tesla <sup>®</sup> T4, NVIDIA <sup>®</sup> Hopper, NVIDIA <sup>®</sup> Blackwell, NVIDIA <sup>®</sup> Ampere, NVIDIA <sup>®</sup> ADA, NVIDIA GeForce <sup>®</sup> RTX 2080, NVIDIA GeForce <sup>®</sup> RTX 3080, NVIDIA GeForce <sup>®</sup> RTX 4080, NVIDIA GeForce <sup>®</sup> RTX pro 4500 and GeForce <sup>®</sup>/NVIDIA RTX/QUADRO.
-This version of DeepStream SDK runs on GPUs supported by NVIDIA driver 595.58.03 and NVIDIA TensorRT™ 10.16.0.72 and later versions.
+GPU support depends on the selected NVIDIA driver and TensorRT release. This
+upgrade targets TensorRT **11.4.0.106**, not an open-ended “10.16 and later” range.
 </Note>
 
 ### Prerequisites
@@ -251,9 +334,11 @@ You must install the following components:
 
 - Ubuntu 24.04
 - GStreamer 1.24.2
-- NVIDIA driver 595.58.03
-- CUDA 13.2
-- TensorRT 10.16.0.72
+- A host NVIDIA driver compatible with CUDA 13.4.3 and the selected container
+- CUDA 13.4.3 (`CUDA_VER=13.4` for source builds)
+- TensorRT 11.4.0.106
+- cuDNN 9.27.0.42
+- Python 3.12 for the selected build/runtime environment
 
 #### Remove all previous DeepStream installations
 
@@ -314,15 +399,19 @@ For OpenTelemetry installation, follow the steps in [Install OpenTelemetry](#ins
 under [Jetson Setup](#jetson-setup).
 </Note>
 
-#### Install CUDA Toolkit 13.2
+#### Install CUDA Toolkit 13.4.3
 
-Run the following commands (reference, https://developer.nvidia.com/cuda-downloads):
+Configure NVIDIA's Ubuntu 24.04 x86_64 repository using the
+[CUDA Linux installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/).
+Select the reviewed **13.4.3** toolkit package revision rather than an unpinned
+latest toolkit. For example, after configuring the repository:
 
-```
-$ sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
-$ sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
-$ sudo apt-get update
-$ sudo apt-get install cuda-toolkit-13-2
+```bash
+apt-cache madison cuda-toolkit-13-4
+# Set CUDA_TOOLKIT_PACKAGE_VERSION to the reviewed 13.4.3 package revision.
+: "${CUDA_TOOLKIT_PACKAGE_VERSION:?Select the CUDA 13.4.3 toolkit package revision}"
+sudo apt-get install "cuda-toolkit-13-4=$CUDA_TOOLKIT_PACKAGE_VERSION"
+cat /usr/local/cuda-13.4/version.json
 ```
 
 <Note>
@@ -335,41 +424,38 @@ E: The repository 'https://developer.download.nvidia.com/compute/cuda/repos/ubun
 
 </Note>
 
-#### Install NVIDIA driver 595.58.03
+#### Install a compatible NVIDIA driver
 
-- Download and install using NVIDIA driver 595.58.03 from NVIDIA Unix drivers page at: https://www.nvidia.com/en-us/drivers/details/266021/
+Use the selected CUDA/container release's driver requirements and the
+[NVIDIA driver installation guide](https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/index.html)
+for your GPU and OS. Verify the loaded host driver with `nvidia-smi` before
+starting a container. Do not reuse the old 595.58.03 installation recipe solely
+because it appears in the published 9.2.0 compatibility table.
 
-- Run the following commands:
+#### Install TensorRT 11.4.0.106 and cuDNN 9.27.0.42
 
-```
-$ chmod 755 NVIDIA-Linux-x86_64-595.58.03.run
-$ sudo ./NVIDIA-Linux-x86_64-595.58.03.run --no-cc-version-check
-```
+Configure the matching NVIDIA Ubuntu 24.04 x86_64 repositories using the
+[TensorRT installation guide](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html)
+and [cuDNN installation guide](https://docs.nvidia.com/deeplearning/cudnn/installation/latest/linux.html).
+Install the exact package revisions used by the x86 samples recipe:
 
-<Note>
-Ensure gdm, lightdm or Xorg service is stopped while installing nvidia driver
-
-Use command : `sudo service gdm stop` `sudo service lightdm stop` `sudo pkill -9 Xorg`
-</Note>
-
-#### Install TensorRT 10.16.0.72
-
-  Run the following command to install TensorRT 10.16.0.72:
-
-```
-version="10.16.0.72-1+cuda13.2"
-sudo apt-get install libnvinfer-dev=${version} libnvinfer-dispatch-dev=${version} \
-libnvinfer-dispatch10=${version} libnvinfer-headers-dev=${version} libnvinfer-headers-plugin-dev=${version} \
-libnvinfer-safe-headers-dev=${version} libnvinfer-lean-dev=${version} libnvinfer-lean10=${version} \
-libnvinfer-plugin-dev=${version} libnvinfer-plugin10=${version} libnvinfer-vc-plugin-dev=${version} \
-libnvinfer-vc-plugin10=${version} libnvinfer10=${version} libnvonnxparsers-dev=${version} \
-libnvonnxparsers10=${version} tensorrt-dev=${version} \
-libnvinfer-headers-python-plugin-dev=${version} libnvinfer-win-builder-resource10=${version}
+```bash
+trt_version="11.4.0.106-1+cuda13.4"
+cudnn_version="9.27.0.42-1"
+sudo apt-get install \
+  "libnvinfer11=$trt_version" "libnvinfer-dev=$trt_version" \
+  "libnvinfer-plugin11=$trt_version" "libnvinfer-plugin-dev=$trt_version" \
+  "libnvinfer-headers-dev=$trt_version" "libnvinfer-headers-plugin-dev=$trt_version" \
+  "libnvonnxparsers11=$trt_version" "libnvonnxparsers-dev=$trt_version" \
+  "libcudnn9-cuda-13=$cudnn_version" "libcudnn9-dev-cuda-13=$cudnn_version" \
+  "libcudnn9-headers-cuda-13=$cudnn_version"
 ```
 
 <Note>
-* It is assumed, "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/" has been added, as mentioned in CUDA Toolkit 13.2 installation step.
-* libnvparsers are deprecated since TRT 8.0.
+These commands apply to the native x86 path. The Triton Docker recipes retain
+their matching server/backend compute stack instead of replacing its TensorRT
+packages. For source builds, provision the matching Triton client SDK and other
+development inputs in `build/BUILD.md` as well.
 </Note>
 
 #### Install librdkafka (to enable Kafka protocol adaptor for message broker)
@@ -409,9 +495,10 @@ sudo apt-get install librdkafka-dev
 ### Install the DeepStream SDK
 
 <Note>
-**Recommended for new users:** use **Method 3 (Docker container)** for the
-quickest, dependency-free setup. For native installs, the Debian (Method 1)
-and tar (Method 2) packages are published as GitHub release assets at
+For the **9.2.1 upgrade**, use a matching rebuilt package or monorepo Docker
+recipe. Methods 1–2 below describe the **published 9.2.0 baseline** only; do not
+install them on the new stack as a substitute for matching upgrade binaries.
+The older assets are listed at
 https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0.
 </Note>
 
@@ -438,9 +525,8 @@ $ sudo ldconfig
 
 - **Method 3**: Use Docker containers
 
-  DeepStream Docker container images are distributed through the
-  [DeepStream package on GitHub Container Registry (GHCR)](https://github.com/orgs/NVIDIA/packages/container/package/deepstream)
-  under the `ghcr.io/nvidia/deepstream` image namespace. See the [Docker Containers](/text/DS_docker_containers) section to learn about developing and deploying DeepStream using docker containers.
+  Build or select a reviewed DeepStream image containing the upgrade stack and
+  matching SDK binaries. See [Docker Containers](/text/DS_docker_containers).
 
 <Note>
 For scripted or headless downloads of the release assets using `curl` or `wget`, see [FAQ for DeepStream GitHub Mono-repo](/text/DS_Monorepo_FAQ).
@@ -456,26 +542,15 @@ This section explains how to prepare an `Ubuntu aarch64` system with NVIDIA dGPU
 
 You must install the following components:
 
-- NVIDIA driver 595.58.03
+- A host NVIDIA driver compatible with CUDA 13.4.3 and the selected ARM64 image
 - Docker
 - Nvidia Container Toolkit
 
-### Install NVIDIA driver 595.58.03
+### Install a compatible NVIDIA driver
 
-- Download and install using NVIDIA driver 595.58.03 from NVIDIA Unix drivers page at: https://www.nvidia.com/en-us/drivers/details/266021/
-
-- Run the following commands:
-
-```
-$ chmod 755 NVIDIA-Linux-aarch64-595.58.03.run
-$ sudo ./NVIDIA-Linux-aarch64-595.58.03.run --no-cc-version-check
-```
-
-<Note>
-Ensure gdm, lightdm or Xorg service is stopped while installing Nvidia driver
-
-Use command : `sudo service gdm stop` `sudo service lightdm stop` `sudo pkill -9 Xorg`
-</Note>
+Follow the [NVIDIA driver installation guide](https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/index.html)
+for the ARM64 host and selected CUDA/container release. Verify the loaded driver
+with `nvidia-smi`. Installing a user-space container does not update that driver.
 
 ### Run dGPU on ARM Docker (SBSA)
 
@@ -483,16 +558,18 @@ Use command : `sudo service gdm stop` `sudo service lightdm stop` `sudo pkill -9
 A compatible NVIDIA driver must be installed on the host for SBSA. The driver is not included in the Docker image; the NVIDIA Container Toolkit makes the host driver available to the container.
 </Note>
 
-1. Pull the DeepStream Triton Inference Server docker
+1. Set `DS_SBSA_IMAGE` to the reviewed DeepStream image built with the monorepo
+   SBSA recipe and matching 26.10 inputs, then pull it if stored in a registry.
 
-```
-docker pull ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```bash
+: "${DS_SBSA_IMAGE:?Set a reviewed DeepStream 9.2.1 SBSA Triton image reference}"
+docker pull "$DS_SBSA_IMAGE"
 ```
 
 2. Start the docker
 
-```
-sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```bash
+sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 "$DS_SBSA_IMAGE"
 ```
 
 <Note>
@@ -518,22 +595,24 @@ Refer [NVIDIA DGX Spark Release Notes](https://docs.nvidia.com/dgx/dgx-spark/rel
 
 ### Run DGX Spark Docker
 
-1. Pull the DeepStream Triton Inference Server docker
+1. Select the reviewed DeepStream SBSA-class image built for the upgrade stack.
+   Set `DS_SBSA_IMAGE` to its tag or digest, then pull it if needed.
 
-```
-docker pull ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```bash
+: "${DS_SBSA_IMAGE:?Set a reviewed DeepStream 9.2.1 DGX Spark Triton image reference}"
+docker pull "$DS_SBSA_IMAGE"
 ```
 
 2. Start the docker
 
-```
+```bash
 sudo docker run -it --rm --runtime=nvidia --network=host \
     -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics \
     --gpus all \
     -e DISPLAY=:0 \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -v /etc/X11:/etc/X11 \
-    ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+    "$DS_SBSA_IMAGE"
 ```
 
 <Note>
@@ -550,7 +629,9 @@ DeepStream for RHEL is not supported in this release.
 
 ## Platform and OS Compatibility
 
-The following table provides information about platform and operating system compatibility in the current and earlier versions of DeepStream.
+The following tables preserve the **published 9.2.0 and earlier baselines**.
+The `DS 9.2` columns below are not the 9.2.1 upgrade target. For the current
+checkout, use the [upgrade target matrix](#deepstream-921-upgrade-targets).
 
 **Jetson model Platform and OS Compatibility**
 

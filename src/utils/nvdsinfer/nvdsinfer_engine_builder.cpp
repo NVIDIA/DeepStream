@@ -7,6 +7,7 @@
  * This is deliberately not a trtexec benchmark or a general trtexec replacement.
  */
 #include "nvdsinfer_model_builder.h"
+#include "nvdsinfer_onnx_paths.h"
 #include <NvInferPlugin.h>
 #include <cuda_runtime_api.h>
 
@@ -378,6 +379,20 @@ void configureIO(INetworkDefinition& n, const Options& o) {
 }
 
 int build(const Options& o) {
+    // Keep the initial input closure even if the model is replaced during the
+    // build, and inspect again immediately before either output is published.
+    // No ModelOpt/ONNX-Python runtime dependency is needed for this file guard.
+    const auto protectedInputs = nvdsinfer_onnx_paths::inputFiles(o.onnx);
+    auto protectOutputs = [&]() {
+        auto inputs = protectedInputs;
+        const auto current = nvdsinfer_onnx_paths::inputFiles(o.onnx);
+        inputs.insert(current.begin(), current.end());
+        for (const auto& input : inputs) {
+            if (sameFile(input, o.engine) || (!o.layerInfo.empty() && sameFile(input, o.layerInfo)))
+                throw std::runtime_error("engine/layer-info output must not overwrite ONNX input: " + input);
+        }
+    };
+    protectOutputs();
     Logger logger; logger.verbose = o.verbose;
     PluginLibraries plugins; // Must outlive parser, network, engine and runtime.
     for (const auto& path : o.plugins) plugins.load(path);
@@ -432,8 +447,12 @@ int build(const Options& o) {
         const char* text = inspector->getEngineInformation(LayerInformationFormat::kJSON);
         if (!text) throw std::runtime_error("engine inspector returned no layer information");
         if (o.dumpLayers) std::cout << text << '\n';
-        if (!o.layerInfo.empty()) atomicWrite(o.layerInfo, text, std::strlen(text));
+        if (!o.layerInfo.empty()) {
+            protectOutputs();
+            atomicWrite(o.layerInfo, text, std::strlen(text));
+        }
     }
+    protectOutputs();
     atomicWrite(o.engine, plan->data(), plan->size());
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     std::cout << "Saved engine: " << o.engine << " (" << plan->size() << " bytes); build/save " << seconds << " s\n";

@@ -4,10 +4,25 @@ title: "Gst-nvinferserver"
 
 The Gst-nvinferserver plugin performs inferencing on input data using NVIDIA® Triton Inference Server (previously called TensorRT Inference Server).
 
-The plugin supports the following Triton server versions:
+The DeepStream 9.2.1 monorepo recipes select the following Triton build inputs.
+These are upgrade targets, not a claim of completed DeepStream runtime qualification:
 
-* **x86 platforms**: Release 2.67.0, NGC Container 26.03 reference https://github.com/triton-inference-server/server/blob/r26.03/README.md
-* **Jetson platforms**: Release 2.68.0, NGC Container 26.04 reference https://github.com/triton-inference-server/server/blob/r26.04/README.md
+| Platform | Triton server and client SDK inputs |
+| --- | --- |
+| x86 dGPU | Triton 26.10 (server 2.74.0): `nvcr.io/nvidia/tritonserver:26.10-py3` and the matching `26.10-py3-sdk` image, AMD64 |
+| Generic SBSA / DGX Spark | The same matching 26.10 server/client SDK image pair, ARM64 |
+| Jetson | Explicit, separately qualified JetPack 7.2.2+/CUDA 13.2.2/TensorRT 11.4.1.31 server and client SDK providers; no default 26.04 fallback |
+
+The x86/SBSA target uses CUDA 13.4.3, TensorRT 11.4.0.106 and cuDNN 9.27.0.42.
+Jetson retains cuDNN 9.20.0.46 and VPI 4.1.6 from its selected JetPack stack.
+Do not use the stock SBSA 26.10 image on Jetson, or replace TensorRT underneath
+an older Triton backend. Matching TensorRT versions alone do not establish
+server, backend and client SDK compatibility.
+
+For the explicit Jetson image arguments and provider checks, see the
+[monorepo Dockerfiles guide](https://github.com/NVIDIA/DeepStream/tree/develop/deepstream_dockers).
+No new DeepStream image tag or matching Jetson provider is implied by these
+recipe targets. Published 9.2.0 assets are not evidence of this upgraded stack.
 
 The plugin accepts batched `NV12/RGBA` buffers from upstream. The NvDsBatchMeta structure must already be attached to the Gst Buffers.
 
@@ -48,9 +63,15 @@ The Gst-nvinferserver plugin can work in three process modes:
 
       When operating in preprocessed tensor input mode, the pre-processing inside Gst-nvinferserver is completely skipped. The plugin looks for `GstNvDsPreProcessBatchMeta` attached to the input buffer and passes the tensor as is to the Triton Inference Server without any modifications. This mode currently supports processing on full-frame and ROI. The GstNvDsPreProcessBatchMeta is attached by the Gst-nvdspreprocess plugin. This mode is enabled by adding the input_tensor_from_meta configuration message in the InferenceConfig message.
 
-Detailed documentation of the Triton Inference Server is available at: https://github.com/triton-inference-server/server/blob/r26.03/README.md (x86) and https://github.com/triton-inference-server/server/blob/r26.04/README.md (Jetson)
+For x86/SBSA, consult the [Triton 26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
+For Jetson, use the documentation of the explicitly selected server/backend provider.
 
-The plugin supports Triton features along with multiple deep-learning frameworks such as TensorRT, TensorFlow (GraphDef / SavedModel), ONNX and PyTorch on Tesla platforms. On Jetson, it also supports TensorRT and TensorFlow (GraphDef / SavedModel). TensorFlow and ONNX can be configured with TensorRT acceleration. For details, see [Framework-Specific Optimization](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/optimization.md#framework-specific-optimization).
+Framework availability depends on the backends shipped and qualified with that
+provider, including TensorRT, ONNX Runtime and PyTorch where available. TensorFlow
+is not a bundled backend in current Triton images; the historical TensorFlow rows
+below do not promise its availability in 26.10 or in a Jetson provider. A custom
+backend build requires separate compatibility and functional validation. For
+backend-specific optimization, see [Framework-Specific Optimization](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/optimization.md#framework-specific-optimization).
 The plugin requires a configurable model repository root directory path where all the models need to reside. All the plugin instances in a single process must share the same model root. For details, see [Model Repository](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md). Each model also needs a specific `config.pbtxt` file in its subdirectory. For details, see [Model Configuration](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md).
 The plugin supports Triton ensemble mode to enable users to perform preprocessing or postprocessing with Triton custom backend.
 The plugin also supports the interface for custom functions for parsing outputs of object detectors, classifiers, and initialization of non-image input layers in cases where there is more than one input layer.
@@ -114,6 +135,10 @@ The protobuf message structures of this configuration file are defined by `nvdsi
 ## Features
 
 The following table summarizes the features of the plugin.
+
+The Release column records when a feature was introduced, not which backends are
+included in the current container. Consult the selected provider for present
+framework and platform availability; legacy backend rows are historical.
 
 **Gst-nvinferserver plugin features**
 
@@ -488,7 +513,12 @@ To manage memory efficiency and keep clean interface, The Gst-nvinferserver Plug
 The low level `nvds_infer_server` library could deliver specified media-format (RGB/BGR/Gray) in any kind of tensor orders and datatypes as a CUDA GPU buffer input to Triton backend. User’s custom-backend must support GPU memory on this input. Triton custom-backend sample identity can work with Gst-nvinferserver plugin.
 
 <Note>
-Custom backend API must have same Triton codebase version (26.04 for Jetson, 26.03 for x86). Read more details from Triton server releases: [x86 release](https://github.com/triton-inference-server/server/releases/tag/v2.67.0) and [Jetson release](https://github.com/triton-inference-server/server/releases/tag/v2.68.0).
+Build custom backends against the same Triton codebase as the selected server:
+26.10 for the x86/SBSA target, and the exact provider-specific version for Jetson.
+Use the matching client SDK as well. See the
+[26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0)
+and the release documentation of the selected Jetson provider. The old x86 26.03
+and Jetson 26.04 references are not the current upgrade targets.
 </Note>
 
 To learn details how to implement Triton custom-backend, refer to [Triton custom-backend](https://github.com/triton-inference-server/backend/tree/main#how-can-i-develop-my-own-triton-backend).

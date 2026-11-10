@@ -13,6 +13,7 @@ import hashlib
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -44,7 +45,8 @@ class PackageFlowTests(unittest.TestCase):
         self.env = os.environ.copy()
         for name in ("NVDS_VERSION", "PKG_VERSION", "CUDA_VER", "TRT_VER", "CUDNN_VERSION",
                      "SKIP_SPARSE4D_OCR", "DEEPSTREAM_VARIANT", "PLATFORM",
-                     "TRITON_PKG_PATH", "TRITON_CLIENT_SDK_PKG_PATH", "BASH_ENV", "ENV"):
+                     "TRITON_PKG_PATH", "TRITON_CLIENT_SDK_PKG_PATH", "BASH_ENV", "ENV",
+                     "TRT_INCLUDE_DIR", "CC"):
             self.env.pop(name, None)
         self.env["NVDS_VERSION"] = "9.2.0"
         self.env["CUDA_VER"] = "13.2"
@@ -75,6 +77,12 @@ class PackageFlowTests(unittest.TestCase):
             "includes/public.h": "/* public fixture header */\n",
             "src/utils/public_source.cpp": "// tracked fixture, index version\n",
             "src/gst-utils/gst-nvdsinferbase/Makefile": "INC:= ../../utils\n",
+            "src/gst-plugins/gst-nvdsvisionencoder-c/Makefile":
+                (BUILD_DIR.parent / "src/gst-plugins/gst-nvdsvisionencoder-c/Makefile").read_text(),
+            "src/utils/nvdsinfer/nvdsinfer_model_builder.h": "/* inference header fixture */\n",
+            "src/utils/nvdsinfer/nvdsinfer_onnx_paths.h":
+                (BUILD_DIR.parent / "src/utils/nvdsinfer/nvdsinfer_onnx_paths.h").read_text(),
+            "src/utils/nvdsinferutils/include/nvdsinfer_tlt.h": "/* TLT header fixture */\n",
             "src/service-maker/cmake/nvds_service_makerConfig.cmake":
                 'set(INC "${CMAKE_CURRENT_LIST_DIR}/../../../includes")\n',
             "src/service-maker/sources/core/Makefile":
@@ -363,6 +371,125 @@ class PackageFlowTests(unittest.TestCase):
         self.assert_no_build_or_install()
 
     @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    def test_igx_legacy_package_keeps_selected_trt10_and_cuda13(self):
+        self.env.pop("CUDA_VER", None)
+        self.env["TRT_VER"] = "10.13.3.9"  # fixture selection, not a qualified IGX version
+        self.make_infer_fixture(10)
+        inference = self.runtime / "lib/libnvds_infer.so"
+        metadata = bytearray(inference.read_bytes())
+        metadata[18:20] = (183).to_bytes(2, "little")
+        inference.write_bytes(metadata)  # metadata-only ARM fixture; never executed
+        before = inference.read_bytes()
+        self.run_command(self.package_command("--arch=arm64", "--platform=igx",
+                                              "--format=both", "--keep-stage"))
+        self.assertTrue((self.output / "deepstream_sdk_v9.2.0_igx.tbz2").is_file())
+        deb = self.output / "deepstream-9.2_9.2.0-1_arm64.deb"
+        depends = self.run_command(["dpkg-deb", "-f", str(deb), "Depends"]).stdout
+        for name in ("libnvinfer10", "libnvinfer-dev", "libnvonnxparsers10",
+                     "libnvonnxparsers-dev", "libnvinfer-plugin10", "libnvinfer-plugin-dev"):
+            self.assertIn(name + " (>= 10.13.3.9)", depends)
+            self.assertIn(name + " (<< 10.13.3.10)", depends)
+        self.assertIn("cuda-cudart-13-0", depends)
+        self.assertIn("libnvvpi4,", depends)
+        self.assertNotIn("libnvvpi4 (", depends)
+        self.assertNotIn("libnvinfer11", depends)
+        self.assertNotIn("cuda-cudart-13-4", depends)
+        self.assertEqual(inference.read_bytes(), before)
+        setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
+        command = ["bash", "-c",
+                   'mkdir() { echo PREPARATION_REACHED; return 97; }; '
+                   'export -f mkdir; exec bash "$1"', "guarded-igx-setup", str(setup)]
+        result = self.run_command(command, expected=1)
+        self.assertIn("IGX", result.stdout)
+        self.assertIn("explicit", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
+        # Fixture URLs test selection only; they are never fetched or qualified.
+        self.env.update(TRITON_PKG_PATH="https://example.invalid/v2.70.0/server.zip",
+                        TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.70.0/client.zip")
+        result = self.run_command(command, expected=97)
+        self.assertIn("Explicit IGX", result.stdout)
+        self.assertIn("PREPARATION_REACHED", result.stdout)
+        self.env["TRITON_CLIENT_SDK_PKG_PATH"] = "https://example.invalid/v2.69.0/client.zip"
+        result = self.run_command(command, expected=1)
+        self.assertIn("versions must match", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
+    def test_offline_igx_driver_forwards_arm_architecture(self):
+        self.env.pop("CUDA_VER", None)
+        self.env["TRT_VER"] = "10.13.3.9"
+        self.make_infer_fixture(10)
+        inference = self.runtime / "lib/libnvds_infer.so"
+        metadata = bytearray(inference.read_bytes())
+        metadata[18:20] = (183).to_bytes(2, "little")
+        inference.write_bytes(metadata)
+        self.run_command(["bash", str(self.repo / "build/build.sh"),
+                          f"--package-from={self.runtime}", "--package-platform=igx",
+                          "--package-format=tar"])
+        self.assertTrue((self.repo / "build/deepstream_sdk_v9.2.0_igx.tbz2").is_file())
+        self.assert_no_build_or_install()
+
+    def test_igx_rejects_unknown_version_or_wrong_runtime_without_changing_stage(self):
+        marker = self.stage / "must-survive.txt"
+        self.write(marker, "preflight must not discard staging\n")
+        for version, major, arch in ((None, 10, "arm64"), ("11.4.0.106", 11, "arm64"),
+                                     ("10.13.3.9", 11, "arm64"), ("10.13.3.9", 10, "amd64")):
+            with self.subTest(version=version, major=major, arch=arch):
+                self.env.pop("TRT_VER", None)
+                if version is not None:
+                    self.env["TRT_VER"] = version
+                self.make_infer_fixture(major)
+                inference = self.runtime / "lib/libnvds_infer.so"
+                metadata = bytearray(inference.read_bytes())
+                metadata[18:20] = (183).to_bytes(2, "little")
+                inference.write_bytes(metadata)
+                result = self.run_command(self.package_command("--platform=igx", "--arch=" + arch),
+                                          expected=None)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertTrue(marker.is_file())
+        self.assert_no_build_or_install()
+
+    def test_igx_header_version_reader_uses_selected_compiler_and_rejects_bad_macros(self):
+        source = (BUILD_DIR / "package.sh").read_text()
+        match = re.search(r"^read_trt_header_version\(\) \{\n.*?^\}", source, re.M | re.S)
+        self.assertIsNotNone(match, "native IGX packaging needs an explicit header-version reader")
+        include = self.root / "selected headers"
+        header = include / "NvInferVersion.h"
+        valid = "#define NV_TENSORRT_MAJOR 10\n#define NV_TENSORRT_MINOR 13\n" \
+                "#define NV_TENSORRT_PATCH 3\n#define NV_TENSORRT_BUILD 9\n"
+        self.env["TRT_INCLUDE_DIR"] = str(include)
+        self.env["CC"] = shutil.which("cc")
+        self.write(header, valid)
+        result = self.run_command(["bash", "-ec", match.group() + "\nread_trt_header_version"])
+        self.assertEqual(result.stdout.strip(), "10.13.3.9")
+        for invalid in (valid.replace("#define NV_TENSORRT_BUILD 9\n", ""),
+                        valid.replace("NV_TENSORRT_BUILD 9", "NV_TENSORRT_BUILD nope")):
+            self.write(header, invalid)
+            result = self.run_command(["bash", "-ec", match.group() + "\nread_trt_header_version"], expected=None)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.write(header, valid)
+        self.env["CC"] = str(self.root / "absent compiler")
+        result = self.run_command(["bash", "-ec", match.group() + "\nread_trt_header_version"], expected=None)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assert_no_build_or_install()
+
+    def test_native_packaging_forwards_selected_platform(self):
+        source = (BUILD_DIR / "build.sh").read_text()
+        match = re.search(r"^run_package\(\) \{\n.*?^\}", source, re.M | re.S)
+        self.assertIsNotNone(match)
+        for stack, target in (("x86", "x86"), ("aarch64", "jetson"),
+                              ("sbsa", "sbsa"), ("igx", "igx")):
+            with self.subTest(stack=stack):
+                self.env.update(STACK_PLATFORM=stack, NVDS_FULL_VERSION="9.2.0",
+                                TRT_VER="10.13.3.9" if stack == "igx" else "11.4.0.106",
+                                PACKAGE_FORMAT="both", SCRIPT_DIR=str(BUILD_DIR))
+                result = self.run_command(["bash", "-ec", match.group() +
+                    '\nenv() { printf "ARG=%s\\n" "$@"; }\nrun_package'])
+                self.assertIn("ARG=--platform=" + target + "\n", result.stdout)
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
     def test_runtime_bytes_symlinks_and_tracked_source_policy(self):
         self.run_command(self.package_command("--format=both", "--keep-stage"))
         package = self.output / "deepstream_sdk_v9.2.0_x86_64.tbz2"
@@ -407,6 +534,52 @@ class PackageFlowTests(unittest.TestCase):
                          "9.2.1-1")
         self.assertEqual((self.stage / SDK_PATH / "version").read_text().splitlines()[0],
                          "Version: 9.2.1")
+        self.assert_no_build_or_install()
+
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    def test_visionencoder_inference_dependencies_survive_packaging(self):
+        relative = "sources/gst-plugins/gst-nvdsvisionencoder-c/Makefile"
+        original = self.repo / "src/gst-plugins/gst-nvdsvisionencoder-c/Makefile"
+        original_bytes = original.read_bytes()
+        inference = self.runtime / "lib/libnvds_infer.so"
+        original_elf = inference.read_bytes()
+        self.env.pop("CUDA_VER", None)
+        for target, arch, machine in (("x86", "amd64", 62), ("jetson", "arm64", 183),
+                                      ("sbsa", "arm64", 183)):
+            with self.subTest(platform=target):
+                # Only the metadata fixture changes architecture. No ARM code
+                # is compiled or executed by this package-layout check.
+                metadata = bytearray(original_elf)
+                metadata[18:20] = machine.to_bytes(2, "little")
+                inference.write_bytes(metadata)
+                self.run_command(self.package_command("--format=both", "--keep-stage",
+                                                      "--arch=" + arch, "--platform=" + target))
+                staged = self.stage / SDK_PATH / relative
+                text = staged.read_text()
+                self.assertIn("-I../../libs/nvdsinfer", text)
+                self.assertIn("-I../../libs/nvdsinferutils/include", text)
+                self.assertNotIn("../../utils/", text)
+                self.assertIn("-lnvds_infer", text)
+                for include in ("../../libs/nvdsinfer/nvdsinfer_model_builder.h",
+                                "../../libs/nvdsinfer/nvdsinfer_onnx_paths.h",
+                                "../../libs/nvdsinferutils/include/nvdsinfer_tlt.h"):
+                    self.assertTrue((staged.parent / include).is_file(), include)
+                suffix = {"x86": "x86_64", "jetson": "jetson", "sbsa": "sbsa"}[target]
+                with tarfile.open(self.output / ("deepstream_sdk_v9.2.0_" + suffix + ".tbz2"),
+                                  "r:bz2") as archive:
+                    self.assertEqual(archive.extractfile(SDK_PATH + "/" + relative).read(),
+                                     staged.read_bytes())
+                    self.assertEqual(archive.extractfile(SDK_PATH +
+                        "/sources/libs/nvdsinfer/nvdsinfer_onnx_paths.h").read(),
+                        (BUILD_DIR.parent / "src/utils/nvdsinfer/nvdsinfer_onnx_paths.h").read_bytes())
+                extracted = self.root / ("deb-extracted-" + target)
+                self.run_command(["dpkg-deb", "-x", str(self.output / (
+                    "deepstream-9.2_9.2.0-1_" + arch + ".deb")), str(extracted)])
+                self.assertEqual((extracted / SDK_PATH / relative).read_bytes(), staged.read_bytes())
+                self.assertEqual((extracted / SDK_PATH /
+                    "sources/libs/nvdsinfer/nvdsinfer_onnx_paths.h").read_bytes(),
+                    (BUILD_DIR.parent / "src/utils/nvdsinfer/nvdsinfer_onnx_paths.h").read_bytes())
+                self.assertEqual(original.read_bytes(), original_bytes)
         self.assert_no_build_or_install()
 
     @unittest.skipUnless(shutil.which("rsync"), "requires rsync")

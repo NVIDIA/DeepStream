@@ -10,12 +10,37 @@ This is especially true if you are an existing developer and plan to bring exist
 Make sure you understand how to migrate your older DeepStream custom models to DeepStream 9.2 before you start.
 </Info>
 
-DeepStream 9.2 now supports TensorRT 10.16.0.72 for x86 and TensorRT 10.16.1.7 for Jetson. TensorRT 10.x is not compatible with TensorRT 8.x, and models created with older TensorRT versions require updated calibration files.
-Depending on where you are in your development journey there are a few steps that need to take before you get started.
+This checkout's DeepStream **9.2.1 upgrade target** uses TensorRT **11.4.0.106**
+on x86 and generic SBSA, and TensorRT **11.4.1.31** on eligible Jetson AGX Orin
+and Jetson Thor devices with JetPack **7.2.2 or later**. See the platform-specific
+stack in [Installation](/text/DS_Installation). The existing IGX stack is separate
+and is not upgraded by these TensorRT 11 targets. A configured target does not
+establish completed platform or model qualification.
 
-* If you are new to DeepStream OR you do not need to reuse any old models, **You are good to go!** Make sure you download the latest models from [NGC](https://ngc.nvidia.com/).
+## Migrating models to TensorRT 11
 
-* If you want to bring models that were developed for previous versions of DeepStream or TensorRT, you should run them in FP16 or FP32 mode as TAO toolkit 6.0 does not support int8 calibration mechanism.
+* **Rebuild engines for the selected stack and target GPU.** Do not reuse engines
+  built with TensorRT 8 or 10 as TensorRT 11 engines. Retain the source model and
+  any required external-weight files so the engine can be rebuilt.
+* **Precision comes from the model graph.** TensorRT 11 uses strongly typed
+  networks; the former FP16/INT8 builder flags do not convert an FP32 model during
+  engine building. For FP16 computation, prepare a typed FP16/mixed FP16-FP32 graph
+  before building. A pure FP32 model can still be built and run in FP32 mode.
+* **Legacy INT8 calibration caches are not supported in TensorRT 11.** Use a model
+  with explicit INT8 Quantize/Dequantize (Q/DQ) nodes instead. Updating an old
+  calibration cache alone does not migrate the model.
+* **Prepare packaged FP16 samples explicitly after installation.** The scripts in
+  `/opt/nvidia/deepstream/deepstream/samples/modelopt` use NVIDIA ModelOpt AutoCast
+  for the supported sample models. Packaging does not convert models or build
+  engines. Read the packaged `README.md` before running the scripts; original FP32
+  models are preserved with the `fp32_` prefix and converted models retain their
+  canonical filenames. Other models need their own conversion and validation.
+
+Validate accuracy, latency and throughput on the deployment platform after model
+conversion and engine rebuilding; mixed precision does not guarantee unchanged
+accuracy or improved performance for every model. For API and model migration
+details, see the [TensorRT 11 migration guide](https://docs.nvidia.com/deeplearning/tensorrt/11.4.1/api/migration-guide.html)
+and [TensorRT 11 precision migration](https://docs.nvidia.com/deeplearning/tensorrt/11.4.1/api/migration/tensorrt-10x-to-11x-python-api-patterns.html).
 
 ## Additional Resources
 

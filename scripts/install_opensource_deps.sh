@@ -316,8 +316,6 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 TRITON_CLIENT_SDK_ROOT=${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}
-TRITON_CLIENT_SDK_LIB_DIR="$TRITON_CLIENT_SDK_ROOT/lib"
-[[ -d "$TRITON_CLIENT_SDK_LIB_DIR" ]] || TRITON_CLIENT_SDK_LIB_DIR="$TRITON_CLIENT_SDK_ROOT/lib64"
 for header in grpc_client.h common.h; do
   if [[ ! -r "$TRITON_CLIENT_SDK_ROOT/include/$header" ]]; then
     echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/$header)." >&2
@@ -325,15 +323,25 @@ for header in grpc_client.h common.h; do
     exit 1
   fi
 done
-for library in libgrpcclient_static.a libgrpc++.a libprotobuf.a libcares.a; do
-  if [[ ! -r "$TRITON_CLIENT_SDK_LIB_DIR/$library" ]]; then
-    echo "error: missing Triton client dependency $TRITON_CLIENT_SDK_LIB_DIR/$library; provision the complete matching SDK." >&2
-    exit 1
+triton_client_library_dir_is_complete() {
+  local directory=$1 library
+  for library in libgrpcclient_static.a libgrpc++.a libprotobuf.a libcares.a; do
+    [[ -r "$directory/$library" ]] || return 1
+  done
+  [[ -r "$directory/libgrpcclient.so" || -r "$directory/libgrpcclient.a" ]]
+}
+# Some SDK layouts contain both directories. Prefer lib/ only when complete;
+# never combine dependencies from two incomplete provider directories.
+TRITON_CLIENT_SDK_LIB_DIR=
+for triton_client_candidate in "$TRITON_CLIENT_SDK_ROOT/lib" "$TRITON_CLIENT_SDK_ROOT/lib64"; do
+  if triton_client_library_dir_is_complete "$triton_client_candidate"; then
+    TRITON_CLIENT_SDK_LIB_DIR=$triton_client_candidate
+    break
   fi
 done
-if [[ ! -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.so" &&
-      ! -r "$TRITON_CLIENT_SDK_LIB_DIR/libgrpcclient.a" ]]; then
-  echo "error: missing linkable Triton client libgrpcclient.so or libgrpcclient.a in $TRITON_CLIENT_SDK_LIB_DIR; libgrpcclient_static.a alone does not satisfy -lgrpcclient." >&2
+if [[ -z "$TRITON_CLIENT_SDK_LIB_DIR" ]]; then
+  echo "error: provide one complete matching Triton client SDK in $TRITON_CLIENT_SDK_ROOT/lib or lib64." >&2
+  echo 'Required: libgrpcclient_static.a, libgrpc++.a, libprotobuf.a, libcares.a, and libgrpcclient.so or libgrpcclient.a for -lgrpcclient.' >&2
   exit 1
 fi
 echo "--- Triton client SDK: caller/preinstalled provider $TRITON_CLIENT_SDK_ROOT ---"

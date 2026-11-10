@@ -224,9 +224,15 @@ Why do I get the error `Makefile:13: *** "CUDA_VER is not set".  Stop` when I co
 
 ### Why do I get the error `Makefile:13: *** "CUDA_VER is not set".  Stop` when I compile DeepStream sample applications?
 
-Export this environment variable:
+Export the CUDA toolkit family selected for your platform:
 
-* `CUDA_VER=13.2`
+```bash
+export CUDA_VER=13.4  # x86 or generic SBSA (CUDA 13.4.3 toolkit)
+# For Jetson's JetPack 7.2.2+ stack, use CUDA_VER=13.2 (CUDA 13.2.2 toolkit).
+```
+
+Use the matching installed toolkit; changing `CUDA_VER` does not install or
+upgrade CUDA. See [Installation](/text/DS_Installation) for the complete stack.
 
 Then compile again using `sudo -E make`.
 

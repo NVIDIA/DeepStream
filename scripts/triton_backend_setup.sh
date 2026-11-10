@@ -18,20 +18,25 @@ set -e
 
 # Neither legacy JetPack26.04 archives nor stock SBSA26.10 inputs qualify the
 # JetPack7.2.2/TRT11.4.1 target. Require a reviewed explicit server/client pair
-# for either ARM path before mkdir, APT, download or any host mutation.
+# for either upgraded ARM path before mkdir, APT, download or any host mutation.
+# Legacy IGX likewise needs an explicit pair qualified for its separate stack.
+TRITON_SETUP_IGX=0
 case "${DEEPSTREAM_VARIANT:-${PLATFORM:-}}" in
     sbsa) TRITON_SETUP_SBSA=1 ;;
     jetson|tegra|aarch64) TRITON_SETUP_SBSA=0 ;;
+    igx) TRITON_SETUP_SBSA=0; TRITON_SETUP_IGX=1 ;;
     "")
         TRITON_SETUP_SBSA=0
         if [[ "$(uname -m)" == aarch64 && ! -f /etc/nv_tegra_release ]]; then
             TRITON_SETUP_SBSA=1
         fi
         ;;
-    *) echo 'Select DEEPSTREAM_VARIANT=jetson|tegra|sbsa for ARM backend setup' >&2; exit 1 ;;
+    *) echo 'Select DEEPSTREAM_VARIANT=jetson|tegra|sbsa|igx for ARM backend setup' >&2; exit 1 ;;
 esac
 if [[ -z "${TRITON_PKG_PATH:-}" || -z "${TRITON_CLIENT_SDK_PKG_PATH:-}" ]]; then
-    if [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
+    if [[ "$TRITON_SETUP_IGX" -eq 1 ]]; then
+        echo 'Legacy IGX requires explicit IGX-SW/CUDA13.0/TRT10-qualified server/client archives; no default is selected.' >&2
+    elif [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
         echo 'SBSA uses the matching Triton26.10 ARM64 container/runtime, not the JetPack26.04 archive default.' >&2
     else
         echo 'Jetson requires explicit JetPack7.2.2/TRT11.4.1-qualified server/client archives; the legacy26.04 pair is not a fallback.' >&2
@@ -39,7 +44,9 @@ if [[ -z "${TRITON_PKG_PATH:-}" || -z "${TRITON_CLIENT_SDK_PKG_PATH:-}" ]]; then
     echo 'An archive install requires explicit matching TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH; no image is pulled by this script.' >&2
     exit 1
 fi
-if [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
+if [[ "$TRITON_SETUP_IGX" -eq 1 ]]; then
+    echo 'Explicit IGX Triton archive overrides selected; target compatibility remains unverified.' >&2
+elif [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
     echo 'Explicit SBSA Triton archive overrides selected; target compatibility remains unverified.' >&2
 else
     echo 'Explicit Jetson Triton archive overrides selected; target compatibility remains unverified.' >&2

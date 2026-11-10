@@ -43,8 +43,11 @@ CFLAGS:= -fPIC -Wall -Wno-unused-function -std=c++17 \
 # Uncomment to enable instrumentation (accuracy validation + performance measurement)
 #CFLAGS += -DENABLE_INSTRUMENTATION
 
+# TRT11 model-declared precision validation is shared with libnvds_infer.
 CFLAGS+= -I. \
 	 -I../../../includes \
+	 -I../../utils/nvdsinfer \
+	 -I../../utils/nvdsinferutils/include \
 	 -I/usr/local/cuda-$(CUDA_VER)/include
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
@@ -61,7 +64,7 @@ LIB:= libnvdsgst_visionencoder.so
 
 LIBS:= -shared -Wl,-no-undefined \
 	-L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart \
-	-L$(LIB_INSTALL_DIR) -lnvdsgst_helper -lnvdsgst_meta -lnvds_meta \
+	-L$(LIB_INSTALL_DIR) -lnvds_infer -lnvdsgst_helper -lnvdsgst_meta -lnvds_meta \
 	-lnvbufsurface -lnvbufsurftransform \
 	-lnvinfer -lnvonnxparser \
 	-ldl -lm \

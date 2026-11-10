@@ -60,7 +60,7 @@ For Triton samples, while running /opt/nvidia/deepstream/deepstream-9.2/samples/
 
 
 ```
-apt-get install --reinstall libflac8 libmp3lame0 libxvidcore4 ffmpeg
+apt-get install --reinstall libflac12t64 libmp3lame0 libxvidcore4 ffmpeg
 ```
 
 

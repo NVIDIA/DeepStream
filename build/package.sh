@@ -41,7 +41,7 @@
 #   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
 #   CUDA_VER       Toolkit family override (default: 13.4 x86/SBSA, 13.2 Jetson)
-#   TRT_VER        Full TensorRT11 build override (platform defaults below)
+#   TRT_VER        Full TensorRT build (11 on x86/Jetson/SBSA; 10 on legacy IGX)
 #   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -96,14 +96,16 @@ Options:
   --stage-dir=PATH    Scratch staging directory (default: build/.pkg-stage)
   --keep-stage        Do not delete the staging dir on exit
   --runtime-root=PATH Complete SDK runtime directory (default: /opt/.../deepstream-9.2)
-  --platform=NAME     x86 | jetson | sbsa (default: native platform)
+  --platform=NAME     x86 | jetson | sbsa | igx (default: native platform)
   --include-untracked-sources Include non-ignored new source files for local testing
 
 Environment overrides (CLI flags take precedence):
   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
   CUDA_VER       Toolkit family override (13.4 x86/SBSA, 13.2 Jetson)
-  TRT_VER        Full TensorRT11 version (11.4.0.106 x86/SBSA, 11.4.1.31 Jetson)
+  TRT_VER        Full TensorRT version (11.4.0.106 x86/SBSA, 11.4.1.31 Jetson)
+                 Legacy IGX requires a selected TRT10 build; native IGX can read
+                 NvInferVersion.h using TRT_INCLUDE_DIR and CC (default: cc).
   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 EOF
 }
@@ -150,15 +152,46 @@ fi
 IS_AARCH64=0
 [[ "$DEB_ARCH" = "arm64" ]] && IS_AARCH64=1
 
+is_native_igx_system() {
+  [[ "$HOST_ARCH" = aarch64 && -r /proc/device-tree/model ]] || return 1
+  [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]
+}
+
+# The legacy IGX profile intentionally has no guessed full TensorRT default.
+# Only its native header can supply an omitted build; offline repackaging must
+# declare TRT_VER rather than accidentally inspecting the packaging host.
+read_trt_header_version() {
+  local header="${TRT_INCLUDE_DIR-/usr/include/aarch64-linux-gnu}/NvInferVersion.h"
+  local definitions part value version=
+  [[ -r "$header" ]] || {
+    echo "error: cannot read $header; select the full IGX TensorRT10 build with TRT_VER" >&2
+    return 1
+  }
+  definitions=$("${CC-cc}" -dM -E -x c -include "$header" /dev/null) || {
+    echo 'error: cannot preprocess the selected IGX TensorRT version header' >&2
+    return 1
+  }
+  for part in MAJOR MINOR PATCH BUILD; do
+    value=$(awk -v key="NV_TENSORRT_$part" '$1 == "#define" && $2 == key { if (NF == 3) print $3; else print "invalid" }' <<< "$definitions")
+    [[ "$value" =~ ^[0-9]{1,6}$ ]] || {
+      echo "error: invalid or missing NV_TENSORRT_$part in $header" >&2
+      return 1
+    }
+    version+="${version:+.}$value"
+  done
+  printf '%s\n' "$version"
+}
+
 DS_INSTALL_ROOT=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}
 [[ -z "$RUNTIME_ROOT" ]] || DS_INSTALL_ROOT="$RUNTIME_ROOT"
 if [[ -z "$PLATFORM" ]]; then
   if [[ "$DEB_ARCH" = amd64 ]]; then PLATFORM=x86
+  elif is_native_igx_system; then PLATFORM=igx
   elif [[ -f /etc/nv_tegra_release ]]; then PLATFORM=jetson
   else PLATFORM=sbsa; fi
 fi
 case "$PLATFORM:$DEB_ARCH" in
-  x86:amd64|jetson:arm64|sbsa:arm64) ;;
+  x86:amd64|jetson:arm64|sbsa:arm64|igx:arm64) ;;
   *) echo "error: incompatible package platform/architecture: $PLATFORM/$DEB_ARCH" >&2; exit 1 ;;
 esac
 # Match the source-build profiles. Explicit build overrides must also reach the
@@ -166,15 +199,28 @@ esac
 case "$PLATFORM" in
   x86|sbsa) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
   jetson) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
+  igx) _cuda_default=13.0; _trt_default= ;;
 esac
 PACKAGE_CUDA_VER=${CUDA_VER-$_cuda_default}
 PACKAGE_TRT_VER=${TRT_VER-$_trt_default}
+PACKAGE_TRT_MAJOR=11
+if [[ "$PLATFORM" = igx ]]; then
+  PACKAGE_TRT_MAJOR=10
+  if [[ -z "$PACKAGE_TRT_VER" ]]; then
+    if is_native_igx_system; then
+      PACKAGE_TRT_VER=$(read_trt_header_version)
+    else
+      echo 'error: offline IGX packaging requires an explicit full TensorRT10 TRT_VER' >&2
+      exit 1
+    fi
+  fi
+fi
 if [[ ! "$PACKAGE_CUDA_VER" =~ ^[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   echo "error: invalid CUDA_VER='$PACKAGE_CUDA_VER' (expected toolkit family, e.g. 13.4)" >&2
   exit 1
 fi
-if [[ ! "$PACKAGE_TRT_VER" =~ ^11\.[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]]; then
-  echo "error: invalid TRT_VER='$PACKAGE_TRT_VER' (expected four-part TensorRT 11 version)" >&2
+if [[ ! "$PACKAGE_TRT_VER" =~ ^${PACKAGE_TRT_MAJOR}\.[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]]; then
+  echo "error: invalid TRT_VER='$PACKAGE_TRT_VER' (expected four-part TensorRT $PACKAGE_TRT_MAJOR version)" >&2
   exit 1
 fi
 SKIP_SPARSE4D_OCR=${SKIP_SPARSE4D_OCR-$IS_AARCH64}
@@ -231,7 +277,7 @@ for sub in bin lib samples service-maker sources/sparse4d; do
     fi
   done < <(find -P "$_runtime_tree" -type l -print0)
 done
-require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT 11 SDK inference runtime"
+require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT $PACKAGE_TRT_MAJOR SDK inference runtime"
 command -v readelf >/dev/null || { echo "error: readelf (binutils) is required to verify runtime inputs" >&2; exit 1; }
 _infer_header=$(LC_ALL=C readelf -h "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
 _infer_dynamic=$(LC_ALL=C readelf -d "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
@@ -239,10 +285,12 @@ case "$DEB_ARCH" in
   amd64) _elf_machine='Advanced Micro Devices X86-64' ;;
   arm64) _elf_machine='AArch64' ;;
 esac
+_other_trt_major=10
+[[ "$PACKAGE_TRT_MAJOR" = 10 ]] && _other_trt_major=11
 if ! grep -q "Machine:.*${_elf_machine}" <<< "$_infer_header" ||
-   ! grep -Fq '[libnvinfer.so.11]' <<< "$_infer_dynamic" ||
-   grep -Fq '[libnvinfer.so.10]' <<< "$_infer_dynamic"; then
-  echo "error: runtime must contain matching $DEB_ARCH TensorRT 11 inference binaries" >&2
+   ! grep -Fq "[libnvinfer.so.$PACKAGE_TRT_MAJOR]" <<< "$_infer_dynamic" ||
+   grep -Fq "[libnvinfer.so.$_other_trt_major]" <<< "$_infer_dynamic"; then
+  echo "error: runtime must contain matching $DEB_ARCH TensorRT $PACKAGE_TRT_MAJOR inference binaries" >&2
   exit 1
 fi
 
@@ -599,7 +647,7 @@ fi
 for p in gst-nvinfer gst-nvinferserver gst-nvmsgconv gst-nvmultistream2 \
          gst-nvmultiurisrcbin gst-nvds3dbridge gst-nvds3dfilter gst-nvds3dmixer \
          gst-nvdsbins gst-nvdslogger gst-nvmodelmux gst-nvmultistream gst-nvsegvisual \
-         gst-nvtiler; do
+         gst-nvtiler gst-nvdsvisionencoder-c; do
   patch_staged_file "sources/gst-plugins/$p/Makefile" "../../utils" "$LIBS_REL_PATH"
 done
 
@@ -805,8 +853,8 @@ log "  removed $readmes_pruned README.md file(s)"
 # ---------------------------------------------------------------------------
 # Emit tarball
 # ---------------------------------------------------------------------------
-if [[ "$PLATFORM" = sbsa ]]; then
-  TAR_PLATFORM="sbsa"
+if [[ "$PLATFORM" = sbsa || "$PLATFORM" = igx ]]; then
+  TAR_PLATFORM="$PLATFORM"
 elif [[ "$DEB_ARCH" = "arm64" ]]; then
   TAR_PLATFORM="jetson"
 else
@@ -849,9 +897,12 @@ build_deb() {
   cuda_deb=${PACKAGE_CUDA_VER/./-}
   trt_min=$PACKAGE_TRT_VER
   trt_upper="${trt_min%.*}.$((10#${trt_min##*.} + 1))"
-  trt_dep="libnvinfer11 (>= ${trt_min}), libnvinfer11 (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers11 (>= ${trt_min}), libnvonnxparsers11 (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin11 (>= ${trt_min}), libnvinfer-plugin11 (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
+  trt_dep="libnvinfer${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
+  local vpi_dep='libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7)'
+  # Preserve the legacy IGX dependency contract; do not pull the new Jetson VPI.
+  [[ "$PLATFORM" != igx ]] || vpi_dep=libnvvpi4
   if [[ "$DEB_ARCH" = "arm64" ]]; then
-    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7), libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, ${vpi_dep}, libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="deepstream-binaries-aarch64, deepstream-sample-data"
   else
     depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
