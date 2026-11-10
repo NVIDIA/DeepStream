@@ -2743,7 +2743,9 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
            * To fix this we are calling to align_to_rmax_time function to convert
            * @time from TAI to UTC
            */
-          timeout = align_to_rmax_time (timeout);
+          if (!sink->ptpSrc) {
+            timeout = align_to_rmax_time (timeout);
+          }
         }
       }
 

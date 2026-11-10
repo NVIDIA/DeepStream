@@ -40,6 +40,8 @@ Full source-build, source4 and non-x86 runtime validation remain pending.
     correctly.
   - `nvdsudpsink` sets the RTP timestamp 5 ticks before the media time, as the
     Rivermax dev kit does.
+  - `nvdsudpsink` with `ptp-src` set sends ANC and RTP packet input on time.
+    It used to give Rivermax send times 37 seconds in the past.
   - `gst-nvdsudp` is tested with Rivermax 1.91.21.
 
 ____
