@@ -16,6 +16,10 @@
     Rivermax dev kit does.
   - `nvdsudpsink` with `ptp-src` set sends ANC and RTP packet input on time.
     It used to give Rivermax send times 37 seconds in the past.
+  - `nvdsudpsink` with `pass-rtp-timestamp` set and no `GstRTPTimestampMeta`
+    on its input sends RTP timestamps in TAI time, as it does by default. It
+    used to send them in UTC time. A receiving `nvdsudpsrc` needs
+    `adjust-leap-seconds=1`.
   - `gst-nvdsudp` is tested with Rivermax 1.91.21.
 
 ____

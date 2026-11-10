@@ -190,18 +190,19 @@ If enabled, Rivermax media API's will allocate GPU memory to receive the SMPTE 2
   - If user want to generate RTP header timestamp based on upstream time (e.g. buffer pts or meta), set `pass-rtp-timestamp` property. It will ignore the timestamp generation logic discussed above.
     It has two ways to set RTP timestamp for outgoing buffers:
 
-    - Use the buffer PTS it received from upstream component for calculating RTP timestamp for outgoing buffers:
+    - Use the buffer PTS it received from upstream component for calculating RTP timestamp for outgoing buffers. The RTP timestamp is in TAI, as in the default mode:
 
       ```text
-      RTP time = base time of pipeline + buffer PTS
+      RTP time = base wall-clock time + buffer PTS + 37 s + rtp-timestamp-offset
       ```
+
+      The base wall-clock time is the CLOCK_REALTIME (UTC) time at the moment the pipeline clock read the pipeline's base time. nvdsudpsink converts between the pipeline clock and CLOCK_REALTIME using an offset taken at the first buffer, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
 
     - If metadata `GstRTPTimestampMeta` is attached along with the upstream buffer, the timestamp from that metadata will be used directly and take precedence over the RTP timestamp calculated using buffer PTS.
 
     `pass-rtp-timestamp` is only valid if no payloader is used before nvdsudpsink, that is, in Mode 3 and the SMPTE ST 2110-40 ancillary data sub-variant.
 
-  - Receiver (nvdsudpsrc) has to do leap second adjustment if they receive timestamp in TAI time and wants to use UTC time. Whenever sender (nvdsudpsink) does packetization, by default it uses TAI time. So leap-second adjustment will be required in most scenarios except when `pass-rtp-timestamp` is set and the upstream component does not provide timestamps in TAI time.
-    It is the user's responsibility to identify if TAI time based timestamps are expected in such cases.
+  - nvdsudpsink sends TAI RTP timestamps in every case except one: when `pass-rtp-timestamp` is set and the `GstRTPTimestampMeta` from the upstream component carries timestamps that are not TAI, nvdsudpsink sends those timestamps unchanged. So a receiver normally has to remove the 37 s (nvdsudpsrc: `adjust-leap-seconds`). It is the user's responsibility to identify which timestamps are expected in that case.
 
 * Example pipeline that uses "pass-rtp-timestamp" property to pass the timestamp it received from upstream nvdsudpsrc component.
 
