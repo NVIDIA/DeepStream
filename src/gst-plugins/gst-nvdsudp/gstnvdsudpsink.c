@@ -1942,6 +1942,9 @@ gst_nvdsudpsink_render (GstBaseSink * bsink, GstBuffer * buffer)
     gst_buffer_list_unref (bList);
   } else {
     if (sink->rThread) {
+      if (sink->pass_rtp_timestamp && !sink->streamParams.firstPacketTime) {
+        init_first_packet_time (sink, buffer);
+      }
       gst_buffer_ref (buffer);
       g_mutex_lock (&sink->qLock);
       // Free flowing pipeline can cause buffer build up.
@@ -1989,9 +1992,10 @@ time_to_rtp_timestamp (gdouble time_ns, guint sample_rate)
  * @brief Initializes firstPacketTime, timestampTick and pass_rtp_ts_offset.
  *
  * Handles both pass-rtp-timestamp and the legacy PTP/system clock paths:
- *  - pass_rtp_timestamp: uses buffer PTS and GstRTPTimestampMeta (if present)
- *    and applies rtp_timestamp_offset.
- *  - otherwise: uses calculate_first_packet_time based on PTP/system clock.
+ *  - pass_rtp_timestamp: uses the running time of the buffer PTS and
+ *    GstRTPTimestampMeta (if present) and applies rtp_timestamp_offset.
+ *  - otherwise, or if the buffer has no valid running time: uses
+ *    calculate_first_packet_time based on PTP/system clock.
  *
  * @param sink    Sink instance holding the stream parameters.
  * @param buffer  Upstream buffer (used only when pass_rtp_timestamp is enabled).
@@ -2002,8 +2006,18 @@ static void
 init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
 {
   StreamParams *sParams = &sink->streamParams;
+  GstClockTime running_time = GST_CLOCK_TIME_NONE;
 
   if (sink->pass_rtp_timestamp && buffer) {
+    running_time = gst_segment_to_running_time (&GST_BASE_SINK (sink)->segment,
+        GST_FORMAT_TIME, GST_BUFFER_PTS (buffer));
+    if (!GST_CLOCK_TIME_IS_VALID (running_time)) {
+      GST_WARNING_OBJECT (sink, "First buffer has no valid running time, "
+          "generating RTP timestamps from the clock");
+    }
+  }
+
+  if (GST_CLOCK_TIME_IS_VALID (running_time)) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (sink));
     GstClock *clock = gst_element_get_clock (GST_ELEMENT (sink));
     if (clock) {
@@ -2013,7 +2027,7 @@ init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
       base_time += GST_CLOCK_DIFF (gst_clock_get_time (clock), GST_TIMESPEC_TO_TIME (ts));
       gst_object_unref (clock);
     }
-    sParams->firstPacketTime = base_time + GST_BUFFER_PTS (buffer);
+    sParams->firstPacketTime = base_time + running_time;
     GST_DEBUG_OBJECT (sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
         GST_TIME_ARGS ((GstClockTime) sParams->firstPacketTime));
 

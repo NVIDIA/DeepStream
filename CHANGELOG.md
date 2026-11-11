@@ -20,6 +20,9 @@
     on its input sends RTP timestamps in TAI time, as it does by default. It
     used to send them in UTC time. A receiving `nvdsudpsrc` needs
     `adjust-leap-seconds=1`.
+  - `nvdsudpsink` with `pass-rtp-timestamp` set converts the buffer PTS to
+    running time, so RTP timestamps are correct when the segment does not
+    start at 0. It used to treat the PTS as running time.
   - `gst-nvdsudp` is tested with Rivermax 1.91.21.
 
 ____
