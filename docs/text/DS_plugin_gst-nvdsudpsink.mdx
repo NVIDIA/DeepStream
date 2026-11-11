@@ -193,10 +193,10 @@ If enabled, Rivermax media API's will allocate GPU memory to receive the SMPTE 2
     - Use the buffer PTS it received from upstream component for calculating RTP timestamp for outgoing buffers. The RTP timestamp is in TAI, as in the default mode:
 
       ```text
-      RTP time = base wall-clock time + buffer PTS + 37 s + rtp-timestamp-offset
+      RTP time = base wall-clock time + buffer running time + 37 s + rtp-timestamp-offset
       ```
 
-      The base wall-clock time is the CLOCK_REALTIME (UTC) time at the moment the pipeline clock read the pipeline's base time. nvdsudpsink converts between the pipeline clock and CLOCK_REALTIME using an offset taken at the first buffer, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
+      The buffer running time is the running time of the buffer PTS in the sink's segment. If the first buffer has no valid running time, nvdsudpsink generates RTP timestamps from the clock, as in the default mode. The base wall-clock time is the CLOCK_REALTIME (UTC) time at the moment the pipeline clock read the pipeline's base time. nvdsudpsink converts between the pipeline clock and CLOCK_REALTIME using an offset taken at the first buffer, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
 
     - If metadata `GstRTPTimestampMeta` is attached along with the upstream buffer, the timestamp from that metadata will be used directly and take precedence over the RTP timestamp calculated using buffer PTS.
 
