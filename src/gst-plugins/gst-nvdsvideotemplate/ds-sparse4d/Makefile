@@ -57,6 +57,11 @@ TORCH_INCLUDE_DIRS2 := $(TORCH_PATH)/include/torch/csrc/api/include
 TORCH_LIBRARY_DIRS := $(TORCH_PATH)/lib
 _SPARSE4D_TORCH_DETECTED_ABI := $(shell value=$$(sed -n 's/.*_GLIBCXX_USE_CXX11_ABI=\([01]\).*/\1/p' "$(TORCH_PATH)/share/cmake/Torch/TorchConfig.cmake" 2>/dev/null | head -1); if test -n "$$value"; then printf '%s' "$$value"; else nm -D --defined-only "$(TORCH_LIBRARY_DIRS)/libc10.so" 2>/dev/null | awk '/torchCheckFail.*__cxx11/ {print 1; exit} /torchCheckFail.*RKSs/ {print 0; exit}'; fi)
 TORCH_CXX11_ABI ?= $(_SPARSE4D_TORCH_DETECTED_ABI)
+# Recent LibTorch providers publish their minimum standard as a CMake feature.
+# Preserve the C++17 baseline for older providers and explicit caller overrides.
+_SPARSE4D_TORCH_DETECTED_CXX_STANDARD := $(shell sed -n 's/.*cxx_std_\([0-9][0-9]*\).*/\1/p' "$(TORCH_PATH)/share/cmake/Torch/TorchConfig.cmake" 2>/dev/null | sort -nu | tail -1)
+_SPARSE4D_TORCH_MIN_CXX_STANDARD := $(if $(_SPARSE4D_TORCH_DETECTED_CXX_STANDARD),$(_SPARSE4D_TORCH_DETECTED_CXX_STANDARD),17)
+TORCH_CXX_STANDARD ?= $(_SPARSE4D_TORCH_MIN_CXX_STANDARD)
 EIGEN_INCLUDE_DIR ?= /usr/include/eigen3
 JSON_INCLUDE_DIR ?= /usr/include
 TRT_INCLUDE_DIR ?= /usr/include/$(shell $(CXX) -dumpmachine)
@@ -87,7 +92,7 @@ endif
 BUILD_DIR ?= .build/$(TARGET_DEVICE)-cuda$(CUDA_VER)-trt$(TRT_VER)
 
 # Repository paths are rewritten to sources/libs by build/package.sh.
-CFLAGS+= -O3 -fPIC -DDS_VERSION=\"9.2.1\" -std=c++17 -Wall -Werror -Wno-error=deprecated-declarations \
+CFLAGS+= -O3 -fPIC -DDS_VERSION=\"9.2.1\" -std=c++$(TORCH_CXX_STANDARD) -Wall -Werror -Wno-error=deprecated-declarations \
          -DHAVE_CONFIG_H -fexceptions \
          -I. -I../includes -I../../../../includes \
          -I../../../utils/nvdsinfer -I../../../utils/nvdsinferutils/include \
@@ -140,6 +145,8 @@ $(LIB): $(OBJS) $(_SPARSE4D_PUBLIC_MAKEFILE)
 .PHONY: check_sparse4d_dependencies validate_sparse4d_binary
 check_sparse4d_dependencies:
 	@set -e; \
+	  case "$(TORCH_CXX_STANDARD)" in 11|14|17|20|23|26) ;; *) echo 'TORCH_CXX_STANDARD must name a numeric C++ standard such as 17 or 20.' >&2; exit 1 ;; esac; \
+	  test "$(TORCH_CXX_STANDARD)" -ge "$(_SPARSE4D_TORCH_MIN_CXX_STANDARD)" || { echo 'Selected TORCH_CXX_STANDARD is lower than the LibTorch provider requires.' >&2; exit 1; }; \
 	  test -f "$(TORCH_INCLUDE_DIRS2)/torch/torch.h" || { echo 'Set TORCH_PATH to a matching CUDA LibTorch distribution.' >&2; exit 1; }; \
 	  test "$(TORCH_CXX11_ABI)" = 1 && test "$(_SPARSE4D_TORCH_DETECTED_ABI)" = 1 || { echo 'Sparse4D requires verified ABI1 LibTorch to match the SDK Property/std::string interface; ABI0 and unknown providers are unsupported.' >&2; exit 1; }; \
 	  test "$(TRT_HEADER_VERSION)" = "$(TRT_VER)" && test -n "$(TRT_VER)" || { echo 'Selected TensorRT headers do not match TRT_VER.' >&2; exit 1; }; \

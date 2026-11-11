@@ -21,14 +21,9 @@ TRITON_SERVER_STUB ?= build/nvdsinferserver
 # External dependencies, update as required.
 PROTOBUF_BIN_DIR ?= /opt/proto/bin
 TRITON_GRPC_CLIENT ?= /opt/tritonclient
-# Match the dependency installer's complete provider; never mix lib and lib64.
-TRITON_GRPC_CLIENT_LIB_DIR ?= $(strip $(or $(firstword \
-    $(foreach dir,$(TRITON_GRPC_CLIENT)/lib $(TRITON_GRPC_CLIENT)/lib64,\
-        $(if $(and $(wildcard $(dir)/libgrpcclient_static.a),\
-            $(wildcard $(dir)/libgrpc++.a),$(wildcard $(dir)/libprotobuf.a),\
-            $(wildcard $(dir)/libcares.a),\
-            $(wildcard $(dir)/libgrpcclient.so $(dir)/libgrpcclient.a)),$(dir)))),\
-    $(TRITON_GRPC_CLIENT)/lib))
+NVDS_PROTOBUF_LEGACY_CXX_STANDARD := 17
+include ../../../includes/nvds_protobuf.mk
+TRITON_GRPC_CLIENT_LIB_DIR ?= $(NVDS_PROTOBUF_LIB_DIR)
 HALF_PRECISION_LIB ?= /opt/half
 
 CUDA_VER?=
@@ -81,11 +76,28 @@ SRCS :=   \
 
 INCS := $(wildcard *.h)
 
+# The October client SDK configures Abseil to use C++20 ordering types. Older
+# providers retain C++17 unless the caller explicitly selects a newer standard.
+_TRITON_CLIENT_MIN_CXX_STANDARD := $(NVDS_PROTOBUF_MIN_CXX_STANDARD)
+TRITON_CLIENT_CXX_STANDARD ?= $(_TRITON_CLIENT_MIN_CXX_STANDARD)
+NVDS_PROTOBUF_SELECTED_CXX_STANDARD = $(TRITON_CLIENT_CXX_STANDARD)
+NVDS_PROTOBUF_SELECTED_LIB_DIR = $(TRITON_GRPC_CLIENT_LIB_DIR)
+ifeq ($(_DS_NEED_CUDA_VER),1)
+ifeq ($(filter $(TRITON_CLIENT_CXX_STANDARD),17 20 23),)
+$(error TRITON_CLIENT_CXX_STANDARD must be 17, 20 or 23)
+endif
+ifeq ($(_TRITON_CLIENT_MIN_CXX_STANDARD),20)
+ifeq ($(TRITON_CLIENT_CXX_STANDARD),17)
+$(error Selected Triton client SDK requires C++20 or newer; TRITON_CLIENT_CXX_STANDARD=17 is incompatible)
+endif
+endif
+endif
+
 CFLAGS := \
     -O3 \
     -s \
     -fPIC \
-    -std=c++17  \
+    -std=c++$(TRITON_CLIENT_CXX_STANDARD)  \
     -DNDEBUG  \
     -Wall \
     -Werror \
@@ -115,6 +127,12 @@ CFLAGS +=-I/usr/include/opencv4
 endif
 endif
 
+# Use the selected SDK's own Abseil archive set. Releases change archive names
+# and transitive dependencies; combining names from another SDK is unsafe.
+# Use that same complete provider for linking, static dependencies and RPATH.
+TRITON_ABSL_LIBS := $(addprefix -l:,$(notdir $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libabsl*.a))))
+TRITON_PROTOBUF_UTF8_LIBS := $(addprefix -l:,$(notdir $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8_range.a $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8_validity.a))))
+
 LIBS := \
     -L$(TRITON_SERVER_STUB) \
     -L$(TRITON_GRPC_CLIENT_LIB_DIR) \
@@ -131,66 +149,8 @@ LIBS := \
     -lnvds_inferlogger \
     -lnvds_inferutils \
     -Wl,--start-group \
-    -l:libabsl_bad_optional_access.a \
-    -l:libabsl_bad_variant_access.a \
-    -l:libabsl_cordz_info.a \
-    -l:libabsl_cord.a \
-    -l:libabsl_cordz_functions.a \
-    -l:libabsl_cordz_handle.a \
-    -l:libabsl_cordz_sample_token.a \
-    -l:libabsl_cord_internal.a \
-    -l:libabsl_exponential_biased.a \
-    -l:libabsl_hash.a \
-    -l:libabsl_city.a \
-    -l:libabsl_low_level_hash.a \
-    -l:libabsl_random_distributions.a \
-    -l:libabsl_random_internal_randen.a \
-    -l:libabsl_random_internal_randen_hwaes_impl.a \
-    -l:libabsl_random_internal_randen_hwaes.a \
-    -l:libabsl_random_internal_platform.a \
-    -l:libabsl_random_internal_pool_urbg.a \
-    -l:libabsl_random_internal_randen_slow.a \
-    -l:libabsl_random_internal_seed_material.a \
-    -l:libabsl_random_seed_gen_exception.a \
-    -l:libabsl_random_seed_sequences.a \
-    -l:libabsl_raw_hash_set.a \
-    -l:libabsl_raw_logging_internal.a \
-    -l:libabsl_scoped_set_env.a \
-    -l:libabsl_spinlock_wait.a \
-    -l:libabsl_stacktrace.a \
-    -l:libabsl_status.a \
-    -l:libabsl_statusor.a \
-    -l:libabsl_strerror.a \
-    -l:libabsl_str_format_internal.a \
-    -l:libabsl_strings.a \
-    -l:libabsl_strings_internal.a \
-    -l:libabsl_synchronization.a \
-    -l:libabsl_symbolize.a \
-    -l:libabsl_throw_delegate.a \
-    -l:libabsl_time.a \
-    -l:libabsl_time_zone.a \
-    -l:libabsl_malloc_internal.a \
-    -l:libabsl_int128.a \
-    -l:libabsl_demangle_internal.a \
-    -l:libabsl_debugging_internal.a \
-    -l:libabsl_base.a \
-    -l:libabsl_crc_cord_state.a \
-    -l:libabsl_log_flags.a \
-    -l:libabsl_flags_reflection.a \
-    -l:libabsl_flags_config.a \
-    -l:libabsl_flags_program_name.a \
-    -l:libabsl_flags_private_handle_accessor.a \
-    -l:libabsl_flags_internal.a \
-    -l:libabsl_crc32c.a \
-    -l:libabsl_crc_internal.a \
-    -l:libabsl_flags_commandlineflag.a \
-    -l:libabsl_flags_parse.a \
-    -l:libabsl_flags_usage.a \
-    -l:libabsl_flags_usage_internal.a \
-    -l:libabsl_flags_marshalling.a \
-    -l:libabsl_flags_commandlineflag_internal.a \
-    -l:libabsl_flags_usage.a \
-    -l:libabsl_flags_usage_internal.a \
+    $(TRITON_ABSL_LIBS) \
+    $(TRITON_PROTOBUF_UTF8_LIBS) \
     -Wl,--end-group \
     -l:libre2.a \
     -ldl \
@@ -213,7 +173,21 @@ LIBS += \
 endif
 
 ifeq ($(shell uname -m), aarch64)
+# Keep the existing ARM surface ABI while distinguishing server ARM for gRPC
+# CUDA sharing. Explicit caller selections override standalone detection.
+DEEPSTREAM_VARIANT ?= $(if $(shell test -r /proc/device-tree/model && tr -d '\000' </proc/device-tree/model | grep -F IGX),igx,$(if $(wildcard /etc/nv_tegra_release),tegra,sbsa))
+AARCH64_IS_SBSA ?= $(if $(filter sbsa,$(DEEPSTREAM_VARIANT)),1,0)
+ifeq ($(_DS_NEED_CUDA_VER),1)
+ifneq ($(AARCH64_IS_SBSA),0)
+ifneq ($(AARCH64_IS_SBSA),1)
+$(error AARCH64_IS_SBSA must be 0 or 1)
+endif
+endif
+endif
 CFLAGS += -DIS_TEGRA
+ifeq ($(AARCH64_IS_SBSA),1)
+CFLAGS += -DAARCH64_IS_SBSA=1
+endif
 LIBS += -lcuda
 endif
 
@@ -247,6 +221,8 @@ INCS += \
     $(ALL_PROTOS_PBCC) \
     $(ALL_PROTOS_PBH) \
     $(DEPS)/libtritonserver.so \
+    $(NVDS_PROTOBUF_MAKEFILE) \
+    $(NVDS_PROTOBUF_PROVIDER_STAMP) \
     $(NULL) \
 
 .PRECIOUS:  $(ALL_PROTOS_PBCC)
@@ -277,16 +253,17 @@ install: $(LIB)
 clean:
 	rm -rf $(OBJS) $(LIB)
 	rm -rf $(DEPS)/libtritonserver.so $(ALL_PROTOS_PBCC) $(ALL_PROTOS_PBH)
+	rm -f "$(NVDS_PROTOBUF_PROVIDER_STAMP)"
 
 $(DEPS)/libtritonserver.so: tritonserver_stub/libtritonserver_dummy.export Makefile
 	@mkdir -p $(dir $@)
 	awk '{ print "void",$$1,"() {}" }' $< | $(CC) -x c -O0 -fPIC -shared -Wl,-soname=libtritonserver.so -Wl,--strip-all -o $@ -
 
 
-%.pb.h %.pb.cc: ../../../includes/%.proto $(INFERSERVER_PROTOS) Makefile
+%.pb.h %.pb.cc &: ../../../includes/%.proto $(INFERSERVER_PROTOS) Makefile $(NVDS_PROTOBUF_MAKEFILE) $(NVDS_PROTOBUF_PROVIDER_STAMP)
 	@mkdir -p $(dir $@)
 	$(PROTOBUF_BIN_DIR)/protoc --proto_path=../../../includes --cpp_out=. $<
 
-%.pb.h %.pb.cc: tritonserver_include/%.proto $(TRITONSERVER_PROTOS) Makefile
+%.pb.h %.pb.cc &: tritonserver_include/%.proto $(TRITONSERVER_PROTOS) Makefile $(NVDS_PROTOBUF_MAKEFILE) $(NVDS_PROTOBUF_PROVIDER_STAMP)
 	@mkdir -p $(dir $@)
 	$(PROTOBUF_BIN_DIR)/protoc --proto_path=./tritonserver_include --cpp_out=. $<

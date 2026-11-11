@@ -530,23 +530,32 @@ for t in TritonBackendEnsemble TritonOnnxYolo; do
 done
 
 # Drop platform-specific sample apps that build/build.sh does not build on this
-# target (mirrors its sample_apps skip logic; sbsa ignored for now):
+# target. Jetson and legacy IGX use its aarch64 source-build path; SBSA is a
+# separate platform even though all three have Debian architecture arm64:
 #   x86 only      : deepstream-ucx-test, deepstream-multigpu-nvlink-test
 #   x86 (+sbsa)   : deepstream-appsrc-cuda-test
-#   Jetson only   : deepstream-ipc-test
-if [[ "$DEB_ARCH" = "amd64" ]]; then
-  SAMPLE_APPS_SKIP=(deepstream-ipc-test)
-else
-  SAMPLE_APPS_SKIP=(
-    deepstream-ucx-test
-    deepstream-multigpu-nvlink-test
-    deepstream-appsrc-cuda-test
-  )
-fi
+#   Jetson (+IGX) : deepstream-ipc-test
+case "$PLATFORM" in
+  x86) SAMPLE_APPS_SKIP=(deepstream-ipc-test) ;;
+  sbsa)
+    SAMPLE_APPS_SKIP=(
+      deepstream-ucx-test
+      deepstream-multigpu-nvlink-test
+      deepstream-ipc-test
+    )
+    ;;
+  jetson|igx)
+    SAMPLE_APPS_SKIP=(
+      deepstream-ucx-test
+      deepstream-multigpu-nvlink-test
+      deepstream-appsrc-cuda-test
+    )
+    ;;
+esac
 for app in "${SAMPLE_APPS_SKIP[@]}"; do
   if [[ -d "$DS_ROOT/sources/apps/sample_apps/$app" ]]; then
     rm -rf "$DS_ROOT/sources/apps/sample_apps/$app"
-    log "Excluding sample app (not for $DEB_ARCH): $app"
+    log "Excluding sample app (not for $PLATFORM): $app"
   fi
 done
 
@@ -556,19 +565,20 @@ copy_contents_into "$REPO_ROOT/src/gst-utils" "$DS_ROOT/sources/libs"     # -> s
 
 # Drop plugin / gst-utils sources that build/build.sh gates off this target, so
 # the shipped sources match what the package's runtime was actually built from.
-# gst-nvdsudp and gst-dsexample-cuda are deliberately kept on both: build.sh
-# skips them, but they are meant to be built by hand per their READMEs.
-if [[ "$DEB_ARCH" = "amd64" ]]; then
-  # gst-nvipcmeta is Jetson/aarch64 only.
+# gst-nvdsudp and gst-dsexample-cuda are deliberately kept on every platform:
+# build.sh skips them, but they are meant to be built by hand per their READMEs.
+if [[ "$PLATFORM" != jetson && "$PLATFORM" != igx ]]; then
+  # gst-nvipcmeta follows the Jetson/legacy IGX aarch64 build path, not SBSA.
   if [[ -d "$DS_ROOT/sources/libs/gst-nvipcmeta" ]]; then
     rm -rf "$DS_ROOT/sources/libs/gst-nvipcmeta"
-    log "Excluding gst-utils source (not for $DEB_ARCH): gst-nvipcmeta"
+    log "Excluding gst-utils source (not for $PLATFORM): gst-nvipcmeta"
   fi
-else
+fi
+if [[ "$PLATFORM" != x86 ]]; then
   for plugin in gst-nvblender gst-nvbufferpool gst-nvbufsurfacewrite gst-nvdsucx gst-nvdsxfer; do
     if [[ -d "$DS_ROOT/sources/gst-plugins/$plugin" ]]; then
       rm -rf "$DS_ROOT/sources/gst-plugins/$plugin"
-      log "Excluding plugin source (not for $DEB_ARCH): $plugin"
+      log "Excluding plugin source (not for $PLATFORM): $plugin"
     fi
   done
 fi
@@ -784,6 +794,14 @@ for proto in amqp_protocol_adaptor kafka_protocol_adaptor mqtt_protocol_adaptor 
     patch_staged_file "sources/libs/$proto/Makefile" \
       "../common_src/nvds_utils.cpp" \
       "../nvds_msgapi_common_src/nvds_utils.cpp"
+    if [[ "$proto" = "kafka_protocol_adaptor" ]]; then
+      patch_staged_file "sources/libs/$proto/Makefile" \
+        "include ../../../../includes/nvds_protobuf.mk" \
+        "include ../../../includes/nvds_protobuf.mk"
+      patch_staged_file "sources/libs/$proto/Makefile" \
+        "../../nvmsgconv/deepstream_schema" \
+        "../nvmsgconv/deepstream_schema"
+    fi
   fi
   if [[ -f "$DS_ROOT/sources/libs/$proto/Makefile.test" ]]; then
     if [[ "$proto" = "amqp_protocol_adaptor" || "$proto" = "mqtt_protocol_adaptor" ]]; then

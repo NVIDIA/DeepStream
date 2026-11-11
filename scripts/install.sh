@@ -158,9 +158,10 @@ write_loader_config() {
     # Match the source linker's complete client SDK selection. A partial lib/
     # must not shadow the complete provider selected from lib64/.
     for dir in "$root/lib" "$root/lib64"; do
-        if [[ -r "$dir/libgrpcclient_static.a" && -r "$dir/libgrpc++.a" &&
-              -r "$dir/libprotobuf.a" && -r "$dir/libcares.a" &&
-              ( -r "$dir/libgrpcclient.so" || -r "$dir/libgrpcclient.a" ) ]]; then
+        if [[ -r "$dir/libprotobuf.a" && -r "$dir/libcares.a" &&
+              ( -r "$dir/libgrpcclient.so" ||
+                ( -r "$dir/libgrpcclient.a" && -r "$dir/libgrpcclient_static.a" &&
+                  -r "$dir/libgrpc++.a" ) ) ]]; then
             provider=$dir
             break
         fi

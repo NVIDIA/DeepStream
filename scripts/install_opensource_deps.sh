@@ -27,7 +27,7 @@
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
 #                      x86/SBSA: 26.10-py3-sdk; Jetson: JP/TRT11.4.1-qualified SDK
-#   protobuf compiler  v3.21.12           -> /opt/proto
+#   protobuf compiler  explicit SDK-matched provider (legacy default v3.21.12) -> /opt/proto
 #   pybind11           v2.12.0 (headers)  -> /opt/pybind11
 #   dlpack             v0.8    (headers)  -> /opt/dlpack
 #   apt packages: python3-build, python3-venv, python3-setuptools, python3-wheel,
@@ -36,7 +36,7 @@
 #                 libboost-dev, libeigen3-dev, nlohmann-json3-dev, libharfbuzz-dev,
 #                 libprotobuf-dev, libglm-dev (prefer 0.9.9.8), libglfw3-dev
 #                 (prefer 3.3.10), openucx/libucx-dev (prefer 1.13.1), etc.
-#   mosquitto (from PPA)
+#   mosquitto (from Ubuntu packages)
 #   vpi4-dev (from NVIDIA's VPI apt repository, required by nvmultiobjecttracker)
 #   Sparse4D: ds-sparse4d/configs/install_dependencies.sh (PyTorch 2.9.0+cu130,
 #             nlohmann-json, Eigen, OpenCV)
@@ -53,7 +53,11 @@
 #   RESUME=1                  Skip stages already marked DONE (used by build.sh --resume).
 #                             Default 0: always rebuild/install; stage state is reset first.
 #   DEPS_STAGE_STATE_FILE     Stage resume file (default: build/.stage-state.deps)
+#   DS_DEPS_WORK_ROOT         Existing writable parent for dependency build
+#                             directories (default: /tmp).
 #   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
+#   PROTOC_ROOT              Optional protoc distribution matching the selected
+#                            Triton SDK protobuf headers; copied to /opt/proto.
 #                            Must contain include/ and lib/ (or lib64/); no image
 #                            pull or unverified legacy SDK download is performed.
 #   VPI_DIR                  ARM vendor VPI4.1.6 installation (default: /opt/nvidia/vpi4).
@@ -100,7 +104,12 @@ if [[ "$PLATFORM" == sbsa && ! -f /.dockerenv && ! -f /run/.containerenv ]]; the
   echo "error: SBSA dependency installation requires the matching DeepStream SBSA container, not a bare-metal host." >&2
   exit 1
 fi
-BUILD_ROOT=$(mktemp -d /tmp/ds-deps-build.XXXXXX)
+DS_DEPS_WORK_ROOT=${DS_DEPS_WORK_ROOT-/tmp}
+if [[ ! -d "$DS_DEPS_WORK_ROOT" || ! -w "$DS_DEPS_WORK_ROOT" || ! -x "$DS_DEPS_WORK_ROOT" ]]; then
+  echo "error: DS_DEPS_WORK_ROOT must be an existing writable, searchable directory: $DS_DEPS_WORK_ROOT" >&2
+  exit 1
+fi
+BUILD_ROOT=$(mktemp -d "$DS_DEPS_WORK_ROOT/ds-deps-build.XXXXXX")
 
 stage_is_done() {
   local stage=$1
@@ -325,10 +334,16 @@ for header in grpc_client.h common.h; do
 done
 triton_client_library_dir_is_complete() {
   local directory=$1 library
-  for library in libgrpcclient_static.a libgrpc++.a libprotobuf.a libcares.a; do
+  for library in libprotobuf.a libcares.a; do
     [[ -r "$directory/$library" ]] || return 1
   done
-  [[ -r "$directory/libgrpcclient.so" || -r "$directory/libgrpcclient.a" ]]
+  # The public ARM64 SDK bundles gRPC into libgrpcclient.so and does not ship
+  # libgrpc++.a. The source Makefiles link -lgrpcclient, not a separate gRPC
+  # archive. Static-only providers still need the complete static dependency set.
+  [[ ! -r "$directory/libgrpcclient.so" ]] || return 0
+  for library in libgrpcclient.a libgrpcclient_static.a libgrpc++.a; do
+    [[ -r "$directory/$library" ]] || return 1
+  done
 }
 # Some SDK layouts contain both directories. Prefer lib/ only when complete;
 # never combine dependencies from two incomplete provider directories.
@@ -341,7 +356,7 @@ for triton_client_candidate in "$TRITON_CLIENT_SDK_ROOT/lib" "$TRITON_CLIENT_SDK
 done
 if [[ -z "$TRITON_CLIENT_SDK_LIB_DIR" ]]; then
   echo "error: provide one complete matching Triton client SDK in $TRITON_CLIENT_SDK_ROOT/lib or lib64." >&2
-  echo 'Required: libgrpcclient_static.a, libgrpc++.a, libprotobuf.a, libcares.a, and libgrpcclient.so or libgrpcclient.a for -lgrpcclient.' >&2
+  echo 'Required: libprotobuf.a, libcares.a, and libgrpcclient.so; static-only providers also need libgrpcclient.a, libgrpcclient_static.a, and libgrpc++.a.' >&2
   exit 1
 fi
 echo "--- Triton client SDK: caller/preinstalled provider $TRITON_CLIENT_SDK_ROOT ---"
@@ -383,14 +398,67 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Protobuf compiler v3.21.12
+# 7. Protobuf compiler: explicit SDK-matched provider or legacy v3.21.12
 # ---------------------------------------------------------------------------
 echo ""
-if [[ "$PLATFORM" = "sbsa" ]]; then
-  echo "--- Protobuf compiler v3.21.12 (skipped, preinstalled on SBSA) ---"
+required_protoc_version() {
+  local sdk_root=$1 version_code
+  local cpp_major cpp_minor cpp_patch
+  version_code=$(awk '$1 == "#define" && $2 == "GOOGLE_PROTOBUF_VERSION" && $3 ~ /^[0-9]+$/ { print $3; exit }' \
+    "$sdk_root/include/google/protobuf/stubs/common.h" 2>/dev/null)
+  if [[ ! "$version_code" =~ ^[0-9]+$ ]]; then
+    echo 'error: cannot identify the selected Triton SDK protobuf header version.' >&2
+    return 1
+  fi
+  cpp_major=$((version_code / 1000000))
+  cpp_minor=$((version_code / 1000 % 1000))
+  cpp_patch=$((version_code % 1000))
+  # Modern language-specific runtime major versions differ from protoc's
+  # release numbering (for example C++ 6.33.5 uses protoc 33.5).
+  if (( cpp_major >= 4 )); then
+    printf '%s\n' "$cpp_minor.$cpp_patch"
+  else
+    printf '%s\n' "$cpp_major.$cpp_minor.$cpp_patch"
+  fi
+}
+
+validate_protoc_provider() {
+  local root=$1 sdk_root=$2 compiler_version expected_version
+  if [[ -z "$root" || ! -x "$root/bin/protoc" ||
+        ! -r "$root/include/google/protobuf/descriptor.proto" ]]; then
+    echo 'error: PROTOC_ROOT must contain bin/protoc and the matching include/google/protobuf/*.proto files.' >&2
+    return 1
+  fi
+  expected_version=$(required_protoc_version "$sdk_root") || return 1
+  compiler_version=$("$root/bin/protoc" --version) || return 1
+  if [[ "$compiler_version" != "libprotoc $expected_version" ]]; then
+    echo "error: selected Triton SDK requires protoc $expected_version; provider reports $compiler_version." >&2
+    return 1
+  fi
+  printf '%s\n' "$expected_version"
+}
+
+PROTOC_REQUIRED_VERSION=$(required_protoc_version "$TRITON_CLIENT_SDK_ROOT") || exit 1
+if [[ -v PROTOC_ROOT ]]; then
+  # Recheck explicit providers on resume rather than trusting an older marker.
+  PROTOC_SELECTED_VERSION=$(validate_protoc_provider "$PROTOC_ROOT" "$TRITON_CLIENT_SDK_ROOT") || exit 1
+  echo "--- Protobuf compiler $PROTOC_SELECTED_VERSION (explicit provider: $PROTOC_ROOT) ---"
+  mkdir -p /opt/proto/bin
+  if [[ ! "$PROTOC_ROOT/bin/protoc" -ef /opt/proto/bin/protoc ]]; then
+    cp --remove-destination -- "$PROTOC_ROOT/bin/protoc" /opt/proto/bin/protoc
+    chmod 755 /opt/proto/bin/protoc
+  fi
+  install_triton_client_tree "$PROTOC_ROOT/include" /opt/proto/include
   mark_stage_done deps-protoc
-elif stage_is_done deps-protoc; then
-  echo "--- Protobuf compiler v3.21.12 (skipped, already DONE) ---"
+  echo "    Stage deps-protoc: DONE"
+elif PROTOC_SELECTED_VERSION=$(validate_protoc_provider /opt/proto "$TRITON_CLIENT_SDK_ROOT" 2>/dev/null); then
+  echo "--- Protobuf compiler $PROTOC_SELECTED_VERSION (using matching /opt/proto provider) ---"
+  mark_stage_done deps-protoc
+  echo "    Stage deps-protoc: DONE"
+elif [[ "$PROTOC_REQUIRED_VERSION" != 3.21.12 || "$PLATFORM" = "sbsa" ]]; then
+  echo "error: selected Triton SDK requires protoc $PROTOC_REQUIRED_VERSION, but /opt/proto is missing or mismatched." >&2
+  echo 'Set PROTOC_ROOT to a matching compiler distribution, or provision a matching compiler and include tree at /opt/proto.' >&2
+  exit 1
 else
   echo "--- Protobuf compiler v3.21.12 (PLATFORM=$PLATFORM) ---"
   mkdir -p /opt/proto
@@ -469,9 +537,7 @@ if stage_is_done deps-mosquitto; then
 else
   echo "--- Mosquitto ---"
   apt-get update
-  apt install -y software-properties-common
-  apt-add-repository -y ppa:mosquitto-dev/mosquitto-ppa
-  apt-get update
+  # Use Ubuntu's packages for the local build instead of the Mosquitto PPA.
   apt-get install -y libmosquitto-dev mosquitto
   mark_stage_done deps-mosquitto
   echo "    Stage deps-mosquitto: DONE"

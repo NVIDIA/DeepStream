@@ -469,39 +469,9 @@ bool GstNvInferServerImpl::validatePluginConfig(
     return true;
 }
 
-static void ProtoBufLogHandler(google::protobuf::LogLevel level, const char* filename, int line,
-    const std::string& message)
-{
-    NvDsInferLogLevel dsLevel = NVDSINFER_LOG_ERROR;
-    switch (level) {
-    case google::protobuf::LOGLEVEL_INFO:
-        dsLevel = NVDSINFER_LOG_INFO;
-        break;
-    case google::protobuf::LOGLEVEL_WARNING:
-        dsLevel = NVDSINFER_LOG_WARNING;
-        break;
-    case google::protobuf::LOGLEVEL_ERROR:
-        dsLevel = NVDSINFER_LOG_ERROR;
-        break;
-    case google::protobuf::LOGLEVEL_FATAL:
-        dsLevel = NVDSINFER_LOG_ERROR;
-        break;
-    default:
-        return;
-    }
-    std::string res = std::string("file: ") + filename +
-        "line: " + std::to_string(line) + "msg: " + message;
-    dsInferLogPrint__(dsLevel, res.c_str());
-}
-
 NvDsInferStatus GstNvInferServerImpl::start() {
     GST_DEBUG_OBJECT(m_GstPlugin, "inferserver:%u starting", uniqueId());
 
-    if (0) {
-        static std::once_flag protoLoggingFlag;
-        std::call_once(protoLoggingFlag,
-            []() { google::protobuf::SetLogHandler(&ProtoBufLogHandler); });
-    }
     {
         static std::once_flag nvtxInitFlag;
         std::call_once(nvtxInitFlag,

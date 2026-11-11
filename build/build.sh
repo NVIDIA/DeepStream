@@ -153,6 +153,12 @@ Environment variables (alternative to CLI):
                           derived from NVDS_VERSION).
   INSTALL_METHOD          Artifact install method: deb (default) | tar
   CMAKE_BIN               Path to cmake binary
+  PROTOC_ROOT             Explicit protoc distribution matching the selected
+                          Triton SDK protobuf headers (copied to /opt/proto)
+  DS_DEPS_WORK_ROOT        Existing writable parent for dependency build
+                          directories (default: /tmp)
+  DS_PACKAGE_OUTPUT_DIR   Package output directory (default: build/)
+  DS_PACKAGE_STAGE_DIR    Package staging directory (default: build/.pkg-stage)
 
 Examples:
   bash build/build.sh
@@ -495,6 +501,8 @@ if [[ -n "$PACKAGE_FROM" ]]; then
   esac
   [[ -z "$PACKAGE_PLATFORM" ]] || _package_args+=(--platform="$PACKAGE_PLATFORM")
   [[ "$PACKAGE_WORKTREE_SOURCES" -eq 0 ]] || _package_args+=(--include-untracked-sources)
+  [[ ! -v DS_PACKAGE_OUTPUT_DIR ]] || _package_args+=("--output-dir=$DS_PACKAGE_OUTPUT_DIR")
+  [[ ! -v DS_PACKAGE_STAGE_DIR ]] || _package_args+=("--stage-dir=$DS_PACKAGE_STAGE_DIR")
   exec env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" TRT_VER="$TRT_VER" \
     bash "$SCRIPT_DIR/package.sh" "${_package_args[@]}"
 fi
@@ -531,7 +539,7 @@ fi
 STACK_STATE="STACK platform=$STACK_PLATFORM CUDA_VER=$CUDA_VER TRT_VER=${TRT_VER:-system} CUDNN_VERSION=$CUDNN_VERSION NVDS_VERSION=$NVDS_FULL_VERSION"
 printf -v _provider_value '%q' "$_triton_build_client_root"
 STACK_STATE+=" TRITON_BUILD_CLIENT_ROOT=$_provider_value"
-for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT; do
+for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT PROTOC_ROOT DS_DEPS_WORK_ROOT DS_PACKAGE_OUTPUT_DIR DS_PACKAGE_STAGE_DIR; do
   if [[ -v "$_provider" ]]; then
     printf -v _provider_value '%q' "${!_provider}"
     STACK_STATE+=" $_provider=$_provider_value"
@@ -797,13 +805,17 @@ finalize_install() {
 
 # Package the freshly installed tree into a Debian package and/or tarball via
 # build/package.sh. Runs only for full builds and only when the user opts in
-# with --package / --package-format. Artifacts are written to build/.
+# with --package / --package-format. Artifacts are written to build/ unless
+# DS_PACKAGE_OUTPUT_DIR selects another directory.
 run_package() {
   echo "==> Packaging DeepStream (format=$PACKAGE_FORMAT) via build/package.sh"
   local package_platform="$STACK_PLATFORM"
   [[ "$package_platform" != aarch64 ]] || package_platform=jetson
+  local package_args=("--format=$PACKAGE_FORMAT" "--platform=$package_platform")
+  [[ ! -v DS_PACKAGE_OUTPUT_DIR ]] || package_args+=("--output-dir=$DS_PACKAGE_OUTPUT_DIR")
+  [[ ! -v DS_PACKAGE_STAGE_DIR ]] || package_args+=("--stage-dir=$DS_PACKAGE_STAGE_DIR")
   env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" TRT_VER="$TRT_VER" \
-    bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT" --platform="$package_platform"
+    bash "$SCRIPT_DIR/package.sh" "${package_args[@]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -833,16 +845,18 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
     mkdir -p "$(dirname "$DEPS_STAGE_STATE_FILE")"
     : >"$DEPS_STAGE_STATE_FILE"
   fi
-  # Preserve an explicit provider through sudo without converting an unset
-  # TORCH_PATH into an explicit empty value (the helper rejects the latter).
-  _deps_torch_env=()
-  [[ ! -v TORCH_PATH ]] || _deps_torch_env+=("TORCH_PATH=$TORCH_PATH")
+  # Preserve explicit providers through sudo without converting an unset
+  # variable into an explicit empty value (the helpers reject the latter).
+  _deps_provider_env=()
+  for _provider in TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
+    [[ ! -v "$_provider" ]] || _deps_provider_env+=("$_provider=${!_provider}")
+  done
   run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
     TRITON_CLIENT_SDK_ROOT="${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}" \
     VPI_DIR="${VPI_DIR-/opt/nvidia/vpi4}" \
     RESUME="$RESUME" \
-    "${_deps_torch_env[@]}" \
+    "${_deps_provider_env[@]}" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
   finish_stage "$DEPS_STAGE"
 fi

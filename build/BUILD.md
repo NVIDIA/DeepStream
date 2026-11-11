@@ -131,6 +131,59 @@ changing providers requires a fresh build state. A shared client remains an
 external runtime dependency: creating an SDK tar does not copy `/opt/tritonclient`
 into it. Provision the matching provider on the runtime system or in the image.
 
+For a native Jetson experiment with the public October 2026 providers, the
+Triton 2.74.0 release also supplies an AArch64 CUDA 13.2 client SDK archive.
+Use that client SDK's own headers and complete `lib64/` directory together.
+It is distinct from the Triton server container and does not establish server
+or DeepStream inference qualification on JetPack. Modern SDK headers can require
+C++20 and a different Abseil archive set; the inference-server, message converter,
+Kafka, metadata serializer and Lidar filter Makefiles select those requirements
+from the chosen SDK rather than assuming the older layout.
+The SDK's protobuf headers must be paired with a matching `protoc` provider;
+set `PROTOC_ROOT` to its installation root before dependency preparation.
+The dependency installer reuses a matching compiler already in `/opt/proto`.
+For a modern SDK without a matching installed compiler, it requires an explicit
+`PROTOC_ROOT` rather than installing the legacy 21.12 compiler. The legacy
+download remains available for protobuf 3.21.12 headers.
+For the October 2.74.0 SDK, use protoc 33.5 with its protobuf 6.33.5 runtime.
+The message Makefiles regenerate their protobuf sources with `/opt/proto/bin/protoc`
+(or `PROTOBUF_BIN_DIR`) and link the SDK's matching static runtime and support
+archives. Do not compile those generated sources against the system protobuf
+headers.
+
+Both x86 and ARM protobuf consumers share `includes/nvds_protobuf.mk`. It selects
+one complete SDK library directory and derives the compiler standard from the
+protobuf version and Abseil configuration. Protobuf 6.30 and newer require at
+least C++17; providers using Abseil's standard ordering types require C++20.
+Each component records the selected provider/compiler and platform build flags
+in an ignored `.build/` stamp and regenerates its protobuf sources when that
+selection changes. This also refreshes checked-in generated code on a fresh
+checkout and when switching
+between legacy and modern SDKs, while unchanged selections preserve timestamps.
+
+Public PyTorch 2.15.0+cu132 supplies AArch64 CUDA LibTorch with C++ ABI1 and a
+C++20 requirement. Sparse4D detects the minimum standard from its
+`TorchConfig.cmake`; older providers retain the C++17 fallback. This wheel's
+private cuDNN dependency is 9.26.0.51, which differs from the system JetPack
+baseline above. Keep the wheel environment isolated, record the actual selected
+`CUDNN_VERSION` and loaded library paths, and run native C++ and GPU checks
+before accepting it for a build. These provider smoke tests do not replace
+fresh source compilation, packaging, or full pipeline validation.
+
+An explicit `TORCH_PATH` is also preserved through dependency preparation: the
+Sparse4D helper checks its CUDA-library layout, ABI1 evidence and native ELF
+architecture before any APT operation, and does not replace it or install another
+Torch wheel. Empty, missing, CPU-only, ABI0 or unknown providers fail explicitly.
+These checks do not establish vendor provenance or qualify the runtime stack.
+When `TORCH_PATH` is unset, the existing default PyTorch installation is retained.
+
+ARM must already have genuine matching **VPI4.1.6** development headers at
+`/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
+adding an x86 repository or guessing a vendor download. Provision the target
+vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
+The x86 installer keeps the **4.1.3** package family; if that version is absent
+from the configured repository, supply the reviewed vendor package explicitly.
+
 ### Installation integration and existing installations
 
 Installation preflights required targets and alternative-link ownership before
@@ -153,20 +206,6 @@ from `CUDA_VER`. A matching compiler does not prove matching runtime selection.
 ARM installation retains packaged SBSA media libraries and links missing media
 only to existing platform providers; Jetson-only IPC registration is gated by
 the Jetson release marker. These checks do not qualify a BSP or Triton provider.
-
-An explicit `TORCH_PATH` is also preserved through dependency preparation: the
-Sparse4D helper checks its CUDA-library layout, ABI1 evidence and native ELF
-architecture before any APT operation, and does not replace it or install another
-Torch wheel. Empty, missing, CPU-only, ABI0 or unknown providers fail explicitly.
-These checks do not establish vendor provenance or qualify the runtime stack.
-When `TORCH_PATH` is unset, the existing default PyTorch installation is retained.
-
-ARM must already have genuine matching **VPI4.1.6** development headers at
-`/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
-adding an x86 repository or guessing a vendor download. Provision the target
-vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
-The x86 installer keeps the **4.1.3** package family; if that version is absent
-from the configured repository, supply the reviewed vendor package explicitly.
 
 ---
 
@@ -329,7 +368,43 @@ Run this script once, **after** installing the system dependencies.
 > default these downloaded assets are **deleted once the build succeeds**; pass
 > `--keep-assets` to retain them.
 
+For a source build with matching proprietary libraries and sample-data packages
+already installed, prepare the build layout without reinstalling release assets:
+
+```bash
+sudo env NVDS_VERSION=9.2.1 bash scripts/install_artifacts.sh --setup-only
+bash build/build.sh --skip-artifacts --package
+```
+
+`--setup-only` creates the source-build directories and symlinks, prepares sample
+aliases and runs `ldconfig`. The caller must install matching inputs first; this
+mode does not download, install or extract artifact packages, and does not mark
+those skipped installation stages complete. Without this option, the installer
+continues to install both proprietary libraries and sample data normally.
+
 > **Note for Jetson Orin users:** External storage integration is required to support the build and execution of DeepStream on the Jetson Orin platform. The downloaded artifacts may exhaust internal storage and cause `No space left on device` errors without it.
+
+Dependency build workspaces and package staging/output can use external storage
+without moving the checkout. After provisioning the matching runtime inputs and
+development providers, select writable locations before the source build:
+
+```bash
+mkdir -p "/path/on/external-disk/deps" "/path/on/external-disk/packages"
+export DS_DEPS_WORK_ROOT="/path/on/external-disk/deps"
+export DS_PACKAGE_OUTPUT_DIR="/path/on/external-disk/packages"
+export DS_PACKAGE_STAGE_DIR="/path/on/external-disk/package-stage"
+bash build/build.sh --skip-artifacts --package
+```
+
+`DS_DEPS_WORK_ROOT` must be an existing writable, searchable directory; dependency
+builds create a private `ds-deps-build.*` child there. `DS_PACKAGE_OUTPUT_DIR` and
+`DS_PACKAGE_STAGE_DIR` are forwarded to the packager as `--output-dir` and
+`--stage-dir`, including paths containing spaces. Choose a new or empty staging
+directory, or one with the packager's matching ownership sidecar; the existing
+staging ownership and overlap checks still apply. Defaults remain `/tmp`,
+`build/`, and `build/.pkg-stage`, respectively. Explicit selections are recorded
+in the build-state fingerprint, so keep them consistent when resuming a build.
+These settings do not relocate source objects or the installed SDK under `/opt`.
 
 `build/build.sh` auto-detects the host platform and runs the following stages in order:
 
@@ -344,6 +419,18 @@ Additional behavior:
 - On SBSA / DGX Spark: passes `AARCH64_IS_SBSA=1` to all Makefiles (both `aarch64` and `sbsa` report `uname -m` as `aarch64`; SBSA is identified by the absence of `/etc/nv_tegra_release`); the artifacts stage is skipped automatically
 - Prompts for `sudo` only when a step must install packages or write to system paths
 - Tracks completed stages in `build/.stage-state` (build stages), `build/.stage-state.deps` (dependency sub-stages), and `build/.stage-state.artifacts` (artifact sub-stages) so builds can be resumed after interruption
+
+The inference Makefiles translate `AARCH64_IS_SBSA=1` into a compiler definition
+so the server-ARM gRPC CUDA shared-memory implementation is available. Using it
+still requires `enable_cuda_buffer_sharing: true` in the Triton gRPC configuration;
+the default host-copy behavior is retained when that option is disabled. For
+standalone ARM component builds, `DEEPSTREAM_VARIANT=sbsa` selects SBSA, while
+`tegra`, `jetson` and `igx` retain their existing behavior. An explicit
+`AARCH64_IS_SBSA=0|1` overrides detection. Without either selection, the Makefiles
+detect legacy IGX from the device model, Jetson from `/etc/nv_tegra_release`, and
+otherwise select SBSA. Existing ARM surface compatibility flags are retained.
+Changing platform or the explicit SBSA flag also invalidates the component's
+provider stamp so the previous variant's objects are rebuilt.
 
 From the repo root:
 
@@ -630,11 +717,17 @@ bash build/package.sh --help
 | `--stage-dir=PATH` | Scratch staging directory (default: `build/.pkg-stage`) |
 | `--keep-stage` | Do not delete the staging directory on exit (useful for inspection) |
 | `--runtime-root=PATH` | Complete extracted SDK directory instead of the installed `/opt` tree |
-| `--platform=x86\|jetson\|sbsa` | Select platform-specific dependencies and tarball name |
+| `--platform=x86\|jetson\|sbsa\|igx` | Select platform-specific dependencies, source filters and tarball name |
 | `--include-untracked-sources` | Local validation only: include non-ignored new source files |
 
 Environment overrides: `NVDS_VERSION` (default `9.2.1`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
 (default: same as `NVDS_VERSION`).
+
+Source filters use the selected platform rather than CPU architecture alone.
+SBSA retains `deepstream-appsrc-cuda-test` and excludes Jetson IPC sample and
+metadata sources. x86, Jetson and legacy IGX retain their respective build-driver
+selections. These filters do not replace or prune the supplied runtime binaries;
+the runtime input must already match the selected platform.
 
 ### Output
 
