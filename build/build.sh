@@ -522,8 +522,16 @@ for s in "${ONLY_STAGES[@]}"; do
   fi
 done
 
+_triton_build_client_root="${TRITON_GRPC_CLIENT-/opt/tritonclient}"
+# Dependency preparation normalizes the SDK into /opt/tritonclient. Only link
+# directly to its original location when the caller explicitly skips that step.
+if [[ "$SKIP_DEPS" -eq 1 && -v TRITON_CLIENT_SDK_ROOT && ! -v TRITON_GRPC_CLIENT ]]; then
+  _triton_build_client_root="$TRITON_CLIENT_SDK_ROOT"
+fi
 STACK_STATE="STACK platform=$STACK_PLATFORM CUDA_VER=$CUDA_VER TRT_VER=${TRT_VER:-system} CUDNN_VERSION=$CUDNN_VERSION NVDS_VERSION=$NVDS_FULL_VERSION"
-for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT; do
+printf -v _provider_value '%q' "$_triton_build_client_root"
+STACK_STATE+=" TRITON_BUILD_CLIENT_ROOT=$_provider_value"
+for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT; do
   if [[ -v "$_provider" ]]; then
     printf -v _provider_value '%q' "${!_provider}"
     STACK_STATE+=" $_provider=$_provider_value"
@@ -773,13 +781,18 @@ for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DI
     MK+=("$_provider=${!_provider}")
   fi
 done
+MK+=("TRITON_GRPC_CLIENT=$_triton_build_client_root")
 FAILED_BUILDS=()
 
 DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 
 finalize_install() {
   echo "==> Running install.sh (NVDS_VERSION=$NVDS_FULL_VERSION)"
-  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
+  # The loader must discover the same external client used during linking,
+  # including when dependency installation was skipped. sudo strips this env.
+  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" \
+    TRITON_CLIENT_SDK_ROOT="$_triton_build_client_root" \
+    bash "$SCRIPT_DIR/../scripts/install.sh"
 }
 
 # Package the freshly installed tree into a Debian package and/or tarball via

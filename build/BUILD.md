@@ -123,6 +123,37 @@ release provenance or runtime compatibility. Preserve the SDK
 image digest/release identity separately. A custom provider is copied into
 `/opt/tritonclient` only when the dependency installer is explicitly run.
 
+With `--skip-deps`, an explicit `TRITON_CLIENT_SDK_ROOT` is used directly for
+linking and runtime registration instead. `TRITON_GRPC_CLIENT` is an explicit
+consumer-root override and takes precedence. The build records the effective
+provider in resume state and passes it through privileged build/install calls;
+changing providers requires a fresh build state. A shared client remains an
+external runtime dependency: creating an SDK tar does not copy `/opt/tritonclient`
+into it. Provision the matching provider on the runtime system or in the image.
+
+### Installation integration and existing installations
+
+Installation preflights required targets and alternative-link ownership before
+making changes. Missing optional sample applications are skipped; a conflicting
+regular executable or unmanaged symlink produces an actionable error instead
+of silently retaining an older app. Existing manual alternatives selections are
+preserved with a notice. The known legacy UCX group is reused when it already
+owns the link; uninstall removes only the selected SDK's registration.
+
+For a version mismatch, inspect the canonical executable directly:
+
+```bash
+/opt/nvidia/deepstream/deepstream-9.2/bin/deepstream-app --version-all
+```
+
+Review package ownership before migrating an old `/usr/bin/deepstream-app`;
+the installer does not force-overwrite it or change global CUDA selection.
+The reported CUDA runtime is queried from the selected library, not inferred
+from `CUDA_VER`. A matching compiler does not prove matching runtime selection.
+ARM installation retains packaged SBSA media libraries and links missing media
+only to existing platform providers; Jetson-only IPC registration is gated by
+the Jetson release marker. These checks do not qualify a BSP or Triton provider.
+
 An explicit `TORCH_PATH` is also preserved through dependency preparation: the
 Sparse4D helper checks its CUDA-library layout, ABI1 evidence and native ELF
 architecture before any APT operation, and does not replace it or install another

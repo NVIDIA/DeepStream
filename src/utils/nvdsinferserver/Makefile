@@ -21,6 +21,14 @@ TRITON_SERVER_STUB ?= build/nvdsinferserver
 # External dependencies, update as required.
 PROTOBUF_BIN_DIR ?= /opt/proto/bin
 TRITON_GRPC_CLIENT ?= /opt/tritonclient
+# Match the dependency installer's complete provider; never mix lib and lib64.
+TRITON_GRPC_CLIENT_LIB_DIR ?= $(strip $(or $(firstword \
+    $(foreach dir,$(TRITON_GRPC_CLIENT)/lib $(TRITON_GRPC_CLIENT)/lib64,\
+        $(if $(and $(wildcard $(dir)/libgrpcclient_static.a),\
+            $(wildcard $(dir)/libgrpc++.a),$(wildcard $(dir)/libprotobuf.a),\
+            $(wildcard $(dir)/libcares.a),\
+            $(wildcard $(dir)/libgrpcclient.so $(dir)/libgrpcclient.a)),$(dir)))),\
+    $(TRITON_GRPC_CLIENT)/lib))
 HALF_PRECISION_LIB ?= /opt/half
 
 CUDA_VER?=
@@ -109,7 +117,7 @@ endif
 
 LIBS := \
     -L$(TRITON_SERVER_STUB) \
-    -L$(TRITON_GRPC_CLIENT)/lib \
+    -L$(TRITON_GRPC_CLIENT_LIB_DIR) \
     -lgrpcclient \
     -l:libprotobuf.a \
     -l:libcares.a \
@@ -214,7 +222,8 @@ LDFLAGS += \
     -Wl,--as-needed \
     -Wl,--allow-shlib-undefined \
     -Wl,-rpath,$(LIB_INSTALL_DIR) \
-    -Wl,-rpath,/usr/local/$(CUDA_VER)/lib64 \
+    -Wl,-rpath,$(TRITON_GRPC_CLIENT_LIB_DIR) \
+    -Wl,-rpath,/usr/local/cuda-$(CUDA_VER)/lib64 \
     -shared \
     -s \
     $(NULL)
