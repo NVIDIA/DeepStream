@@ -25,8 +25,8 @@ MV3DT builds on existing robust 2D and single-view 3D tracking technology (see [
 
 **Real-time Multi-View Fusion**
 
-- *Calibration-driven Measurement Sharing*: Each camera uses its internal and external calibration parameters to track objects and publish estimated 3D measurements (position, velocity, confidence) to an MQTT broker. Vision neighbors can subscribe to receive this data. Calibration ensures all measurements map into a common world coordinate system, enabling accurate cross-camera data fusion.
-- *Collaborative Multi-View Fusion*: Cameras fuse their own and neighbors' measurements, weighting by confidence or uncertainty, to produce robust, real-time 3D state estimates. This enables seamless tracking through occlusions and across camera boundaries.
+- *Calibration-driven Measurement Sharing*: Each camera uses its internal and external calibration parameters to track objects and publish estimated 3D measurements (position, velocity, measurement covariance, visibility) to an MQTT broker. Vision neighbors can subscribe to receive this data. Calibration ensures all measurements map into a common world coordinate system, enabling accurate cross-camera data fusion.
+- *Collaborative Multi-View Fusion*: Cameras fuse their own and neighbors' measurements, screening them with visibility, distance and geometry criteria and weighting them by their measurement noise, to produce robust, real-time 3D state estimates. This enables seamless tracking through occlusions and across camera boundaries.
 
 The following figures illustrate MV3DT operations at a high level:
 
@@ -138,9 +138,15 @@ The following table summarizes the configuration parameters in the `MultiViewAss
 | maxPeerTrackletSize | Positive integer | 50 | This parameter controls how long a camera retains the target data from peer cameras in terms of the # of frames. Recommended to use a number to store at least 1-2 seconds, e.g. 30-60 for 30 fps streams. |
 | recentlyActiveAge | Positive Integer | 200 | This parameter specifies how long a peer target will be considered for ID match since it gets activated by peer cameras. |
 | minCommonFrames4MatchScore | Positive integer | 2 | This parameter sets a minimum number of frames in time overlap when performing tracklet matching. If tracklets do not have at least this number of overlapped frames in time, the similarity score will be set 0. Recommended [2,10] |
-| maxPeerToPredDistance4Fusion | Positive float | 1.0 | This parameter is used to avoid fusion of measurements from incorrectly associated peer targets. It is a maximum distance for the peer measurement to be included for fusion. The specific value depends on the calibration units and target use case, e.g., for person tracking, [0.2, 1.0] m are typical values. |
-| minPeerVisibility4Fusion | Nonnegative float | 0.25 | This parameter is used to avoid fusion of measurements from targets with low visibility (non-confident measurement). It is a minimum visibility for the peer measurement to be included for fusion. e.g., [0.1, 1.0]. |
+| maxPeerToPredDistance4Fusion | Positive float | 1.0 | This parameter is used to avoid fusion of measurements from incorrectly associated peer targets. It is a maximum distance for the peer measurement to be included for fusion. The specific value depends on the calibration units and target use case, e.g., for person tracking, [0.2, 1.0] m are typical values. It has no effect when `stateEstimatorType` is `4` (Projective-location KF), because the tracker then uses a fixed threshold of 100 world units in order to bypass it. |
+| minPeerVisibility4Fusion | Nonnegative float | 0.25 | This parameter is used to avoid fusion of measurements from targets with low visibility (non-confident measurement). It is a minimum visibility for the peer measurement to be included for fusion. e.g., [0.1, 1.0]. It is applied only in frames where the ego target has a matched detection. |
+| maxPeerFrameDiff4NoDet | Integer, at least 2 | 2 | This parameter sets how old a peer measurement can be to be fused, in frames. A peer measurement is used only if the frame at which its latest message was received (minus one) plus this value is at least the current frame number. Values below 2 are raised to 2. Despite the name, it is applied both in frames with and without a matched detection. |
 | minPeerTrackletMatchScore | Nonnegative float | 0.5 | This parameter defines the minimum match score needed to consider two tracklets similar, if the score is above this value, the match is considered successful. This is a critical parameter, it needs to be fine tuned. |
+| multiViewAssociatorType | Integer, 0 or 1 | 0 | Selects the multi-view associator. `0` is the dummy associator, which turns MV3DT off, and `1` is the full multi-view associator that enables MV3DT. |
+| enableLatePeerReAssoc | Boolean | 1 | Enables *LatePeerReAssoc*, the later matching and ID adoption for targets that have recently become active, see [LatePeerReAssoc for Missed ID Re-Association](#latepeerreassoc-for-missed-id-re-association). |
+| enableSeeThrough | Boolean | 1 | Enables See-Through tracking, see [See-Through Tracking](#see-through-tracking). When set to `0`, peer targets are not used to initiate new targets. |
+| enableMsgSync | Boolean | 0 | Controls whether the camera waits for its peers in each frame. Every camera sends a SYNC message in each frame. When set to `1`, the tracker keeps processing incoming messages until it has received a SYNC message from every peer camera for at least the previous frame, which keeps the cameras in step, so a peer that stops sending SYNC messages stalls the camera. When set to `0`, it processes the messages that are already available and continues. **Warning:** when this is set to `1`, all the input videos must have the same length (the same number of frames). A camera whose input ends stops sending SYNC messages, and the cameras that are still running wait for it. |
+| communicatorInitSleepTime | Nonnegative integer | 0 | Applies to the MQTT communicator. When greater than 0, the tracker sleeps this many milliseconds after initializing the communicator. When 0, it waits for the MQTT connection to complete instead. |
 
 The following table summarizes the configuration parameters in the `Communicator` section:
 
@@ -148,10 +154,10 @@ The following table summarizes the configuration parameters in the `Communicator
 
 | Parameter name | Type | Default | Definition |
 | --- | --- | --- | --- |
-| communicatorType | \{0, 2\} | 0 | Select the communicator. 0: Dummy communicator. No actual communication happens. 2: MQTT Communicator. Multiple DS instances / GPUs / Machines supported. |
-| pubSubInfoConfigPath | String |  | This parameter needs to be specified with the vision neighbor configuration |
-| mqttProtoAdaptorConfigPath | String |  | This parameter needs to be specified with the path to the MQTT message protocol adaptor configuration file. Not needed for the debug communicator |
-| waitForConnInterval | Nonnegative Int | 50 | This parameter controls an interval to wait for a connection to the MQTT message broker. Not needed for the debug communicator |
+| communicatorType | \{0, 1, 2\} | 0 | Select the communicator. 0: Dummy communicator. No actual communication happens. 1: Memory communicator, also called the debug communicator. It passes the messages through memory between streams that are handled by the same low-level tracker library instance, so it needs no message broker. It is intended for debugging when all the cameras run in the same DeepStream pipeline or instance. 2: MQTT Communicator. Multiple DS instances / GPUs / Machines supported. |
+| pubSubInfoConfigPath | String |  | This parameter needs to be specified with the vision neighbor configuration. The memory communicator reads the same file. If the path is not set or the file cannot be used, the memory communicator logs a warning and falls back to a fully connected graph in which the camera ID of each stream is its zero-based stream index. |
+| mqttProtoAdaptorConfigPath | String |  | This parameter needs to be specified with the path to the MQTT message protocol adaptor configuration file. Not needed for the memory (debug) communicator |
+| waitForConnInterval | Nonnegative Int | 50 | This parameter controls an interval to wait for a connection to the MQTT message broker. Not needed for the memory (debug) communicator |
 | connTimeout | Nonnegative Int | 200 | This parameter controls the maximum wait time to wait for a connection to the MQTT message broker. Not needed for the debug communicator |
 
 ## Architecture and Communication
@@ -172,7 +178,12 @@ The distributed nature of MV3DT enables scalability but requires efficient data 
 - **Ego Camera**: The camera of interest whose detections and tracklets are being processed
 - **Peer Cameras**: Other cameras whose fields of view (FOVs) overlap with the ego camera's FOV, also called *Vision Neighbors*
 
-The `communicatorType` parameter in the Communicator section defines the communication method. Currently, only MQTT-based communication is supported. For distributed systems where cameras are located in different physical locations or run on separate machines, a message broker like MQTT (Message Queuing Telemetry Transport) is suitable. MQTT enables asynchronous, lightweight messaging, allowing cameras to publish tracking data and subscribe to data from other cameras. This provides flexibility and scalability for multi-camera deployments over large-scale camera networks. Additional communicator types will be implemented in the future to support various distributed communication scenarios.
+The `communicatorType` parameter in the Communicator section defines the communication method. There are two communicators:
+
+- **`communicatorType: 1`, the memory communicator.** It exchanges the messages through memory and needs no message broker. It is intended for debugging when all the cameras run in the same DeepStream pipeline or instance, and it links only the streams handled by the same low-level tracker library instance, for example the streams of one sub-batch.
+- **`communicatorType: 2`, the MQTT communicator.** It is the communicator for deployments. For distributed systems where cameras are located in different physical locations or run on separate machines, a message broker like MQTT (Message Queuing Telemetry Transport) is suitable. MQTT enables asynchronous, lightweight messaging, allowing cameras to publish tracking data and subscribe to data from other cameras. This provides flexibility and scalability for multi-camera deployments over large-scale camera networks.
+
+Additional communicator types will be implemented in the future to support various distributed communication scenarios.
 
 Each MQTT payload contains target-specific metadata, including camera ID, target ID, object class ID, an NTP-based message timestamp, frame number, and short 3D tracklet data for the latest frames (length specified by `maxPeerTrackletSize`) with timestamped 3D locations. The NTP timestamp enables cross-camera temporal alignment when streams are not frame-locked to the same counter.
 
@@ -210,7 +221,7 @@ subPeerBrokerTopicStrs:
 MV3DT uses several MQTT message types between vision neighbors:
 
 - **TRACKLET**: Publishes a peer target's recent 3D tracklet history when a target becomes active, acquires an ID, or adopts a new ID.
-- **STATES**: Publishes fused 3D state estimates for peer fusion.
+- **STATES**: Publishes the state of the target for peer fusion. The payload carries the current state `state` and the predicted state for the next frame `nextState` (both `{x, y, dx, dy}` on the world ground plane), `feetCov` (the 2x2 position measurement covariance of the target), the visibility (the smaller of the SV3DT visibility and the image border cropping visibility), the distance from the camera, the estimated height and its confidence, the bounding box `tBbox`, the target ID, class ID and age, and the latest tracklet point. Peers use `nextState` as their measurement.
 - **ADOPTED_ID**: Published when the ego camera adopts a peer target ID during peer re-association. The payload includes the previous target ID (`targetId`), the newly adopted ID (`adoptedId`), the adopting camera ID, class ID, frame number, NTP message timestamp, and the creation timestamp of the adopted ID (`targetIDTimeStamp`). Vision neighbors update their local peer-target database when they receive this message so that ID propagation stays consistent across the camera network.
 
 ## Extending Target Re-Association: Peer-Target Re-Association
@@ -251,30 +262,30 @@ As mentioned earlier, wrong associations are possible. Furthermore, some factors
 
 ### Inlier Criteria for Fusion
 
-The large deviations experienced in related cases justify the following criteria applied to peer measurements when considering them for fusion:
+A peer measurement is the position `nextState` that the peer predicts for the current frame, on the world ground plane. Which peer measurements are fused depends on whether the ego target has a detection matched in the current frame.
 
-- The measurement projects into the ego-cam FOV
-- Its visibility, estimated by SV3DT, is greater than threshold `minPeerVisibility4Fusion`
-- Its distance to the ego target prediction is less than threshold `maxPeerToPredDistance4Fusion`
+**Frames with a matched detection.** A peer measurement is fused when all of these hold:
+
+- It projects into the ego-cam FOV, that is, the projected foot point or the projected head point of the peer target, at the height estimated by the peer, is inside the ego image.
+- The visibility of the ego target is nonnegative.
+- Its visibility, estimated by SV3DT, is greater than `minPeerVisibility4Fusion`.
+- Its visibility is greater than the visibility of the ego detection.
+- Its distance from its own camera is smaller than the distance of the ego detection from the ego camera.
+- It is recent enough: the frame of the latest message from the peer plus `maxPeerFrameDiff4NoDet` is at least the current frame number.
+- Its distance to the ego target prediction is less than `maxPeerToPredDistance4Fusion`.
+
+**Frames without a matched detection.** This covers frames where the detector did not run and targets that no detection matched. The visibility and distance-to-camera comparisons are not applied. A peer measurement is fused when it projects into the ego-cam FOV, is recent enough as above, and is within `maxPeerToPredDistance4Fusion` of the ego target prediction. When the target had no matching detection in an inference frame and a peer measurement is used, the target becomes quasi-active, see [Quasi-active Tracking](#quasi-active-tracking).
+
+<Note>
+When `stateEstimatorType` is `4` (Projective-location KF, see [State Estimation](/text/DS_plugin_gst-nvtracker#state-estimation)), the tracker uses a fixed distance threshold of 100 world units instead of `maxPeerToPredDistance4Fusion`. The distance check is then effectively disabled, so wrong peer associations are not filtered by that gate.
+</Note>
 
 ### Kalman Filtering Fusion
 
-Measurements that meet the inlier criteria are fed into the Kalman estimator jointly with ego-cam measurements to update target states. These measurements from different sources are fused using different noise models (covariance). We introduce a modification to the measurement covariance matrix based on visibility:
+Measurements that meet the criteria are fed into the Kalman estimator together with the ego-cam measurements to update target states. The filter runs one state update per available measurement in sequence, and then makes the posterior state prediction. The measurement noise (covariance) of each measurement depends on `stateEstimatorType`:
 
-- Measurements from a visual tracker have covariance matrix $R_t$
-- Measurements from a feature-based detector have covariance matrix $R_d$
-- Measurements from peer cameras are a combination of peer visual tracker and feature-based detector. Therefore, we introduce a weighted covariance matrix given by:
-
-$$
-R_p = (2-peerVisibility) * R_d
-$$
-
-The Kalman filter runs multiple state updates, one for each available measurement, and then makes the posterior state prediction.
-
-Multi-view fusion also uses additional criteria to guarantee improvements from using peer target measurements:
-
-- The peer target visibility is greater than the ego target visibility
-- The distance from the target to the peer camera is smaller than its distance to the ego camera
+- **Simple-location KF (`3`).** The noise is a constant, isotropic variance. Measurements from the detector, and all measurements from peer cameras, use the variance `measurementNoiseVar4Detector` ($R_d$), and measurements from the visual tracker use `measurementNoiseVar4Tracker` ($R_t$). The `feetCov` and the visibility of a peer do not change the noise.
+- **Projective-location KF (`4`).** Each detector and peer measurement carries its own 2x2 covariance, which the filter uses as the measurement noise. For the ego detection, the tracker computes it from the camera projection: an isotropic pixel uncertainty with standard deviation `σ` at the projected foot point is propagated through the Jacobian of the ray-to-ground-plane intersection. Here `σ` is the larger of 1 pixel and the pixel distance between the projected foot point and the bottom center of the detection bbox. For a peer measurement, the covariance is the `feetCov` that the peer published.
 
 ## Advanced Features
 
