@@ -105,7 +105,7 @@ typedef struct AncPacketInfo {
   guint16 horizontal_offset;
   guint16 did;
   guint16 sdid;
-  guint8  data_count;
+  guint16 data_count;
   guint16 user_data[ANC_MAX_DATA_COUNT];
   guint16 checksum;
 } AncPacketInfo;

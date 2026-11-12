@@ -1,3 +1,32 @@
+# Unreleased
+
+## Fixed issues
+
+- `gst-nvdsudp`:
+  - `nvdsudpsrc` adds the `enable-dhds` property (default `true`), which enables
+    RTP Dynamic Header Data Split so that ST 2110-20 streams with more than one
+    SRD per packet are received correctly.
+  - `nvdsudpsrc` and `nvdsudpsink` derive RTP-timestamp PTS from an offset to
+    UTC, so they work when the pipeline clock is not a REALTIME clock.
+    `nvdsudpsrc` no longer changes the shared system clock to REALTIME.
+  - `nvdsudpsink` keeps the parity bits of the ST 2110-40 Data Count word.
+  - `nvdsudpsink` sends the two fields of interlaced ST 2110-20 video
+    correctly.
+  - `nvdsudpsink` sets the RTP timestamp 5 ticks before the media time, as the
+    Rivermax dev kit does.
+  - `nvdsudpsink` with `ptp-src` set sends ANC and RTP packet input on time.
+    It used to give Rivermax send times 37 seconds in the past.
+  - `nvdsudpsink` with `pass-rtp-timestamp` set and no `GstRTPTimestampMeta`
+    on its input sends RTP timestamps in TAI time, as it does by default. It
+    used to send them in UTC time. A receiving `nvdsudpsrc` needs
+    `adjust-leap-seconds=1`.
+  - `nvdsudpsink` with `pass-rtp-timestamp` set converts the buffer PTS to
+    running time, so RTP timestamps are correct when the segment does not
+    start at 0. It used to treat the PTS as running time.
+  - `gst-nvdsudp` is tested with Rivermax 1.91.21.
+
+____
+
 # DeepStream 9.2.0 (19 October 2026)
 
 ## Source availability

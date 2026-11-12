@@ -60,31 +60,26 @@ With the support for de-packetization, `nvdsudpsrc` can now have five different 
     The logic for reconstruction of rtp ticks and converting it to running time is as follows:
 
     ```text
-    - Get current time from epoch time (real clock)
-    - Convert current time to RTP ticks. (clock rate used for calculation  to rtp ticks)
-    - Mask upper 32 bits out of the above RTP ticks and consider as rtp_tick_base for reconstruction of 64 bit RTP ticks.
-    - Add 32 bit rtp ticks received from RTP packet header to this rtp_tick_base
-      (This will be 64 bit reconstructed rtp ticks)
-    - Convert the 64 bit rtp ticks to RTP time
-      (RTP time = rtp ticks in seconds / clock rate)
-    
-    Buffer PTS/DTS = (RTP time - Base Time Of Pipeline) - LEAP_SECONDS (if enabled "adjust-leap-seconds" is enabled)
+    - Get the current wall-clock time: CLOCK_REALTIME (UTC), plus 37 s (TAI) if "adjust-leap-seconds" is enabled
+    - Convert it to RTP ticks at the stream's clock rate, and keep the upper 32 bits as rtp_tick_base
+    - Add the 32-bit RTP timestamp from the packet header to rtp_tick_base, giving 64-bit RTP ticks
+    - RTP time = 64-bit RTP ticks / clock rate
+
+    Buffer PTS/DTS = RTP time - base wall-clock time + latency-offset
     ```
 
-    We should use CLOCK_REALTIME for the sender and receiver pipeline, in case we want to achieve reconstruction of RTP timestamp (punched from nvdsudpsink/sender) at nvdsudpsrc/receiver component. That is why, when `use-rtp-timestamp` property is enabled the nvdsudpsrc acts as a clock provider to the pipeline based on REALTIME_CLOCK.
-    Also, for the above logic to work, it is important that the systems used are synchronized to same time using some protocols like NTP or PTP.
+    The base wall-clock time is the wall-clock time at the moment the pipeline clock read the pipeline's base time.
 
-  -  The `adjust-leap-seconds` property is used to subtract the leap-seconds (37) from the received RTP timestamp in TAI time, so that it matches the UTC time. Use it, if nvdsudpsrc is expected to receive RTP packets in TAI time and your pipeline is using UTC time for buffer PTS/DTS.
+    To reconstruct the RTP timestamp that nvdsudpsink sent, the sender and receiver hosts must have their system clocks (CLOCK_REALTIME) synchronized to the same time, normally by PTP, with the system clock on UTC. When `use-rtp-timestamp` is enabled, nvdsudpsrc offers the system clock to the pipeline. It converts between the pipeline clock and CLOCK_REALTIME using an offset taken when the first packet arrives, so the pipeline clock does not need to be REALTIME, but it must run at the CLOCK_REALTIME rate.
 
-     For most scenarios "nvdsudpsink" component will sent TAI time as RTP timestamps, so this property should be enabled. Exception comes when `pass-rtp-timestamp` is employed by `nvdsudpsink` and its upstream component does not provide timestamps in TAI time.
-     It is the user's responsibility to identify if TAI time based timestamps are expected in such cases.
+  - The `adjust-leap-seconds` property is for RTP timestamps in TAI, which is 37 s ahead of UTC. It removes that difference from buffer PTS/DTS. It has no effect unless `use-rtp-timestamp` is enabled.
 
-     If `use-rtp-timestamp` is not enabled, then `adjust-leap-seconds` will have no effect.
+    nvdsudpsink sends TAI RTP timestamps in most cases, so this property should normally be enabled. The exception is when nvdsudpsink uses `pass-rtp-timestamp` and the `GstRTPTimestampMeta` from its upstream component carries timestamps that are not TAI. It is the user's responsibility to identify which timestamps are expected in that case.
 
 System can also have Gstreamer provided OSS implementation of udp source (`udpsrc`) component. In that case system would have two implementations for udp source - `udpsrc` and `nvdsudpsrc`.
 `nvdsudpsrc` component can only be used with NVIDIA ConnectX-5 and above cards after having installed `Rivermax` SDK and its license.
 
-* Download and setup the `Rivermax` 1.70.x SDK here: https://developer.nvidia.com/networking/rivermax-getting-started
+* Download and setup the `Rivermax` SDK here: https://developer.nvidia.com/networking/rivermax-getting-started. `nvdsudpsrc` is tested with Rivermax 1.91.21.
 
 *  Follow the instruction on the SDK page to obtain `Rivermax` development license.
 
@@ -175,6 +170,7 @@ The following table describes the Gst-nvdsudpsrc plugin’s Gst properties.
 | used-socket (read-only) | Socket currently in use for UDP reception; NULL means no socket | GObject (GSocket) |  | dGPU Jetson |
 | timeout | Posts a message after this many nanoseconds; 0 disables the timeout | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | timeout=0 | dGPU Jetson |
 | latency-offset | Offset in nanoseconds to add to buffer PTS/DTS when use-rtp-timestamp is enabled, to account for pipeline latency | Integer (uint64),<br />0 to 18,446,744,073,709,551,615 | latency-offset=0 | dGPU Jetson |
+| enable-dhds | Enable RTP Dynamic Header Data Split (DHDS) on the Rivermax device, to receive ST 2110-20 streams with more than one SRD per packet. Has no effect when header-size is 0. When DHDS is active, a header-size below 32 is raised to 32. If the interface does not support DHDS, the element logs a warning and receives without it | Boolean | enable-dhds=true | dGPU Jetson |
 
 ## Example pipelines
 
@@ -265,7 +261,7 @@ In this mode, `nvdsudpsrc` depayloads RFC 8331 RTP packets back into ST2038 wire
   ```text
   gst-launch-1.0 nvdsudpsrc address=<unicast / multicast address> port=<port number> \
     local-iface-ip=<ip addr of NIC> \
-    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    use-rtp-timestamp=1 adjust-leap-seconds=1 header-size=20 \
     caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
     ! identity silent=0 ! fakesink dump=true -v
   ```
@@ -276,7 +272,7 @@ In this mode, `nvdsudpsrc` depayloads RFC 8331 RTP packets back into ST2038 wire
   gst-launch-1.0 nvdsudpsrc \
     st2022-7-streams=<address1>:<port1>,<address2>:<port2> \
     local-iface-ip=<ip addr of NIC1>,<ip addr of NIC2> \
-    use-rtp-timestamp=1 adjust-leap-seconds=0 header-size=20 \
+    use-rtp-timestamp=1 adjust-leap-seconds=1 header-size=20 \
     caps='meta/x-st-2038, alignment=frame, framerate=30/1' \
     ! identity silent=0 ! fakesink dump=true -v
   ```
