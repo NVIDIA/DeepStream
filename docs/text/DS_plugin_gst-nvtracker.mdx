@@ -70,7 +70,7 @@ The Gst-nvtracker plugin works in the batch processing mode by default. In this 
 
 The newly-introduced `Sub-batching` feature allows the plugin to split the input frame batch into multiple sub-batches (for example, a four-stream pipeline can use two sub-batches in the tracker plugin, each of which takes care of two streams). Each sub-batch is assigned to a separate instance of low-level tracker library, where the input to the corresponding sub-batch is processed separately. Each instance of low-level tracker libraries runs on a dedicated thread running independently, allowing parallel processing of sub-batches and minimizing the GPU idling due to CPU compute blocks, which eventually results in higher resource utilization.
 
-Because sub-batching assigns separate low-level tracker library instances to different sub-batches, it allows the user to configure each individual sub-batch differently with different low-level tracker library configuration files. This can be utilized in multiple ways like setting varied compute backends across sub-batches, using varied tracking algorithms across sub-batches or modifying any other configuration that is supported in low-level tracker configuration file. Each VPI™ backend low-level tracker library supports at most 128 streams, so when running more than 128 streams, users need to configure the sub-batching to run multiple instances of the low-level tracker library. More detailed example use-cases are discussed in [Setup and Usage of Sub-batching](#setup-and-usage-of-sub-batching) section.
+Because sub-batching assigns separate low-level tracker library instances to different sub-batches, it allows the user to configure each individual sub-batch differently with different low-level tracker library configuration files. This can be utilized in multiple ways like setting varied compute backends across sub-batches, using varied tracking algorithms across sub-batches or modifying any other configuration that is supported in low-level tracker configuration file. The VPI™ visual tracker limits the number of streams that a single low-level tracker library instance supports (see [NvDCF Tracker](#nvdcf-tracker)), so when running more streams than that limit, users need to configure the sub-batching to run multiple instances of the low-level tracker library. More detailed example use-cases are discussed in [Setup and Usage of Sub-batching](#setup-and-usage-of-sub-batching) section.
 
 ## Features
 
@@ -380,11 +380,15 @@ Once the number of objects being tracked reaches the configured maximum value (i
 
 ### State Estimation
 
-The NvMultiObjectTracker library employs two types of state estimators, both of which are based on Kalman Filter (KF): Simple-bbox KF, Regular-bbox KF, and Simple-location KF. The `Simple-bbox KF` has `6` states defined, which are `{x, y, w, h, dx, dy}`, where `x` and `y` indicate the coordinates of the top-left corner of a target bbox, while `w` and `h` the width and the height of the bbox, respectively. `dx` and `dy` denote the velocity of `x` and `y` states. The `Regular-bbox KF`, on the other hand, have `8` states defined, which are `{x, y, w, h, dx, dy, dw, dh}`, where `dw` and `dh` are the velocity of `w` and `h` states and the rest is the same as the Simple-bbox KF. The `Simple-location KF` has `4` states only, which are `{x, y, dx, dy}`. Unlike the the two KFs that estimate the bbox attributes, note that the Simple-location KF is meant to estimate the object location in either 2D camera image plane or 3D world ground plane.
+The NvMultiObjectTracker library employs four types of state estimators, all of which are based on Kalman Filter (KF): Simple-bbox KF, Regular-bbox KF, Simple-location KF, and Projective-location KF. The type is selected with `stateEstimatorType`: `0` is a dummy pass-through estimator, `1` is the Simple-bbox KF, `2` is the Regular-bbox KF, `3` is the Simple-location KF, and `4` is the Projective-location KF. Values outside 0 to 4 are rejected at initialization. The `Simple-bbox KF` has `6` states defined, which are `{x, y, w, h, dx, dy}`, where `x` and `y` indicate the coordinates of the top-left corner of a target bbox, while `w` and `h` the width and the height of the bbox, respectively. `dx` and `dy` denote the velocity of `x` and `y` states. The `Regular-bbox KF`, on the other hand, have `8` states defined, which are `{x, y, w, h, dx, dy, dw, dh}`, where `dw` and `dh` are the velocity of `w` and `h` states and the rest is the same as the Simple-bbox KF. The `Simple-location KF` has `4` states only, which are `{x, y, dx, dy}`. Unlike the two KFs that estimate the bbox attributes, note that the Simple-location KF is meant to estimate the object location in either 2D camera image plane or 3D world ground plane. The `Projective-location KF` has the same `{x, y, dx, dy}` states, constant velocity model and `{x, y}` measurement as the Simple-location KF, and is meant for the 3D world ground plane with a camera projection matrix, as used by SV3DT and MV3DT. It differs only in how the measurement noise is chosen, as described below.
 
-All the Kalman Filter types employ a constant velocity model for generic use. The measurement vector for the Simple-bbox and Regular-bbox KF is defined as `{x, y, w, h}`, which represents the bbox attributes, while that for the Simple-location KF is defined as `{x, y}`. There is an option to use bbox aspect ratio `a` and its velocity `da` instead of `w` and `dw` when `useAspectRatio` is enabled, which is specially used by NvDeepSORT. In case the state estimator is used for a generic use case (like in the NvDCF tracker), the process noise variance for `{x, y}`, `{w, h}`, and `{dx, dy, dw, dh}` can be configured by `processNoiseVar4Loc`, `processNoiseVar4Size`, and `processNoiseVar4Vel`, respectively.
+All the Kalman Filter types employ a constant velocity model for generic use. The measurement vector for the Simple-bbox and Regular-bbox KF is defined as `{x, y, w, h}`, which represents the bbox attributes, while that for the Simple-location and Projective-location KFs is defined as `{x, y}`. There is an option to use bbox aspect ratio `a` and its velocity `da` instead of `w` and `dw` when `useAspectRatio` is enabled, which is specially used by NvDeepSORT. In case the state estimator is used for a generic use case (like in the NvDCF tracker), the process noise variance for `{x, y}`, `{w, h}`, and `{dx, dy, dw, dh}` can be configured by `processNoiseVar4Loc`, `processNoiseVar4Size`, and `processNoiseVar4Vel`, respectively.
 
 When a visual tracker module is enabled (like in the NvDCF tracker), there could be two different measurements from the state estimator’s point of view: (1) the bbox (or location) from the detector at PGIE and (2) the bbox (or location) from the tracker's localization. This is because the NvDCF tracker module is capable of localizing targets using its own learned filter. The measurement noise variance for these two different types of measurements can be configured by `measurementNoiseVar4Detector` and `measurementNoiseVar4Tracker`. These parameters are expected to be tuned or optimized based on the detector's and the tracker's characteristics for better measurement fusion.
+
+For the Simple-location KF, every measurement uses a constant noise variance, `measurementNoiseVar4Detector` for a measurement from the detector and `measurementNoiseVar4Tracker` for a measurement from the visual tracker. In MV3DT, the Simple-location KF treats a measurement received from a peer camera as a detector measurement, so any covariance that the peer sends is not used.
+
+For the Projective-location KF, the filter uses the 2x2 covariance supplied with each detector and peer measurement as the measurement noise, instead of these constants. For a measurement from a matched detection in the 3D model path, the tracker computes the covariance from the camera projection. It gives the projected foot point in the image an isotropic pixel uncertainty with standard deviation `σ`, and propagates it through the Jacobian of the ray-to-ground-plane intersection to get a covariance on the ground-plane `{x, y}`. The value of `σ` is the larger of 1 pixel and the pixel distance between the projected foot point and the bottom center of the detection bbox. The resulting covariance is generally not isotropic, so it depends on the viewing geometry of each camera. In MV3DT, a measurement from a peer camera carries the 2x2 measurement covariance of the peer target, and the receiving camera uses it as is. See [Multi-View Measurement Fusion](/text/DS_MV3DT#multi-view-measurement-fusion) for the fusion rules.
 
 The usage of the state estimator in the NvDeepSORT tracker slightly differs from that for the aforementioned generic use case in that it is basically a *Regular KF*, yet with a couple of differences as per the original paper and the implementation (Check the references in [NvDeepSORT Tracker](#nvdeepsort-tracker) section):
 
@@ -447,6 +451,40 @@ where:
 The Re-ID has a spatial-temporal constraint. If an object moves out of frame or gets occluded beyond `maxShadowTrackingAge`, it will be assigned a new ID even if it returns into the frame.
 
 The extracted Re-ID features (i.e., embeddings) can be exported to the metadata, which is explained in a separate section in [Re-ID Feature Output](#re-id-feature-output).
+
+#### External ReID Service
+
+A target can also be re-associated by querying an external ReID service with the ReID embedding that the tracker has extracted for it. The service keeps a gallery of embeddings for each global object ID and returns the best matching IDs. This is optional. It is off unless the tracker configuration has a `ReIDService` section with `reidServiceType: 1`. Without that section, or with `reidServiceType: 0`, no remote association is done. The tracker only queries the service. The service itself, and feeding embeddings into its gallery (for example by publishing the exported embeddings through the DeepStream message broker), are outside the NvMultiObjectTracker library. The library also needs local Re-ID feature extraction enabled so that a target has an embedding to send.
+
+A target is queried only when all of these hold:
+
+* The target needs re-association from the service and has a Re-ID embedding.
+* Its class ID is in `operateOnClassIds`, where an empty list accepts every class.
+* Both its visibility and its image border cropping visibility are at least `minVisibility4ReidServiceQuery`.
+
+The tracker sends an HTTP POST to `http://<serviceAddress>:<servicePort>/search` with a JSON body of the form `{"vector": [...], "top_k": <topK>, "max_group_count": <maxGroupCount>}`. The request has no class field. The class filter therefore limits which targets are queried, but it does not partition the gallery of the service by class.
+
+The response is a JSON array whose entries have the fields `object_id` (a string that holds an unsigned integer), `group_count`, `confidence`, `exp_confidence`, `distance`, `distance_to_centroid`, and `cluster_variance`. Entries with a `group_count` of `-1` are skipped, and entries whose `group_count` differs from `maxGroupCount` are not considered. The remaining candidates are ranked by `exp_confidence`:
+
+* The best candidate is accepted when its `exp_confidence` is at least `minTopClusterConfidence` and its `cluster_variance` is at most `maxClusterVariance`.
+* The result is rejected as ambiguous when the second best candidate has an `exp_confidence` of at least `minSecondClusterConfidence`.
+* When a candidate is accepted, the target adopts the returned ID, with these exceptions. The result is ignored when the returned ID belongs to the target itself. When another local target already holds the ID and is not ACTIVE, that target is terminated and the ID is reused. When an ACTIVE local target holds the ID, the result is ignored, unless `enableIDCorrection` is set and the correction described below succeeds.
+
+Requests are processed asynchronously by a worker thread. At most `maxInFlightRequests` requests are queued, at most that many are in flight at once, and requests beyond that are dropped so that a slow or unreachable service cannot grow the queue without bound. A request fails when the connection takes longer than `curlConnectTimeout` seconds or the whole request takes longer than `curlRequestTimeout` seconds. Setting `enableBlocking` makes the tracker wait for the submitted requests to finish, which is intended for debugging.
+
+When `enableIDCorrection` is set and the service keeps associating a target with an ID that an ACTIVE local target already holds, the ACTIVE target drops its ID and is assigned a new one. This happens after `minAssociationCount4IDCorrection` consecutive associations with that ID, and only if the bounding boxes of the two targets overlap by no more than `maxIou4IDCorrection` IOU.
+
+Minimal configuration:
+
+```yaml
+ReIDService:
+  reidServiceType: 1    # 0=off, 1=service
+  serviceAddress: localhost
+  servicePort: 8000
+  minVisibility4ReidServiceQuery: 0.5
+```
+
+In this example `serviceAddress` and `servicePort` show the library defaults, and `minVisibility4ReidServiceQuery` shows an example value, its default is `0.0`. A deployment can use other values, and a sample or blueprint that sets them is not a statement of the tracker defaults. All parameters of the `ReIDService` section are listed under the `ReID Service` module in the [Configuration Parameters](#configuration-parameters) table.
 
 ### Target Re-Association
 
@@ -620,7 +658,7 @@ Once a 3D human model corresponding to an input detection bbox is estimated and 
 
    ```yaml
    StateEstimator:
-     stateEstimatorType: 3    # the type of state estimator among { DUMMY_ESTIMATOR=0, SIMPLE_BBOX_KF=1, REGULAR_BBOX_KF=2, SIMPLE_LOCATION_KF=3 }
+     stateEstimatorType: 3    # the type of state estimator among { DUMMY_ESTIMATOR=0, SIMPLE_BBOX_KF=1, REGULAR_BBOX_KF=2, SIMPLE_LOCATION_KF=3, PROJECTIVE_LOCATION_KF=4 }
    
      # [Dynamics Modeling]
      processNoiseVar4Loc: 6810.866    # Process noise variance for location
@@ -721,6 +759,7 @@ The following table summarizes the configuration parameters for the common modul
 |  | probationAge | Length of probationary period in #of frames | Integer, ≥0 | probationAge: 5 | True |
 |  | maxShadowTrackingAge | Maximum length of shadow tracking | Integer, ≥0 | maxShadowTrackingAge: 38 | True |
 |  | earlyTerminationAge | Early termination age | Integer, ≥0 | earlyTerminationAge: 2 | True |
+|  | maxTrajectoryBufferLength | Maximum number of trajectory points kept for a target. When a trajectory gets longer than this, it is subsampled to half its length and the sampling interval doubles. A negative value disables the limit. A value not greater than `probationAge + 10` is raised to `probationAge + 10`. The library default is `2000`, and the multi-view sample configuration sets `-1` | Integer | maxTrajectoryBufferLength: 2000 | False |
 |  | outputTerminatedTracks | Output total frame history for terminated tracks to the tracker plugin for downstream usage | Boolean | outputTerminatedTracks: 0 | False |
 |  | outputShadowTracks | Output shadow track state information to the tracker plugin for downstream usage | Boolean | outputShadowTracks: 0 | False |
 |  | outputVisibility | Output object visibility ratio to object user meta and file dumps | Boolean | outputVisibility: 0 | False |
@@ -752,7 +791,8 @@ The following table summarizes the configuration parameters for the common modul
 |  | matchingScoreWeight4Iou | Weight for IOU term in matching cost function | Float,<br />0.0 to 1.0 | matchingScoreWeight4Iou: 1.0 | True |
 |  | tentativeDetectorConfidence | If a detection's confidence is lower than this but higher than minDetectorConfidence, then it's considered as a tentative detection | Float,<br />0.0 to 1.0 | tentativeDetectorConfidence: 0.5 | True |
 |  | minMatchingScore4TentativeIou | Min iou threshold to match targets and tentative detection | Float,<br />0.0 to 1.0 | minMatchingScore4TentativeIou: 0.0 | True |
-| State Estimator | stateEstimatorType | Type of state estimator among \{ DUMMY=0, SIMPLE=1, REGULAR=2, SIMPLE_LOC=3 \} | Integer, [0,3] | stateEstimatorType: 0 | False |
+|  | minMatchingScore4PeerAssocIou | Minimum IOU for keeping a low-confidence detection because it overlaps a peer target in MV3DT. A detection that stays unmatched after the cascaded association and whose confidence is below `tentativeDetectorConfidence` is normally dropped. When this value is below 1.0, such a detection is kept as a new-target candidate if it overlaps, by more than this IOU, the projected position of a recently updated peer target whose ID is not already held by an ego target. A value of 1.0 or more disables this step. It has an effect only when the `MultiViewAssociator` is enabled | Float,<br />0.0 to 1.0 | minMatchingScore4PeerAssocIou: 1.0 | - |
+| State Estimator | stateEstimatorType | Type of state estimator among \{ DUMMY=0, SIMPLE=1, REGULAR=2, SIMPLE_LOC=3, PROJ_LOC=4 \}. Types 3 and 4 estimate the object location, and type 4 uses a per-measurement covariance as its measurement noise | Integer, [0,4] | stateEstimatorType: 0 | False |
 |  | processNoiseVar4Loc | Process noise variance for bbox center | Float,<br />0.0 to inf | processNoiseVar4Loc: 2.0 | False |
 |  | processNoiseVar4Size | Process noise variance for bbox size | Float,<br />0.0 to inf | processNoiseVar4Size: 1.0 | False |
 |  | processNoiseVar4Vel | Process noise variance for velocity | Float,<br />0.0 to inf | processNoiseVar4Vel: 0.1 | False |
@@ -764,6 +804,7 @@ The following table summarizes the configuration parameters for the common modul
 | Object Re-ID | [All the parameters in<br />Model Inference" module] | This network's input is each target's cropped image. It uses "Model Inference" parameters to define the network input format and TensorRT inference properties. | [Refer to "Model<br />Inference" module | [Refer to "Model Inference" module] | False |
 |  | reidType | The type of Re-ID network among \{ DUMMY=0, NvDEEPSORT=1, Reid based reassoc=2, both NvDEEPSORT and reid based reassoc=3 \} | Integer,<br />[0, 3] | reidType: 0 | False |
 |  | reidFeatureSize | Size of Re-ID feature | Integer,<br />>0 | reidFeatureSize: 128 | False |
+|  | minVisibility4GalleryUpdate | Minimum target visibility for its Re-ID embedding to be added to the feature gallery | Float,<br />0.0 to 1.0 | minVisibility4GalleryUpdate: 0.6 | - |
 |  | reidHistorySize | Size of feature gallery, i.e. max number of Re-ID features kept for one tracker | Integer,<br />>0 | reidHistorySize: 100 | False |
 |  | addFeatureNormalization | If Re-ID network's output Re-ID feature vector is not l2 normalized, explicitly performs l2 normalization | Boolean | addFeatureNormalization: 0 | False |
 |  | keepAspc | Whether to keep aspcect ratio when resizing input objects to Re-ID network | Boolean | keepAspc: 1 | False |
@@ -771,6 +812,7 @@ The following table summarizes the configuration parameters for the common modul
 | Object Model Projection | cameraModelFilepath | Camera info file path(s) for SV3DT; ordered list per stream index or map keyed by sensor name | String | cameraModelFilepath: | False |
 |  | waistHeightRatio | The ratio of human upper body with regarding to the whole body. This value is assumed to be the same for all the people. | Float, (0, 1) | waistHeightRatio: 0.5 |  |
 |  | outputFootLocation | Output object (especially for human) foot location to object meta and file dump | Boolean | outputFootLocation: 0 | False |
+|  | objectModelType | Type of 3D object model among \{ CYLINDER=0, BBOX3D=1 \}. `CYLINDER` models the target as a cylinder on the ground plane. `BBOX3D` models it as a 3D bounding box whose projected information is supplied from an external per-stream file. The shipped configurations use `CYLINDER` | Integer, [0,1] | objectModelType: 0 | - |
 |  | outputConvexHull | Output projected object convex hull (especially cylinder for human) to object meta and file dump | Boolean | outputConvexHull: 1 | False |
 |  | maxConvexHullSize | Maximum number of points to consist an object convex hull | Integer,<br />>0 | maxConvexHullSize: 15 | False |
 |  | minPoseConfidence | Minimum pose keypoints confidence to be used in human height estimation | Float,<br />0.0 to 1.0 | minPoseConfidence: 0.5 | False |
@@ -792,6 +834,24 @@ The following table summarizes the configuration parameters for the common modul
 |  | modelEngineFile | Absolute path to TensorRT engine file | String | modelEngineFile: | False |
 |  | calibrationTableFile | Absolute path to calibration table, required by INT8 only | String | calibrationTableFile: | False |
 |  | useVPICropScaler | Use NVIDIA's [VPI™](https://docs.nvidia.com/vpi/index.html) Crop Scaler algorithm instead of built in implementation | Boolean | useVPICropScaler: 0 | False |
+|  | builderOptimizationLevel | TensorRT builder optimization level used when the engine is built, passed to the builder as is. Refer to the TensorRT documentation for the valid levels | Integer | builderOptimizationLevel: 3 | - |
+| ReID Service | reidServiceType | Type of external ReID service among \{ DUMMY=0 (no remote association), REID_SERVICE=1 \} | Integer, [0,1] | reidServiceType: 0 | - |
+|  | serviceAddress | Host name or address of the ReID service | String | serviceAddress: localhost | - |
+|  | servicePort | Port of the ReID service | Integer,<br />>0 | servicePort: 8000 | - |
+|  | operateOnClassIds | Class IDs whose targets are queried. An empty list queries every class. This does not partition the gallery of the service by class | Comma-separated integer array | operateOnClassIds: [] | - |
+|  | minVisibility4ReidServiceQuery | Minimum visibility and image border cropping visibility for a target to be queried | Float,<br />0.0 to 1.0 | minVisibility4ReidServiceQuery: 0.0 | - |
+|  | topK | Maximum number of object IDs requested from the service | Integer,<br />>0 | topK: 8 | - |
+|  | maxGroupCount | Maximum number of embeddings per object ID that the service considers. Responses with a different group count are ignored | Integer,<br />>0 | maxGroupCount: 8 | - |
+|  | minTopClusterConfidence | Minimum exp_confidence of the best candidate to accept it | Float,<br />0.0 to 1.0 | minTopClusterConfidence: 0.58 | - |
+|  | minSecondClusterConfidence | Exp_confidence of the second best candidate at or above which the result is rejected as ambiguous | Float,<br />0.0 to 1.0 | minSecondClusterConfidence: 0.56 | - |
+|  | maxClusterVariance | Maximum cluster variance of the best candidate to accept it | Float,<br />0.0 to inf | maxClusterVariance: 0.0001 | - |
+|  | maxInFlightRequests | Maximum number of queued requests, and of requests in flight at once. Requests beyond this are dropped | Integer,<br />>0 | maxInFlightRequests: 100 | - |
+|  | curlConnectTimeout | Connection timeout of a request in seconds | Integer,<br />>0 | curlConnectTimeout: 1 | - |
+|  | curlRequestTimeout | Total timeout of a request in seconds | Integer,<br />>0 | curlRequestTimeout: 3 | - |
+|  | enableBlocking | Wait for the submitted requests to finish, intended for debugging | Boolean | enableBlocking: 0 | - |
+|  | enableIDCorrection | Drop the ID of a local target when the service repeatedly associates another target with it | Boolean | enableIDCorrection: 0 | - |
+|  | minAssociationCount4IDCorrection | Number of consecutive associations with the same ID before ID correction applies | Integer,<br />>0 | minAssociationCount4IDCorrection: 2 | - |
+|  | maxIou4IDCorrection | Maximum IOU between the two targets for ID correction to apply | Float,<br />0.0 to 1.0 | maxIou4IDCorrection: 0.2 | - |
 
 ## Dynamic Runtime Configuration
 
@@ -1126,6 +1186,13 @@ Update the DeepStream config file to use `config_tracker_MaskTracker.yml`. When 
 ### Configuration Parameters
 
 A sample configuration for MaskTracker is included in the DeepStream SDK package. This setup uses two files: `config_tracker_MaskTracker.yml`, which should be specified as the `ll-config-file` in DeepStream applications, and an additional file, `config_tracker_module_Segmenter.yml`, which provides the segmentation module settings required by MaskTracker.
+The `Segmenter` section of `config_tracker_MaskTracker.yml` selects the segmentation implementation and points to the file above:
+
+| Module | Property | Meaning | Type and Range | Default value |
+| --- | --- | --- | --- | --- |
+| Segmenter | segmenterType | Segmenter implementation among \{ DUMMY=0 (no segmentation), SAM2=1, NanoSAM=2, EfficientVitSAM=3 \}. Values outside 0 to 3 are rejected | Integer, [0,3] | segmenterType: 0 |
+|  | segmenterConfigPath | Path of the segmenter configuration file, for example `config_tracker_module_Segmenter.yml`. A relative path is resolved against the tracker configuration file. It is required when a segmenter is used | String | segmenterConfigPath: |
+
 The following table summarizes the configuration parameters defined in `config_tracker_module_Segmenter.yml`. The four key networks utilizing the unified [Model Inference](#model-inference) module, are configured as `ImageEncoder`, `MaskDecoder`, `MemoryAttention`, and `MemoryEncoder`, and each network is configured with the corresponding ONNX file and engine file. Input pre-processing parameters are used to convert input frame for `ImageEncoder`.
 
 **Gst-nvtracker MaskTracker low-level tracker configuration properties**
@@ -1415,7 +1482,7 @@ Steps are :
 
 In this example, `sub-batches` can also be configured using option 2 i.e. `sub-batches=2:2`. Refer [Gst Properties](#gst-properties) for details.
 
-Similarly, if an application using the same NvDCF configuration file has more than 128 streams (130 streams for example), tracker section can be set to `ll-config-file=config_tracker_NvDCF_accuracy.yml;config_tracker_NvDCF_accuracy.yml`, `sub-batches=65:65`.
+Similarly, if an application using the same NvDCF configuration file has more streams than a single library instance supports, split the batch into more sub-batches by listing one `ll-config-file` entry per sub-batch and setting `sub-batches` with the sizes of the sub-batches (option 2 above). Each sub-batch must satisfy the limits described in [NvDCF Tracker](#nvdcf-tracker): the VPI limit of 33 streams per library instance for `visualTrackerType: 2` (which `config_tracker_NvDCF_accuracy.yml` uses), and the limit of 512 tracked objects per library instance, that is, the number of streams in the sub-batch times `maxTargetsPerStream`.
 For further details on implementation of sub-batches feature, please refer to a writeup at the end of `nvtracker_proc.cpp` in `nvtracker` plugin's source code.
 
 The most optimal `sub-batches` configuration for a pipeline depends on multiple factors like elements in the pipeline, configuration of each element, hardware configuration etc. Increasing the number of sub-batches parallelizes the processing of streams in a batch. But it also adds an overhead. Hence, the number of sub-batches to configure needs to be determined experimentally by comparing GPU/PVA utilization and performance across various `sub-batches` configurations. A thumb rule is to start with a single batch and keep splitting it into sub-batches until an optimal performance point is reached.
