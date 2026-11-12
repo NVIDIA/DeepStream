@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-%YAML:1.0
-
 BaseConfig:
   minDetectorConfidence: 0.027087304322979212
   checkClassMatch: 0

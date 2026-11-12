@@ -50,8 +50,8 @@ log_error() {
 
 # Global variables
 export DEEPSTREAM_IMAGE="${DEEPSTREAM_IMAGE:-ghcr.io/nvidia/deepstream:9.2-triton-multiarch}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEEPSTREAM_ROOT="$(git -C "$REPO_ROOT" rev-parse --show-toplevel)"
+MV3DT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DS_DIR="${DS_DIR:-$(git -C "$MV3DT_DIR" rev-parse --show-toplevel)}"
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
 KAFKA_VERSION="4.2.0"
@@ -59,7 +59,7 @@ SCALA_VERSION="2.13"
 
 # Standardized paths
 KAFKA_DIR="$BASE_DIR/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
-INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}"
+INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DS_DIR/tools/inference_builder}"
 
 # Reusable string constants
 DPKG_STATUS_FORMAT='${Status}'
@@ -146,18 +146,28 @@ setup_deepstream_container() {
 }
 
 setup_git_lfs() {
-    log_info "Setting up Git LFS and extracting datasets and models..."
+    log_info "Extracting datasets..."
     
-    cd "$REPO_ROOT"
+    cd "$MV3DT_DIR"
     
     # Check if datasets are already extracted
-    if [[ -d "datasets/mtmc_4cam" && -d "datasets/mtmc_12cam" ]]; then
+    local datasets_ready=true
+    local dataset
+    for dataset in mtmc_4cam mtmc_12cam scout wildtrack; do
+        if [[ ! -d "datasets/$dataset/videos" || ! -d "datasets/$dataset/camInfo" ]]; then
+            datasets_ready=false
+        fi
+    done
+    if [[ "$datasets_ready" = true ]]; then
         log_success "Datasets already extracted"
     else
         # Extract assets if they exist
         if [[ -f "assets/datasets.zip" ]]; then
             log_info "Extracting datasets..."
-            unzip -q assets/datasets.zip
+            if ! unzip -n -q assets/datasets.zip; then
+                log_error "Dataset extraction failed"
+                return 1
+            fi
             log_success "Datasets extracted"
         else
             log_error "assets/datasets.zip not found"
@@ -165,37 +175,6 @@ setup_git_lfs() {
         fi
     fi
     
-    if [[ -f "models/PeopleNetTransformer/peoplenet_transformer_model_op17.onnx" && -f "models/BodyPose3DNet/bodypose3dnet_accuracy.onnx" && -f "models/RTDETR/rtdetr_warehouse_v1.0.fp16.onnx" && -f "models/PeopleNet2.6.3/resnet34_peoplenet.onnx" ]]; then
-        log_success "Models already extracted"
-    else
-        log_info "Downloading PeopleNet Transformer model..."
-        mkdir -p models/PeopleNetTransformer
-        if ! wget -q --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer_v2/deployable_v1.0/files?redirect=true&path=dino_fan_small_astro_delta.onnx' -O 'models/PeopleNetTransformer/peoplenet_transformer_model_op17.onnx'; then
-            log_error "Failed to download PeopleNet Transformer model"
-            return 1
-        fi
-
-        log_info "Downloading RT-DETR model..."
-        mkdir -p models/RTDETR
-        if ! wget -q --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/rtdetr_2d_warehouse/deployable_efficientvit_l2_v1.0/files?redirect=true&path=rtdetr_warehouse_v1.0.fp16.onnx' -O 'models/RTDETR/rtdetr_warehouse_v1.0.fp16.onnx'; then
-            log_error "Failed to download RT-DETR model"
-            return 1
-        fi
-
-        log_info "Downloading PeopleNet v2.6.3 model..."
-        mkdir -p models/PeopleNet2.6.3
-        if ! wget -q --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet/deployable_quantized_onnx_v2.6.3/files?redirect=true&path=resnet34_peoplenet.onnx' -O 'models/PeopleNet2.6.3/resnet34_peoplenet.onnx'; then
-            log_error "Failed to download PeopleNet v2.6.3 model"
-            return 1
-        fi
-
-        log_info "Downloading BodyPose3DNet model..."
-        mkdir -p models/BodyPose3DNet
-        if ! wget -q --content-disposition 'https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/bodypose3dnet/deployable_accuracy_onnx_1.0/files?redirect=true&path=bodypose3dnet_accuracy.onnx' -O 'models/BodyPose3DNet/bodypose3dnet_accuracy.onnx'; then
-            log_error "Failed to download BodyPose3DNet model"
-            return 1
-        fi
-    fi
 }
 
 setup_mosquitto() {
@@ -240,7 +219,7 @@ setup_mosquitto() {
     
     # Test MQTT broker
     sleep 2
-    cd "$REPO_ROOT"
+    cd "$MV3DT_DIR"
     if [[ -x "scripts/mosquitto_test.sh" ]]; then
         if ./scripts/mosquitto_test.sh >/dev/null 2>&1; then
             log_success "Mosquitto broker is running and accessible"
@@ -314,16 +293,24 @@ setup_kafka() {
         log_info "Downloading Kafka ${KAFKA_VERSION}..."
         cd "$BASE_DIR"
         
-        local kafka_url="https://dlcdn.apache.org/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+        local kafka_archive="kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+        local kafka_url="https://dlcdn.apache.org/kafka/${KAFKA_VERSION}/$kafka_archive"
         
-        if ! wget -q "$kafka_url" -O "kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"; then
-            log_error "Failed to download Kafka from $kafka_url"
-            return 1
+        if ! wget -q --timeout=60 --tries=2 "$kafka_url" -O "$kafka_archive"; then
+            log_warning "Kafka ${KAFKA_VERSION} unavailable on the current mirror, trying the Apache archive"
+            kafka_url="https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/$kafka_archive"
+            if ! wget -q --timeout=60 --tries=2 "$kafka_url" -O "$kafka_archive"; then
+                log_error "Failed to download Kafka from $kafka_url"
+                return 1
+            fi
         fi
         
         log_info "Extracting Kafka..."
-        tar -xzf "kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
-        rm "kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+        if ! tar -xzf "$kafka_archive"; then
+            log_error "Failed to extract $kafka_archive"
+            return 1
+        fi
+        rm "$kafka_archive"
         log_success "Kafka extracted to $KAFKA_DIR"
     fi
     
@@ -412,7 +399,7 @@ create_kafka_topic() {
 setup_python_env() {
     log_info "Setting up Python environment..."
     
-    cd "$REPO_ROOT"
+    cd "$MV3DT_DIR"
     
     # Check and install system packages
     log_info "Checking system Python packages..."
@@ -448,6 +435,10 @@ setup_python_env() {
     if [[ -f "requirements.txt" ]]; then
         pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
+        if ! bash scripts/setup_evaluation.sh; then
+            log_error "Evaluation dependency setup failed"
+            return 1
+        fi
         log_success "Python dependencies installed"
     else
         log_error "requirements.txt not found"
@@ -479,14 +470,14 @@ build_custom_parser() {
 
     local models=("PeopleNetTransformer" "RTDETR")
     for model in "${models[@]}"; do
-        if [[ -f "$PWD/models/$model/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
+        if [[ -f "$MV3DT_DIR/models/$model/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
             log_success "$model custom parser already built"
             continue
         fi
 
         log_info "Building custom parser for $model..."
         build_output=$(docker run --rm $GPU_FLAG \
-            -v $PWD/models:/workspace/models \
+            -v "$MV3DT_DIR/models:/workspace/models" \
             -w /workspace/models/$model \
             --entrypoint /bin/bash \
             $DEEPSTREAM_IMAGE \
@@ -499,7 +490,7 @@ build_custom_parser() {
             return 1
         fi
 
-        if [[ -f "$PWD/models/$model/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
+        if [[ -f "$MV3DT_DIR/models/$model/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
             log_success "$model custom parser built successfully"
         else
             log_error "Failed to build $model custom parser: libnvds_infercustomparser_tao.so not found"
@@ -585,7 +576,7 @@ EOF
 
 run_prerequisites_check() {
     log_info "Running prerequisites check..."
-    cd "$REPO_ROOT"
+    cd "$MV3DT_DIR"
     
     if [[ -x "scripts/check_prerequisites.sh" ]]; then
         # Make mosquitto test script executable if it exists
@@ -615,7 +606,8 @@ OPTIONS:
     
 ENVIRONMENT VARIABLES:
     BASE_DIR                   Base directory for Kafka (default: $HOME)
-    INFERENCE_BUILDER_DIR      Inference Builder path (default: <deepstream-root>/tools/inference_builder)
+    DS_DIR                    DeepStream checkout root (default: detected from this script)
+    INFERENCE_BUILDER_DIR      Inference Builder path (default: $DS_DIR/tools/inference_builder)
     USE_INFERENCE_BUILDER      Set to 'true' to enable Inference Builder setup (default: false)
 
 EOF
@@ -658,7 +650,7 @@ main() {
     check_os
     
     # Check if we're in the right directory
-    if [[ ! -f "$REPO_ROOT/README.md" ]] || ! grep -q "Multi-View 3D Tracking" "$REPO_ROOT/README.md"; then
+    if [[ ! -f "$MV3DT_DIR/README.md" ]] || ! grep -q "Multi-View 3D Tracking" "$MV3DT_DIR/README.md"; then
         log_error "Please run this script from the deepstream-tracker-3d-multi-view repository root"
         exit 1
     fi
@@ -677,7 +669,11 @@ main() {
     fi
     
     if ! setup_git_lfs; then
-        failed_steps+=("Git LFS/Datasets/Models")
+        failed_steps+=("Git LFS/Datasets")
+    fi
+
+    if ! bash "$MV3DT_DIR/scripts/setup_models.sh"; then
+        failed_steps+=("Models")
     fi
 
     if ! build_custom_parser; then
@@ -714,7 +710,7 @@ main() {
         if [[ "$USE_INFERENCE_BUILDER" == "true" ]]; then
             echo -e "  ${BLUE}Inference Builder:${NC}       $INFERENCE_BUILDER_DIR"
         fi
-        echo -e "  ${BLUE}MV3DT Repo:${NC}              $REPO_ROOT"
+        echo -e "  ${BLUE}MV3DT App:${NC}               $MV3DT_DIR"
         echo
         
         # Run final check

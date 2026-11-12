@@ -13,26 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-%YAML:1.0
-
 BaseConfig:
-  minDetectorConfidence: 0.294
-  checkClassMatch: 1
+  minDetectorConfidence: 0.027087304322979212
+  checkClassMatch: 0
 TargetManagement:
   enableBboxUnClipping: 1
-  preserveStreamUpdateOrder: 1
+  preserveStreamUpdateOrder: 0
   maxTargetsPerStream: 200
-  minIouDiff4NewTarget: 0.255
-  minTrackerConfidence: 0.756
-  probationAge: 3
-  maxShadowTrackingAge: 150
-  earlyTerminationAge: 2
+  minIouDiff4NewTarget: 0.22656630527418112
+  minTrackerConfidence: 0.6957540479571296
+  probationAge: 5
+  maxShadowTrackingAge: 162
+  earlyTerminationAge: 1
   maxTrajectoryBufferLength: -1
   outputTerminatedTracks: 0
 TrajectoryManagement:
   useUniqueID: 0
   enableReAssoc: 1
-  minMatchingScore4Overall: 0.935
+  minMatchingScore4Overall: 0.9349462651721144
   minTrackletMatchingScore: 0.2940
   minMatchingScore4ReidSimilarity: 0
   matchingScoreWeight4TrackletSimilarity: 0.7981
@@ -51,28 +49,23 @@ TrajectoryManagement:
 DataAssociator:
   dataAssociatorType: 0
   associationMatcherType: 1
-  minMatchingScore4Overall: 0.586
-  minMatchingScore4Iou: 0.253
-  minMatchingScore4SizeSimilarity: 0.6
-  minMatchingScore4VisualSimilarity: 0.6
-  minMatchingScore4ReidSimilarity: 0.5
-  matchingScoreWeight4Iou: 0.557
-  matchingScoreWeight4SizeSimilarity: 0.326
-  matchingScoreWeight4VisualSimilarity: 0.654
-  matchingScoreWeight4ReidSimilarity: 0.1
-  tentativeDetectorConfidence: 0.842
-  minMatchingScore4TentativeIou: 0.364
-  minMatchingScore4PeerAssocIou: 0.25
+  minMatchingScore4Overall: 0.4
+  minMatchingScore4SizeSimilarity: 0.4
+  minMatchingScore4Iou: 0.1393522182207021
+  minMatchingScore4VisualSimilarity: 0.0520394823204932
+  matchingScoreWeight4SizeSimilarity: 0.104589699500018
+  matchingScoreWeight4Iou: 0.7844652139368062
+  matchingScoreWeight4VisualSimilarity: 0.9294872869302965
+  tentativeDetectorConfidence: 0.70167245554449
+  minMatchingScore4TentativeIou: 0.1768733030811293
+  minMatchingScore4PeerAssocIou: 0.2
 StateEstimator:
   stateEstimatorType: 3
-  processNoiseVar4Loc: 3561.3
-  processNoiseVar4Size: 447.7
-  processNoiseVar4Vel: 3663.2
-  measurementNoiseVar4Detector: 2078.3
-  measurementNoiseVar4Tracker: 2108.0
-
+  processNoiseVar4Loc: 6497.75224242603
+  processNoiseVar4Vel: 8035.858212054732
+  measurementNoiseVar4Detector: 100.0000
+  measurementNoiseVar4Tracker: 883.5847350922555
 ObjectModelProjection:
-  objectModelType: 0
   minPoseConfidence: 0.925
   outputFootLocation: 1
   outputVisibility: 1
@@ -82,6 +75,7 @@ ObjectModelProjection:
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam002.yml
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam003.yml
     - /workspace/inputs/camInfo/Warehouse_Synthetic_Cam004.yml
+  objectModelType: 0
 VisualTracker:
   visualTrackerType: 2
   useColorNames: 1
@@ -91,19 +85,18 @@ VisualTracker:
   filterLr: 0.025008995723548734
   filterChannelWeightsLr: 0.09460260509799209
   gaussianSigma: 0.44967391866177786
-
 MultiViewAssociator:
   multiViewAssociatorType: 1
   enableLatePeerReAssoc: 1
   enableIDCorrection: 1
   enableSeeThrough: 1
   enableMsgSync: 1
-  maxPeerTrackletSize: 30
-  recentlyActiveAge: 600
-  minCommonFrames4MatchScore: 15
-  minPeerTrackletMatchScore: 0.35
-  minPeerVisibility4Fusion: 0.0213
-  maxPeerToPredDistance4Fusion: 1.78
+  maxPeerTrackletSize: 50
+  recentlyActiveAge: 178
+  minCommonFrames4MatchScore: 2
+  maxPeerToPredDistance4Fusion: 1.35
+  minPeerVisibility4Fusion: 0.15
+  minPeerTrackletMatchScore: 0.48
   maxTrackletMatchingTimeSearchRange: 1
   maxPeerFrameDiff4NoDet: 2
   communicatorInitSleepTime: 0
@@ -124,4 +117,4 @@ PoseEstimator:
   netScaleFactor: 0.00392156
   onnxFile: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.onnx
   modelEngineFile: /workspace/models/BodyPose3DNet/bodypose3dnet_accuracy.onnx_b1_gpu0_fp16.engine
-  poseInferenceInterval: 29
+  poseInferenceInterval: 30

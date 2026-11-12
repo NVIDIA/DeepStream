@@ -17,14 +17,15 @@
 # Global variables - same as setup script
 BASE_DIR=${BASE_DIR:-$HOME}
 USE_INFERENCE_BUILDER=${USE_INFERENCE_BUILDER:-false}
-MV3DT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEEPSTREAM_ROOT="$(git -C "$MV3DT_ROOT" rev-parse --show-toplevel)"
+MV3DT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DS_DIR="${DS_DIR:-$(git -C "$MV3DT_DIR" rev-parse --show-toplevel)}"
+cd "$MV3DT_DIR" || exit 1
 KAFKA_VERSION="4.2.0"
 SCALA_VERSION="2.13"
 
 # Standardized paths
 KAFKA_DIR="$BASE_DIR/kafka_${SCALA_VERSION}-${KAFKA_VERSION}"
-INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}"
+INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DS_DIR/tools/inference_builder}"
 
 # Initialize status variables
 GPU_STATUS="✓"
@@ -65,7 +66,7 @@ else
 fi
 
 # Check 4: Check whether virtual env "mv3dt_venv" setup correctly
-if [[ ! -d "$PWD/mv3dt_venv" ]]; then
+if [[ ! -d "$MV3DT_DIR/mv3dt_venv" ]]; then
     echo "Virtual environment 'mv3dt_venv' not found"
     MV3DT_VENV_STATUS="✗"
 fi
@@ -84,56 +85,40 @@ else
 fi
 
 # Check 6: check wether datasets and models are setup correctly
-if [[ ! -d "$PWD/datasets" ]]; then
+if [[ ! -d "$MV3DT_DIR/datasets" ]]; then
     echo "Datasets directory not found"
     DATASETS_MODELS_STATUS="✗"
 else
-    if [[ ! -d "$PWD/datasets/mtmc_4cam/camInfo" ]]; then
-        echo "datasets/mtmc_4cam/camInfo directory not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/datasets/mtmc_4cam/videos" ]]; then
-        echo "datasets/mtmc_4cam/videos directory not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/datasets/mtmc_12cam/camInfo" ]]; then
-        echo "datasets/mtmc_12cam/camInfo directory not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/datasets/mtmc_12cam/videos" ]]; then
-        echo "datasets/mtmc_12cam/videos directory not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
+    for dataset in mtmc_4cam mtmc_12cam scout wildtrack; do
+        for folder in camInfo videos; do
+            if [[ ! -d "$MV3DT_DIR/datasets/$dataset/$folder" ]]; then
+                echo "datasets/$dataset/$folder directory not found"
+                DATASETS_MODELS_STATUS="✗"
+            fi
+        done
+    done
 fi
 
-if [[ ! -d "$PWD/models" ]]; then
+if [[ ! -d "$MV3DT_DIR/models" ]]; then
     echo "Models directory not found"
     DATASETS_MODELS_STATUS="✗"
 else
-    if [[ ! -d "$PWD/models/BodyPose3DNet" ]]; then
-        echo "BodyPose3DNet model not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/models/PeopleNetTransformer" ]]; then
-        echo "PeopleNetTransformer model not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -f "$PWD/models/PeopleNetTransformer/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
-        echo "PeopleNetTransformer custom parser libnvds_infercustomparser_tao.so not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/models/RTDETR" ]]; then
-        echo "RTDETR model not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -f "$PWD/models/RTDETR/custom_parser/libnvds_infercustomparser_tao.so" ]]; then
-        echo "RTDETR custom parser libnvds_infercustomparser_tao.so not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
-    if [[ ! -d "$PWD/models/PeopleNet2.6.3" ]]; then
-        echo "PeopleNet2.6.3 model not found"
-        DATASETS_MODELS_STATUS="✗"
-    fi
+    for model in \
+        BodyPose3DNet/bodypose3dnet_accuracy.onnx \
+        ClipReID/reid_model.onnx \
+        PeopleNetTransformer/peoplenet_transformer_model_op17.onnx \
+        PeopleNetTransformer/detector_labels.txt \
+        PeopleNetTransformer/custom_parser/libnvds_infercustomparser_tao.so \
+        RTDETR/rtdetr_warehouse_v1.0.fp16.onnx \
+        RTDETR/detector_labels.txt \
+        RTDETR/custom_parser/libnvds_infercustomparser_tao.so \
+        PeopleNet2.6.3/resnet34_peoplenet.onnx \
+        PeopleNet2.6.3/detector_labels.txt; do
+        if [[ ! -s "$MV3DT_DIR/models/$model" ]]; then
+            echo "Model asset missing or empty: models/$model"
+            DATASETS_MODELS_STATUS="✗"
+        fi
+    done
 fi
 
 # Summary of all checks

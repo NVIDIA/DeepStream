@@ -19,16 +19,20 @@ limitations under the License.
 
 This page provides detailed step-by-step instructions for running MV3DT using Inference Builder. For quick start scripts, see the [main README](../README.md#option-2-running-mv3dt-using-inference-builder).
 
+Complete the [prerequisites](../README.md#prerequisites) with `USE_INFERENCE_BUILDER=true` first and use the `DS_DIR` set there. The auto-configurator creates experiment output directories.
+
+```bash
+MV3DT_DIR="$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+cd "$MV3DT_DIR"
+```
+
 ## Sample 1: 4-camera dataset
 
-1. Set up environment variables and prepare experiment directories
+1. Set paths reused by the commands below
     ```bash
-    export DATASET_DIR=$PWD/datasets/mtmc_4cam/
-    export EXPERIMENT_DIR=$PWD/experiments/inference_builder/4cam
-    export MODEL_REPO=$PWD/models
-
-    mkdir -p $EXPERIMENT_DIR/infer-kitti-dump
-    mkdir -p $EXPERIMENT_DIR/tracker-kitti-dump
+    DATASET_DIR="$MV3DT_DIR/datasets/mtmc_4cam"
+    EXPERIMENT_DIR="$MV3DT_DIR/experiments/inference_builder/4cam"
+    MODEL_REPO="$MV3DT_DIR/models"
     ```
 
 2. Generate Inference Builder configuration files using the auto-configurator
@@ -38,10 +42,11 @@ This page provides detailed step-by-step instructions for running MV3DT using In
     source mv3dt_venv/bin/activate
     
     # Generate configs with 4-camera overrides
-    python utils/inference_builder_auto_configurator.py \
-        --dataset-dir=$DATASET_DIR \
+    python -m utils.inference_builder_auto_configurator \
+        --profile=mtmc_4cam_pnt \
+        --dataset-dir="$DATASET_DIR" \
         --config-overrides=override_tracker_4cam.yml \
-        --output-dir=$EXPERIMENT_DIR
+        --output-dir="$EXPERIMENT_DIR"
     # [Expected output] You should see 
     #   Generated files:
     #     - ds_mv3dt.yaml (inference config with max_batch_size: 4)
@@ -52,15 +57,15 @@ This page provides detailed step-by-step instructions for running MV3DT using In
     #     - pub_sub_info_config_0.yml (communication config)
 
     # Copy the generated nvdsinfer config to the model directory
-    cp $EXPERIMENT_DIR/nvdsinfer_config.yaml $MODEL_REPO/PeopleNetTransformer/
+    cp "$EXPERIMENT_DIR/nvdsinfer_config.yaml" "$MODEL_REPO/PeopleNetTransformer/"
     ```
 
 3. Generate a Python package at `$INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app` containing the MV3DT inference flow.
     ```bash
-    export INFERENCE_BUILDER_DIR="$(git rev-parse --show-toplevel)/tools/inference_builder"
-    cd $INFERENCE_BUILDER_DIR
+    INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DS_DIR/tools/inference_builder}"
+    cd "$INFERENCE_BUILDER_DIR"
     source .venv/bin/activate
-    python builder/main.py $EXPERIMENT_DIR/ds_mv3dt.yaml \
+    python builder/main.py "$EXPERIMENT_DIR/ds_mv3dt.yaml" \
         -o builder/samples/mv3dt_app \
         --server-type serverless
     ```
@@ -70,13 +75,13 @@ This page provides detailed step-by-step instructions for running MV3DT using In
     
     ```bash
     # Return to the repo directory and activate the Python environment
-    cd <path to current repo, i.e. deepstream-tracker-3d-multi-view>
+    cd "$MV3DT_DIR"
     source mv3dt_venv/bin/activate
     
     # Start BEV visualization
     python utils/kafka_bev_visualizer.py \
-        --dataset-path=$DATASET_DIR \
-        --msgconv-config=$EXPERIMENT_DIR/config_msgconv.txt \
+        --dataset-path="$DATASET_DIR" \
+        --msgconv-config="$EXPERIMENT_DIR/config_msgconv.txt" \
         --average-multi-cam \
         --show-ids
 
@@ -91,10 +96,10 @@ This page provides detailed step-by-step instructions for running MV3DT using In
     sudo xhost + # give container access to display
 
     docker run --privileged --rm -it --net=host --runtime=nvidia \
-    -v $INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app/deepstream-app:/mv3dt_app \
-    -v $MODEL_REPO:/workspace/models \
-    -v $DATASET_DIR:/workspace/inputs \
-    -v $EXPERIMENT_DIR:/workspace/experiments \
+    -v "$INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app/deepstream-app:/mv3dt_app" \
+    -v "$MODEL_REPO:/workspace/models" \
+    -v "$DATASET_DIR:/workspace/inputs" \
+    -v "$EXPERIMENT_DIR:/workspace/experiments" \
     -v /tmp/.X11-unix/:/tmp/.X11-unix \
     -e DISPLAY=$DISPLAY \
     -w /mv3dt_app \
@@ -107,15 +112,20 @@ This page provides detailed step-by-step instructions for running MV3DT using In
     ```
 
 
+For the 4-camera example, select `mtmc_4cam_pn2` for PeopleNet 2.6.3 or `mtmc_4cam_detr` for RT-DETR. Copy the generated inference config into that detector's model directory in step 2. The shared `override_tracker_4cam.yml` applies to all three profiles.
+
 ## Sample 2: 12-camera dataset
 
 The steps are the same as for the 4-camera dataset, except setting `DATASET_DIR` and `EXPERIMENT_DIR` to the 12-camera directories.
 
 ```bash
-export DATASET_DIR=$PWD/datasets/mtmc_12cam/
-export EXPERIMENT_DIR=$PWD/experiments/inference_builder/12cam
+DATASET_DIR="$MV3DT_DIR/datasets/mtmc_12cam"
+EXPERIMENT_DIR="$MV3DT_DIR/experiments/inference_builder/12cam"
 
-python utils/inference_builder_auto_configurator.py \
-    --dataset-dir=$DATASET_DIR \
-    --output-dir=$EXPERIMENT_DIR
+python -m utils.inference_builder_auto_configurator \
+    --profile=mtmc_12cam_pnt \
+    --dataset-dir="$DATASET_DIR" \
+    --output-dir="$EXPERIMENT_DIR"
 ```
+
+Select `mtmc_12cam_pn2` for the PeopleNet 2.6.3 baseline. For RT-DETR, select `mtmc_12cam_detr` and add `--tracker-config config_tracker_ib.yml` to retain the Inference Builder tracker settings.
