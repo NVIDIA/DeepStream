@@ -34,7 +34,8 @@
 #include "infer_datatypes.h"
 #include "infer_utils.h"
 
-#include "model_config.pb.h"
+// Prefer the selected client SDK; Make supplies a local fallback for older SDKs.
+#include <model_config.pb.h>
 #include "tritonserver.h"
 
 /**

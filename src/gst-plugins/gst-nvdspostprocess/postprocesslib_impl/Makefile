@@ -39,7 +39,7 @@ LIB:=libpostprocess_impl.so
 
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DDS_VERSION=\"9.2.0\" \
+CFLAGS+= -fPIC -DDS_VERSION=\"9.2.1\" \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../../includes -I../includes  -I../../eigen/ -I./
 
@@ -77,7 +77,8 @@ $(DEP): $(DEP_FILES)
 	$(MAKE) -C postprocesslib_impl/
 
 install: $(LIB)
-	cp -rv $(LIB) $(GST_INSTALL_DIR)
+	install -d $(LIB_INSTALL_DIR)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(OBJS) $(LIB)

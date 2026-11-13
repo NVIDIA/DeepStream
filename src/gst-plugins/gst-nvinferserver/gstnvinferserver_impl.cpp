@@ -31,12 +31,15 @@
 #include <algorithm>
 
 #include <gst/gst.h>
-#include <google/protobuf/text_format.h>
 
 #include "infer_surface_bufs.h"
 #include "infer_post_datatypes.h"
 #include "infer_options.h"
 #include "infer_proto_utils.h"
+
+#if defined(__aarch64__) && GOOGLE_PROTOBUF_VERSION < 6000000
+#include <google/protobuf/text_format.h>
+#endif
 
 #include "gstnvdsmeta.h"
 #include "nvdspreprocess_meta.h"
@@ -69,6 +72,40 @@ GST_DEBUG_CATEGORY_EXTERN(gst_nvinfer_server_debug);
 using namespace nvdsinferserver;
 
 namespace gstnvinferserver {
+
+namespace {
+
+// The legacy ARM Makefile compiles these messages in the plugin itself. All
+// other builds use core-owned messages and must reflect in that owning DSO.
+bool parsePluginControlForPlugin(const std::string& text, ic::PluginControl& config)
+{
+#if defined(__aarch64__) && GOOGLE_PROTOBUF_VERSION < 6000000
+    return google::protobuf::TextFormat::ParseFromString(text, &config);
+#else
+    return nvdsinferserver::parsePluginControl(text, config);
+#endif
+}
+
+bool parseInferenceConfigForPlugin(const std::string& text, ic::InferenceConfig& config)
+{
+#if defined(__aarch64__) && GOOGLE_PROTOBUF_VERSION < 6000000
+    return google::protobuf::TextFormat::ParseFromString(text, &config);
+#else
+    return nvdsinferserver::parseInferenceConfig(text, config);
+#endif
+}
+
+bool formatInferenceConfigForPlugin(const ic::InferenceConfig& config, std::string& text)
+{
+#if defined(__aarch64__) && GOOGLE_PROTOBUF_VERSION < 6000000
+    text = config.DebugString();
+    return true;
+#else
+    return nvdsinferserver::formatInferenceConfig(config, text);
+#endif
+}
+
+} // namespace
 
 /**
  * @brief Holds information about one frame in a batch for inferencing.
@@ -243,15 +280,20 @@ validateInputControl(ic::PluginControl::InputControl& input)
 bool
 validateInferConfig(ic::InferenceConfig& c, const std::string& path)
 {
+    std::string configStr;
+    if (!formatInferenceConfigForPlugin(c, configStr)) {
+        InferError("Failed to format inference config in file: %s", safeStr(path));
+        return false;
+    }
     std::string updated;
-    bool ret = validateInferConfigStr(c.DebugString(), path, updated);
+    bool ret = validateInferConfigStr(configStr, path, updated);
     if (!ret) {
         InferError("Validation of infer_config in file: %s failed.",
                 safeStr(path));
         return false;
     }
     c.Clear();
-    if (!google::protobuf::TextFormat::ParseFromString(updated, &c)) {
+    if (!parseInferenceConfigForPlugin(updated, c)) {
         InferError("Error: Failed to parse back inference config: %s",
                 safeStr(path));
         return false;
@@ -469,39 +511,9 @@ bool GstNvInferServerImpl::validatePluginConfig(
     return true;
 }
 
-static void ProtoBufLogHandler(google::protobuf::LogLevel level, const char* filename, int line,
-    const std::string& message)
-{
-    NvDsInferLogLevel dsLevel = NVDSINFER_LOG_ERROR;
-    switch (level) {
-    case google::protobuf::LOGLEVEL_INFO:
-        dsLevel = NVDSINFER_LOG_INFO;
-        break;
-    case google::protobuf::LOGLEVEL_WARNING:
-        dsLevel = NVDSINFER_LOG_WARNING;
-        break;
-    case google::protobuf::LOGLEVEL_ERROR:
-        dsLevel = NVDSINFER_LOG_ERROR;
-        break;
-    case google::protobuf::LOGLEVEL_FATAL:
-        dsLevel = NVDSINFER_LOG_ERROR;
-        break;
-    default:
-        return;
-    }
-    std::string res = std::string("file: ") + filename +
-        "line: " + std::to_string(line) + "msg: " + message;
-    dsInferLogPrint__(dsLevel, res.c_str());
-}
-
 NvDsInferStatus GstNvInferServerImpl::start() {
     GST_DEBUG_OBJECT(m_GstPlugin, "inferserver:%u starting", uniqueId());
 
-    if (0) {
-        static std::once_flag protoLoggingFlag;
-        std::call_once(protoLoggingFlag,
-            []() { google::protobuf::SetLogHandler(&ProtoBufLogHandler); });
-    }
     {
         static std::once_flag nvtxInitFlag;
         std::call_once(nvtxInitFlag,
@@ -529,7 +541,7 @@ NvDsInferStatus GstNvInferServerImpl::start() {
             ("Config file path: %s", safeStr(m_GstProperties.configPath)));
         return NVDSINFER_CONFIG_FAILED;
     }
-    if (!google::protobuf::TextFormat::ParseFromString(prototxt, &m_PluginConfig)) {
+    if (!parsePluginControlForPlugin(prototxt, m_PluginConfig)) {
         GST_ELEMENT_ERROR(m_GstPlugin, LIBRARY, SETTINGS,
             ("Configuration file parsing failed"),
             ("Config file path: %s", safeStr(m_GstProperties.configPath)));
@@ -546,7 +558,13 @@ NvDsInferStatus GstNvInferServerImpl::start() {
     GST_DEBUG_OBJECT(m_GstPlugin, "inferserver:%u config-file:%s validation passed",
         uniqueId(), safeStr(m_GstProperties.configPath));
 
-    std::string contextStr = m_PluginConfig.infer_config().DebugString();
+    std::string contextStr;
+    if (!formatInferenceConfigForPlugin(m_PluginConfig.infer_config(), contextStr)) {
+        GST_ELEMENT_ERROR(m_GstPlugin, LIBRARY, SETTINGS,
+            ("Inference configuration formatting failed"),
+            ("Config file path: %s", safeStr(m_GstProperties.configPath)));
+        return NVDSINFER_CONFIG_FAILED;
+    }
     m_IntervalCounter = 0;
 
     if (isOtherNetowrk() && !needOutputTensorMeta() && !hasCustomProcess()) {

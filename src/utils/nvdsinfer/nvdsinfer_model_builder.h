@@ -27,6 +27,7 @@
 #include <queue>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <NvInfer.h>
 #include <NvInferRuntime.h>
@@ -193,6 +194,13 @@ private:
     bool sanityCheck() const override;
 };
 
+#if NV_TENSORRT_MAJOR >= 11
+/* Shared build-time check for SDK consumers of strongly typed TRT 11 models.
+ * Reduced-precision models are prepared offline, not rewritten by this API. */
+NvDsInferStatus validateTrt11Precision(
+    nvinfer1::INetworkDefinition& network, const BuildParams& params);
+#endif
+
 /**
  * Helper class written on top of nvinfer1::ICudaEngine.
  */
@@ -248,6 +256,10 @@ private:
         nvinfer1::ICudaEngine *& cudaEngine);
 };
 
+/* Internal TLT build path keeps the runtime with the returned engine. */
+std::unique_ptr<TrtEngine> buildTltModelEngine(nvinfer1::IBuilder* builder,
+    nvinfer1::IBuilderConfig* builderConfig, const NvDsInferContextInitParams* initParams);
+
 /**
  * Helper class to build models and generate the TensorRT ICudaEngine required
  * for inference. This class will parse models using the nvdsinfer::IModelParser
@@ -266,10 +278,12 @@ public:
         m_Parser.reset();
     }
 
+#if NV_TENSORRT_MAJOR < 11
     void setInt8Calibrator(std::unique_ptr<nvinfer1::IInt8Calibrator>&& calibrator)
     {
         m_Int8Calibrator = std::move(calibrator);
     }
+#endif
 
     /* Populate INetworkDefinition by parsing the model, build the engine and
      * return it as TrtEngine instance. Also, returns a suggested path for
@@ -341,11 +355,16 @@ private:
     std::unique_ptr<nvinfer1::IBuilder> m_Builder;
     std::unique_ptr<nvinfer1::IBuilderConfig> m_BuilderConfig;
     std::unique_ptr<nvinfer1::INetworkDefinition> m_Network;
+#if NV_TENSORRT_MAJOR < 11
     std::shared_ptr<nvinfer1::IInt8Calibrator> m_Int8Calibrator;
+#endif
 
     friend class BuildParams;
     friend class ImplicitBuildParams;
     friend class ExplicitBuildParams;
+
+    friend std::unique_ptr<TrtEngine> buildTltModelEngine(nvinfer1::IBuilder* builder,
+        nvinfer1::IBuilderConfig* builderConfig, const NvDsInferContextInitParams* initParams);
 
     friend bool ::NvDsInferCudaEngineGetFromTltModel( nvinfer1::IBuilder * const builder,
         nvinfer1::IBuilderConfig * const builderConfig,

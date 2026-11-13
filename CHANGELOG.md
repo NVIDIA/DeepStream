@@ -1,3 +1,22 @@
+# Unreleased
+
+## TensorRT 11 upgrade preparation
+
+- Align source/API/compiler and build/package defaults with DeepStream 9.2.1,
+  preserving the `deepstream-9.2` install family and existing release-asset pins.
+- Add TensorRT 11 model-declared precision handling to inference, tracking,
+  vision encoding and Sparse4D while retaining guarded legacy API paths.
+- Add post-install ModelOpt mixed-precision preparation and a build-only SDK
+  engine builder. Original model filenames are retained with `fp32_` backups;
+  model conversion is not performed during packaging or inference.
+- Allow packaging a complete prebuilt SDK runtime with public sources through
+  `build/build.sh --package-from`, including platform-specific metadata and
+  safeguards against destructive staging paths.
+- Harden Service Maker wheel publication and add focused upgrade/packaging tests.
+
+These changes are upgrade preparation, not completed release qualification.
+Full source-build, source4 and non-x86 runtime validation remain pending.
+
 # DeepStream 9.2.0 (19 October 2026)
 
 ## Source availability

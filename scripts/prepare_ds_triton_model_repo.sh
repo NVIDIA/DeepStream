@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MODEL_REPO_DIR="/opt/nvidia/deepstream/deepstream/samples/triton_model_repo"
+SAMPLES_DIR="${DS_SAMPLES_ROOT:-/opt/nvidia/deepstream/deepstream/samples}"
+MODEL_REPO_DIR="${SAMPLES_DIR}/triton_model_repo"
 WITH_INT8=false
 
 if [[ -z "${TRTEXEC_BIN}" ]]; then
@@ -23,6 +24,19 @@ fi
 
 if [[ ! -f "${TRTEXEC_BIN}" ]]; then
     echo "trtexec binary not found. Set TRTEXEC_BIN"
+fi
+
+# TRT11 consumes mixed ONNX prepared after installation by samples/modelopt.
+# Setup retains canonical filenames and preserves originals with an fp32_ prefix.
+# No conversion runs here or in the inference plugin.
+TRT_MAJOR=$(python3 - <<'PY'
+import ctypes
+print(ctypes.CDLL("libnvinfer.so").getInferLibVersion() // 10000)
+PY
+) || exit 1
+if (( TRT_MAJOR >= 11 )); then
+    TRTEXEC_BIN="${NVDS_ENGINE_BUILDER:-/opt/nvidia/deepstream/deepstream/bin/nvdsinfer-engine-builder}"
+    command -v "$TRTEXEC_BIN" >/dev/null || { echo "Missing SDK engine builder: $TRTEXEC_BIN" >&2; exit 1; }
 fi
 
 if [[ $(uname -m) == "aarch64" ]]; then
@@ -50,9 +64,9 @@ function buildEngineFromCaffe {
 
     echo "Building Model ${ModelDir}..."
 
-    CalibFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/cal_trt.bin)
-    ProtoFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/*.prototxt)
-    ModelFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/*.caffemodel)
+    CalibFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/cal_trt.bin)
+    ProtoFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/*.prototxt)
+    ModelFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/*.caffemodel)
     ModelFileName=$(basename "${ModelFile}")
 
     if [[ "${WITH_INT8}" = true ]]; then
@@ -112,8 +126,8 @@ function build_engine_from_etlt {
 
     echo "Building Model ${ModelDir}..."
 
-    CalibFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/cal_trt.bin)
-    TltEncodedModel=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/*.etlt)
+    CalibFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/cal_trt.bin)
+    TltEncodedModel=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/*.etlt)
     ModelFileName=$(basename "${TltEncodedModel}")
 
     mkdir -p "${MODEL_REPO_DIR}/${ModelDir}/1/"
@@ -169,7 +183,7 @@ function buildEngineFromUff {
 
     echo "Building Model ${ModelDir}..."
 
-    UffFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/*.uff)
+    UffFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/*.uff)
     ModelFileName=$(basename "${UffFile}")
     EngineFile="${MODEL_REPO_DIR}/${ModelServerDir}/1/${ModelFileName}_b${MaxBatch}_gpu0_fp32.engine"
 
@@ -210,8 +224,20 @@ function build_engine_from_onnx {
 
     echo "Building Model ${ModelDir}..."
 
-    CalibFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/cal_trt.bin)
-    OnnxModelFile=$(ls "/opt/nvidia/deepstream/deepstream/samples/models/${ModelDir}"/*.onnx)
+    CalibFile=""
+    if (( TRT_MAJOR < 11 )); then CalibFile=$(ls "${SAMPLES_DIR}/models/${ModelDir}"/cal_trt.bin); fi
+    case "${ModelDir}" in
+        Primary_Detector) ModelFileName=resnet18_trafficcamnet_pruned.onnx ;;
+        Secondary_VehicleMake) ModelFileName=resnet18_vehiclemakenet_pruned.onnx ;;
+        Secondary_VehicleTypes) ModelFileName=resnet18_vehicletypenet_pruned.onnx ;;
+        *) echo "Unknown shipped ONNX model directory: ${ModelDir}" >&2; return 1 ;;
+    esac
+    OnnxModelFile="${SAMPLES_DIR}/models/${ModelDir}/${ModelFileName}"
+    if [[ ! -f "${OnnxModelFile}" ]]; then
+        echo "Missing canonical ONNX model ${OnnxModelFile}; install the matching SDK sample models." >&2
+        echo "For TRT11, run samples/modelopt/prepare_samples.py first; model filenames remain unchanged." >&2
+        return 1
+    fi
     ModelFileName=$(basename "${OnnxModelFile}")
 
     mkdir -p "${MODEL_REPO_DIR}/${ModelDir}/1/"
@@ -222,26 +248,24 @@ function build_engine_from_onnx {
         EngineFile="${MODEL_REPO_DIR}/${ModelDir}/1/${ModelFileName}_b${MaxBatch}_gpu0_fp16.engine"
     fi
 
-    TRTEXEC_CMD="${TRTEXEC_BIN} \
-        --onnx=${OnnxModelFile} \
-        --calib=${CalibFile} \
-        --saveEngine=${EngineFile} \
-        --minShapes="input_1:0":1x${Dimensions} \
-        --optShapes="input_1:0":${MaxBatch}x${Dimensions} \
-        --maxShapes="input_1:0":${MaxBatch}x${Dimensions} \
-        --skipInference"
+    local -a TRTEXEC_CMD=("${TRTEXEC_BIN}"
+        "--onnx=${OnnxModelFile}" "--saveEngine=${EngineFile}"
+        "--minShapes=input_1:0:1x${Dimensions}"
+        "--optShapes=input_1:0:${MaxBatch}x${Dimensions}"
+        "--maxShapes=input_1:0:${MaxBatch}x${Dimensions}" --skipInference)
+    if (( TRT_MAJOR < 11 )); then TRTEXEC_CMD+=("--calib=${CalibFile}"); fi
 
     if [[ "${WITH_INT8}" = true ]]; then
-        TRTEXEC_CMD="${TRTEXEC_CMD} --int8"
+        TRTEXEC_CMD+=(--int8)
     else
-        TRTEXEC_CMD="${TRTEXEC_CMD} --fp16"
+        TRTEXEC_CMD+=(--fp16)
     fi
 
     echo "Generating Engine file: ${EngineFile}"
 
     LOG_FILE="buildModel${ModelDir}.log"
     LOG_FILE=${LOG_FILE//[\/]/_}
-    if eval "${TRTEXEC_CMD}" >> "${LOG_FILE}" 2>&1 ; then
+    if "${TRTEXEC_CMD[@]}" >> "${LOG_FILE}" 2>&1 ; then
         echo "Finished building Model ${ModelDir}"
         rm "${LOG_FILE}"
     else
@@ -257,8 +281,9 @@ function build_engine_from_onnx {
 
 echo "Generating Engine files for ONNX provided with the SDK"
 
-echo "Checking for INT8 support..."
-if build_engine_from_onnx "Primary_Detector" 1 3x544x960 > /dev/null; then
+if (( TRT_MAJOR >= 11 )); then
+    echo "TensorRT11: building engines from post-install prepared mixed ONNX at canonical filenames; legacy INT8 calibration is not used."
+elif build_engine_from_onnx "Primary_Detector" 1 3x544x960 > /dev/null; then
     echo "Platform supports INT8. Generating engine files using INT8 mode."
 else
     echo "Platform does not support INT8. Generating engine files using FP16 mode."

@@ -15,6 +15,10 @@
 # limitations under the License.
 ################################################################################
 ---
+# Published legacy baseline, NOT the TRT11 upgrade branch's compute-stack profile.
+# Do not run this provisioner unchanged for CUDA13.4/TRT11.4 qualification; supply
+# reviewed platform-specific variables and use build/BUILD.md for upgrade inputs.
+# This task does not modify drivers or install a new stack on the operator's host.
 # Default variables for NVIDIA components installation
 cuda_version: "13-2"
 nv_driver_version: "595.45.04"

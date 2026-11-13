@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # Build and install all DeepStream components from this repository.
-# Usage (run from repo root): bash build/build.sh [OPTIONS] [CUDA_VER=<ver>] [NVDS_VERSION=<ver>]
+# Usage (run from repo root): bash build/build.sh [OPTIONS] [CUDA_VER=<family>] [TRT_VER=<ver>] [NVDS_VERSION=<ver>]
 set -e
 
 # Build stages are written to build/.stage-state as "DONE <name>".
@@ -68,7 +68,7 @@ find_cmake() {
 
 usage() {
   cat <<'EOF'
-Usage: bash build/build.sh [OPTIONS] [CUDA_VER=<ver>] [NVDS_VERSION=<ver>] [CMAKE_BIN=<path>]
+Usage: bash build/build.sh [OPTIONS] [CUDA_VER=<family>] [TRT_VER=<ver>] [NVDS_VERSION=<ver>] [CMAKE_BIN=<path>]
 
 Build and install DeepStream open-source components from this repository.
 
@@ -87,6 +87,10 @@ Options:
                           into build/ via build/package.sh
   --package-format=FMT    Package format: deb | tar | both (default: both);
                           implies --package
+  --package-from=PATH     Package a complete extracted SDK runtime plus repo
+                          sources; no downloads, compilation or system install
+  --package-platform=NAME x86 | jetson | sbsa | igx (with --package-from)
+  --include-untracked-sources Include non-ignored new sources for local validation
   --deepstream-libraries-wheel[=DIR]
                           Build the DeepStream Libraries wheel only. DIR defaults
                           to artifacts/.
@@ -130,20 +134,31 @@ Artifact install method (--install-method=):
 Packaging (--package / --package-format=):
   When --package (or --package-format=) is given, a full successful build is
   followed by build/package.sh, which stages the installed tree and emits a
-  .deb and/or .tar.gz into build/. Skipped for --only= scoped builds.
+  .deb and/or .tbz2 into build/. Skipped for --only= scoped builds.
+  --package-from instead uses an existing complete SDK runtime directory.
   deb   Debian package only.
   tar   Tarball only.
   both  Both (default).
 
 Environment variables (alternative to CLI):
-  CUDA_VER                CUDA toolkit version (default: 13.0 on IGX; 13.2 otherwise)
-  NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.0); the install
+  CUDA_VER                Toolkit family (13.4 x86/SBSA; 13.2 Jetson; 13.0 IGX)
+  TRT_VER                 Selected full TensorRT build (11.4.0.106 x86/SBSA;
+                          11.4.1.31 Jetson; IGX retains its installed legacy stack)
+  CUDNN_VERSION           Declared cuDNN baseline (9.27.0.42 x86/SBSA;
+                          9.20.0.46 Jetson); does not install/verify compute packages
+  NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.1); the install
                           tree uses MAJOR.MINOR only. GitHub Release
                           proprietary-libs / sample-data assets are always
                           fetched from the v9.2.0 release (hardcoded; not
                           derived from NVDS_VERSION).
   INSTALL_METHOD          Artifact install method: deb (default) | tar
   CMAKE_BIN               Path to cmake binary
+  PROTOC_ROOT             Explicit protoc distribution matching the selected
+                          Triton SDK protobuf headers (copied to /opt/proto)
+  DS_DEPS_WORK_ROOT        Existing writable parent for dependency build
+                          directories (default: /tmp)
+  DS_PACKAGE_OUTPUT_DIR   Package output directory (default: build/)
+  DS_PACKAGE_STAGE_DIR    Package staging directory (default: build/.pkg-stage)
 
 Examples:
   bash build/build.sh
@@ -158,7 +173,7 @@ Examples:
   bash build/build.sh --deepstream-libraries-wheel
   bash build/build.sh --deepstream-libraries-wheel=artifacts
   bash build/build.sh --deepstream-libraries-wheel-version=1.4
-  CUDA_VER=13.2 bash build/build.sh --skip-deps
+  CUDA_VER=13.4 bash build/build.sh --skip-deps
 EOF
 }
 
@@ -212,20 +227,41 @@ is_igx_system() {
 
 ARCH=$(uname -m)
 case "$ARCH" in
-  x86_64)  PLATFORM=x86;     CUDA_VER_DEFAULT=13.2 ;;
+  x86_64)  PLATFORM=x86 ;;
   aarch64)
     if [[ -f /etc/nv_tegra_release ]]; then
       PLATFORM=aarch64
     else
       PLATFORM=sbsa
     fi
-    CUDA_VER_DEFAULT=13.2
     ;;
   *)        echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
+select_stack_defaults() {
+  case "$1" in
+    x86|sbsa)
+      CUDA_VER_DEFAULT=13.4
+      TRT_VER_DEFAULT=11.4.0.106
+      CUDNN_VERSION_DEFAULT=9.27.0.42
+      ;;
+    jetson|aarch64)
+      CUDA_VER_DEFAULT=13.2
+      TRT_VER_DEFAULT=11.4.1.31
+      CUDNN_VERSION_DEFAULT=9.20.0.46
+      ;;
+    igx)
+      CUDA_VER_DEFAULT=13.0
+      TRT_VER_DEFAULT=
+      CUDNN_VERSION_DEFAULT=9.12.0.46
+      ;;
+    *) echo "error: unsupported stack platform '$1'" >&2; exit 1 ;;
+  esac
+}
+
+STACK_PLATFORM="$PLATFORM"
 if [[ "$PLATFORM" == "aarch64" ]] && is_igx_system; then
-  CUDA_VER_DEFAULT=13.0
+  STACK_PLATFORM=igx
 fi
 
 SKIP_DEPS=0
@@ -239,11 +275,13 @@ RESUME=0
 KEEP_ASSETS=0
 ONLY_STAGES=()
 JOBS=$(nproc 2>/dev/null || echo 4)
-CUDA_VER=${CUDA_VER:-$CUDA_VER_DEFAULT}
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 DO_PACKAGE=0
 PACKAGE_FORMAT=both
+PACKAGE_FROM=""
+PACKAGE_PLATFORM=""
+PACKAGE_WORKTREE_SOURCES=0
 BUILD_DEEPSTREAM_LIBRARIES_WHEEL=0
 DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT=
 DEEPSTREAM_LIBRARIES_WHEEL_VERSION=1.4
@@ -271,6 +309,12 @@ while [[ $# -gt 0 ]]; do
       INSTALL_METHOD="$1"
       ;;
     --package)         DO_PACKAGE=1 ;;
+    --package-from=*)
+      PACKAGE_FROM="${1#*=}"; DO_PACKAGE=1
+      [[ -n "$PACKAGE_FROM" ]] || { echo "error: --package-from requires a directory" >&2; exit 1; }
+      ;;
+    --package-platform=*) PACKAGE_PLATFORM="${1#*=}" ;;
+    --include-untracked-sources) PACKAGE_WORKTREE_SOURCES=1 ;;
     --deepstream-libraries-wheel)
       BUILD_DEEPSTREAM_LIBRARIES_WHEEL=1
       ;;
@@ -339,6 +383,12 @@ while [[ $# -gt 0 ]]; do
     CUDA_VER=*)
       CUDA_VER="${1#CUDA_VER=}"
       ;;
+    TRT_VER=*)
+      TRT_VER="${1#TRT_VER=}"
+      ;;
+    CUDNN_VERSION=*)
+      CUDNN_VERSION="${1#CUDNN_VERSION=}"
+      ;;
     NVDS_VERSION=*)
       NVDS_VERSION="${1#NVDS_VERSION=}"
       ;;
@@ -353,12 +403,32 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). MAJOR.MINOR alone is
+# A supplied runtime may target a different architecture than this packaging
+# host. Select only defaults here; explicit environment/CLI values still win.
+if [[ -n "$PACKAGE_FROM" && -n "$PACKAGE_PLATFORM" ]]; then
+  STACK_PLATFORM="$PACKAGE_PLATFORM"
+fi
+select_stack_defaults "$STACK_PLATFORM"
+CUDA_VER=${CUDA_VER-$CUDA_VER_DEFAULT}
+TRT_VER=${TRT_VER-$TRT_VER_DEFAULT}
+CUDNN_VERSION=${CUDNN_VERSION-$CUDNN_VERSION_DEFAULT}
+if [[ ! "$CUDA_VER" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  echo "error: invalid CUDA_VER='$CUDA_VER' (expected toolkit family, e.g. 13.4)" >&2
+  exit 1
+fi
+if [[ -n "$TRT_VER" && ! "$TRT_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    [[ -z "$TRT_VER" && "$STACK_PLATFORM" != igx ]]; then
+  echo "error: invalid TRT_VER='$TRT_VER' (expected full upstream major.minor.patch.build)" >&2
+  exit 1
+fi
+export CUDA_VER TRT_VER
+
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). MAJOR.MINOR alone is
 # rejected so install paths and packaging stay unambiguous; the install tree
 # and every downstream make/install.sh invocation use the truncated
 # MAJOR.MINOR form below.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"
@@ -373,6 +443,10 @@ ARTIFACTS_STAGE_STATE_FILE="$SCRIPT_DIR/.stage-state.artifacts"
 cd "$SCRIPT_DIR/.."
 ARTIFACTS_DIR="$(pwd)/artifacts"
 
+if [[ -n "$PACKAGE_FROM" && "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
+  echo "error: --package-from cannot be combined with wheel builds" >&2
+  exit 1
+fi
 if [[ "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
   if [[ -z "$DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT" ]]; then
     DEEPSTREAM_LIBRARIES_WHEEL_OUTPUT="$(pwd)/artifacts"
@@ -413,6 +487,35 @@ case "$PACKAGE_FORMAT" in
   *) echo "error: invalid --package-format '$PACKAGE_FORMAT' (valid: deb | tar | both)" >&2; exit 1 ;;
 esac
 
+# Repackage a complete, already-built SDK without installing it or rebuilding
+# public components. This is deliberately distinct from the source-build path.
+if [[ -n "$PACKAGE_FROM" ]]; then
+  if [[ ${#ONLY_STAGES[@]} -ne 0 || "$RESUME" -eq 1 || "$BUILD_DEEPSTREAM_LIBRARIES_WHEEL" -eq 1 ]]; then
+    echo "error: --package-from cannot be combined with --only, --resume or wheel builds" >&2
+    exit 1
+  fi
+  _package_args=(--format="$PACKAGE_FORMAT" --runtime-root="$PACKAGE_FROM")
+  case "$PACKAGE_PLATFORM" in
+    x86) _package_args+=(--arch=amd64) ;;
+    jetson|sbsa|igx) _package_args+=(--arch=arm64) ;;
+  esac
+  [[ -z "$PACKAGE_PLATFORM" ]] || _package_args+=(--platform="$PACKAGE_PLATFORM")
+  [[ "$PACKAGE_WORKTREE_SOURCES" -eq 0 ]] || _package_args+=(--include-untracked-sources)
+  [[ ! -v DS_PACKAGE_OUTPUT_DIR ]] || _package_args+=("--output-dir=$DS_PACKAGE_OUTPUT_DIR")
+  [[ ! -v DS_PACKAGE_STAGE_DIR ]] || _package_args+=("--stage-dir=$DS_PACKAGE_STAGE_DIR")
+  exec env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" TRT_VER="$TRT_VER" \
+    bash "$SCRIPT_DIR/package.sh" "${_package_args[@]}"
+fi
+if [[ -n "$PACKAGE_PLATFORM" || "$PACKAGE_WORKTREE_SOURCES" -ne 0 ]]; then
+  echo "error: --package-platform and --include-untracked-sources require --package-from" >&2
+  exit 1
+fi
+
+if [[ "$PLATFORM" == sbsa && ! -f /.dockerenv && ! -f /run/.containerenv ]]; then
+  echo "error: SBSA source builds require the matching DeepStream SBSA container; bare-metal installation is unsupported." >&2
+  exit 1
+fi
+
 for s in "${ONLY_STAGES[@]}"; do
   valid=0
   for v in "${VALID_ONLY_STAGES[@]}"; do
@@ -427,8 +530,38 @@ for s in "${ONLY_STAGES[@]}"; do
   fi
 done
 
+_triton_build_client_root="${TRITON_GRPC_CLIENT-/opt/tritonclient}"
+# Dependency preparation normalizes the SDK into /opt/tritonclient. Only link
+# directly to its original location when the caller explicitly skips that step.
+if [[ "$SKIP_DEPS" -eq 1 && -v TRITON_CLIENT_SDK_ROOT && ! -v TRITON_GRPC_CLIENT ]]; then
+  _triton_build_client_root="$TRITON_CLIENT_SDK_ROOT"
+fi
+STACK_STATE="STACK platform=$STACK_PLATFORM CUDA_VER=$CUDA_VER TRT_VER=${TRT_VER:-system} CUDNN_VERSION=$CUDNN_VERSION NVDS_VERSION=$NVDS_FULL_VERSION"
+printf -v _provider_value '%q' "$_triton_build_client_root"
+STACK_STATE+=" TRITON_BUILD_CLIENT_ROOT=$_provider_value"
+for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT PROTOC_ROOT DS_DEPS_WORK_ROOT DS_PACKAGE_OUTPUT_DIR DS_PACKAGE_STAGE_DIR; do
+  if [[ -v "$_provider" ]]; then
+    printf -v _provider_value '%q' "${!_provider}"
+    STACK_STATE+=" $_provider=$_provider_value"
+  fi
+done
+if [[ -f "$STAGE_STATE_FILE" ]]; then
+  if ! grep -qxF "$STACK_STATE" "$STAGE_STATE_FILE"; then
+    if [[ "$RESUME" -eq 1 ]]; then
+      echo "error: --resume state belongs to another or an unknown compute stack." >&2
+      echo "Clean old component objects explicitly, then rerun without --resume." >&2
+      exit 1
+    fi
+    # A scoped rebuild must not attach the new stack to another stack's DONE
+    # markers for stages that it did not rebuild. This does not clean objects.
+    : > "$STAGE_STATE_FILE"
+  fi
+fi
 if [[ "$RESUME" -eq 0 ]]; then
   reset_stage_state
+fi
+if ! grep -qxF "$STACK_STATE" "$STAGE_STATE_FILE" 2>/dev/null; then
+  printf '%s\n' "$STACK_STATE" >> "$STAGE_STATE_FILE"
 fi
 
 begin_stage() {
@@ -573,8 +706,8 @@ build_3rdparty() {
       continue
     fi
     echo "Building $dir"
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -601,10 +734,6 @@ run_user_make() {
   fi
 }
 
-# Extra make flags for SBSA
-PLATFORM_MAKE_FLAGS=
-[[ "$PLATFORM" = "sbsa" ]] && PLATFORM_MAKE_FLAGS="AARCH64_IS_SBSA=1"
-
 CMAKE_BIN=$(find_cmake)
 # Scratch build trees are kept across runs so cmake can build incrementally.
 # /tmp is sticky, so a fixed path is unusable once another account (or an
@@ -621,6 +750,7 @@ exec > >(tee "$BUILD_LOG") 2>&1
 
 echo "==> Build log: $BUILD_LOG (overwritten each run)"
 echo "==> Building PLATFORM=$PLATFORM CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION (outputs to /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/)"
+echo "==> Declared compute baseline: TensorRT=${TRT_VER:-installed legacy} cuDNN=$CUDNN_VERSION (not an installed-version verification)"
 echo "==> Using cmake: $CMAKE_BIN (jobs: $JOBS)"
 if [[ ${#ONLY_STAGES[@]} -gt 0 ]]; then
   echo "==> Scoped build: ${ONLY_STAGES[*]}"
@@ -642,23 +772,50 @@ if [[ "$RESUME" -eq 1 ]]; then
   echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
 fi
 
-MK="CUDA_VER=$CUDA_VER NVDS_VERSION=$NVDS_VERSION $PLATFORM_MAKE_FLAGS"
+MK=("CUDA_VER=$CUDA_VER" "NVDS_VERSION=$NVDS_VERSION")
+[[ "$PLATFORM" != sbsa ]] || MK+=("AARCH64_IS_SBSA=1")
+[[ -z "$TRT_VER" ]] || MK+=("TRT_VER=$TRT_VER")
+if [[ ! -v DEEPSTREAM_VARIANT ]]; then
+  case "$STACK_PLATFORM" in
+    igx) MK+=("DEEPSTREAM_VARIANT=igx") ;;
+    aarch64) MK+=("DEEPSTREAM_VARIANT=tegra") ;;
+    sbsa) MK+=("DEEPSTREAM_VARIANT=sbsa") ;;
+  esac
+fi
+# sudo normally strips caller environment. Keep explicit dependency providers
+# as individual make arguments for both build and install, including path spaces.
+for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT; do
+  if [[ -v "$_provider" ]]; then
+    MK+=("$_provider=${!_provider}")
+  fi
+done
+MK+=("TRITON_GRPC_CLIENT=$_triton_build_client_root")
 FAILED_BUILDS=()
 
 DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 
 finalize_install() {
   echo "==> Running install.sh (NVDS_VERSION=$NVDS_FULL_VERSION)"
-  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" bash "$SCRIPT_DIR/../scripts/install.sh"
+  # The loader must discover the same external client used during linking,
+  # including when dependency installation was skipped. sudo strips this env.
+  run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" \
+    TRITON_CLIENT_SDK_ROOT="$_triton_build_client_root" \
+    bash "$SCRIPT_DIR/../scripts/install.sh"
 }
 
 # Package the freshly installed tree into a Debian package and/or tarball via
 # build/package.sh. Runs only for full builds and only when the user opts in
-# with --package / --package-format. Artifacts are written to build/.
+# with --package / --package-format. Artifacts are written to build/ unless
+# DS_PACKAGE_OUTPUT_DIR selects another directory.
 run_package() {
   echo "==> Packaging DeepStream (format=$PACKAGE_FORMAT) via build/package.sh"
-  env NVDS_VERSION="$NVDS_FULL_VERSION" \
-    bash "$SCRIPT_DIR/package.sh" --format="$PACKAGE_FORMAT"
+  local package_platform="$STACK_PLATFORM"
+  [[ "$package_platform" != aarch64 ]] || package_platform=jetson
+  local package_args=("--format=$PACKAGE_FORMAT" "--platform=$package_platform")
+  [[ ! -v DS_PACKAGE_OUTPUT_DIR ]] || package_args+=("--output-dir=$DS_PACKAGE_OUTPUT_DIR")
+  [[ ! -v DS_PACKAGE_STAGE_DIR ]] || package_args+=("--stage-dir=$DS_PACKAGE_STAGE_DIR")
+  env NVDS_VERSION="$NVDS_FULL_VERSION" CUDA_VER="$CUDA_VER" TRT_VER="$TRT_VER" \
+    bash "$SCRIPT_DIR/package.sh" "${package_args[@]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -688,9 +845,18 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
     mkdir -p "$(dirname "$DEPS_STAGE_STATE_FILE")"
     : >"$DEPS_STAGE_STATE_FILE"
   fi
+  # Preserve explicit providers through sudo without converting an unset
+  # variable into an explicit empty value (the helpers reject the latter).
+  _deps_provider_env=()
+  for _provider in TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
+    [[ ! -v "$_provider" ]] || _deps_provider_env+=("$_provider=${!_provider}")
+  done
   run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
+    TRITON_CLIENT_SDK_ROOT="${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}" \
+    VPI_DIR="${VPI_DIR-/opt/nvidia/vpi4}" \
     RESUME="$RESUME" \
+    "${_deps_provider_env[@]}" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
   finish_stage "$DEPS_STAGE"
 fi
@@ -716,16 +882,16 @@ if begin_stage gst-utils; then
     src/gst-utils/gst-nvdsmeta \
     src/gst-utils/gstnvdscustomhelper \
     src/utils/nvds_rest_server; do
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
   done
   if [[ "$PLATFORM" == "aarch64" ]]; then
     dir=src/gst-utils/gst-nvipcmeta
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -766,8 +932,8 @@ if begin_stage utils; then
   for leaf in nvdsmeta nvdsinfer_logger nvdsinferutils nvds_logger nvds_stats nvdsutils nvtx_helper; do
     dir="src/utils/$leaf"
     [[ -f "$dir/Makefile" ]] || continue
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -775,8 +941,8 @@ if begin_stage utils; then
 
   dir=src/utils/nvds_msgapi/mqtt_protocol_adaptor
   if [[ -f "$dir/Makefile" ]]; then
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -788,9 +954,9 @@ if begin_stage utils; then
     # libnvds_3d_common is installed first and nvdsinferserver is already built.
     [[ "$(basename "$dir")" == "ds3d" ]] && continue
     # nvstreammux has no install target; skip install step for it
-    if run_submake -C "$dir" $MK; then
+    if run_submake -C "$dir" "${MK[@]}"; then
       [[ "$(basename "$dir")" != "nvstreammux" ]] && \
-        { run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)"); }
+        { run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)"); }
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -798,16 +964,16 @@ if begin_stage utils; then
 
   for dir in src/utils/nvds_msgapi/*/; do
     if [[ -f "$dir/Makefile" ]]; then
-      if run_submake -C "$dir" $MK; then
-        run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+      if run_submake -C "$dir" "${MK[@]}"; then
+        run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
       else
         FAILED_BUILDS+=("$dir")
       fi
     else
       for sub in "$dir"*/; do
         if [[ -f "$sub/Makefile" ]]; then
-          if run_submake -C "$sub" $MK; then
-            run_submake -C "$sub" $MK install || FAILED_BUILDS+=("$sub (install)")
+          if run_submake -C "$sub" "${MK[@]}"; then
+            run_submake -C "$sub" "${MK[@]}" install || FAILED_BUILDS+=("$sub (install)")
           else
             FAILED_BUILDS+=("$sub")
           fi
@@ -819,8 +985,8 @@ if begin_stage utils; then
   # DS3D: common / glprocess / realsense stub must install before consumers.
   for leaf in src/utils/ds3d/common src/utils/ds3d/glprocess src/utils/ds3d/stub/realsense; do
     [[ -f "$leaf/Makefile" ]] || continue
-    if run_submake -C "$leaf" $MK; then
-      run_submake -C "$leaf" $MK install || FAILED_BUILDS+=("$leaf (install)")
+    if run_submake -C "$leaf" "${MK[@]}"; then
+      run_submake -C "$leaf" "${MK[@]}" install || FAILED_BUILDS+=("$leaf (install)")
     else
       FAILED_BUILDS+=("$leaf")
     fi
@@ -828,16 +994,16 @@ if begin_stage utils; then
 
   for dir in src/utils/ds3d/*/; do
     if [[ -f "$dir/Makefile" ]]; then
-      if run_submake -C "$dir" $MK; then
-        run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+      if run_submake -C "$dir" "${MK[@]}"; then
+        run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
       else
         FAILED_BUILDS+=("$dir")
       fi
     else
       for sub in "$dir"*/; do
         if [[ -f "$sub/Makefile" ]]; then
-          if run_submake -C "$sub" $MK; then
-            run_submake -C "$sub" $MK install || FAILED_BUILDS+=("$sub (install)")
+          if run_submake -C "$sub" "${MK[@]}"; then
+            run_submake -C "$sub" "${MK[@]}" install || FAILED_BUILDS+=("$sub (install)")
           else
             FAILED_BUILDS+=("$sub")
           fi
@@ -850,8 +1016,8 @@ if begin_stage utils; then
   # -lnvds_inferlogger, …) so it must build after the utils stage.
   if [[ -f src/gst-utils/gst-nvdsinferbase/Makefile ]]; then
     echo "Building deferred gst-nvdsinferbase (depends on nvdsinfer utils)"
-    if run_submake -C src/gst-utils/gst-nvdsinferbase $MK; then
-      run_submake -C src/gst-utils/gst-nvdsinferbase $MK install \
+    if run_submake -C src/gst-utils/gst-nvdsinferbase "${MK[@]}"; then
+      run_submake -C src/gst-utils/gst-nvdsinferbase "${MK[@]}" install \
         || FAILED_BUILDS+=("src/gst-utils/gst-nvdsinferbase (install)")
     else
       FAILED_BUILDS+=("src/gst-utils/gst-nvdsinferbase")
@@ -893,8 +1059,8 @@ if begin_stage gst-plugins; then
           ;;
       esac
     fi
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi
@@ -912,8 +1078,8 @@ if begin_stage gst-plugins; then
     src/gst-plugins/gst-nvdsvideotemplate/customlib_impl \
     src/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d; do
     [[ -f "$sublib_dir/Makefile" ]] || continue
-    if run_submake -C "$sublib_dir" $MK; then
-      run_submake -C "$sublib_dir" $MK install || FAILED_BUILDS+=("$sublib_dir (install)")
+    if run_submake -C "$sublib_dir" "${MK[@]}"; then
+      run_submake -C "$sublib_dir" "${MK[@]}" install || FAILED_BUILDS+=("$sublib_dir (install)")
     else
       FAILED_BUILDS+=("$sublib_dir")
     fi
@@ -921,8 +1087,8 @@ if begin_stage gst-plugins; then
   # gst-nvdsbins links against sibling plugins (msgbroker, infer, tracker,
   # osd, tiler, …) so it must build after they are installed.
   if [[ -f src/gst-plugins/gst-nvdsbins/Makefile ]]; then
-    if run_submake -C src/gst-plugins/gst-nvdsbins $MK; then
-      run_submake -C src/gst-plugins/gst-nvdsbins $MK install || FAILED_BUILDS+=("src/gst-plugins/gst-nvdsbins (install)")
+    if run_submake -C src/gst-plugins/gst-nvdsbins "${MK[@]}"; then
+      run_submake -C src/gst-plugins/gst-nvdsbins "${MK[@]}" install || FAILED_BUILDS+=("src/gst-plugins/gst-nvdsbins (install)")
     else
       FAILED_BUILDS+=("src/gst-plugins/gst-nvdsbins")
     fi
@@ -953,14 +1119,14 @@ if begin_stage sample_apps; then
       continue
     fi
     if grep -q "^install:" "$dir/Makefile" 2>/dev/null; then
-      if run_submake -C "$dir" $MK; then
-        run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+      if run_submake -C "$dir" "${MK[@]}"; then
+        run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
       else
         FAILED_BUILDS+=("$dir")
       fi
     else
       # Triton* dirs build helper libs only; no install target
-      run_user_make -C "$dir" $MK || FAILED_BUILDS+=("$dir")
+      run_user_make -C "$dir" "${MK[@]}" || FAILED_BUILDS+=("$dir")
     fi
   done
   # Nested custom libs that the sample_apps glob does not visit. Parent
@@ -972,8 +1138,8 @@ if begin_stage sample_apps; then
     src/apps/sample_apps/deepstream-lidar-inference-app/custom_preprocess_impl \
     src/apps/sample_apps/deepstream-lidar-inference-app/custom_postprocess_impl; do
     [[ -f "$sublib_dir/Makefile" ]] || continue
-    if run_submake -C "$sublib_dir" $MK; then
-      run_submake -C "$sublib_dir" $MK install || FAILED_BUILDS+=("$sublib_dir (install)")
+    if run_submake -C "$sublib_dir" "${MK[@]}"; then
+      run_submake -C "$sublib_dir" "${MK[@]}" install || FAILED_BUILDS+=("$sublib_dir (install)")
     else
       FAILED_BUILDS+=("$sublib_dir")
     fi
@@ -1001,7 +1167,7 @@ if begin_stage yolo; then
     echo "==> libeigen3-dev already installed"
   fi
   run_as_root ln -sf /usr/include/eigen3/Eigen /usr/include/Eigen
-  run_user_make -C tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/ $MK \
+  run_user_make -C tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/ "${MK[@]}" \
     || FAILED_BUILDS+=("tools/yolo_deepstream/deepstream_yolo/nvdsinfer_custom_impl_Yolo/")
   if ! stage_had_failures "$_fb_before"; then
     finish_stage yolo
@@ -1018,9 +1184,7 @@ if begin_stage tao_apps; then
   else
     echo "==> git submodules already initialized"
   fi
-  run_as_root cp  src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/Makefile.nvocdr \
-    src/apps/tao_apps/apps/tao_others/deepstream-nvocdr-app/nvocdr/deepstream/Makefile
-  run_submake -C src/apps/tao_apps $MK || FAILED_BUILDS+=("src/apps/tao_apps")
+  run_submake -C src/apps/tao_apps "${MK[@]}" || FAILED_BUILDS+=("src/apps/tao_apps")
   if ! stage_had_failures "$_fb_before"; then
     finish_stage tao_apps
   fi
@@ -1057,7 +1221,7 @@ if begin_stage reference_apps; then
       continue
     fi
     if grep -q "^install:" "$dir/Makefile" 2>/dev/null; then
-      if run_submake -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE"; then
+      if run_submake -C "$dir" "${MK[@]}" BIN_DIR="$RA_BIN_STAGE"; then
         for bin in "$RA_BIN_STAGE"/deepstream-*; do
           [[ -f "$bin" ]] && [[ -x "$bin" ]] && run_as_root cp -v "$bin" "$DS_BIN/" || true
         done
@@ -1065,7 +1229,7 @@ if begin_stage reference_apps; then
         FAILED_BUILDS+=("$dir")
       fi
     else
-      run_user_make -C "$dir" $MK BIN_DIR="$RA_BIN_STAGE" || FAILED_BUILDS+=("$dir")
+      run_user_make -C "$dir" "${MK[@]}" BIN_DIR="$RA_BIN_STAGE" || FAILED_BUILDS+=("$dir")
     fi
     rm -f "$RA_BIN_STAGE"/deepstream-*
   done
@@ -1087,8 +1251,8 @@ if begin_stage service-maker; then
     src/service-maker/sources/core/src/gst/utils \
     src/service-maker/sources/core \
     src/service-maker/sources/engine; do
-    if run_submake -C "$dir" $MK; then
-      run_submake -C "$dir" $MK install || FAILED_BUILDS+=("$dir (install)")
+    if run_submake -C "$dir" "${MK[@]}"; then
+      run_submake -C "$dir" "${MK[@]}" install || FAILED_BUILDS+=("$dir (install)")
     else
       FAILED_BUILDS+=("$dir")
     fi

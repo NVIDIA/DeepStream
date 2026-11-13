@@ -13,17 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NVDS_VERSION := $(shell deepstream-app -v | awk '$$1~/DeepStreamSDK/ {print substr($$2,1,3)}' )
+# Source builds must not execute an already installed (possibly older) SDK.
+NVDS_VERSION ?= 9.2.1
+DS_VER ?= $(word 1,$(subst ., ,$(NVDS_VERSION))).$(word 2,$(subst ., ,$(NVDS_VERSION)))
+DS_SRC_PATH ?= /opt/nvidia/deepstream/deepstream-$(DS_VER)
 
-LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-APP_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/bin/
+LIB_INSTALL_DIR?=$(DS_SRC_PATH)/lib/
+APP_INSTALL_DIR?=$(DS_SRC_PATH)/bin/
 
 APP:= deepstream-lidar-inference-app
 
 CC = g++
 TARGET_DEVICE = $(shell gcc -dumpmachine | cut -f1 -d -)
-DS_VER = $(shell deepstream-app -v | awk '$$1~/DeepStreamSDK/ {print substr($$2,1,3)}' )
-DS_SRC_PATH := /opt/nvidia/deepstream/deepstream-$(DS_VER)
 
 CFLAGS:= -fvisibility=hidden -Wall -Werror
 debug: CFLAGS+= -g -O0

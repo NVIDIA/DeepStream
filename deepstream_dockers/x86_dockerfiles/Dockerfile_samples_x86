@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvcr.io/nvidia/cuda:13.2.0-runtime-ubuntu24.04
+FROM --platform=linux/amd64 nvcr.io/nvidia/cuda:13.4.3-runtime-ubuntu24.04
 
-ARG TENSORRT_VERSION=10.16.1.11-1+cuda13.2
+ARG TENSORRT_VERSION=11.4.0.106-1+cuda13.4
+ARG CUDNN_VERSION=9.27.0.42-1
+ARG DS_SDK_TARBALL=deepstream_sdk_v9.2.1_x86_64.tbz2
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
-# ARG CUDNN_VERSION
 
 
 ENV DS_VERSION=9.2
@@ -136,34 +137,36 @@ RUN apt-get update && \
        cp /tmp/docker/rsyslog /etc/init.d/ && \
        ls -l /tmp/temp_trt/ && \
        chmod +x /etc/init.d/rsyslog && \
-       dpkg -i /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_amd64.deb && \
-       dpkg -i /tmp/docker/cudnn-local-repo-ubuntu2404-9.20.0_1.0-1_amd64.deb && \
+       wget -nv https://developer.download.nvidia.com/compute/tensorrt/11.4.0/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4_1.0-1_amd64.deb && \
+       wget -nv https://developer.download.nvidia.com/compute/cudnn/9.27.0/local_installers/cudnn-local-repo-ubuntu2404-9.27.0_1.0-1_amd64.deb && \
+       dpkg -i nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4_1.0-1_amd64.deb \
+         cudnn-local-repo-ubuntu2404-9.27.0_1.0-1_amd64.deb && \
        ls -l /tmp/temp_trt/ && \
        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
-       cp /var/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2/nv-tensorrt-local-DC7BC64E-keyring.gpg /usr/share/keyrings/ && \
-       cp /var/cudnn-local-repo-ubuntu2404-9.20.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
+       cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4/nv-tensorrt-local-*-keyring.gpg /usr/share/keyrings/ && \
+       cp /var/cudnn-local-repo-ubuntu2404-9.27.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
        apt-get update && \
        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
        libnvinfer-bin=${TENSORRT_VERSION} \
        libnvinfer-dev=${TENSORRT_VERSION} \
        libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
-       libnvinfer-dispatch10=${TENSORRT_VERSION} \
+       libnvinfer-dispatch11=${TENSORRT_VERSION} \
        libnvinfer-headers-dev=${TENSORRT_VERSION} \
        libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
        libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
        libnvinfer-lean-dev=${TENSORRT_VERSION} \
-       libnvinfer-lean10=${TENSORRT_VERSION} \
+       libnvinfer-lean11=${TENSORRT_VERSION} \
        libnvinfer-plugin-dev=${TENSORRT_VERSION} \
-       libnvinfer-plugin10=${TENSORRT_VERSION} \
+       libnvinfer-plugin11=${TENSORRT_VERSION} \
        libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
        libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
-       libnvinfer-vc-plugin10=${TENSORRT_VERSION} \
-       libnvinfer-win-builder-resource10=${TENSORRT_VERSION} \
-       libnvinfer10=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
+       libnvinfer-win-builder-resource11=${TENSORRT_VERSION} \
+       libnvinfer11=${TENSORRT_VERSION} \
        libnvonnxparsers-dev=${TENSORRT_VERSION} \
-       libnvonnxparsers10=${TENSORRT_VERSION} \
+       libnvonnxparsers11=${TENSORRT_VERSION} \
        python3-libnvinfer-dev=${TENSORRT_VERSION} \
        python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
        python3-libnvinfer-lean=${TENSORRT_VERSION} \
@@ -171,8 +174,10 @@ RUN apt-get update && \
        tensorrt-dev=${TENSORRT_VERSION} \
        tensorrt-libs=${TENSORRT_VERSION} \
        tensorrt=${TENSORRT_VERSION} \
-       libcudnn9-cuda-13 && \
-       tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+       libcudnn9-cuda-13=${CUDNN_VERSION} \
+       libcudnn9-dev-cuda-13=${CUDNN_VERSION} \
+       libcudnn9-headers-cuda-13=${CUDNN_VERSION} && \
+       tar --version && tar -xvf "/tmp/docker/${DS_SDK_TARBALL}" -C / && /opt/nvidia/deepstream/deepstream/install.sh && \
        /tmp/docker/gRPC_installation.sh && \
        cp /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
        cp /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
@@ -182,12 +187,12 @@ RUN apt-get update && \
        ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-encode.so && \
        ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so && \
        cd /tmp && \
-       dpkg --purge nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2 && \
-       dpkg --purge cudnn-local-repo-ubuntu2404-9.20.0 && \
+       dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4 && \
+       dpkg --purge cudnn-local-repo-ubuntu2404-9.27.0 && \
        rm -rf /root/tmp && \
        rm -rf temp_trt && \
        rm -rf /var/lib/apt/lists/* && \
-       apt autoremove ; ldconfig
+       apt autoremove && ldconfig
 
 
 RUN apt-get update && \
@@ -239,7 +244,7 @@ RUN apt-get update && \
 
 
 # workaround deepstream-app --version-all for cudnn
-RUN ln -s /usr/lib/x86_64-linux-gnu/libcudnn.so.9 /usr/lib/x86_64-linux-gnu/libcudnn.so
+RUN ln -sfn /usr/lib/x86_64-linux-gnu/libcudnn.so.9 /usr/lib/x86_64-linux-gnu/libcudnn.so
 
 # workaround for deepstream --version-all cuda driver
 RUN ln -s /usr/local/cuda/lib64/libcudart.so.13  /usr/local/cuda/lib64/libcudart.so

@@ -14,30 +14,35 @@
 # limitations under the License.
 
 
-# Jetson Thor/Orin is SBSA based
+# No public CUDA13.2.2 base is assumed. Supply a JetPack7.2.2-compatible image
+# already provisioned with the exact Jetson stack; do not silently use13.2.1.
+ARG JETSON_RUNTIME_IMAGE
+FROM --platform=linux/arm64 ${JETSON_RUNTIME_IMAGE}
 
-FROM nvcr.io/nvidia/cuda:13.2.1-cudnn-runtime-ubuntu24.04
-
+ARG L4T_RELEASE=r39.2
+ARG DS_SDK_TARBALL=deepstream_sdk_v9.2.1_jetson.tbz2
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
 ENV DS_VERSION=9.2
 
+RUN python3 -c 'import json, sys; assert sys.version_info[:2] == (3, 12), "Jetson requires Python3.12"; assert json.load(open("/usr/local/cuda/version.json"))["cuda"]["version"] == "13.2.2", "Jetson requires CUDA13.2.2"' && \
+    for spec in libnvinfer11=11.4.1.31 libcudnn9-cuda-13=9.20.0.46 libnvvpi4=4.1.6; do \
+        package=${spec%%=*}; expected=${spec#*=}; actual=$(dpkg-query -W -f '${Version}' "$package"); \
+        case "$actual" in "$expected"|"$expected"[-+]*) ;; \
+            *) echo "Jetson requires ${package}=${expected}; found ${actual}" >&2; exit 1 ;; esac; \
+    done
+
 RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
 
-RUN echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" >> /etc/apt/sources.list
+RUN echo "deb https://repo.download.nvidia.com/jetson/common ${L4T_RELEASE} main" >> /etc/apt/sources.list
 
 
 RUN  apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget 
 
 # GStreamer + deepstream dependencies
 RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
-        mkdir -p /lib/firmware ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; mkdir -p /tmp/temp_trt ; ls -ltr /root ;  \
-        cd /tmp/temp_trt && \
-        cp /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_arm64.deb /tmp/temp_trt && \
-        dpkg -i /tmp/temp_trt/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2_1.0-1_arm64.deb && \
-        ls -l /tmp/temp_trt/ && \
-        cp /var/nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2/nv-tensorrt-local-F91007A3-keyring.gpg /usr/share/keyrings/ && \
+        mkdir -p /lib/firmware ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; ls -ltr /root ;  \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         rsyslog git \
@@ -71,15 +76,9 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         librdkafka1 \
         python3-pip \
         gnupg2 \
-        kmod \
-        tensorrt-libs=10.16.1.11-1+cuda13.2 \
-        libnvvpi4 \
-        vpi4-dev && \
+        kmod && \
         cd /tmp && \
-        dpkg --purge nv-tensorrt-local-repo-ubuntu2404-10.16.0-cuda-13.2 && \
-        apt-mark hold tensorrt-libs libnvinfer-dispatch10 libnvinfer-lean10 libnvinfer-plugin10 libnvinfer-vc-plugin10 libnvinfer10 libnvonnxparsers10 && \
         rm -rf /root/tmp && \
-        rm -rf temp_trt && \
         rm -rf /var/lib/apt/lists/* && \
         rm -rf /root/tmp && \       
         apt autoremove
@@ -136,14 +135,19 @@ RUN apt-get update && \
     ldconfig
 
 RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
-        tar --version ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v*_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
+        tar --version ; mkdir -p /root/tmp ; mkdir -p /tmp99 ; ls -ltr /root ; tar -xvf "/tmp/docker/${DS_SDK_TARBALL}" -C / && /opt/nvidia/deepstream/deepstream/install.sh && \
         cp /tmp/docker/rsyslog /etc/init.d/  && \
         chmod +x /etc/init.d/rsyslog && \
         cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
         cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
         cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
         ln -s /usr/lib/aarch64-linux-gnu/nvidia /usr/lib/aarch64-linux-gnu/tegra && \
-        ln -s /usr/src/tensorrt/bin/trtexec /usr/bin/trtexec && \
+        if [ -x /usr/bin/trtexec ]; then :; \
+        elif [ -e /usr/bin/trtexec ] || [ -L /usr/bin/trtexec ]; then \
+            echo 'Optional trtexec path exists but is not executable; leaving it unchanged.' >&2; \
+        elif [ -x /usr/src/tensorrt/bin/trtexec ]; then \
+            ln -s /usr/src/tensorrt/bin/trtexec /usr/bin/trtexec; \
+        else echo 'Optional trtexec CLI is not installed in the supplied runtime image.' >&2; fi && \
         cp /tmp/docker/entrypoint.sh /opt/nvidia/deepstream/deepstream/ && \
         chmod +x /opt/nvidia/deepstream/deepstream/entrypoint.sh && \
         cp  /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
@@ -158,10 +162,10 @@ RUN apt purge -y cuda-compat-13-2 cuda-compat-orin-13-2
 
 
 # Workaround for deepstream-app --version-all
-RUN  ln -s /usr/local/cuda-13.2/lib64/libcufft.so.12.2.0.46 /usr/local/cuda-13.2/lib64/libcufft.so && \
-     ln -s /usr/local/cuda-13.2/lib64/libcublas.so.13.4.0.1 /usr/local/cuda-13.2/lib64/libcublas.so && \
-     ln -s /usr/lib/aarch64-linux-gnu/libcudnn.so.9.20.0 /usr/lib/aarch64-linux-gnu/libcudnn.so && \
-     ln -s /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so.13.2.75 /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so 
+RUN  ln -sfn /usr/local/cuda-13.2/lib64/libcufft.so.12 /usr/local/cuda-13.2/lib64/libcufft.so && \
+     ln -sfn /usr/local/cuda-13.2/lib64/libcublas.so.13 /usr/local/cuda-13.2/lib64/libcublas.so && \
+     ln -sfn /usr/lib/aarch64-linux-gnu/libcudnn.so.9 /usr/lib/aarch64-linux-gnu/libcudnn.so && \
+     ln -sfn /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so.13 /usr/local/cuda-13.2/targets/sbsa-linux/lib/libcudart.so
 
 # for reference apps
 RUN ln -sfn "/opt/nvidia/deepstream/deepstream-9.2/includes" "/opt/nvidia/deepstream/deepstream-9.2/sources/includes"

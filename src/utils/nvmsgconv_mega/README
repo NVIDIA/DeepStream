@@ -39,19 +39,41 @@ Pre-requisites:
 Install using:
   sudo apt-get install libglib2.0-dev libjson-glib-dev uuid-dev libyaml-cpp-dev
 
-If running deepstream on baremetal and not docker:
-  Install other dependencies (Needs sudo or root privilege):
-  A. For X86 Device -
-  1. Triton client SDK into "/opt/tritonclient":
-  mkdir -p /opt/tritonclient/
-  rm -rf /opt/tritonclient/lib /opt/tritonclient/include
-  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
-  unzip -q -o /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -d /tmp/tritonclient-sdk
-  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-  rm -rf /tmp/tritonclient-sdk /tmp/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip
+Triton C++ client SDK:
+  Provision a complete reviewed SDK matching the selected server and platform:
+  - x86 and generic SBSA use the matching architecture of
+    nvcr.io/nvidia/tritonserver:26.10-py3-sdk. Its /workspace/install/include
+    and /workspace/install/lib provide the SDK headers and libraries.
+  - Jetson needs an explicitly qualified JetPack 7.2.2 / TensorRT 11.4.1
+    client SDK matching its server. Do not substitute the stock SBSA SDK
+    merely because both platforms are ARM64, or use an older 26.04 archive.
 
-  2. Protobuf compiler v3.21.12 into "/opt/proto":
+  These component Makefiles read /opt/tritonclient/include and
+  /opt/tritonclient/lib directly. Use the SDK already provisioned there,
+  or supply a complete SDK root to the monorepo dependency installer:
+
+    # Run from the monorepo root; this installs the full source-build dependencies.
+    # Use PLATFORM=aarch64 for Jetson, or PLATFORM=sbsa inside the supported container.
+    sudo env PLATFORM=x86 TRITON_CLIENT_SDK_ROOT=/path/to/sdk/install \
+      bash scripts/install_opensource_deps.sh
+
+  The installer checks include/grpc_client.h and include/common.h plus the
+  client/static dependency libraries, and stages lib/ or lib64/ into the
+  canonical /opt/tritonclient/lib layout. It does not download or pull the
+  SDK image. File checks alone do not qualify release identity or runtime
+  compatibility; preserve the reviewed SDK image digest/provenance.
+  See build/BUILD.md in the monorepo, "Matching Triton client SDK and VPI
+  inputs", for the full provider contract.
+
+  SBSA / DGX Spark builds must run inside the matching DeepStream container,
+  not on bare metal. Ensure its ARM64 protobuf compiler is provisioned;
+  do not use the x86 compiler download below.
+
+For bare-metal x86 / Jetson builds, provision the protobuf compiler if missing
+(needs sudo or root privilege):
+  A. For X86 Device -
+
+  Protobuf compiler v3.21.12 into "/opt/proto":
   mkdir /opt/proto
   PB_REL="https://github.com/protocolbuffers/protobuf/releases";
   curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip
@@ -59,19 +81,8 @@ If running deepstream on baremetal and not docker:
   chmod -R +rx /opt/proto/
 
   B. For Jetson Device -
-  1. Triton client SDK into "/opt/tritonclient" (the exact asset name/version
-    may change between Triton releases — check
-    https://github.com/triton-inference-server/server/releases for the latest
-    aarch64 SDK zip). Example commands :
-  mkdir -p /opt/tritonclient/
-  rm -rf /opt/tritonclient/lib /opt/tritonclient/include
-  wget -q -P /tmp https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
-  unzip -q -o /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -d /tmp/tritonclient-sdk
-  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/lib64   /opt/tritonclient/lib
-  mv /tmp/tritonclient-sdk/tritonserver_sdk/install/include /opt/tritonclient/include
-  rm -rf /tmp/tritonclient-sdk /tmp/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip
 
-  2. Protobuf compiler v3.21.12 into "/opt/proto":
+  Protobuf compiler v3.21.12 into "/opt/proto":
   mkdir /opt/proto
   PB_REL="https://github.com/protocolbuffers/protobuf/releases";
   curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip

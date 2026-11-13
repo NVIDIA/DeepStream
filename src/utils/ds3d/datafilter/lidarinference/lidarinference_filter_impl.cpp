@@ -20,7 +20,6 @@
 
 #include <unistd.h>
 
-#include <google/protobuf/text_format.h>
 #include "infer_proto_utils.h"
 #include "infer_options.h"
 #include "infer_cuda_utils.h"
@@ -395,13 +394,17 @@ LidarInferenceFilter::startImpl(const std::string& content, const std::string& p
            "Configuration file read failed");
     }
 
-    if (!google::protobuf::TextFormat::ParseFromString(prototxt, &_PluginConfig)) {
+    if (!parsePluginControl(prototxt, _PluginConfig)) {
         DS3D_FAILED_RETURN(false, ErrCode::kConfig,
            "Configuration file parsing failed");
     }
 
     //validate
-    std::string contextStr = _PluginConfig.infer_config().DebugString();
+    std::string contextStr;
+    if (!formatInferenceConfig(_PluginConfig.infer_config(), contextStr)) {
+        DS3D_FAILED_RETURN(false, ErrCode::kConfig,
+           "Inference configuration serialization failed");
+    }
     SharedInferContext context;
 
     if (_PluginConfig.infer_config().has_backend()) {

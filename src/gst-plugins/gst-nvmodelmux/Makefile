@@ -27,7 +27,7 @@ SRCS:=gstnvmodelmuxinit.c gstnvmodelmux.c gstnvmodelmux_bin.c gstnvmodelmux_conf
 OBJS:=$(SRCS:.c=.o)
 LIB:=libnvdsgst_modelmux.so
 CFLAGS:=-fPIC -Wall -Werror -Wno-deprecated-declarations -Wmissing-prototypes -Wsign-compare \
-        -DDS_VERSION=\"9.2.0\" -I. -I../../gst-utils/gstnvdscustomhelper \
+        -DDS_VERSION=\"9.2.1\" -I. -I../../gst-utils/gstnvdscustomhelper \
         -I../../gst-utils/gstnvdshelper -I../../utils/nvds_rest_server \
         -I../../apps/common/includes -I../../../includes -I/usr/local/cuda-$(CUDA_VER)/include
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))

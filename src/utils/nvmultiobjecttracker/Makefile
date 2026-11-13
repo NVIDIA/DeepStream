@@ -16,15 +16,15 @@
 # Builds libnvds_nvmultiobjecttracker.so, the low-level multi-object tracker
 # that gst-nvtracker loads through its "ll-lib-file" property.
 #
-#   make CUDA_VER=13.2            build the library into $(OBJ_DIR)
-#   make CUDA_VER=13.2 install    copy it to $(LIB_INSTALL_DIR)
+#   make CUDA_VER=13.4            x86/SBSA; use 13.2 for Jetson
+#   make CUDA_VER=13.4 install    copy it to $(LIB_INSTALL_DIR)
 #   make clean                    remove the build tree
 #
 # Only the seven NvMOT_* entry points listed in EXPORTED_SYMS are visible in
 # the final .so; all other symbols are hidden via a GNU ld version script.
 #
 # Build prerequisites (see build/BUILD.md):
-#   - CUDA toolkit (nvcc, cudart, cufft, cublas) and TensorRT 10.x development files
+#   - CUDA toolkit (nvcc, cudart, cufft, cublas) and matching TensorRT development files
 #   - libeigen3-dev, nlohmann-json3-dev, libyaml-cpp-dev, libmosquitto-dev, libcurl4-openssl-dev
 #   - vpi4-dev, which provides the VPI headers under /opt/nvidia/vpi4/include
 #   - libnvds_inferlogger, libnvds_inferutils, libnvbufsurface, libnvbufsurftransform,
@@ -37,11 +37,12 @@ endif
 
 CXX:= g++
 NVCC:= /usr/local/cuda-$(CUDA_VER)/bin/nvcc
+TARGET_DEVICE = $(shell $(CXX) -dumpmachine | cut -f1 -d -)
 
 NVDS_VERSION:=9.2
 NVDS_VERSION_MAJOR:=9
 NVDS_VERSION_MINOR:=2
-NVDS_VERSION_MICRO:=0
+NVDS_VERSION_MICRO:=1
 
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 VPI_DIR?=/opt/nvidia/vpi4
@@ -50,6 +51,24 @@ OBJ_DIR?=$(CURDIR)/.build
 
 ifeq ($(wildcard $(VPI_DIR)/include/vpi/algo/DCFTracker.h),)
   $(error "VPI headers not found in $(VPI_DIR)/include. Install the vpi4-dev package or set VPI_DIR")
+endif
+# The ARM upgrade baseline is VPI4.1.6, not the native x86 VPI4.1.3 bundle.
+# Inspect authentic target development headers; do not vendor or synthesize them.
+ifeq ($(TARGET_DEVICE),aarch64)
+DEEPSTREAM_VARIANT ?= $(if $(shell test -r /proc/device-tree/model && tr -d '\000' </proc/device-tree/model | grep -F IGX),igx,$(if $(wildcard /etc/nv_tegra_release),tegra,sbsa))
+# IGX is outside this upgrade: retain its existing VPI header policy while
+# keeping the original DCFTracker.h requirement above for every target.
+ifneq ($(DEEPSTREAM_VARIANT),igx)
+ifeq ($(wildcard $(VPI_DIR)/include/vpi/VersionDef.h),)
+  $(error "VPI4.1.6 ARM VersionDef.h missing in $(VPI_DIR)/include; supply matching vendor headers")
+endif
+_tracker_empty :=
+_tracker_space := $(_tracker_empty) $(_tracker_empty)
+_tracker_vpi_version := $(subst $(_tracker_space),.,$(strip $(shell version=$$(printf '%s\n' 'NV_VPI_VERSION_MAJOR NV_VPI_VERSION_MINOR NV_VPI_VERSION_PATCH' | $(CC) -E -P -x c -include "$(VPI_DIR)/include/vpi/VersionDef.h" - 2>/dev/null) && printf '%s\n' "$$version")))
+ifneq ($(_tracker_vpi_version),4.1.6)
+  $(error "ARM tracker requires VPI4.1.6 headers; selected version '$(_tracker_vpi_version)' at $(VPI_DIR)/include")
+endif
+endif
 endif
 
 TARGET_NAME:= libnvds_nvmultiobjecttracker.so
@@ -89,6 +108,7 @@ INC_PATHS:= \
 	include \
 	../../../includes \
 	../nvdsinferutils/include \
+	../nvdsinfer \
 	../nvds_msgapi/mqtt_protocol_adaptor \
 	../nvds_msgapi/common_src \
 	$(VPI_DIR)/include \
@@ -126,7 +146,7 @@ LIBS:= \
 	-L$(VPI_LIB_DIR) \
 	-lnvinfer -lnvinfer_plugin -lnvonnxparser \
 	-lcudart -lcuda -lcufft -lcublas \
-	-lnvds_inferlogger -lnvds_inferutils \
+	-lnvds_infer -lnvds_inferlogger -lnvds_inferutils \
 	-lnvbufsurface -lnvbufsurftransform \
 	-lnvds_mqtt_proto -l:libnvvpi.so.4 \
 	-lyaml-cpp -lcurl -lmosquitto \

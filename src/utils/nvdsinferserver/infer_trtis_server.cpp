@@ -1099,7 +1099,13 @@ NvDsInferStatus TrtISServer::getModelConfig(
     options.ignore_unknown_fields = true;
 
     std::string tmpStr{buffer, byteSize};
-    ::google::protobuf::util::JsonStringToMessage(tmpStr, &config, options);
+    const auto parseStatus =
+        ::google::protobuf::util::JsonStringToMessage(tmpStr, &config, options);
+    if (!parseStatus.ok()) {
+        InferError("Triton: parse model:%s config JSON failed: %s", safeStr(model),
+            parseStatus.ToString().c_str());
+        return NVDSINFER_CONFIG_FAILED;
+    }
 
     return NVDSINFER_SUCCESS;
 }
@@ -1210,6 +1216,7 @@ NvDsTritonServerInit(
     if (!google::protobuf::TextFormat::ParseFromString(
         {configStr, (size_t)configStrLen}, &modelRepo)) {
         InferError("NvDsTritonServerInit: failed to parse TritonModelRepo prototxt");
+        return NVDSINFER_CONFIG_FAILED;
     }
     triton::RepoSettings repoSettings;
     if (!repoSettings.initFrom(modelRepo, {})) {

@@ -70,7 +70,7 @@ static void setRuntimeDim4Pose(TrtModule *trtModule, const std::vector<int>& siz
 
             nvinfer1::Dims lastInputDims = trtModule->m_context->getTensorShape( tensorName );
             lastInputDims.d[0] = sizes.front();
-            trtModule->m_context->setInputShape(tensorName, lastInputDims);
+            trtModule->setInputShape(tensorName, lastInputDims);
         }
     }
 }

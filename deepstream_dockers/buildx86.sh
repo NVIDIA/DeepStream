@@ -15,16 +15,19 @@
 
 #################################################################
 
-# Example script to build x86 docker (currently building the x86 triton docker).
-
-cd x86_dockerfiles
-
-# build x86 triton
-
-sudo docker build --network host --progress=plain --build-arg DS_DIR=/opt/nvidia/deepstream/deepstream-9.2 -t deepstream:9.2.0-triton-local -f Dockerfile_triton_x86 ..
-
-# x86-samples
-
-# sudo docker build --network host --progress=plain -t deepstream:9.2.0-samples-local -f Dockerfile_samples_x86 ..
-
-cd ..
+# Usage: bash buildx86.sh [triton|samples] [additional docker build arguments].
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+image_type=${1:-triton}
+if [[ $# -gt 0 ]]; then shift; fi
+case "$image_type" in
+    triton) recipe=Dockerfile_triton_x86 ;;
+    samples) recipe=Dockerfile_samples_x86 ;;
+    *) echo 'Expected triton or samples.' >&2; exit 1 ;;
+esac
+sdk_tarball=${DS_SDK_TARBALL:-deepstream_sdk_v${NVDS_VERSION:-9.2.1}_x86_64.tbz2}
+[[ -f "x86_dockerfiles/$sdk_tarball" ]] || { echo "Stage the matching SDK tarball: x86_dockerfiles/$sdk_tarball" >&2; exit 1; }
+sudo docker build --platform linux/amd64 --network host --progress=plain \
+    --build-arg "DS_SDK_TARBALL=$sdk_tarball" \
+    -t "deepstream:${NVDS_VERSION:-9.2.1}-${image_type}-local" \
+    -f "x86_dockerfiles/${recipe}" "$@" .

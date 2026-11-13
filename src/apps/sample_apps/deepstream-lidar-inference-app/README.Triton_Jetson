@@ -26,11 +26,14 @@ Go to samples directory and run the following command to set up the Triton Serve
 ```
    $ cd <DS_ROOT>/scripts
    NOTE: <DS_ROOT> is the path where the repo is cloned.
-   $ sudo ./triton_backend_setup.sh
+   $ sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
+       TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
+       ./triton_backend_setup.sh
 ```
 Notes:
-   By default script will download the Triton Server version 2.20.0. For setting
-   up any other version change the package path accordingly.
+   First set both URL variables to reviewed Triton2.74.0 ZIP URLs containing
+   /v2.74.0/, qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1. No default provider
+   is selected; stock SBSA binaries are not a Jetson substitute.
 
 
 ## Triton CAPI deployment

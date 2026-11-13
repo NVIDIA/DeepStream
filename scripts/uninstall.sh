@@ -15,6 +15,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
+
+
+# Remove only this SDK's registered target. Older releases used a different
+# group for the same UCX executable; do not delete that group or its other targets.
+remove_alternative() {
+    local name=$1 target=$2 group info
+    local groups=("$name")
+    if [[ "$name" == deepstream-ucx-test-app ]]; then
+        groups+=(deepstream-ucx-test-app-client)
+    fi
+    for group in "${groups[@]}"; do
+        info=$(LC_ALL=C update-alternatives --query "$group" 2>/dev/null || true)
+        if printf '%s\n' "$info" | grep -Fxq "Alternative: $target"; then
+            update-alternatives --remove "$group" "$target"
+        fi
+    done
+}
+
 TARGET_DEVICE=$(uname -m)
 OS=$(cat /etc/os-release | awk -F= '$1=="ID"{print $2}' | sed 's/"//g')
 
@@ -30,20 +49,20 @@ if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
 fi
 
 # DeepStream version to remove. Override via the first argument, PREV_DS_VER,
-# or NVDS_VERSION; defaults to 9.2.0. Must be MAJOR.MINOR.PATCH.
-#   sudo ./uninstall.sh 9.2.0
-#   sudo PREV_DS_VER=9.2.0 ./uninstall.sh
-#   sudo NVDS_VERSION=9.2.0 ./uninstall.sh
-PREV_DS_VER="${1:-${PREV_DS_VER:-${NVDS_VERSION:-9.2.0}}}"
+# or NVDS_VERSION; defaults to 9.2.1. Must be MAJOR.MINOR.PATCH.
+#   sudo ./uninstall.sh 9.2.1
+#   sudo PREV_DS_VER=9.2.1 ./uninstall.sh
+#   sudo NVDS_VERSION=9.2.1 ./uninstall.sh
+PREV_DS_VER="${1:-${PREV_DS_VER:-${NVDS_VERSION:-9.2.1}}}"
 if [[ -z "${PREV_DS_VER}" ]]; then
-  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.2.0)"
+  echo "PREV_DS_VER not set (usage: $0 [version], e.g. $0 9.2.1)"
   exit 1
 fi
 if [[ ! "$PREV_DS_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid version '$PREV_DS_VER' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid version '$PREV_DS_VER' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
-# Install tree still uses MAJOR.MINOR for now; strip .PATCH so 9.2.0 removes
+# Install tree still uses MAJOR.MINOR for now; strip .PATCH so 9.2.1 removes
 # deepstream-9.2/.
 PREV_DS_VER="${PREV_DS_VER%.*}"
 
@@ -54,65 +73,67 @@ fi
 
 if [[ -n "$TARGET_DEVICE" ]]; then
   if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
-    update-alternatives --remove deepstream-v4l2plugin /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libv4l/plugins/libcuvidv4l2_plugin.so
-    update-alternatives --remove deepstream-v4l2library /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libnvv4l2.so
-    update-alternatives --remove deepstream-v4lconvert /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libnvv4lconvert.so
-    update-alternatives --remove deepstream-appsrc-cuda-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-appsrc-cuda-test
-    update-alternatives --remove deepstream-multigpu-nvlink-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-multigpu-nvlink-test
-    update-alternatives --remove deepstream-ucx-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-ucx-test-app
-    rm -rf $BASE_LIB_DIR/libv4lconvert.so.0.0.99999
-    rm -rf $BASE_LIB_DIR/libv4l2.so.0.0.99999
-    rm -f /etc/ld.so.conf.d/deepstream.conf
+    remove_alternative deepstream-v4l2plugin /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libv4l/plugins/libcuvidv4l2_plugin.so
+    remove_alternative deepstream-v4l2library /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libnvv4l2.so
+    remove_alternative deepstream-v4lconvert /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/libnvv4lconvert.so
+    remove_alternative deepstream-appsrc-cuda-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-appsrc-cuda-test
+    remove_alternative deepstream-multigpu-nvlink-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-multigpu-nvlink-test
+    remove_alternative deepstream-ucx-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-ucx-test-app
   elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
     # deepstream-ipc-test is Jetson-only; not installed on SBSA (both report uname -m as aarch64)
     if [[ -f /etc/nv_tegra_release ]]; then
-      update-alternatives --remove deepstream-ipc-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-ipc-test-app
+      remove_alternative deepstream-ipc-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-ipc-test-app
     fi
   fi
 fi
-update-alternatives --remove deepstream-plugins /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/gst-plugins
-update-alternatives --remove deepstream-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-app
-update-alternatives --remove deepstream-test1-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test1-app
-update-alternatives --remove deepstream-test2-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test2-app
-update-alternatives --remove deepstream-test3-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test3-app
-update-alternatives --remove deepstream-test4-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test4-app
-update-alternatives --remove deepstream-test5-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test5-app
-update-alternatives --remove deepstream-testsr-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-testsr-app
-update-alternatives --remove deepstream-transfer-learning-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-transfer-learning-app
-update-alternatives --remove deepstream-dynamicsrcbin-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-dynamicsrcbin-test
-update-alternatives --remove deepstream-user-metadata-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-user-metadata-app
-update-alternatives --remove deepstream-dewarper-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-dewarper-app
-update-alternatives --remove deepstream-nvof-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nvof-app
-update-alternatives --remove deepstream-image-decode-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-image-decode-app
-update-alternatives --remove deepstream-gst-metadata-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-gst-metadata-app
-update-alternatives --remove deepstream-opencv-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-opencv-test
-update-alternatives --remove deepstream-preprocess-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-preprocess-test
-update-alternatives --remove deepstream-image-meta-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-image-meta-test
-update-alternatives --remove deepstream-appsrc-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-appsrc-test
-update-alternatives --remove deepstream-can-orientation-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-can-orientation-app
-update-alternatives --remove deepstream-nvdsanalytics-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nvdsanalytics-test
-update-alternatives --remove deepstream-3d-action-recognition /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-action-recognition
-update-alternatives --remove deepstream-3d-depth-camera /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-depth-camera
-update-alternatives --remove deepstream-lidar-inference-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-lidar-inference-app
-update-alternatives --remove deepstream-3d-lidar-sensor-fusion /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-lidar-sensor-fusion
-update-alternatives --remove deepstream-nmos-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nmos-app
-update-alternatives --remove deepstream-server-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-server-app
-update-alternatives --remove deepstream-demuxer-static /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-static
-update-alternatives --remove deepstream-demuxer-dynamic /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-dynamic
-update-alternatives --remove deepstream-kitti-overlay /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-kitti-overlay
-update-alternatives --remove service-maker-3d-action-recognition-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-3d-action-recognition-app
-update-alternatives --remove service-maker-appsrc-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-appsrc-test
-update-alternatives --remove service-maker-sr-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-sr-test-app
-update-alternatives --remove service-maker-test1-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test1-app
-update-alternatives --remove service-maker-test2-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test2-app
-update-alternatives --remove service-maker-test3-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test3-app
-update-alternatives --remove service-maker-test4-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test4-app
-update-alternatives --remove service-maker-test5-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test5-app
-update-alternatives --remove ds-launch /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/ds-launch
+remove_alternative deepstream-plugins /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib/gst-plugins
+remove_alternative deepstream-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-app
+remove_alternative deepstream-test1-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test1-app
+remove_alternative deepstream-test2-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test2-app
+remove_alternative deepstream-test3-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test3-app
+remove_alternative deepstream-test4-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test4-app
+remove_alternative deepstream-test5-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-test5-app
+remove_alternative deepstream-testsr-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-testsr-app
+remove_alternative deepstream-transfer-learning-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-transfer-learning-app
+remove_alternative deepstream-dynamicsrcbin-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-dynamicsrcbin-test
+remove_alternative deepstream-user-metadata-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-user-metadata-app
+remove_alternative deepstream-dewarper-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-dewarper-app
+remove_alternative deepstream-nvof-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nvof-app
+remove_alternative deepstream-image-decode-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-image-decode-app
+remove_alternative deepstream-gst-metadata-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-gst-metadata-app
+remove_alternative deepstream-opencv-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-opencv-test
+remove_alternative deepstream-preprocess-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-preprocess-test
+remove_alternative deepstream-image-meta-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-image-meta-test
+remove_alternative deepstream-appsrc-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-appsrc-test
+remove_alternative deepstream-can-orientation-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-can-orientation-app
+remove_alternative deepstream-nvdsanalytics-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nvdsanalytics-test
+remove_alternative deepstream-3d-action-recognition /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-action-recognition
+remove_alternative deepstream-3d-depth-camera /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-depth-camera
+remove_alternative deepstream-lidar-inference-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-lidar-inference-app
+remove_alternative deepstream-3d-lidar-sensor-fusion /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-3d-lidar-sensor-fusion
+remove_alternative deepstream-nmos-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-nmos-app
+remove_alternative deepstream-server-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-server-app
+remove_alternative deepstream-demuxer-static /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-static
+remove_alternative deepstream-demuxer-dynamic /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-demuxer-dynamic
+remove_alternative deepstream-kitti-overlay /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/deepstream-kitti-overlay
+remove_alternative service-maker-3d-action-recognition-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-3d-action-recognition-app
+remove_alternative service-maker-appsrc-test /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-appsrc-test
+remove_alternative service-maker-sr-test-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-sr-test-app
+remove_alternative service-maker-test1-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test1-app
+remove_alternative service-maker-test2-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test2-app
+remove_alternative service-maker-test3-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test3-app
+remove_alternative service-maker-test4-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test4-app
+remove_alternative service-maker-test5-app /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/service-maker-test5-app
+remove_alternative ds-launch /opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/bin/ds-launch
 # Uninstall with python3 -m pip for the same reason install.sh installs with it:
 # a 'pip' resolved from PATH may belong to a different interpreter than the one
 # the wheel was installed for, in which case the uninstall removes nothing and
 # reports the package as absent.
+# Do not remove a loader configuration belonging to another SDK installation.
+if [[ -f /etc/ld.so.conf.d/deepstream.conf ]] &&
+   grep -Fxq "/opt/nvidia/deepstream/deepstream-${PREV_DS_VER}/lib" /etc/ld.so.conf.d/deepstream.conf; then
+    rm -f /etc/ld.so.conf.d/deepstream.conf
+fi
 python3 -m pip uninstall pyservicemaker -y --break-system-packages
 
 # Delete the installed files first, then deregister the Debian packages. Doing

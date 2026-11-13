@@ -190,10 +190,15 @@ InferCudaContext::loadExtraProcessor(
     assert(config.has_extra() && !config.extra().custom_process_funcion().empty());
     assert(!m_ExtraProcessor);
     const std::string customProcessor{config.extra().custom_process_funcion()};
+    std::string configText;
+    if (!formatInferenceConfig(config, configText)) {
+        printError("Failed to serialize inference config for custom processor");
+        return NVDSINFER_CONFIG_FAILED;
+    }
     SharedDllHandle dlhanle = customLib();
     auto extraProcessor = std::make_unique<InferExtraProcessor>();
     CTX_RETURN_NVINFER_ERROR(
-        extraProcessor->initCustomProcessor(dlhanle, customProcessor, config.DebugString()),
+        extraProcessor->initCustomProcessor(dlhanle, customProcessor, configText),
         "loading custom process function: %s failed.", safeStr(customProcessor));
 
     assert(extraProcessor);

@@ -17,22 +17,195 @@ limitations under the License.
 
 # DeepStream — Build & Run Guide
 
+## TensorRT 11 upgrade branch
+
+Source builds and packages in this branch default to **DeepStream 9.2.1**; the
+install directory remains `deepstream-9.2`. Published release-asset pins remain
+independent of this source version. A version bump does not rebuild or relabel
+existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
+
+The x86 and generic-SBSA upgrade candidate follows Triton26.10's core versions:
+CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**. Jetson retains
+JetPack **7.2.2+**, CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
+**9.20.0.46**. ARM uses VPI **4.1.6**; x86 retains VPI **4.1.3**. These are
+declared build targets, not completed build/runtime qualification. IGX's separate
+legacy stack is not upgraded here. See the [official26.10 contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+
+`CUDA_VER` selects the toolkit **family directory** (`13.4` x86/SBSA, `13.2`
+Jetson), not the full release. Install the full matching toolkit separately;
+setting `CUDA_VER=13.4` does not prove that CUDA13.4.3 is installed. Explicit
+environment or command-line `CUDA_VER` overrides are retained. TensorRT selection
+is passed as `TRT_VER`; `CUDNN_VERSION` records the declared baseline only, not a
+package installation or verification result. `pyservicemaker` remains **0.0.1**.
+Explicit `VPI_DIR`, `TORCH_PATH`, `TRT_INCLUDE_DIR`, `TRT_LIB_DIR`,
+`EIGEN_INCLUDE_DIR`, `JSON_INCLUDE_DIR` and `DEEPSTREAM_VARIANT` environment
+overrides are forwarded as individual Make arguments for build and install,
+including when `sudo` filters the invoking environment. ARM builds otherwise
+pass the detected `tegra`, `sbsa` or unchanged legacy `igx` variant explicitly.
+
+Use matching runtime binaries for the selected upgrade stack. Do not combine
+these sources with opaque binaries from an older TensorRT stack merely because
+the SDK version is also 9.2. A source build still needs all development packages
+and component-specific prerequisites documented below.
+
+For an engineering drop retaining **all** supplied SDK runtime binaries, first
+extract the trusted complete SDK package into a private directory (this does not
+install it):
+
+```bash
+mkdir -p /absolute/path/sdk-input
+dpkg-deb -x /absolute/path/deepstream-9.2_9.2.1-1_amd64.deb /absolute/path/sdk-input
+bash build/build.sh --package \
+  --package-from=/absolute/path/sdk-input/opt/nvidia/deepstream/deepstream-9.2 \
+  --package-platform=x86
+```
+
+This route skips downloads, dependency installation, SDK compilation and system
+integration. It packages the supplied runtime plus the selected public sources;
+it does not establish that those binaries were built from those sources. Verify
+the package's build/source identity separately. Do not add proprietary binaries,
+vendor snapshots, internal manifests or build caches to Git.
+
+`--package-platform=jetson` and `--package-platform=sbsa` select ARM packaging;
+they do not perform a cross-build. Runtime inference ELF architecture and
+TensorRT ABI are checked before staging. This is not a complete ABI/runtime audit.
+During local development only, add `--include-untracked-sources` to include new,
+non-ignored files within the source allowlist. Normal packaging remains tracked-only.
+Custom staging directories must be empty or carry this packager's matching
+ownership sidecar. Repository sources, build scripts, runtime inputs and broad
+system directories are never valid disposable staging locations.
+
+The package includes conversion scripts under `samples/modelopt`. Conversion and
+target engine building happen explicitly after installation; see
+[`tools/modelopt/README.md`](../tools/modelopt/README.md). Original ONNX filenames
+remain canonical; preserved originals use the `fp32_` prefix. No ModelOpt venv,
+CUDA toolkit download cache or generated engine is added by these source rules.
+
 ## Prerequisites
 
 ### NVIDIA Compute Stack
 
-Before building from source, the NVIDIA compute stack must be installed on the host. Required versions:
+Before building from source, provision the selected stack on the target or in
+its supported container. Current upgrade targets are:
 
 | Platform | OS | Driver | CUDA | cuDNN | TensorRT |
 |---|---|---|---|---|---|
-| x86 dGPU | Ubuntu 24.04 | 595.58.03+ | 13.2 | 9.20.0.48 | 10.16.x |
-| Jetson (aarch64) | JetPack 7.2.1 | — (bundled) | 13.2 | 9.20.0.48 | 10.16.x |
+| x86 dGPU | Ubuntu 24.04 | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
+| Jetson (aarch64) | JetPack7.2.2+ matching BSP | — (bundled) | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
-| SBSA / DGX Spark | Ubuntu 24.04 | 595.58.03+ | 13.2 | 9.20.0.48 | 10.16.x |
+| SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
-> **Docker users:** NVIDIA provides pre-built DeepStream 9.2 containers on GHCR (`ghcr.io/nvidia/deepstream`) with the full compute stack pre-installed. If using a container, skip this section and proceed directly to the [Build and Install](#build-and-install) section below (after cloning the repo and running `git lfs install`).
+> **Docker users:** use a reviewed image matching the selected upgrade stack and
+> SDK binaries. An older DeepStream9.2 image is not automatically compatible
+> merely because the install directory still ends in `9.2`. Stock Triton26.10 is
+> an x86/SBSA candidate, not a Jetson JP7.2.2/TRT11.4.1 provider. Containers still
+> require a supported host driver/BSP.
+
+### Matching Triton client SDK and VPI inputs
+
+The dependency script no longer downloads the old x8626.03/Jetson26.04 client
+SDKs for this upgrade. For x86/SBSA, preprovision the matching26.10 C++ SDK at
+`/opt/tritonclient`, or supply `TRITON_CLIENT_SDK_ROOT=/path/to/sdk/install` to
+`scripts/install_opensource_deps.sh`. The official26.10 SDK is supplied through
+the `26.10-py3-sdk` container: its `/workspace/install/include` and
+`/workspace/install/lib` are the inputs. No container is pulled by these scripts.
+See the [Triton2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
+Jetson needs an explicitly qualified JP7.2.2/TRT11.4.1-compatible SDK instead;
+do not substitute the stock SBSA SDK simply because both are ARM64.
+
+Provider checks require C++ headers, static client dependencies (including
+`libcares.a`), and `libgrpcclient.so` or `libgrpcclient.a` for the SDK's actual
+`-lgrpcclient` link. A differently named `libgrpcclient_static.a` alone is not
+sufficient. These checks do **not** verify every transitive static library,
+release provenance or runtime compatibility. Preserve the SDK
+image digest/release identity separately. A custom provider is copied into
+`/opt/tritonclient` only when the dependency installer is explicitly run.
+
+With `--skip-deps`, an explicit `TRITON_CLIENT_SDK_ROOT` is used directly for
+linking and runtime registration instead. `TRITON_GRPC_CLIENT` is an explicit
+consumer-root override and takes precedence. The build records the effective
+provider in resume state and passes it through privileged build/install calls;
+changing providers requires a fresh build state. A shared client remains an
+external runtime dependency: creating an SDK tar does not copy `/opt/tritonclient`
+into it. Provision the matching provider on the runtime system or in the image.
+
+For a native Jetson experiment with the public October 2026 providers, the
+Triton 2.74.0 release also supplies an AArch64 CUDA 13.2 client SDK archive.
+Use that client SDK's own headers and complete `lib64/` directory together.
+It is distinct from the Triton server container and does not establish server
+or DeepStream inference qualification on JetPack. Modern SDK headers can require
+C++20 and a different Abseil archive set; the inference-server, message converter,
+Kafka, metadata serializer and Lidar filter Makefiles select those requirements
+from the chosen SDK rather than assuming the older layout.
+The SDK's protobuf headers must be paired with a matching `protoc` provider;
+set `PROTOC_ROOT` to its installation root before dependency preparation.
+The dependency installer reuses a matching compiler already in `/opt/proto`.
+For a modern SDK without a matching installed compiler, it requires an explicit
+`PROTOC_ROOT` rather than installing the legacy 21.12 compiler. The legacy
+download remains available for protobuf 3.21.12 headers.
+For the October 2.74.0 SDK, use protoc 33.5 with its protobuf 6.33.5 runtime.
+The message Makefiles regenerate their protobuf sources with `/opt/proto/bin/protoc`
+(or `PROTOBUF_BIN_DIR`) and link the SDK's matching static runtime and support
+archives. Do not compile those generated sources against the system protobuf
+headers.
+
+Both x86 and ARM protobuf consumers share `includes/nvds_protobuf.mk`. It selects
+one complete SDK library directory and derives the compiler standard from the
+protobuf version and Abseil configuration. Protobuf 6.30 and newer require at
+least C++17; providers using Abseil's standard ordering types require C++20.
+Each component records the selected provider/compiler and platform build flags
+in an ignored `.build/` stamp and regenerates its protobuf sources when that
+selection changes. This also refreshes checked-in generated code on a fresh
+checkout and when switching
+between legacy and modern SDKs, while unchanged selections preserve timestamps.
+
+Public PyTorch 2.15.0+cu132 supplies AArch64 CUDA LibTorch with C++ ABI1 and a
+C++20 requirement. Sparse4D detects the minimum standard from its
+`TorchConfig.cmake`; older providers retain the C++17 fallback. This wheel's
+private cuDNN dependency is 9.26.0.51, which differs from the system JetPack
+baseline above. Keep the wheel environment isolated, record the actual selected
+`CUDNN_VERSION` and loaded library paths, and run native C++ and GPU checks
+before accepting it for a build. These provider smoke tests do not replace
+fresh source compilation, packaging, or full pipeline validation.
+
+An explicit `TORCH_PATH` is also preserved through dependency preparation: the
+Sparse4D helper checks its CUDA-library layout, ABI1 evidence and native ELF
+architecture before any APT operation, and does not replace it or install another
+Torch wheel. Empty, missing, CPU-only, ABI0 or unknown providers fail explicitly.
+These checks do not establish vendor provenance or qualify the runtime stack.
+When `TORCH_PATH` is unset, the existing default PyTorch installation is retained.
+
+ARM must already have genuine matching **VPI4.1.6** development headers at
+`/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
+adding an x86 repository or guessing a vendor download. Provision the target
+vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
+The x86 installer keeps the **4.1.3** package family; if that version is absent
+from the configured repository, supply the reviewed vendor package explicitly.
+
+### Installation integration and existing installations
+
+Installation preflights required targets and alternative-link ownership before
+making changes. Missing optional sample applications are skipped; a conflicting
+regular executable or unmanaged symlink produces an actionable error instead
+of silently retaining an older app. Existing manual alternatives selections are
+preserved with a notice. The known legacy UCX group is reused when it already
+owns the link; uninstall removes only the selected SDK's registration.
+
+For a version mismatch, inspect the canonical executable directly:
+
+```bash
+/opt/nvidia/deepstream/deepstream-9.2/bin/deepstream-app --version-all
+```
+
+Review package ownership before migrating an old `/usr/bin/deepstream-app`;
+the installer does not force-overwrite it or change global CUDA selection.
+The reported CUDA runtime is queried from the selected library, not inferred
+from `CUDA_VER`. A matching compiler does not prove matching runtime selection.
+ARM installation retains packaged SBSA media libraries and links missing media
+only to existing platform providers; Jetson-only IPC registration is gated by
+the Jetson release marker. These checks do not qualify a BSP or Triton provider.
 
 ---
 
@@ -80,7 +253,10 @@ the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) i
    sudo apt install gnupg software-properties-common
    sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
    sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
-   sudo apt update && sudo apt install vpi4-dev
+   sudo apt update
+   # Select the reviewed4.1.3 package revision from this repository.
+   apt-cache madison vpi4-dev
+   sudo apt install 'vpi4-dev=<reviewed-4.1.3-package-revision>'
    ```
    The headers install to `/opt/nvidia/vpi4/include`. Override the location with
    `VPI_DIR=<path>` when running `make` in `src/utils/nvmultiobjecttracker`.
@@ -119,7 +295,9 @@ the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) i
 SBSA and DGX Spark share the same code path. **DeepStream bare-metal installation
 is not supported on SBSA.** There is no standalone DS tar/deb package for this
 platform. Build and validation must be done **inside the NVIDIA SBSA Docker
-container**, which ships with DeepStream pre-installed.
+container**, which ships with the matching DeepStream runtime pre-installed.
+The build/dependency drivers reject SBSA bare-metal installation. This does not
+prevent the offline `--package-from` assembly of an explicitly supplied runtime.
 
 When `bash build/build.sh` is run inside the SBSA container, the `artifacts`
 stage is skipped automatically (no SBSA artifacts are shipped in this repository).
@@ -190,7 +368,43 @@ Run this script once, **after** installing the system dependencies.
 > default these downloaded assets are **deleted once the build succeeds**; pass
 > `--keep-assets` to retain them.
 
+For a source build with matching proprietary libraries and sample-data packages
+already installed, prepare the build layout without reinstalling release assets:
+
+```bash
+sudo env NVDS_VERSION=9.2.1 bash scripts/install_artifacts.sh --setup-only
+bash build/build.sh --skip-artifacts --package
+```
+
+`--setup-only` creates the source-build directories and symlinks, prepares sample
+aliases and runs `ldconfig`. The caller must install matching inputs first; this
+mode does not download, install or extract artifact packages, and does not mark
+those skipped installation stages complete. Without this option, the installer
+continues to install both proprietary libraries and sample data normally.
+
 > **Note for Jetson Orin users:** External storage integration is required to support the build and execution of DeepStream on the Jetson Orin platform. The downloaded artifacts may exhaust internal storage and cause `No space left on device` errors without it.
+
+Dependency build workspaces and package staging/output can use external storage
+without moving the checkout. After provisioning the matching runtime inputs and
+development providers, select writable locations before the source build:
+
+```bash
+mkdir -p "/path/on/external-disk/deps" "/path/on/external-disk/packages"
+export DS_DEPS_WORK_ROOT="/path/on/external-disk/deps"
+export DS_PACKAGE_OUTPUT_DIR="/path/on/external-disk/packages"
+export DS_PACKAGE_STAGE_DIR="/path/on/external-disk/package-stage"
+bash build/build.sh --skip-artifacts --package
+```
+
+`DS_DEPS_WORK_ROOT` must be an existing writable, searchable directory; dependency
+builds create a private `ds-deps-build.*` child there. `DS_PACKAGE_OUTPUT_DIR` and
+`DS_PACKAGE_STAGE_DIR` are forwarded to the packager as `--output-dir` and
+`--stage-dir`, including paths containing spaces. Choose a new or empty staging
+directory, or one with the packager's matching ownership sidecar; the existing
+staging ownership and overlap checks still apply. Defaults remain `/tmp`,
+`build/`, and `build/.pkg-stage`, respectively. Explicit selections are recorded
+in the build-state fingerprint, so keep them consistent when resuming a build.
+These settings do not relocate source objects or the installed SDK under `/opt`.
 
 `build/build.sh` auto-detects the host platform and runs the following stages in order:
 
@@ -205,6 +419,18 @@ Additional behavior:
 - On SBSA / DGX Spark: passes `AARCH64_IS_SBSA=1` to all Makefiles (both `aarch64` and `sbsa` report `uname -m` as `aarch64`; SBSA is identified by the absence of `/etc/nv_tegra_release`); the artifacts stage is skipped automatically
 - Prompts for `sudo` only when a step must install packages or write to system paths
 - Tracks completed stages in `build/.stage-state` (build stages), `build/.stage-state.deps` (dependency sub-stages), and `build/.stage-state.artifacts` (artifact sub-stages) so builds can be resumed after interruption
+
+The inference Makefiles translate `AARCH64_IS_SBSA=1` into a compiler definition
+so the server-ARM gRPC CUDA shared-memory implementation is available. Using it
+still requires `enable_cuda_buffer_sharing: true` in the Triton gRPC configuration;
+the default host-copy behavior is retained when that option is disabled. For
+standalone ARM component builds, `DEEPSTREAM_VARIANT=sbsa` selects SBSA, while
+`tegra`, `jetson` and `igx` retain their existing behavior. An explicit
+`AARCH64_IS_SBSA=0|1` overrides detection. Without either selection, the Makefiles
+detect legacy IGX from the device model, Jetson from `/etc/nv_tegra_release`, and
+otherwise select SBSA. Existing ARM surface compatibility flags are retained.
+Changing platform or the explicit SBSA flag also invalidates the component's
+provider stamp so the previous variant's objects are rebuilt.
 
 From the repo root:
 
@@ -252,7 +478,7 @@ bash build/build.sh --help
 | `--deepstream-libraries-wheel[=DIR]` | Build only the DeepStream Libraries wheel. Output defaults to `artifacts/`; a relative `DIR` is resolved from the repository root. |
 | `--deepstream-libraries-wheel-version=VERSION` | Build the DeepStream Libraries wheel at `VERSION` (default: `1.4`). |
 
-Environment variables may also be passed on the command line: `CUDA_VER=13.2`, `NVDS_VERSION=9.2.0`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
+Environment variables may also be passed on the command line: `CUDA_VER=13.4`, `NVDS_VERSION=9.2.1`, `CMAKE_BIN=/usr/bin/cmake`. To switch to tarball install: `INSTALL_METHOD=tar`.
 
 ### Examples
 
@@ -300,19 +526,56 @@ bash build/build.sh --deepstream-libraries-wheel=artifacts
 bash build/build.sh --deepstream-libraries-wheel-version=1.4
 ```
 
-Default CUDA version is `13.2` (`13.0` for IGX Thor systems). Set `CUDA_VER` accordingly:
+Default toolkit families are `13.4` for x86/SBSA, `13.2` for Jetson and unchanged
+`13.0` for IGX Thor. Set `CUDA_VER` explicitly when selecting another supported
+toolkit family; environment and CLI overrides are not overwritten:
 
 ```bash
-CUDA_VER=13.2 bash build/build.sh
+CUDA_VER=13.4 bash build/build.sh
 ```
 
-To override the DeepStream version (default: `9.2.0`, must be `MAJOR.MINOR.PATCH`;
+Offline `--package-from --package-platform=jetson|sbsa|x86|igx` uses the selected
+package target's defaults, not the packaging host's defaults. It still bypasses
+dependency installation, compilation, stage state and system integration.
+The legacy `igx` target retains CUDA 13.0 and requires an explicit full TensorRT10
+`TRT_VER` for offline packaging. Native IGX packaging can instead read the selected
+`NvInferVersion.h` (`TRT_INCLUDE_DIR`, default `/usr/include/aarch64-linux-gnu`;
+preprocessed with `CC`, default `cc`). Its inference runtime must be ARM64/TRT10;
+the other three targets still require TRT11. The ELF check does not prove the
+declared full TensorRT patch/build provenance. IGX tarballs use the `_igx` suffix,
+not `_jetson`; the existing ARM reduced OCR/Sparse4D payload default is unchanged.
+The packaged IGX Triton helper also requires an explicit matching server/client
+archive pair qualified separately for the legacy IGX stack; it guesses no URL
+and does not establish compatibility merely from matching release numbers.
+
+Supply materialized runtime directories (`bin`, `lib`, `samples`, `service-maker`
+and optional `sources/sparse4d`). Top-level directory aliases and nested directory
+aliases outside `samples` are rejected before an existing stage is changed.
+Within `samples`, relative directory aliases such as the Triton model-repository
+links are supported when their targets stay inside `samples`. Absolute aliases,
+paths escaping and re-entering `samples`, and cyclic directory graphs are
+rejected. All sample links must resolve; dangling links and resolution loops
+fail closed. Accepted directory aliases are normalized only in staging so that
+overlays and pruning cannot follow them into the input installation. The input
+SDK is not rewritten. A symlink alias for the `--package-from` root itself is
+resolved normally; ordinary library/file links are otherwise preserved. If a
+source overlay replaces a file symlink, it replaces the staged entry without
+writing through to the original target.
+
+The existing `build/.stage-state` now records platform, CUDA family, declared
+TensorRT/cuDNN versions, SDK version and explicitly supplied provider paths.
+It records selections, not hashes of provider contents. `--resume` rejects old state without
+this identity or state from another stack instead of silently skipping rebuilds.
+Clean old component objects explicitly before a stack change, then run without
+`--resume`; recording new stage identity does not itself rebuild stale objects.
+
+To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
 the install tree uses the truncated `MAJOR.MINOR` form). The GitHub Release
 proprietary-libs / sample-data assets are always fetched from the `v9.2.0`
 release (hardcoded, not derived from `NVDS_VERSION`):
 
 ```bash
-NVDS_VERSION=9.2.0 bash build/build.sh
+NVDS_VERSION=9.2.1 bash build/build.sh
 ```
 
 If a user-local `cmake` wrapper shadows the system CMake, either remove it from `PATH` or point the build script at a known-good binary:
@@ -351,13 +614,13 @@ rm -rf ~/.cache/gstreamer-1.0/
 To remove a DeepStream installation from `/opt`:
 
 ```bash
-# Remove DeepStream 9.2 (default version 9.2.0 → install tree deepstream-9.2/)
+# Remove DeepStream 9.2 (default version 9.2.1 → install tree deepstream-9.2/)
 sudo bash scripts/uninstall.sh
 
 # Remove a specific version (MAJOR.MINOR.PATCH)
-sudo bash scripts/uninstall.sh 9.2.0
+sudo bash scripts/uninstall.sh 9.2.1
 # or equivalently:
-sudo PREV_DS_VER=9.2.0 bash scripts/uninstall.sh
+sudo PREV_DS_VER=9.2.1 bash scripts/uninstall.sh
 ```
 
 `uninstall.sh` removes binaries, libs, samples, and service-maker files from
@@ -413,7 +676,7 @@ automatically at the very end, but **only** after a full build succeeds (it is
 skipped for `--only=` scoped builds and never runs if any stage failed):
 
 ```bash
-# Full build, then emit both .deb and .tar.gz into build/
+# Full build, then emit both .deb and .tbz2 into build/
 bash build/build.sh --package
 
 # Full build, then emit only the Debian package
@@ -453,9 +716,18 @@ bash build/package.sh --help
 | `--output-dir=PATH` | Where to write the `.deb` / `.tar.gz` (default: `build/`) |
 | `--stage-dir=PATH` | Scratch staging directory (default: `build/.pkg-stage`) |
 | `--keep-stage` | Do not delete the staging directory on exit (useful for inspection) |
+| `--runtime-root=PATH` | Complete extracted SDK directory instead of the installed `/opt` tree |
+| `--platform=x86\|jetson\|sbsa\|igx` | Select platform-specific dependencies, source filters and tarball name |
+| `--include-untracked-sources` | Local validation only: include non-ignored new source files |
 
-Environment overrides: `NVDS_VERSION` (default `9.2.0`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
+Environment overrides: `NVDS_VERSION` (default `9.2.1`, must be `MAJOR.MINOR.PATCH`) and `PKG_VERSION`
 (default: same as `NVDS_VERSION`).
+
+Source filters use the selected platform rather than CPU architecture alone.
+SBSA retains `deepstream-appsrc-cuda-test` and excludes Jetson IPC sample and
+metadata sources. x86, Jetson and legacy IGX retain their respective build-driver
+selections. These filters do not replace or prune the supplied runtime binaries;
+the runtime input must already match the selected platform.
 
 ### Output
 
@@ -463,7 +735,7 @@ Packages are written to the output directory (default `build/`) and named:
 
 ```text
 deepstream-<NVDS_VERSION>_<PKG_VERSION>-<revision>_<arch>.deb
-deepstream-<NVDS_VERSION>_<PKG_VERSION>-<revision>_<arch>.tar.gz
+deepstream_sdk_v<full-version>_<x86_64|jetson|sbsa>.tbz2
 ```
 
 The generated `.deb` can then be installed on a target machine with:
@@ -471,3 +743,131 @@ The generated `.deb` can then be installed on a target machine with:
 ```bash
 sudo apt install ./deepstream-<NVDS_VERSION>_<PKG_VERSION>-1_<arch>.deb
 ```
+
+## Run the PR validation helper
+
+`build/validate_pr.py` runs the existing checks and saves each command, exit code,
+duration and log, plus `summary.json` and `junit.xml`. It records Git HEAD,
+working-tree changes and submodules. Local uncommitted changes are labelled;
+they are not validation of the pushed PR. It never clones/switches branches,
+cleans files, installs prerequisites automatically, pushes or merges.
+
+Start with CPU-only checks from the repository root:
+
+```bash
+python3.12 build/validate_pr.py
+```
+
+These execute shell syntax checks and the existing `build/test_*.py` and
+`tools/modelopt/test_*.py` unit tests. Use an existing Python environment with
+`numpy` and `onnx` via `--test-python /path/to/venv/bin/python` if needed. This
+keeps CPU test dependencies separate from `--python`, the SDK runtime Python.
+Packaging
+fixtures also need `cc`, `git`, `readelf`, `rsync`, `dpkg-deb`, `tar` and `bzip2`.
+Missing dependencies or skipped tests are not a complete pass. No GPU, dependency
+installation or SDK installation is attempted by the default mode.
+
+Preview the x86 sequence without executing it:
+
+```bash
+python3.12 build/validate_pr.py --stage full --headless --dry-run
+```
+
+On a **designated x86 test environment** with the matching complete SDK runtime,
+compute stack and development inputs already provisioned:
+
+```bash
+# Non-root builds require cached sudo credentials before the detached commands.
+sudo -v
+python3.12 build/validate_pr.py --stage full --headless --allow-system-changes
+```
+
+The opt-in is significant: source/dependency builds can run sudo, APT and pip,
+install into `/opt`, and update the test environment. Model setup can download
+its isolated tool environment and rewrite sample models/configurations. The
+runner extracts the freshly built SDK tarball into a private, user-owned
+`runtime-sdk` beneath its report directory. Model conversion, locks, engines,
+sample configuration updates and the isolated tool cache use that workspace;
+the models/runtime stages do not change `/opt` ownership, the installed models,
+system Python or the canonical SDK symlink. Do not run the whole runner as root.
+The runner itself does not repair missing providers or change drivers/BSP.
+
+`full` runs CPU checks, the real source build/package with `--skip-artifacts`,
+explicit platform pins and no `--resume`, workspace ModelOpt setup, then two
+source4 pipeline runs. It rejects old source objects rather than deleting them.
+Default public artifact downloads remain pinned to 9.2.0, so the matching
+9.2.1 runtime must be provisioned beforehand. This does **not** use
+`--package-from` as a substitute for compiling the PR.
+
+Individual stages are available with `--stage build`, `models`, or `runtime` and
+the same explicit opt-in. To retry after a successful build without compiling
+again:
+
+```bash
+python3.12 build/validate_pr.py --stage models --allow-system-changes
+# Use the runtime-sdk path printed above and recorded in runtime-workspace.json:
+python3.12 build/validate_pr.py --stage runtime --headless \
+  --runtime-workspace /absolute/path/to/previous-report/runtime-sdk \
+  --allow-system-changes
+```
+
+`models` defaults to this platform's tarball in `build/`; `--runtime-package`
+can explicitly select another matching tarball for this standalone stage. `full`
+always uses its own freshly built artifact. Extraction does not execute install
+scripts. Unsafe archive paths, external links and mismatched packaged ModelOpt
+helpers fail closed. The manifest records the package hash, helper identities,
+relocated workspace files and model-preparation status. Runtime requires the
+same successfully prepared workspace; it does not silently recreate an SDK and
+lose its engines. The private workspace/cache is retained for inspection and
+retry, not automatically deleted. A partial model setup is not a completed pass.
+
+Runtime checks assert SDK 9.2.1, inspect selected plugin and linked DS-library
+paths, import Service Maker 0.0.1 from the packaged wheel privately (no pip
+install), verify its Python/loaded DS-library providers, and require successful application completion,
+EOS and positive FPS from all four sources. `--headless` uses a unique temporary
+configuration beside the workspace source4 config to preserve relative paths;
+workspace-only SDK path relocation selects its own tracker library. Only sink0
+is changed to a clocked fakesink by the headless option. The source installation
+is not modified and
+the owned copy is removed afterward. Two runs are not automatically cold/warm
+benchmarks; engine-cache snapshots are recorded without deleting engines.
+`--service-maker-tests` also runs owned copies of the existing pytest inference
+tests, relocating only their SDK paths and selecting the packaged Python module
+(requires pytest and additional GPU time). Import alone does not qualify Service Maker.
+
+The aggregate `full` suite is x86-only because some existing CPU fixtures are
+x86-specific. Select the individual native build/models/runtime stages on
+Jetson or SBSA, using their actual matching providers. A platform selector is
+not a cross-build or qualification of another platform. The helper checks
+Debian compute-package identities; a tar-only compute installation needs
+separate verification rather than bypassing this check.
+
+For optional **x86 Docker assembly**, first produce the matching SDK tarball and
+provision the three reviewed GStreamer files under `CONTENT/x86/gst` as described
+in `deepstream_dockers/README.md`:
+
+```bash
+python3.12 build/validate_pr.py --stage docker \
+  --gst-input-root /absolute/path/to/reviewed/CONTENT \
+  --allow-system-changes
+```
+
+This stages inputs and invokes the existing setup/build scripts. Different
+existing context files are not overwritten. It can pull images and install
+packages inside the Docker build; it does not run or publish the final image.
+Use `--docker-kind samples` for the samples recipe. ARM Docker providers are
+not automated by this helper.
+
+Results default to a unique private directory under
+`~/deepstream-validation-results/`; `--output-dir` selects another parent outside
+the repository. Logs are retained on failure or interruption. Long commands have
+timeouts; termination is limited to their process group, and privileged children
+may need operator inspection. No unrelated process or Docker image is cleaned up.
+For an exact submitted revision, use `--expected-commit FULL_SHA --require-clean`.
+Review logs before attaching them to a public PR.
+
+Exit codes: **0** requested checks passed (or explicitly labelled dry run),
+**1** test failure, **2** unavailable/incomplete validation, **130** interrupted.
+A `PASS` covers only requested checks. Fresh installation in a second matching
+environment, final-image inference, output accuracy, performance acceptance,
+stress and other platforms remain separate gates before release qualification.

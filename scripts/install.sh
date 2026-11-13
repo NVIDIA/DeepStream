@@ -15,11 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). Install tree still
+set -e
+
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). Install tree still
 # uses MAJOR.MINOR for now (e.g. deepstream-9.2/); strip the patch for paths.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 # update-alternatives priority: MAJOR*10000 + MINOR*100 + PATCH
@@ -30,112 +32,262 @@ NVDS_MINOR=${NVDS_VERSION_REST%%.*}
 NVDS_PATCH=${NVDS_VERSION##*.}
 NVDS_PRIORITY=$((NVDS_MAJOR * 10000 + NVDS_MINOR * 100 + NVDS_PATCH))
 NVDS_VERSION="${NVDS_VERSION%.*}"
+DS_ROOT="/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
+alt_rank=$NVDS_PRIORITY
+
+# Inspect every registration before changing system paths. update-alternatives can
+# return success while refusing to replace a regular executable, so verify links too.
+die() { echo "ERROR: $*" >&2; exit 1; }
+alt_links=()
+alt_names=()
+alt_targets=()
+alt_manual_values=()
+provider_links=()
+provider_targets=()
+
+query_alternative() {
+    LC_ALL=C update-alternatives --query "$1" 2>/dev/null || true
+}
+
+queue_alternative() {
+    local link=$1 name=$2 target=$3 required=${4:-optional}
+    local info legacy_info registered_link current_link owner status value
+    if [[ ! -e "$target" ]]; then
+        [[ "$required" != required ]] || die "Required SDK target is missing: $target"
+        echo "Skipping optional target not built for this platform: $target"
+        return
+    fi
+    if [[ "$target" == "$DS_ROOT/bin/"* && ! -x "$target" ]]; then
+        die "SDK executable is not executable: $target"
+    fi
+
+    info=$(query_alternative "$name")
+    if [[ "$name" == deepstream-ucx-test-app ]]; then
+        legacy_info=$(query_alternative deepstream-ucx-test-app-client)
+        registered_link=$(printf '%s\n' "$legacy_info" | sed -n 's/^Link: //p')
+        if [[ "$registered_link" == "$link" ]]; then
+            [[ -z "$info" ]] || die "Both UCX alternative groups exist; review their ownership before installation."
+            name=deepstream-ucx-test-app-client
+            info=$legacy_info
+            echo "Using existing UCX alternative group: $name"
+        fi
+    fi
+    if [[ -e "$link" && ! -L "$link" ]]; then
+        owner=$(dpkg-query -S "$link" 2>/dev/null || true)
+        die "$link is a regular file, not a managed alternative${owner:+ ($owner)}. Review its owner and migrate it explicitly; no overwrite was attempted. Inspect the new SDK with $DS_ROOT/bin/deepstream-app --version-all."
+    fi
+    registered_link=$(printf '%s\n' "$info" | sed -n 's/^Link: //p')
+    [[ -z "$info" || "$registered_link" == "$link" ]] ||
+        die "Alternative $name is registered for another link: $registered_link"
+    if [[ -L "$link" ]]; then
+        current_link=$(readlink "$link")
+        [[ "$current_link" == "/etc/alternatives/$name" ]] ||
+            die "$link is an unmanaged/conflicting symlink to $current_link; review its ownership before installation."
+    fi
+    status=$(printf '%s\n' "$info" | sed -n 's/^Status: //p')
+    value=$(printf '%s\n' "$info" | sed -n 's/^Value: //p')
+    if [[ "$status" == manual && "$value" != "$target" ]]; then
+        [[ -e "$value" ]] || die "Manual alternative $name points to a missing target: $value"
+        echo "Preserving manual selection for $name: $value (new SDK target: $target)"
+    fi
+    alt_links+=("$link")
+    alt_names+=("$name")
+    alt_targets+=("$target")
+    if [[ "$status" == manual ]]; then
+        alt_manual_values+=("$value")
+    else
+        alt_manual_values+=("")
+    fi
+}
+
+queue_app() {
+    queue_alternative "/usr/bin/$1" "$1" "$DS_ROOT/bin/$1" "${2:-optional}"
+}
+
+queue_media_provider() {
+    local lib=$1 required=${2:-required} source=
+    # SBSA packages may contain real, BSP-qualified media libraries. Never
+    # replace those with a guessed nvidia/tegra link (or with a dangling link).
+    [[ ! -f "$DS_ROOT/lib/$lib" ]] || return 0
+    if [[ -n "$NVIDIA_LIB_DIR" && -f "$NVIDIA_LIB_DIR/$lib" ]]; then
+        source="$NVIDIA_LIB_DIR/$lib"
+    else
+        [[ "$required" != required ]] || die "Missing ARM media provider for $lib: neither $DS_ROOT/lib nor the platform provider contains it."
+        echo "Skipping unavailable optional ARM media provider: $lib"
+        return
+    fi
+    [[ ! -e "$DS_ROOT/lib/$lib" || -L "$DS_ROOT/lib/$lib" ]] ||
+        die "Refusing to replace a non-library entry: $DS_ROOT/lib/$lib"
+    provider_links+=("$DS_ROOT/lib/$lib")
+    provider_targets+=("$source")
+}
+
+apply_alternatives() {
+    local i info value best status actual
+    for ((i=0; i<${#provider_links[@]}; i++)); do
+        ln -sfn "${provider_targets[i]}" "${provider_links[i]}"
+    done
+    for ((i=0; i<${#alt_links[@]}; i++)); do
+        mkdir -p "$(dirname "${alt_links[i]}")"
+        update-alternatives --install "${alt_links[i]}" "${alt_names[i]}" "${alt_targets[i]}" "$alt_rank"
+        info=$(query_alternative "${alt_names[i]}")
+        value=$(printf '%s\n' "$info" | sed -n 's/^Value: //p')
+        best=$(printf '%s\n' "$info" | sed -n 's/^Best: //p')
+        status=$(printf '%s\n' "$info" | sed -n 's/^Status: //p')
+        [[ -n "$value" && -e "$value" && -L "${alt_links[i]}" ]] ||
+            die "Alternative ${alt_names[i]} did not create a usable link."
+        [[ "$(readlink "${alt_links[i]}")" == "/etc/alternatives/${alt_names[i]}" ]] ||
+            die "Alternative ${alt_names[i]} did not manage ${alt_links[i]}."
+        actual=$(readlink -f "${alt_links[i]}")
+        [[ "$actual" == "$(readlink -f "$value")" ]] ||
+            die "Alternative ${alt_names[i]} link does not resolve to its selected target."
+        if [[ -n "${alt_manual_values[i]}" ]]; then
+            [[ "$status" == manual && "$value" == "${alt_manual_values[i]}" ]] ||
+                die "Alternative ${alt_names[i]} unexpectedly changed a manual selection."
+        elif [[ "$status" != auto || -z "$best" || "$value" != "$best" ]]; then
+            die "Alternative ${alt_names[i]} does not select its highest-priority target."
+        fi
+        if [[ "$value" != "${alt_targets[i]}" ]]; then
+            echo "NOTICE: ${alt_links[i]} selects $value; use ${alt_targets[i]} to run this SDK explicitly."
+        fi
+    done
+}
+
+write_loader_config() {
+    local root=${TRITON_CLIENT_SDK_ROOT:-/opt/tritonclient} dir lib provider=
+    # Match the source linker's complete client SDK selection. A partial lib/
+    # must not shadow the complete provider selected from lib64/.
+    for dir in "$root/lib" "$root/lib64"; do
+        if [[ -r "$dir/libprotobuf.a" && -r "$dir/libcares.a" &&
+              ( -r "$dir/libgrpcclient.so" ||
+                ( -r "$dir/libgrpcclient.a" && -r "$dir/libgrpcclient_static.a" &&
+                  -r "$dir/libgrpc++.a" ) ) ]]; then
+            provider=$dir
+            break
+        fi
+    done
+    # Compact Docker runtime providers contain shared clients only. Keep that
+    # supported, but select a single directory rather than mixing providers.
+    if [[ -z "$provider" ]]; then
+        for dir in "$root/lib" "$root/lib64"; do
+            for lib in "$dir"/libgrpcclient.so* "$dir"/libhttpclient.so*; do
+                if [[ -f "$lib" ]]; then
+                    provider=$dir
+                    break 2
+                fi
+            done
+        done
+    fi
+    {
+        printf '%s\n' "$DS_ROOT/lib" "$DS_ROOT/lib/gst-plugins"
+        # Static-client GVS packages and staged Docker installs need no shared
+        # client provider here. Register actual shared-provider directories only.
+        if [[ -n "$provider" ]]; then
+            for lib in "$provider"/libgrpcclient.so* "$provider"/libhttpclient.so*; do
+                if [[ -f "$lib" ]]; then
+                    printf '%s\n' "$provider"
+                    break
+                fi
+            done
+        fi
+    } > /etc/ld.so.conf.d/deepstream.conf
+}
+
+command -v update-alternatives >/dev/null || die "update-alternatives is required."
+command -v ldconfig >/dev/null || die "ldconfig is required."
+NVIDIA_LIB_DIR=
 TARGET_DEVICE=$(uname -m)
-OS=$(cat /etc/os-release | awk -F= '$1=="ID"{print $2}' | sed 's/"//g')
-
-if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
-    if [[ "${OS}" = "rhel" ]]; then
-        mkdir -p /usr/lib/x86_64-linux-gnu/libv4l/plugins/
-        ln -sf /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/libv4l/plugins/libcuvidv4l2_plugin.so /usr/lib/x86_64-linux-gnu/libv4l/plugins/libcuvidv4l2_plugin.so
-        BASE_LIB_DIR="/usr/lib64/"
-    elif [[ "${OS}" = "ubuntu" ]]; then
-        BASE_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
-    else
-        echo "Unsupported OS" 2>&1
-        exit 1
-    fi
-elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
-    BASE_LIB_DIR="/usr/lib/aarch64-linux-gnu"
-    if [[ -f "$BASE_LIB_DIR/nvidia/libnvbufsurface.so" ]]; then
-        NVIDIA_LIB_DIR="$BASE_LIB_DIR/nvidia"
-    else
-        NVIDIA_LIB_DIR="$BASE_LIB_DIR/tegra"
-    fi
-fi
-
+OS=$(awk -F= '$1=="ID" {gsub(/"/, "", $2); print $2}' /etc/os-release)
+case "$TARGET_DEVICE" in
+    x86_64)
+        case "$OS" in
+            rhel) BASE_LIB_DIR=/usr/lib64 ;;
+            ubuntu) BASE_LIB_DIR=/usr/lib/x86_64-linux-gnu ;;
+            *) die "Unsupported OS: $OS" ;;
+        esac
+        ;;
+    aarch64)
+        BASE_LIB_DIR=/usr/lib/aarch64-linux-gnu
+        ;;
+    *) die "Unsupported architecture: $TARGET_DEVICE" ;;
+esac
 while getopts "d:" option; do
-    case "${option}" in
-    d)
-        BASE_LIB_DIR="${OPTARG}"
-        ;;
-    *)
-        echo "ERROR! Unsupported option!" >&2
-        exit 1
-        ;;
+    case "$option" in
+        d) BASE_LIB_DIR=$OPTARG ;;
+        *) die "Unsupported option" ;;
     esac
 done
-
-if [[ -n "$TARGET_DEVICE" ]]; then
-    if [[ "${TARGET_DEVICE}" = "x86_64" ]]; then
-        update-alternatives --install $BASE_LIB_DIR/gstreamer-1.0/deepstream deepstream-plugins /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/gst-plugins ${NVDS_PRIORITY}
-        update-alternatives --install $BASE_LIB_DIR/libv4l/plugins/libcuvidv4l2_plugin.so deepstream-v4l2plugin /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/libv4l/plugins/libcuvidv4l2_plugin.so ${NVDS_PRIORITY}
-        update-alternatives --install /usr/bin/deepstream-appsrc-cuda-test deepstream-appsrc-cuda-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-appsrc-cuda-test ${NVDS_PRIORITY}
-        update-alternatives --install /usr/bin/deepstream-multigpu-nvlink-test deepstream-multigpu-nvlink-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-multigpu-nvlink-test ${NVDS_PRIORITY}
-        update-alternatives --install $BASE_LIB_DIR/libv4l2.so.0.0.99999 deepstream-v4l2library /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/libnvv4l2.so ${NVDS_PRIORITY}
-        update-alternatives --install $BASE_LIB_DIR/libv4lconvert.so.0.0.99999 deepstream-v4lconvert /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/libnvv4lconvert.so ${NVDS_PRIORITY}
-        update-alternatives --install /usr/bin/deepstream-ucx-test-app deepstream-ucx-test-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-ucx-test-app ${NVDS_PRIORITY}
-        echo "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib" > /etc/ld.so.conf.d/deepstream.conf
-        echo "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/gst-plugins" >> /etc/ld.so.conf.d/deepstream.conf
-    elif [[ "${TARGET_DEVICE}" = "aarch64" ]]; then
-        update-alternatives --install $BASE_LIB_DIR/gstreamer-1.0/deepstream deepstream-plugins /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/gst-plugins ${NVDS_PRIORITY}
-        for lib in libnvbufsurface.so libnvbufsurftransform.so libnvdsbufferpool.so libgstnvcustomhelper.so; do
-            ln -sf "$NVIDIA_LIB_DIR/$lib" "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/$lib"
-        done
-        # deepstream-ipc-test is Jetson-only; not built on SBSA (both report uname -m as aarch64)
-        if [[ -f /etc/nv_tegra_release ]]; then
-            update-alternatives --install /usr/bin/deepstream-ipc-test-app deepstream-ipc-test-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-ipc-test-app ${NVDS_PRIORITY}
+if [[ "$TARGET_DEVICE" == aarch64 ]]; then
+    for dir in "$BASE_LIB_DIR/nvidia" "$BASE_LIB_DIR/tegra"; do
+        if [[ -f "$dir/libnvbufsurface.so" ]]; then
+            NVIDIA_LIB_DIR=$dir
+            break
         fi
-        echo "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib" > /etc/ld.so.conf.d/deepstream.conf
-        echo "/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/lib/gst-plugins" >> /etc/ld.so.conf.d/deepstream.conf
-        echo "/opt/tritonclient/lib" >> /etc/ld.so.conf.d/deepstream.conf
+    done
+    for lib in libnvbufsurface.so libnvbufsurftransform.so libnvdsbufferpool.so; do
+        queue_media_provider "$lib"
+    done
+    queue_media_provider libgstnvcustomhelper.so optional
+fi
+
+queue_alternative "$BASE_LIB_DIR/gstreamer-1.0/deepstream" deepstream-plugins "$DS_ROOT/lib/gst-plugins" required
+queue_app deepstream-app required
+if [[ "$TARGET_DEVICE" == x86_64 ]]; then
+    queue_alternative "$BASE_LIB_DIR/libv4l/plugins/libcuvidv4l2_plugin.so" deepstream-v4l2plugin "$DS_ROOT/lib/libv4l/plugins/libcuvidv4l2_plugin.so" required
+    queue_alternative "$BASE_LIB_DIR/libv4l2.so.0.0.99999" deepstream-v4l2library "$DS_ROOT/lib/libnvv4l2.so" required
+    queue_alternative "$BASE_LIB_DIR/libv4lconvert.so.0.0.99999" deepstream-v4lconvert "$DS_ROOT/lib/libnvv4lconvert.so" required
+    queue_app deepstream-appsrc-cuda-test
+    queue_app deepstream-multigpu-nvlink-test
+    queue_app deepstream-ucx-test-app
+elif [[ -f /etc/nv_tegra_release ]]; then
+    queue_app deepstream-ipc-test-app
+fi
+
+apps=(deepstream-test1-app deepstream-test2-app deepstream-test3-app
+    deepstream-test4-app deepstream-test5-app deepstream-testsr-app
+    deepstream-transfer-learning-app deepstream-dynamicsrcbin-test
+    deepstream-user-metadata-app deepstream-dewarper-app deepstream-nvof-app
+    deepstream-image-decode-app deepstream-gst-metadata-app deepstream-opencv-test
+    deepstream-preprocess-test deepstream-image-meta-test deepstream-appsrc-test
+    deepstream-can-orientation-app deepstream-nvdsanalytics-test
+    deepstream-3d-action-recognition deepstream-3d-depth-camera
+    deepstream-lidar-inference-app deepstream-3d-lidar-sensor-fusion
+    deepstream-nmos-app deepstream-server-app deepstream-demuxer-static
+    deepstream-demuxer-dynamic service-maker-3d-action-recognition-app
+    service-maker-appsrc-test service-maker-sr-test-app
+    service-maker-test1-app service-maker-test2-app service-maker-test3-app
+    service-maker-test4-app service-maker-test5-app deepstream-kitti-overlay ds-launch)
+for app in "${apps[@]}"; do
+    queue_app "$app"
+done
+
+# Preserve the RHEL compatibility link without overwriting unmanaged files.
+rhel_compat=
+if [[ "$TARGET_DEVICE" == x86_64 && "$OS" == rhel ]]; then
+    rhel_compat=/usr/lib/x86_64-linux-gnu/libv4l/plugins/libcuvidv4l2_plugin.so
+    if [[ -e "$rhel_compat" || -L "$rhel_compat" ]]; then
+        [[ -L "$rhel_compat" && "$(readlink -f "$rhel_compat")" == "$(readlink -f "$DS_ROOT/lib/libv4l/plugins/libcuvidv4l2_plugin.so")" ]] ||
+            die "RHEL compatibility link is occupied: $rhel_compat; review its ownership."
+        rhel_compat=
     fi
 fi
-update-alternatives --install /usr/bin/deepstream-app deepstream-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-test1-app deepstream-test1-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-test1-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-test2-app deepstream-test2-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-test2-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-test3-app deepstream-test3-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-test3-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-test4-app deepstream-test4-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-test4-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-test5-app deepstream-test5-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-test5-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-testsr-app deepstream-testsr-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-testsr-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-transfer-learning-app deepstream-transfer-learning-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-transfer-learning-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-dynamicsrcbin-test deepstream-dynamicsrcbin-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-dynamicsrcbin-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-user-metadata-app deepstream-user-metadata-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-user-metadata-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-dewarper-app deepstream-dewarper-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-dewarper-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-nvof-app deepstream-nvof-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-nvof-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-image-decode-app deepstream-image-decode-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-image-decode-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-gst-metadata-app deepstream-gst-metadata-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-gst-metadata-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-opencv-test deepstream-opencv-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-opencv-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-preprocess-test deepstream-preprocess-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-preprocess-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-image-meta-test deepstream-image-meta-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-image-meta-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-appsrc-test deepstream-appsrc-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-appsrc-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-can-orientation-app deepstream-can-orientation-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-can-orientation-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-nvdsanalytics-test deepstream-nvdsanalytics-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-nvdsanalytics-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-3d-action-recognition deepstream-3d-action-recognition /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-3d-action-recognition ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-3d-depth-camera deepstream-3d-depth-camera /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-3d-depth-camera ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-lidar-inference-app deepstream-lidar-inference-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-lidar-inference-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-3d-lidar-sensor-fusion deepstream-3d-lidar-sensor-fusion /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-3d-lidar-sensor-fusion ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-nmos-app deepstream-nmos-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-nmos-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-server-app deepstream-server-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-server-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-demuxer-static deepstream-demuxer-static /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-demuxer-static ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-demuxer-dynamic deepstream-demuxer-dynamic /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-demuxer-dynamic ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/deepstream-kitti-overlay deepstream-kitti-overlay /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/deepstream-kitti-overlay ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-3d-action-recognition-app service-maker-3d-action-recognition-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-3d-action-recognition-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-appsrc-test service-maker-appsrc-test /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-appsrc-test ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-sr-test-app service-maker-sr-test-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-sr-test-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-test1-app service-maker-test1-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test1-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-test2-app service-maker-test2-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test2-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-test3-app service-maker-test3-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test3-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-test4-app service-maker-test4-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test4-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/service-maker-test5-app service-maker-test5-app /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/service-maker-test5-app ${NVDS_PRIORITY}
-update-alternatives --install /usr/bin/ds-launch ds-launch /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/bin/ds-launch ${NVDS_PRIORITY}
-# The service-maker build stage builds this wheel from
-# src/service-maker/sources/python and drops it here, overwriting the prebuilt
-# one installed earlier by the artifacts stage. A source build therefore always
-# installs bindings matching the libnvds_service_maker.so it was built against.
-# Install with python3 -m pip rather than a bare pip: the wheel carries the ABI
-# tag of the interpreter that built it (cp312 here), and a 'pip' picked up from
-# PATH may belong to a different Python, which rejects the wheel outright.
-python3 -m pip install /opt/nvidia/deepstream/deepstream-${NVDS_VERSION}/service-maker/python/pyservicemaker*.whl --force-reinstall --break-system-packages
+
+# All collision and target checks precede modifications.
+if [[ -n "${TRITON_CLIENT_SDK_ROOT:-}" && "$TRITON_CLIENT_SDK_ROOT" != /opt/tritonclient ]]; then
+    [[ "$TRITON_CLIENT_SDK_ROOT" == /* && -d "$TRITON_CLIENT_SDK_ROOT" ]] ||
+        die "Selected TRITON_CLIENT_SDK_ROOT must be an existing absolute provider directory: $TRITON_CLIENT_SDK_ROOT"
+fi
+wheels=("$DS_ROOT"/service-maker/python/pyservicemaker*.whl)
+[[ ${#wheels[@]} == 1 && -f "${wheels[0]}" ]] ||
+    die "Expected exactly one matching Service Maker wheel in $DS_ROOT/service-maker/python"
+command -v python3 >/dev/null || die "python3 is required to install Service Maker."
+apply_alternatives
+if [[ -n "$rhel_compat" ]]; then
+    mkdir -p "$(dirname "$rhel_compat")"
+    ln -s "$DS_ROOT/lib/libv4l/plugins/libcuvidv4l2_plugin.so" "$rhel_compat"
+fi
+write_loader_config
+python3 -m pip install "${wheels[0]}" --force-reinstall --break-system-packages
 ldconfig
 rm -rf /home/*/.cache/gstreamer-1.0/
 rm -rf /root/.cache/gstreamer-1.0/

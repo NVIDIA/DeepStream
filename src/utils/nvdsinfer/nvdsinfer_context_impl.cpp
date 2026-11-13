@@ -48,6 +48,7 @@ static const int WORKSPACE_SIZE = 450 * 1024 * 1024;
 
 namespace nvdsinfer {
 
+#if NV_TENSORRT_MAJOR < 11
 /*
  * TensorRT INT8 Calibration implementation. This implementation requires
  * pre-generated INT8 Calibration Tables. Please refer TensorRT documentation
@@ -106,6 +107,7 @@ private:
     std::string m_CalibrationTableFile;
     std::vector<char> m_CalibrationCache;
 };
+#endif
 
 /* Cuda callback function for returning input back to client. */
 static void
@@ -2201,11 +2203,22 @@ NvDsInferContextImpl::buildModel(NvDsInferContextInitParams& initParams)
 {
     printInfo("Trying to create engine from model files");
 
+#if NV_TENSORRT_MAJOR >= 11
+    if (!string_empty(initParams.int8CalibrationFilePath))
+    {
+        printError("TensorRT 11 does not support legacy INT8 calibration caches. "
+            "Use an explicitly quantized ONNX model with Q/DQ nodes and remove "
+            "int8-calib-file.");
+        return nullptr;
+    }
+#endif
+
     std::unique_ptr<TrtModelBuilder> builder =
         std::make_unique<TrtModelBuilder>(
             initParams.gpuID, *gTrtLogger, m_CustomLibHandle);
     assert(builder);
 
+#if NV_TENSORRT_MAJOR < 11
     if (!string_empty(initParams.int8CalibrationFilePath) &&
         file_accessible(initParams.int8CalibrationFilePath))
     {
@@ -2213,6 +2226,7 @@ NvDsInferContextImpl::buildModel(NvDsInferContextInitParams& initParams)
             initParams.int8CalibrationFilePath);
         builder->setInt8Calibrator(std::move(calibrator));
     }
+#endif
 
     std::string enginePath;
     std::shared_ptr<TrtEngine> engine =
@@ -2267,6 +2281,35 @@ NvDsInferContextImpl::buildModel(NvDsInferContextInitParams& initParams)
 std::unique_ptr<BackendContext>
 NvDsInferContextImpl::generateBackendContext(NvDsInferContextInitParams& initParams)
 {
+#if NV_TENSORRT_MAJOR >= 11
+    /* Apply the same configuration policy to cached and newly built engines. */
+    if (!string_empty(initParams.int8CalibrationFilePath))
+    {
+        printError("TensorRT 11 does not support legacy INT8 calibration caches. "
+            "Use an explicitly quantized ONNX model with Q/DQ nodes and remove "
+            "int8-calib-file.");
+        return nullptr;
+    }
+    if (initParams.networkMode == NvDsInferNetworkMode_BEST)
+    {
+        printError("TensorRT 11 cannot apply legacy BEST precision flags. "
+            "Prepare a typed FP16 or INT8 Q/DQ model and select its network-mode.");
+        return nullptr;
+    }
+    if (initParams.forceImplicitBatchDimension)
+    {
+        printError("TensorRT 11 requires explicit batching. Remove "
+            "force-implicit-batch-dim.");
+        return nullptr;
+    }
+    if (initParams.numLayerDevicePrecisions != 0)
+    {
+        printError("TensorRT 11 does not support legacy layer-device-precision "
+            "overrides. Encode the required precision in the model instead.");
+        return nullptr;
+    }
+#endif
+
     int dla = -1;
     if (initParams.useDLA && initParams.dlaCore >= 0)
         dla = initParams.dlaCore;

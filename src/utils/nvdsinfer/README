@@ -16,6 +16,23 @@
 Refer to the DeepStream SDK documentation for a description of the "nvinfer"
 plugin and "NvDsInfer" API.
 
+TensorRT 11 upgrade:
+- The upgrade targets are TensorRT11.4.0.106 with CUDA13.4.3 (CUDA_VER=13.4)
+  on x86 and generic SBSA, and TensorRT11.4.1.31 with CUDA13.2.2
+  (CUDA_VER=13.2) on eligible Jetson/JetPack7.2.2 systems. These are distinct
+  platform inputs, not interchangeable ARM64 stacks or completed runtime tests.
+- Build with matching system TensorRT development headers and libraries. Vendor
+  link stubs or copied legacy headers cannot restore removed APIs.
+- network-mode=2 requires genuine FP16/mixed arithmetic in the model graph;
+  TensorRT 11 no longer converts a FLOAT graph through a builder precision flag.
+  Prepare supported sample models explicitly after installation using
+  samples/modelopt/prepare_samples.py. Original model filenames are retained.
+- network-mode=1 requires an explicitly quantized model. Legacy INT8 calibration
+  caches, BEST mode and layer-precision overrides are not supported by this route.
+- make also builds nvdsinfer-engine-builder. This is a build-only SDK front end,
+  not a general trtexec replacement or a performance benchmark.
+- DLA and non-sample model conversions require separate target qualification.
+
 --------------------------------------------------------------------------------
 Compiling and installing the plugin:
 Export or set in Makefile the appropriate CUDA_VER

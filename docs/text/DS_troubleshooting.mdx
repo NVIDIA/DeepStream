@@ -134,9 +134,15 @@ Pull `deepstream-triton` docker image and start the container. Retry `deepstream
 
 **Solution 3:**
 
-* For dGPU: Build Triton server library from source (https://github.com/triton-inference-server/server/releases/tag/v2.67.0) and fix dynamic link problem manually.
+* For x86 and generic SBSA: use the matching Triton 26.10 server/backends and
+  client SDK selected by this checkout's Docker recipes. Do not replace only
+  TensorRT beneath an older Triton backend. A source build of Triton must match
+  that selected release and stack, not the historical 2.67.0 default.
 
-* For Jetson: Refer `/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app-triton/README` for steps to install Triton on Jetson.
+* For Jetson: use an explicitly reviewed JetPack 7.2.2+ / TensorRT 11.4.1-compatible
+  server/client provider. Stock SBSA 26.10 is not the Jetson provider. See
+  [Triton usage guidelines](/text/DS_Quickstart#deepstream-triton-inference-server-usage-guidelines)
+  for the Docker path and optional monorepo archive installer requirements.
 
 ## Troubleshooting in gst-nvtracker Setup and Parameter Tuning
 

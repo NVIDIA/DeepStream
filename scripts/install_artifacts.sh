@@ -31,12 +31,17 @@
 # Usage:
 #   sudo bash scripts/install_artifacts.sh
 #   sudo INSTALL_METHOD=tar bash scripts/install_artifacts.sh
-#   sudo NVDS_VERSION=9.2.0 bash scripts/install_artifacts.sh
+#   sudo NVDS_VERSION=9.2.1 bash scripts/install_artifacts.sh
 #   sudo PLATFORM=x86 bash scripts/install_artifacts.sh
+#   sudo bash scripts/install_artifacts.sh --setup-only
+#
+# --setup-only prepares the source-build layout and sample aliases using
+# matching artifacts that the caller has already installed. It does not
+# download, install or extract proprietary libraries or sample-data packages.
 #
 # Environment:
 #   INSTALL_METHOD            deb (default) | tar
-#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.0); the install
+#   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.1); the install
 #                             tree uses MAJOR.MINOR only. GitHub Release
 #                             proprietary-libs / sample-data assets are always
 #                             fetched from the v9.2.0 release (hardcoded;
@@ -51,6 +56,29 @@
 
 set -e
 
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/install_artifacts.sh [--setup-only]
+
+By default, prepare the source-build layout and install proprietary libraries
+and sample data using INSTALL_METHOD=deb (default) or tar.
+
+  --setup-only  Prepare layout, sample aliases and linker cache for matching
+                artifacts already installed by the caller; skip package
+                downloads, installation and extraction.
+  -h, --help    Show this help and exit.
+EOF
+}
+
+SETUP_ONLY=0
+for argument in "$@"; do
+  case "$argument" in
+    --setup-only) SETUP_ONLY=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown option: $argument" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
 # GitHub Release *tag* the proprietary-libs / sample-data assets are attached to.
 # Hardcoded (not derived from NVDS_VERSION) — this is the release page's tag name,
 # which does not necessarily match the assets' own filename version (see
@@ -64,9 +92,9 @@ GITHUB_RELEASE_TAG="9.2.0"
 GITHUB_ASSET_VERSION="9.2.0"
 
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"
@@ -381,7 +409,11 @@ install_samples_post_stage() {
   echo "    Stage $stage: DONE"
 }
 
-echo "==> Installing DeepStream artifacts"
+if [[ "$SETUP_ONLY" -eq 1 ]]; then
+  echo "==> Preparing DeepStream layout for preinstalled artifacts (--setup-only)"
+else
+  echo "==> Installing DeepStream artifacts"
+fi
 echo "    Method      : $INSTALL_METHOD"
 echo "    Platform    : $PLATFORM"
 echo "    Install root: $INSTALL_ROOT"
@@ -389,16 +421,20 @@ echo "    Artifacts   : $ARTIFACTS_DIR"
 echo "    Stage state : $STAGE_STATE_FILE"
 echo "    Resume      : $RESUME"
 
-# Standalone / non-resume runs always reinstall; reset stage markers first.
+# Standalone / non-resume runs reset markers; only executed stages become DONE.
 if [[ "$RESUME" -eq 0 ]]; then
   mkdir -p "$(dirname "$STAGE_STATE_FILE")"
   : >"$STAGE_STATE_FILE"
 fi
 
 install_setup_stage
-install_proprietary_stage
 
-install_sample_stage
+if [[ "$SETUP_ONLY" -eq 1 ]]; then
+  echo "--- Skipping proprietary and sample-data package installation (--setup-only) ---"
+else
+  install_proprietary_stage
+  install_sample_stage
+fi
 
 install_samples_post_stage
 
@@ -407,4 +443,8 @@ echo "==> Running ldconfig"
 ldconfig
 
 echo ""
-echo "==> Done. Artifacts installed to $INSTALL_ROOT"
+if [[ "$SETUP_ONLY" -eq 1 ]]; then
+  echo "==> Done. Layout prepared for preinstalled artifacts at $INSTALL_ROOT"
+else
+  echo "==> Done. Artifacts installed to $INSTALL_ROOT"
+fi

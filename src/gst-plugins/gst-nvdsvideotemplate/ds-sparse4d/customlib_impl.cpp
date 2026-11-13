@@ -140,20 +140,30 @@ void SampleAlgorithm::Initialize()
   // Set logger properties based on config
   m_Logger->setLogLevel(m_ConfigProperties.log_level);
 
-  struct stat buffer;
-  bool engineExists = (stat(m_ConfigProperties.engine_file.c_str(), &buffer) == 0);
-
-  // Build the engine file if it doesn't exist or we're forcing a rebuild
+  // File existence alone cannot identify a plan after a TRT/model/plugin upgrade.
   m_Logger->processStart("Build TensorRT Engine", -1, true);
-  if (!engineExists || m_ConfigProperties.force_engine_rebuild) {
-    bool success = buildEngineFromOnnx(
+#if NV_TENSORRT_MAJOR >= 11
+  {
+    bool success = prepareSparse4dEngine(
       m_ConfigProperties.onnx_file,
       m_ConfigProperties.engine_file,
       m_ConfigProperties.batch_size,
       m_ConfigProperties.num_sensors,
+      m_ConfigProperties.preprocessed_width,
+      m_ConfigProperties.preprocessed_height,
+      m_ConfigProperties.gpu_id,
       m_ConfigProperties.enable_fp16,
+      m_ConfigProperties.force_engine_rebuild,
       m_Logger
     );
+#else
+  struct stat buffer;
+  if (stat(m_ConfigProperties.engine_file.c_str(), &buffer) != 0 || m_ConfigProperties.force_engine_rebuild) {
+    bool success = buildEngineFromOnnx(
+      m_ConfigProperties.onnx_file, m_ConfigProperties.engine_file,
+      m_ConfigProperties.batch_size, m_ConfigProperties.num_sensors,
+      m_ConfigProperties.enable_fp16, m_Logger);
+#endif
     if (!success) {
       m_Logger->processComplete("Build TensorRT Engine", -1, false, true);
       m_Logger->error("Failed to build TensorRT engine. Exiting...");
@@ -161,10 +171,13 @@ void SampleAlgorithm::Initialize()
     } else {
       m_Logger->processComplete("Build TensorRT Engine", -1, true, true);
     }
-  } else {
+  }
+#if NV_TENSORRT_MAJOR < 11
+  else {
     m_Logger->processComplete("Build TensorRT Engine", -1, true, true);
     m_Logger->info("Using existing TensorRT engine file: " + m_ConfigProperties.engine_file);
   }
+#endif
 
   // Deserialize the engine file and prepare for inference
   m_Logger->processStart("Deserialize TensorRT Engine", -1, true);

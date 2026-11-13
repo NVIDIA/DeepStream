@@ -70,6 +70,10 @@ deploy/brev/_downloads/
 
 # build/package.sh scratch staging directory
 /build/.pkg-stage/
+/build/.pkg-stage.deepstream-package-owner
+/build/*.deb
+/build/*.tbz2
+/src/utils/nvdsinfer/nvdsinfer-engine-builder
 
 # Locally built sample / reference / TAO app executables
 /src/apps/reference_apps/anomaly/apps/deepstream-anomaly-detection-test/deepstream-anomaly-detection-app

@@ -9,7 +9,12 @@ The plugin accepts a JPEG encoded bitstream. It produces RGB(NVMM) output on the
 on (ARM + dGPU) platforms like arm-sbsa. Use nvimagedec plugin instead. OSS nvjpegdec plugin may be listed in these platforms, but don't use that.
 
 <Note>
-As a pre-requisite for Jetson, the library `libnvjpeg.so.13` should be present in the BSP. If the [CUDA Toolkit 13.0](https://developer.nvidia.com/cuda-13-0-0-download-archive) is installed, it will be part of it.
+As a prerequisite for Jetson, `libnvjpeg.so.13` must be available from the
+matching CUDA runtime. For this checkout's Jetson upgrade target, use the CUDA
+13.2.2 runtime supplied with the selected JetPack 7.2.2+ stack, rather than
+installing a different CUDA toolkit solely to satisfy the library name. In a
+container, the matching runtime library must be included in the image. See
+[Installation](/text/DS_Installation) for the platform stack.
 </Note>
 
 ## Inputs and Outputs

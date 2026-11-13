@@ -44,6 +44,20 @@ namespace ic = nvdsinferserver::config;
 
 namespace nvdsinferserver {
 
+// Keep reflection in the DSO that owns these generated messages and their
+// descriptor pool; consumers may embed a different private protobuf runtime.
+INFER_EXPORT_API bool parsePluginControl(const std::string& text, ic::PluginControl& config);
+INFER_EXPORT_API bool parseInferenceConfig(const std::string& text, ic::InferenceConfig& config);
+// Machine-readable configuration transport, not diagnostic output. Protobuf's
+// DebugString format may be redacted and is intentionally not parseable.
+INFER_EXPORT_API bool formatInferenceConfig(
+    const ic::InferenceConfig& config, std::string& text);
+// Map hashing must also run in the generated message's owning DSO. The
+// returned filter is borrowed from control and remains valid while it is not
+// mutated or destroyed. A missing class returns nullptr for caller fallback.
+INFER_EXPORT_API const ic::PluginControl::DetectClassFilter* findSpecificClassFilter(
+    const ic::PluginControl::OutputDetectionControl& control, uint32_t classId);
+
 InferDataType dataTypeFromDsProto(ic::TensorDataType dt);
 
 InferTensorOrder tensorOrderFromDsProto(ic::TensorOrder o);

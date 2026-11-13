@@ -291,12 +291,15 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data) {
 
 To compile and install the plugin:
 
-1. Export or set in Makefile the appropriate CUDA version using CUDA_VER=13.2
+1. Select the installed toolkit family for your platform: `export CUDA_VER=13.4`
+   for x86 or generic SBSA (CUDA 13.4.3), or `export CUDA_VER=13.2` for Jetson's
+   JetPack 7.2.2+ stack (CUDA 13.2.2). See [Installation](/text/DS_Installation)
+   for the complete platform stack.
 
 2. Run make and sudo make install:
    ```bash
-   $ sudo make
-   $ sudo make install
+   $ sudo make CUDA_VER="$CUDA_VER"
+   $ sudo make CUDA_VER="$CUDA_VER" install
    ```
 
 **Note**: To compile the sources, run make with "sudo" or root permission.

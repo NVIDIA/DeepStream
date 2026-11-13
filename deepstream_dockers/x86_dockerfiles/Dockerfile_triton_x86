@@ -14,8 +14,13 @@
 # limitations under the License.
 
 
-FROM nvcr.io/nvidia/tritonserver:26.03-py3
+ARG TRITON_NGC_VERSION=26.10
+ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3-sdk
+ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
+FROM --platform=linux/amd64 ${TRITON_SDK_IMAGE} AS triton_client_sdk
+FROM --platform=linux/amd64 ${TRITON_RUNTIME_IMAGE}
 
+ARG DS_SDK_TARBALL=deepstream_sdk_v9.2.1_x86_64.tbz2
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
@@ -129,7 +134,7 @@ RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
         dpkg-dev \
         dpkg \
         curl && \
-        tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+        tar --version && tar -xvf "/tmp/docker/${DS_SDK_TARBALL}" -C / && /opt/nvidia/deepstream/deepstream/install.sh && \
         /tmp/docker/gRPC_installation.sh && \
         cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
         cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
@@ -160,24 +165,103 @@ RUN pip3 install setuptools==78.1.1 jaraco.context==6.1.0
 # Fix CVE-2025-62727 (Starlette) 
 RUN pip3 install starlette==0.52.1 fastapi
 
-RUN mkdir -p /opt/tritonclient/ && \
-        mkdir -p /tmp/temp_triton99 && \
-        mkdir -p /opt/proto && \
+COPY --from=triton_client_sdk /workspace/install/lib/. /opt/tritonclient/lib/
+COPY --from=triton_client_sdk /workspace/install/include/. /opt/tritonclient/include/
+
+RUN test -f /opt/tritonclient/lib/libgrpcclient.so && \
+        test -f /opt/tritonclient/include/grpc_client.h && \
+        readelf -h /opt/tritonclient/lib/libgrpcclient.so | grep -E 'Machine:.*X86-64'
+
+# Static Triton client-symbol subset guard; no library loading or GPU execution.
+# Exact mangled-name availability is not full ABI or runtime qualification.
+# Modern providers require marked private static ownership; legacy shared clients
+# retain the nonempty exact-import subset check below.
+RUN set -eu; export LC_ALL=C; \
+    abi_tmp="$(mktemp -d /tmp/deepstream-client-abi.XXXXXXXX)"; \
+    trap 'rm -rf -- "$abi_tmp"' EXIT; \
+    core=/opt/nvidia/deepstream/deepstream/lib/libnvds_infer_server.so; \
+    client=/opt/tritonclient/lib/libgrpcclient.so; \
+    proto_header=/opt/tritonclient/include/google/protobuf/stubs/common.h; \
+    proto_code="$(awk '$2 == "GOOGLE_PROTOBUF_VERSION" && $3 ~ /^[0-9]+$/ { print $3; exit }' "$proto_header")"; \
+    case "$proto_code" in ''|*[!0-9]*) echo 'ERROR: cannot identify selected Triton protobuf headers.' >&2; exit 1 ;; esac; \
+    readelf -h "$core" > "$abi_tmp/core-header"; \
+    readelf -h "$client" > "$abi_tmp/client-header"; \
+    grep -Eq 'Class:[[:space:]]+ELF64' "$abi_tmp/core-header"; \
+    grep -Eq 'Type:[[:space:]]+DYN' "$abi_tmp/core-header"; \
+    core_machine="$(awk -F: '/Machine:/ { sub(/^[[:space:]]*/, "", $2); print $2 }' "$abi_tmp/core-header")"; \
+    client_machine="$(awk -F: '/Machine:/ { sub(/^[[:space:]]*/, "", $2); print $2 }' "$abi_tmp/client-header")"; \
+    test -n "$core_machine" && test "$core_machine" = "$client_machine"; \
+    nm -D --undefined-only --format=posix "$core" > "$abi_tmp/undefined"; \
+    nm -D -g --defined-only --format=posix "$core" > "$abi_tmp/core-defined"; \
+    awk '$1 == "nvds_inferserver_static_protobuf_version" { print $2, $3 }' "$abi_tmp/core-defined" > "$abi_tmp/marker"; \
+    if [ "$proto_code" -ge 6000000 ]; then \
+        expected_marker="A $(printf '%x' "$proto_code")"; \
+        if [ "$(cat "$abi_tmp/marker")" != "$expected_marker" ]; then \
+            echo 'ERROR: modern Triton requires a version-matched static-owned SDK core; absent or mismatched ELF marker.' >&2; exit 1; \
+        fi; \
+        for symbol in \
+            createInferTrtISContext createInferTritonGrpcContext validateInferConfigStr \
+            _ZN15nvdsinferserver18parsePluginControlERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERNS_6config13PluginControlE \
+            _ZN15nvdsinferserver20parseInferenceConfigERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERNS_6config15InferenceConfigE \
+            _ZN15nvdsinferserver21formatInferenceConfigERKNS_6config15InferenceConfigERNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE \
+            _ZN15nvdsinferserver23findSpecificClassFilterERKNS_6config36PluginControl_OutputDetectionControlEj \
+            _ZN15nvdsinferserver6config13PluginControlC1EPN6google8protobuf5ArenaE \
+            _ZN15nvdsinferserver6config15InferenceConfigC1EPN6google8protobuf5ArenaE; do \
+            if ! awk -v symbol="$symbol" '$1 == symbol && $2 == "T" { found=1 } END { exit !found }' "$abi_tmp/core-defined"; then \
+                echo "ERROR: static-owned SDK core lacks required real typed/context export: $symbol" >&2; exit 1; \
+            fi; \
+        done; \
+        for symbol in descriptor_table_nvdsinferserver_5fcommon_2eproto descriptor_table_nvdsinferserver_5fconfig_2eproto descriptor_table_nvdsinferserver_5fplugin_2eproto; do \
+            if ! awk -v symbol="$symbol" '$1 == symbol && $2 == "D" && $4 !~ /^0*$/ && $4 != "" { found=1 } END { exit !found }' "$abi_tmp/core-defined"; then \
+                echo "ERROR: static-owned SDK core lacks its nonempty generated schema: $symbol" >&2; exit 1; \
+            fi; \
+        done; \
+        for symbol in TRITONSERVER_ServerNew TRITONSERVER_ServerInferAsync TRITONSERVER_ServerModelConfig; do \
+            if ! awk -v symbol="$symbol" '$1 == symbol && $2 == "U" { found=1 } END { exit !found }' "$abi_tmp/undefined"; then \
+                echo "ERROR: static-owned SDK core lacks required server C-API import: $symbol" >&2; exit 1; \
+            fi; \
+        done; \
+        readelf -d "$core" > "$abi_tmp/dynamic"; \
+        awk '/\(NEEDED\)/ { line=$0; sub(/^.*\[/, "", line); sub(/\].*$/, "", line); print line }' "$abi_tmp/dynamic" > "$abi_tmp/needed"; \
+        grep -Fx 'libtritonserver.so' "$abi_tmp/needed" > /dev/null; \
+        if grep -E '^lib(grpc|gpr|protobuf|absl|upb|utf8|re2|cares|address_sorting)' "$abi_tmp/needed" > "$abi_tmp/forbidden-deps"; then \
+            echo 'ERROR: static-owned SDK core still depends on a shared client/runtime provider.' >&2; cat "$abi_tmp/forbidden-deps" >&2; exit 1; \
+        fi; \
+        awk '$2 == "U" || $2 == "w" || $2 == "v" { print $1 }' "$abi_tmp/undefined" > "$abi_tmp/import-names"; \
+        awk '{ print $1 }' "$abi_tmp/core-defined" > "$abi_tmp/export-names"; \
+        for direction in import export; do \
+            c++filt < "$abi_tmp/$direction-names" > "$abi_tmp/$direction-demangled"; \
+            awk '{ name=$0; sub(/^(non-virtual thunk to |virtual thunk to |covariant return thunk to |construction vtable for |typeinfo for |typeinfo name for |vtable for |VTT for |guard variable for |TLS init function for |TLS wrapper function for )/, "", name); if (name ~ /^(google::protobuf::|inference::|triton::client::|absl::|grpc::|grpc_core::|grpc_impl::|grpc_event_engine::|upb::|re2::|grpc_|gpr_|upb_|_upb_|ares_|address_sorting_|utf8_range_|utf8_validity_)/ || (name ~ /^(descriptor_table_|file_level_metadata_)/ && name !~ /^(descriptor_table_|file_level_metadata_)nvdsinferserver_/)) print $0 }' "$abi_tmp/$direction-demangled" > "$abi_tmp/$direction-leaks"; \
+            if [ -s "$abi_tmp/$direction-leaks" ]; then \
+                echo "ERROR: static-owned SDK core leaks upstream $direction namespace symbols; keep archive/header symbols private." >&2; cat "$abi_tmp/$direction-leaks" >&2; exit 1; \
+            fi; \
+        done; \
+        echo 'Verified version-matched static core ownership/isolation metadata only; full runtime qualification remains required.'; \
+    else \
+        if [ -s "$abi_tmp/marker" ]; then echo 'ERROR: static-core marker does not match the selected legacy provider.' >&2; exit 1; fi; \
+        awk '$2 == "U" && $1 ~ /^_ZN[KVRrO]*(9inference|6triton6client)/ { print $1 }' "$abi_tmp/undefined" > "$abi_tmp/imports"; \
+        if [ ! -s "$abi_tmp/imports" ]; then echo 'ERROR: no strong Triton client namespace imports found; subset check cannot qualify this SDK core.' >&2; exit 1; fi; \
+        nm -D -g --defined-only --format=posix "$client" > "$abi_tmp/defined"; \
+        awk '{ print $1 }' "$abi_tmp/defined" > "$abi_tmp/exports"; \
+        sort -u "$abi_tmp/imports" > "$abi_tmp/imports.sorted"; \
+        sort -u "$abi_tmp/exports" > "$abi_tmp/exports.sorted"; \
+        comm -23 "$abi_tmp/imports.sorted" "$abi_tmp/exports.sorted" > "$abi_tmp/missing"; \
+        if [ -s "$abi_tmp/missing" ]; then \
+            echo 'ERROR: DeepStream/Triton client-symbol subset mismatch; rebuild SDK core/plugin with the selected client provider. Missing symbols:' >&2; \
+            cat "$abi_tmp/missing" >&2; exit 1; \
+        fi; \
+        echo 'Verified legacy Triton client-symbol subset only; full runtime qualification remains required.'; \
+    fi
+
+RUN mkdir -p /opt/proto && \
         mkdir -p /tmp/temp_proto99 && \
         mkdir -p /opt/half && \
         mkdir -p /tmp/half99 && \
-        cd /tmp/temp_triton99 && \
-        wget https://github.com/triton-inference-server/server/releases/download/v2.67.0/tritonserver-sdk-2.67.0+nv26.03-cu132-cp312-manylinux_2_28-x86_64.zip -nv && \
-        /usr/bin/unzip -q tritonserver-sdk-2.67.0+nv26.03-*.zip && \
-        mv tritonserver_sdk/install/lib64   /opt/tritonclient/lib && \
-        mv tritonserver_sdk/install/include /opt/tritonclient/include && \
-        rm -rf tritonserver_sdk && \
         cd /tmp/temp_proto99 && \
         cd /tmp/half99 && \
         wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
         /usr/bin/unzip /tmp/half99/half-2.1.0.zip -d /opt/half && \
         cd / && \
-        rm -rf /tmp/temp_triton99 && \
         rm -rf /tmp/temp_proto99 && \
         rm -rf /tmp/half99
 
@@ -186,8 +270,6 @@ RUN mkdir -p /opt/tritonclient/ && \
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 && \
     apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.4 && \
-    mkdir -p /opt/proto/bin && \
-    ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -230,9 +312,28 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     ldconfig
 
+# Keep Ubuntu's /usr/bin/protoc and 3.21.12 libraries for the auxiliary OTEL
+# build above. DeepStream's selected Triton SDK needs its own matching compiler.
+RUN set -eu; \
+    proto_header=/opt/tritonclient/include/google/protobuf/stubs/common.h; \
+    test -f "$proto_header" || { echo 'ERROR: selected Triton protobuf version header is missing.' >&2; exit 1; }; \
+    proto_code="$(awk '$2 == "GOOGLE_PROTOBUF_VERSION" && $3 ~ /^[0-9]+$/ { print $3; exit }' "$proto_header")"; \
+    if [ "$proto_code" != 6033005 ]; then echo "ERROR: pinned protoc 33.5 requires Triton protobuf header code 6033005; found ${proto_code:-unknown}." >&2; exit 1; fi; \
+    proto_tmp="$(mktemp -d /tmp/deepstream-protoc.XXXXXXXX)"; \
+    trap 'rm -rf -- "$proto_tmp"' EXIT; \
+    wget -nv -O "$proto_tmp/protoc.zip" https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-x86_64.zip; \
+    printf '%s  %s\n' 24e58fb231d50306ee28491f33a170301e99540f7e29ca461e0e80fd1239f8d1 "$proto_tmp/protoc.zip" | sha256sum -c -; \
+    unzip -q "$proto_tmp/protoc.zip" -d "$proto_tmp/unpacked"; \
+    test "$("$proto_tmp/unpacked/bin/protoc" --version)" = 'libprotoc 33.5'; \
+    mkdir -p /opt/proto/bin /opt/proto/include; \
+    rm -f /opt/proto/bin/protoc; \
+    install -m 0755 "$proto_tmp/unpacked/bin/protoc" /opt/proto/bin/protoc; \
+    cp -a "$proto_tmp/unpacked/include/." /opt/proto/include/; \
+    test "$(/opt/proto/bin/protoc --version)" = 'libprotoc 33.5'
+
 ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphics,utility
 
-ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13.4/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 
 ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
 
@@ -246,9 +347,11 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 /usr/lib/x86_64-linux-
 RUN ln -sfn "/opt/nvidia/deepstream/deepstream-9.2/includes" "/opt/nvidia/deepstream/deepstream-9.2/sources/includes"
 
 
-ENV PATH="/opt/proto/bin:${PATH}:${HOME}/.local/bin"
-ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/.local/lib"
-ENV PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${HOME}/.local/lib/pkgconfig"
+# The root-run gRPC helper installs into /root/.local. Docker ENV expansion
+# cannot use the shell's implicit HOME when the base image does not define it.
+ENV PATH="/opt/proto/bin:${PATH}:/root/.local/bin"
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/.local/lib"
+ENV PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/root/.local/lib/pkgconfig"
 
 RUN ldconfig
 
@@ -288,9 +391,14 @@ RUN rm -rf /usr/lib/x86_64-linux-gnu/mfx && \
 # remove for DS 8.0 VSS
 
 RUN rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /usr/lib/*-linux-gnu/libdvdread.so* \
-          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so* \
+          /usr/lib/*-linux-gnu/libmpeg2.so.0* /usr/lib/*-linux-gnu/libmpeg2encpp-2.1.so* /usr/lib/*-linux-gnu/libmpg123.so*
 
 
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libgomp.so.1:$LD_PRELOAD
 
 RUN rm -rf  /opt/tritonserver/backends/dali 
+
+# Service Maker imports YAML in the runtime Python, outside ModelOpt's venv.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-yaml && \
+    rm -rf /var/lib/apt/lists/*

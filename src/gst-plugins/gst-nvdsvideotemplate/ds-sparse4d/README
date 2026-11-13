@@ -28,10 +28,13 @@ Refer to the DeepStream SDK documentation for more details.
 --------------------------------------------------------------------------------
 Pre-requisites:
 - NVIDIA DeepStream SDK 9.2 (helpers, meta, nvbufsurface, nvdspreprocess)
-- CUDA runtime (`CUDA_VER=13.2` on x86, Jetson and SBSA; `13.0` on IGX Thor)
-- TensorRT development libraries (`nvinfer`, `nvonnxparser`)
+- CUDA runtime (`CUDA_VER=13.4` for x86/SBSA CUDA13.4.3;
+  `CUDA_VER=13.2` for Jetson CUDA13.2.2)
+- TensorRT development headers/libraries: 11.4.0.106 on x86 and generic SBSA,
+  11.4.1.31 on JetPack7.2.2 Jetson; these are separate candidate stacks
 - PyTorch 2.9.0+cu130 at `/usr/local/lib/python3/dist-packages/torch`
-  (override with `TORCH_PATH` if installed elsewhere)
+  (override with `TORCH_PATH` if installed elsewhere). It must independently
+  identify as ABI1 and contain genuine CUDA libraries for the target architecture.
 - libeigen3-dev, nlohmann-json3-dev, libyaml-cpp-dev
 - GStreamer 1.0 development packages
 - Camera calibration files for the target dataset
@@ -44,10 +47,37 @@ running `configs/install_dependencies.sh`. To install those deps only:
 --------------------------------------------------------------------------------
 Compiling and installing the library:
 
-  $ export CUDA_VER=13.2 # x86, Jetson and SBSA. For IGX Thor, CUDA_VER=13.0
+  $ export CUDA_VER=13.4 # x86 and SBSA. Jetson uses CUDA_VER=13.2
   $ make && sudo -E make install
 
 Skip sudo when already root (for example inside a container).
+
+On ARM, pass `DEEPSTREAM_VARIANT=sbsa`, `DEEPSTREAM_VARIANT=tegra`, or
+`DEEPSTREAM_VARIANT=igx` explicitly when needed. The default recognizes IGX
+from `/proc/device-tree/model`, then Jetson from `/etc/nv_tegra_release`;
+containers without those host markers must specify their variant. IGX keeps
+its installed legacy stack: when `TRT_VER` is unset or empty, its version is
+read from the selected TensorRT development headers rather than pinned to 11.4.
+This preserves input selection only, not a new IGX/TRT10 qualification. The selected
+TensorRT header version must match `TRT_VER`; override `TRT_INCLUDE_DIR` and
+`TRT_LIB_DIR` for a non-system installation. ELF architecture and SONAME checks
+do not independently prove the runtime's exact patch version or compatibility.
+
+For example, a Jetson source rebuild uses:
+
+  $ make CUDA_VER=13.2 DEEPSTREAM_VARIANT=tegra
+
+The default build directory separates architecture/CUDA/TensorRT selections,
+including both the objects and linked custom library.
+Set `BUILD_DIR` to a fresh directory after changing Torch or other dependency
+inputs; do not interpret a timestamp-only no-op as a rebuilt stack. Builds use
+`-O3`, dependency files and local-header prerequisites. Overrides do not make
+ABI0 Torch, another architecture's libraries or missing target headers valid.
+
+These checks cover build inputs, not Sparse4D model/MSDA-plugin compatibility,
+accuracy, latency or memory qualification. Rebuild engines for the chosen stack
+and validate real models on the target. This custom-library build does not
+rebuild or enable the separate OCR libraries.
 
 The library libnvdsgst_sparse4d.so is installed at
 /opt/nvidia/deepstream/deepstream/lib/
@@ -173,7 +203,7 @@ You can customize the setup by setting these environment variables before runnin
 
 To run the setup script:
 ```bash
-sh configs/sparse4d_setup.sh
+bash configs/sparse4d_setup.sh
 ```
 
 ### Run with DeepStream Test App

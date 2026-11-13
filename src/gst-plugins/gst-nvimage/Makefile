@@ -37,7 +37,7 @@ LIB:=libnvdsgst_image.so
 
 NVDS_VERSION:=9.2
 
-CFLAGS+= -fPIC -DDS_VERSION=$(NVDS_VERSION) \
+CFLAGS+= -fPIC -DDS_VERSION=9.2.1 \
 	 -I /usr/local/cuda-$(CUDA_VER)/include \
 	 -I ../../../includes \
 	

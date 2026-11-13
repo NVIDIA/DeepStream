@@ -7,6 +7,20 @@ title: "Quickstart Guide"
 > `/opt/nvidia/deepstream/deepstream-9.2/` and you can follow the steps below as written. For the build steps,
 > see [Install from the GitHub Mono-repo](/text/DS_Installation#install-from-the-github-mono-repo-build-from-source).
 
+<Note>
+This checkout targets DeepStream **9.2.1**. The x86 and generic SBSA Docker recipes
+use Triton **26.10**, CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN
+**9.27.0.42**. Jetson has a separate JetPack **7.2.2+** target with CUDA
+**13.2.2**, TensorRT **11.4.1.31** and cuDNN **9.20.0.46** on eligible AGX Orin
+and Thor devices. See [Installation](/text/DS_Installation#deepstream-921-upgrade-targets)
+for the complete target matrix. These are configured upgrade targets, not a
+claim of completed platform qualification or newly published container tags.
+
+For TensorRT 11 FP16 samples, follow the installed `samples/modelopt/README.md`
+to prepare the models before running inference. Rebuild engines for the selected
+stack; an older TensorRT engine is not a substitute for model preparation.
+</Note>
+
 ## Jetson [Not applicable for NVAIE customers]
 
 This section explains how to use DeepStream SDK on a Jetson device.
@@ -21,8 +35,9 @@ $ sudo jetson_clocks
 ```
 
 <Note>
-For **Jetson Orin Nano** modules, use `sudo nvpmodel -m 2` instead of `-m 0` to enable MAXN SUPER mode.
-For all other Jetson Orin modules (including Orin NX), use `-m 0`.
+Select a power mode supported by your device and JetPack release; mode numbers
+are device-specific. The TensorRT 11 target above applies to AGX Orin and Thor,
+not every Orin module supported by earlier SDK stacks.
 </Note>
 
 You should run these commands before running DeepStream application.
@@ -221,42 +236,53 @@ In case of absence of an X server, DeepStream reference applications provide an 
 
 ### dGPU
 
-1. Pull the DeepStream Triton Inference Server docker
+1. Select a reviewed DeepStream image built from this checkout's
+   `deepstream_dockers/x86_dockerfiles/Dockerfile_triton_x86`, then pull it if it
+   is stored in a registry. Set `DS_X86_IMAGE` to its tag or digest.
 
-```
-docker pull ghcr.io/nvidia/deepstream:9.2-triton-multiarch
+```bash
+: "${DS_X86_IMAGE:?Set a reviewed DeepStream 9.2.1 x86 Triton image reference}"
+docker pull "$DS_X86_IMAGE"
 ```
 
 2. Start the docker
 
-```
-docker run --gpus "device=0" -it --rm -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -e CUDA_CACHE_DISABLE=0 ghcr.io/nvidia/deepstream:9.2-triton-multiarch
+```bash
+docker run --gpus "device=0" -it --rm -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY="$DISPLAY" -e CUDA_CACHE_DISABLE=0 "$DS_X86_IMAGE"
 ```
 
 <Note>
-* The triton docker for x86 is based on Tritonserver Release 2.67.0, NGC Container 26.03. For Jetson, triton docker is based on Tritonserver Release 2.68.0, NGC Container 26.04. It has Ubuntu 24.04.
+* The x86 recipe uses matching AMD64 `26.10-py3` server and `26.10-py3-sdk`
+  client stages (Triton 2.74.0, Ubuntu 24.04 / Python 3.12). The raw Triton base
+  image does not itself contain DeepStream. Existing published `9.2-*` tags
+  must not be assumed to contain this upgraded stack.
 
 * When the triton docker is launched for the first time, it might take a few minutes to start since it has to generate compute cache.
 </Note>
 
 ### ARM SBSA (GH200, GB200, DGX Spark)
 
-1. Pull the DeepStream Triton Inference Server docker
+1. Select a reviewed DeepStream image built from this checkout's
+   `deepstream_dockers/sbsa_dockerfiles/Dockerfile_SBSA_Triton`. Set
+   `DS_SBSA_IMAGE` to its tag or digest, then pull it if needed.
 
-```
-docker pull ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```bash
+: "${DS_SBSA_IMAGE:?Set a reviewed DeepStream 9.2.1 SBSA Triton image reference}"
+docker pull "$DS_SBSA_IMAGE"
 ```
 
 2. Start the docker
 
-```
-sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 ghcr.io/nvidia/deepstream:9.2-triton-sbsa-dgx-spark
+```bash
+sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 "$DS_SBSA_IMAGE"
 ```
 
 <Note>
 * `--privileged` is omitted above; add it only if the container needs access to all host devices or low-level driver operations. It grants near-root host access, so on shared or production systems prefer `--device` / `--cap-add` instead.
 
-* The triton docker for ARM SBSA is based on Tritonserver Release 2.68.0, NGC Container 26.04 and has Ubuntu 24.04.
+* The SBSA recipe uses matching ARM64 `26.10-py3` server and `26.10-py3-sdk`
+  client stages (Triton 2.74.0, Ubuntu 24.04 / Python 3.12), plus genuine SBSA
+  VPI 4.1.6 inputs. It is not a Jetson image.
 
 * When the triton docker is launched for the first time, it might take a few minutes to start since it has to generate compute cache.
 
@@ -265,28 +291,30 @@ sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABI
 
 ### Jetson
 
-DeepStream Triton container image (ghcr.io/nvidia/deepstream:9.2-triton-multiarch) has Triton Inference Server and supported backend libraries pre-installed.
+Build the Jetson Triton image using this checkout's
+`deepstream_dockers/jetson_dockerfiles/Dockerfile_Jetson_Devel`. Supply reviewed,
+matching `JETSON_TRITON_IMAGE` and `JETSON_TRITON_SDK_IMAGE` providers for the
+JetPack 7.2.2+ / TensorRT 11.4.1.31 stack. The runtime-only recipe instead takes
+`JETSON_RUNTIME_IMAGE`; it does not add Triton to a base that lacks it. See
+[Docker Containers](/text/DS_docker_containers#deepstream-921-upgrade-recipes).
 
-In order to run the Triton Inference Server directly on device, i.e., without docker, Triton Server setup will be required.
+Stock SBSA Triton 26.10 and the old JetPack 26.04 archives are not substitutes
+for a matching Jetson provider. No new public Jetson image tag is assumed here.
+The resulting Triton image must already contain compatible server and backend
+libraries; no backend installer is needed for that Docker path.
 
-Go to samples directory and run the following commands to set up the Triton Server and backends.
-
-```
-$ cd /opt/nvidia/deepstream/deepstream/samples/
-$ sudo ./triton_backend_setup.sh
-```
-
-<Note>
-By default script will download the Triton Server Release 2.68.0 (for Jetson platforms). For setting up any other version change the package path accordingly.
-</Note>
-
-Triton backends are installed into `/opt/nvidia/deepstream/deepstream/lib/triton_backends` by default by the script. User can update `infer_config` settings for specific folders as follows:
-
-```
-model_repo {
- backend_dir: /opt/nvidia/tritonserver/backends/
-}
-```
+For an optional native archive installation, the **monorepo**
+`scripts/triton_backend_setup.sh` requires explicit matching `TRITON_PKG_PATH`
+and `TRITON_CLIENT_SDK_PKG_PATH` ZIP URLs. Jetson and SBSA require release
+**2.74.0 (26.10)**, with `/v2.74.0/` in both URLs; older or mismatched pairs
+are rejected before installation. Jetson still needs a provider qualified for
+its JetPack7.2.2/CUDA13.2.2/TRT11.4.1 stack, not stock SBSA binaries. There is no
+26.04 fallback. The unchanged legacy IGX/TRT10 path retains its explicit matching
+pair policy rather than being forced onto 2.74. Installing selected archives does
+not qualify their compatibility. Forward both URL variables explicitly through
+`sudo env`, as shown in the repository README. Its backend directory is
+`/opt/tritonserver/backends`. Follow the selected provider's layout when setting
+`model_repo.backend_dir` in an inference configuration.
 
 ### Single process
 

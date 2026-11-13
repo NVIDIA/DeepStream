@@ -34,9 +34,67 @@ All models utilize TensorRT for accelerated inference. This guide demonstrates h
 
 ## Table of Contents
 
+- [TensorRT Version Compatibility](#tensorrt-version-compatibility)
 - [Segmentation](#segmentation)
 - [ReID](#reid)
 - [Pose Estimation](#pose-estimation)
+
+## TensorRT Version Compatibility
+
+Tracker YAML precision values are `0=FP32`, `1=FP16`, `2=INT8`. They differ
+from the DeepStream inference-context enum; do not renumber tracker configs.
+
+TensorRT versions below 11 retain the legacy calibrator, capability-query and
+precision-builder API paths. TensorRT 11 uses strongly typed, explicit-batch
+networks: FP16 requires a prepared typed/mixed-precision model, and INT8 requires
+explicit Q/DQ quantization. A legacy calibration table is not a replacement for
+such a model and is rejected, including when loading a cached engine. A precision
+setting alone does not convert an FP32 graph, and unsupported requests must not
+silently fall back to FP32. The pretrained model commands below do not establish
+that those assets have been prepared or qualified for TensorRT 11.
+
+For TensorRT 11, prepare a separately named typed FP16/mixed ONNX offline using
+NVIDIA ModelOpt AutoCast (`tools/modelopt/README.md` in the repository), or obtain
+a qualified typed export from the model producer. The generic CPU tool accepts
+ordinary ONNX operations with representative, correctly preprocessed inputs;
+it does not decrypt ETLT, quantize INT8, or supply implementations of custom ops.
+No Python conversion or dependency installation runs inside the tracker.
+
+When replacing an ETLT model with its prepared ONNX, change the relevant ReID or
+PoseEstimator section together:
+
+```yaml
+networkMode: 1
+tltEncodedModel: ""  # Remove/clear this; a nonempty ETLT path takes precedence.
+onnxFile: "/path/to/model_modelopt_fp16.onnx"
+modelEngineFile: "/path/to/model_modelopt_fp16_b100_gpu0_fp16.engine"
+```
+
+Keep that model's existing batchSize, inferDims, preprocessing, feature/keypoint
+dimensions and FP32 I/O. The engine filename above is illustrative: select a
+fresh path appropriate to the actual batch/GPU, not an old ETLT/TRT10 engine.
+The ReidentificationNet and BodyPose3DNet download examples below are legacy
+ETLT setup instructions, not inputs accepted directly by the offline ONNX tool.
+Obtain an authorized matching ONNX export; renaming .etlt to .onnx is not a
+conversion. Do not set networkMode to FP32 merely to bypass an FP16 failure.
+
+ReID, pose and segmentation currently exchange FP32 tensors in device memory.
+Prepared models must preserve compatible FP32 external I/O and linear layout;
+internal computation may use typed FP16 or INT8 Q/DQ. Initialization checks the
+engine I/O contract instead of adding automatic per-frame type conversions.
+The tracker retains the engine's runtime for ONNX, ETLT and cached-engine paths.
+
+Cached engines must be separately qualified for the selected TensorRT version,
+GPU, model, precision and optimization profiles. FP32 engine I/O does not prove
+its internal precision, and `networkMode` does not retype an existing engine.
+Use a separate cache path when changing the stack/model and rebuild as needed.
+
+Qualify cold builds and cached reloads, batch 1/partial/maximum, invalid-input
+errors and repeated lifecycle transitions. Compare ReID embeddings/associations,
+pose keypoints and segmentation masks against fixed inputs, and measure warmed-up
+latency/throughput/memory against a matched known-good baseline. Compilation and
+synthetic numerical checks alone do not establish unchanged tracking accuracy or
+performance, or validate another hardware platform.
 
 ## Segmentation
 
@@ -65,7 +123,15 @@ The `config_tracker_MaskTracker.yml` configuration enables high-accuracy multi-o
    - `memory_attention.onnx`
    - `memory_encoder.onnx`
 
-   > **Note**: TensorRT engine files will be automatically generated when you launch deepstream-app.
+   > **TensorRT 11**: all four configured modules request FP16. Each ONNX must
+   > already contain qualified FP16/mixed computation while retaining its
+   > original external I/O. Supply real multi-input reference tensors for the
+   > decoder/memory modules when using AutoCast; random image inputs alone do
+   > not cover their state, prompts or masks. Update each module's onnxFile and
+   > modelEngineFile to its separately prepared model and fresh engine path.
+   > Already typed compatible exports do not need another conversion.
+   > TensorRT engines are built at startup from these prepared models; startup
+   > does not convert FP32 graphs, download models or install ModelOpt.
 
 2. **Configure DeepStream App**
    - Navigate to `samples/configs/deepstream-app/`

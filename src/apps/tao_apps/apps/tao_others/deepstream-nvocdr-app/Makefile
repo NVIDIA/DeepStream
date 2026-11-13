@@ -40,14 +40,20 @@ LIBS+= -L$(LIB_INSTALL_DIR) -lnvdsgst_meta -lnvds_meta \
        -L/usr/local/cuda/lib64/ -lcudart -lcuda -lyaml-cpp \
        -Wl,-rpath,$(LIB_INSTALL_DIR)
 
+.PHONY: all install clean nvocdr-libs
+
 all: $(APP)
+
+# Keep the submodule's sources intact and use our wrapper build rules directly.
+# Revisit these libraries even when the application itself is already current.
+nvocdr-libs:
+	$(MAKE) -C nvocdr
+	$(MAKE) -C nvocdr/deepstream -f ../../Makefile.nvocdr
 
 %.o: %.cpp $(INCS) Makefile
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
-$(APP): $(OBJS) Makefile
-	make -C nvocdr
-	make -C nvocdr/deepstream
+$(APP): $(OBJS) Makefile | nvocdr-libs
 	$(CXX) -o $(APP) $(OBJS) $(LIBS)
 
 install: $(APP)
@@ -56,4 +62,6 @@ install: $(APP)
 	cp nvocdr/deepstream/libnvocdr_impl.so $(LIB_INSTALL_DIR)
 
 clean:
+	$(MAKE) -C nvocdr/deepstream -f ../../Makefile.nvocdr clean
+	$(MAKE) -C nvocdr clean
 	rm -rf *.o $(OBJS) $(APP)

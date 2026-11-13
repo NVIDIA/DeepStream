@@ -29,7 +29,7 @@ ifeq ($(TARGET_DEVICE),aarch64)
 else
   NVDS_VERSION ?=9.2
   LIB_INSTALL_DIR ?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
-  CFLAGS:= -DDS_VERSION=\"9.2.0\"
+  CFLAGS:= -DDS_VERSION=\"9.2.1\"
 endif
 
 CFLAGS+= -fPIC

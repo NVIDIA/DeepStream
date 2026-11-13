@@ -38,21 +38,24 @@
 #   --keep-stage            Do not delete the staging dir on exit
 #
 # Environment overrides (CLI flags take precedence):
-#   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.0)
+#   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
+#   CUDA_VER       Toolkit family override (default: 13.4 x86/SBSA, 13.2 Jetson)
+#   TRT_VER        Full TensorRT build (11 on x86/Jetson/SBSA; 10 on legacy IGX)
+#   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 
-NVDS_VERSION=${NVDS_VERSION:-9.2.0}
+NVDS_VERSION=${NVDS_VERSION:-9.2.1}
 
-# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.0). MAJOR.MINOR alone is
+# NVDS_VERSION must be MAJOR.MINOR.PATCH (default: 9.2.1). MAJOR.MINOR alone is
 # rejected. The install tree and deb package name still stay at MAJOR.MINOR for
 # now; PKG_VERSION and output filenames use the full version.
 if [[ ! "$NVDS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.0)" >&2
+  echo "error: invalid NVDS_VERSION='$NVDS_VERSION' (expected MAJOR.MINOR.PATCH, e.g. 9.2.1)" >&2
   exit 1
 fi
 NVDS_FULL_VERSION="$NVDS_VERSION"
@@ -68,6 +71,9 @@ DEB_ARCH=""
 OUTPUT_DIR="$SCRIPT_DIR"
 STAGE_DIR="$SCRIPT_DIR/.pkg-stage"
 KEEP_STAGE=0
+RUNTIME_ROOT=""
+PLATFORM=""
+INCLUDE_UNTRACKED=0
 
 usage() {
   cat <<'EOF'
@@ -89,10 +95,18 @@ Options:
   --output-dir=PATH   Where to write the .deb / .tbz2 (default: build/)
   --stage-dir=PATH    Scratch staging directory (default: build/.pkg-stage)
   --keep-stage        Do not delete the staging dir on exit
+  --runtime-root=PATH Complete SDK runtime directory (default: /opt/.../deepstream-9.2)
+  --platform=NAME     x86 | jetson | sbsa | igx (default: native platform)
+  --include-untracked-sources Include non-ignored new source files for local testing
 
 Environment overrides (CLI flags take precedence):
-  NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.0)
+  NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
+  CUDA_VER       Toolkit family override (13.4 x86/SBSA, 13.2 Jetson)
+  TRT_VER        Full TensorRT version (11.4.0.106 x86/SBSA, 11.4.1.31 Jetson)
+                 Legacy IGX requires a selected TRT10 build; native IGX can read
+                 NvInferVersion.h using TRT_INCLUDE_DIR and CC (default: cc).
+  SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 EOF
 }
 
@@ -104,6 +118,12 @@ while [[ $# -gt 0 ]]; do
     --output-dir=*)   OUTPUT_DIR="${1#*=}" ;;
     --stage-dir=*)    STAGE_DIR="${1#*=}" ;;
     --keep-stage)     KEEP_STAGE=1 ;;
+    --runtime-root=*)
+      RUNTIME_ROOT="${1#*=}"
+      [[ -n "$RUNTIME_ROOT" ]] || { echo "error: --runtime-root requires a directory" >&2; exit 1; }
+      ;;
+    --platform=*)     PLATFORM="${1#*=}" ;;
+    --include-untracked-sources) INCLUDE_UNTRACKED=1 ;;
     *) echo "error: unknown argument: $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
@@ -132,7 +152,82 @@ fi
 IS_AARCH64=0
 [[ "$DEB_ARCH" = "arm64" ]] && IS_AARCH64=1
 
+is_native_igx_system() {
+  [[ "$HOST_ARCH" = aarch64 && -r /proc/device-tree/model ]] || return 1
+  [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]
+}
+
+# The legacy IGX profile intentionally has no guessed full TensorRT default.
+# Only its native header can supply an omitted build; offline repackaging must
+# declare TRT_VER rather than accidentally inspecting the packaging host.
+read_trt_header_version() {
+  local header="${TRT_INCLUDE_DIR-/usr/include/aarch64-linux-gnu}/NvInferVersion.h"
+  local definitions part value version=
+  [[ -r "$header" ]] || {
+    echo "error: cannot read $header; select the full IGX TensorRT10 build with TRT_VER" >&2
+    return 1
+  }
+  definitions=$("${CC-cc}" -dM -E -x c -include "$header" /dev/null) || {
+    echo 'error: cannot preprocess the selected IGX TensorRT version header' >&2
+    return 1
+  }
+  for part in MAJOR MINOR PATCH BUILD; do
+    value=$(awk -v key="NV_TENSORRT_$part" '$1 == "#define" && $2 == key { if (NF == 3) print $3; else print "invalid" }' <<< "$definitions")
+    [[ "$value" =~ ^[0-9]{1,6}$ ]] || {
+      echo "error: invalid or missing NV_TENSORRT_$part in $header" >&2
+      return 1
+    }
+    version+="${version:+.}$value"
+  done
+  printf '%s\n' "$version"
+}
+
 DS_INSTALL_ROOT=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}
+[[ -z "$RUNTIME_ROOT" ]] || DS_INSTALL_ROOT="$RUNTIME_ROOT"
+if [[ -z "$PLATFORM" ]]; then
+  if [[ "$DEB_ARCH" = amd64 ]]; then PLATFORM=x86
+  elif is_native_igx_system; then PLATFORM=igx
+  elif [[ -f /etc/nv_tegra_release ]]; then PLATFORM=jetson
+  else PLATFORM=sbsa; fi
+fi
+case "$PLATFORM:$DEB_ARCH" in
+  x86:amd64|jetson:arm64|sbsa:arm64|igx:arm64) ;;
+  *) echo "error: incompatible package platform/architecture: $PLATFORM/$DEB_ARCH" >&2; exit 1 ;;
+esac
+# Match the source-build profiles. Explicit build overrides must also reach the
+# package metadata; a same-major SONAME is not exact TensorRT patch provenance.
+case "$PLATFORM" in
+  x86|sbsa) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
+  jetson) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
+  igx) _cuda_default=13.0; _trt_default= ;;
+esac
+PACKAGE_CUDA_VER=${CUDA_VER-$_cuda_default}
+PACKAGE_TRT_VER=${TRT_VER-$_trt_default}
+PACKAGE_TRT_MAJOR=11
+if [[ "$PLATFORM" = igx ]]; then
+  PACKAGE_TRT_MAJOR=10
+  if [[ -z "$PACKAGE_TRT_VER" ]]; then
+    if is_native_igx_system; then
+      PACKAGE_TRT_VER=$(read_trt_header_version)
+    else
+      echo 'error: offline IGX packaging requires an explicit full TensorRT10 TRT_VER' >&2
+      exit 1
+    fi
+  fi
+fi
+if [[ ! "$PACKAGE_CUDA_VER" =~ ^[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  echo "error: invalid CUDA_VER='$PACKAGE_CUDA_VER' (expected toolkit family, e.g. 13.4)" >&2
+  exit 1
+fi
+if [[ ! "$PACKAGE_TRT_VER" =~ ^${PACKAGE_TRT_MAJOR}\.[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]]; then
+  echo "error: invalid TRT_VER='$PACKAGE_TRT_VER' (expected four-part TensorRT $PACKAGE_TRT_MAJOR version)" >&2
+  exit 1
+fi
+SKIP_SPARSE4D_OCR=${SKIP_SPARSE4D_OCR-$IS_AARCH64}
+case "$SKIP_SPARSE4D_OCR" in
+  0|1) ;;
+  *) echo 'error: SKIP_SPARSE4D_OCR must be 0 or 1' >&2; exit 1 ;;
+esac
 DS_REL="opt/nvidia/deepstream/deepstream-${NVDS_VERSION}"
 DS_ROOT="$STAGE_DIR/$DS_REL"
 
@@ -147,9 +242,140 @@ require() {
 # Sanity checks
 # ---------------------------------------------------------------------------
 require "$DS_INSTALL_ROOT" "built DeepStream install tree (run build/build.sh first)"
+DS_INSTALL_ROOT=$(realpath "$DS_INSTALL_ROOT")
+# Staging is disposable; never remove an input SDK or the repository through an
+# overlapping --stage-dir. Resolve symlinks before comparing ancestor paths.
+STAGE_DIR=$(realpath -m "$STAGE_DIR")
+case "$DS_INSTALL_ROOT/" in "$STAGE_DIR/"*) echo "error: staging overlaps runtime input" >&2; exit 1 ;; esac
+case "$REPO_ROOT/" in "$STAGE_DIR/"*) echo "error: staging overlaps repository" >&2; exit 1 ;; esac
+case "$STAGE_DIR/" in "$DS_INSTALL_ROOT/"*) echo "error: staging is inside runtime input" >&2; exit 1 ;; esac
+DS_ROOT="$STAGE_DIR/$DS_REL"
 for sub in bin lib samples service-maker LicenseAgreement.pdf; do
   require "$DS_INSTALL_ROOT/$sub" "$DS_INSTALL_ROOT/$sub"
 done
+# Directory aliases in writable runtime trees can redirect overlays into the
+# input. Keep those trees materialized, except for relative sample aliases whose
+# targets stay in samples. Normalize accepted aliases in staging before writes;
+# ordinary library/file symlinks and the input SDK itself remain unchanged.
+_sample_dir_links=()
+_sample_dir_targets=()
+if [[ -L "$DS_INSTALL_ROOT/sources" ]]; then
+  echo 'error: runtime sources is a directory symlink; supply a materialized SDK tree' >&2
+  exit 1
+fi
+for sub in bin lib samples service-maker sources/sparse4d; do
+  _runtime_tree="$DS_INSTALL_ROOT/$sub"
+  [[ -e "$_runtime_tree" || -L "$_runtime_tree" ]] || continue
+  if [[ -L "$_runtime_tree" ]]; then
+    echo "error: runtime directory symlink: $_runtime_tree; supply a materialized SDK tree" >&2
+    exit 1
+  fi
+  [[ -d "$_runtime_tree" ]] || { echo "error: runtime directory required: $_runtime_tree" >&2; exit 1; }
+  while IFS= read -r -d '' _runtime_link; do
+    if [[ "$sub" = samples ]]; then
+      # A broken link or resolution loop cannot be classified as a safe file or
+      # directory alias. Fail before discarding an existing package stage.
+      if ! _runtime_target=$(realpath -e -- "$_runtime_link"); then
+        echo "error: unresolved runtime symlink: $_runtime_link" >&2
+        exit 1
+      fi
+    fi
+    if [[ -d "$_runtime_link" ]]; then
+      _runtime_value=$(readlink -- "$_runtime_link")
+      if [[ "$sub" = samples && "$_runtime_value" != /* &&
+            "$_runtime_target/" = "$_runtime_tree/"* ]]; then
+        # Reject paths that escape and re-enter samples: their meaning can
+        # change when copied underneath a differently prefixed staging root.
+        _runtime_relative=${_runtime_link#"$DS_INSTALL_ROOT/samples/"}
+        _runtime_depth=0
+        if [[ "$_runtime_relative" = */* ]]; then
+          IFS=/ read -r -d '' -a _runtime_parts < <(printf '%s\0' "${_runtime_relative%/*}")
+          _runtime_depth=${#_runtime_parts[@]}
+        fi
+        IFS=/ read -r -d '' -a _runtime_parts < <(printf '%s\0' "$_runtime_value")
+        for _runtime_part in "${_runtime_parts[@]}"; do
+          case "$_runtime_part" in
+            ''|.) ;;
+            ..)
+              if [[ "$_runtime_depth" -eq 0 ]]; then
+                echo "error: runtime directory symlink escapes samples: $_runtime_link" >&2
+                exit 1
+              fi
+              _runtime_depth=$((_runtime_depth - 1))
+              ;;
+            *) _runtime_depth=$((_runtime_depth + 1)) ;;
+          esac
+        done
+        _sample_dir_links+=("${_runtime_link#"$DS_INSTALL_ROOT/"}")
+        _sample_dir_targets+=("${_runtime_target#"$DS_INSTALL_ROOT/"}")
+        continue
+      fi
+      echo "error: runtime directory symlink: $_runtime_link; supply a materialized SDK tree" >&2
+      exit 1
+    fi
+  done < <(find -P "$_runtime_tree" -type l -print0)
+done
+
+# realpath detects link-resolution loops, but not directory graphs such as
+# a/self -> . or a/to_b -> ../b combined with b/to_a -> ../a. Reject those too,
+# while allowing multiple aliases to share the same acyclic model directory.
+_sample_dir_states=()
+check_sample_directory_graph() {
+  local index=$1 next
+  case "${_sample_dir_states[index]:-0}" in
+    1) echo "error: cyclic runtime directory symlink: ${_sample_dir_links[index]}" >&2; exit 1 ;;
+    2) return 0 ;;
+  esac
+  _sample_dir_states[index]=1
+  for next in "${!_sample_dir_links[@]}"; do
+    if [[ "${_sample_dir_links[next]}" = "${_sample_dir_targets[index]}/"* ]]; then
+      check_sample_directory_graph "$next"
+    fi
+  done
+  _sample_dir_states[index]=2
+}
+for _sample_index in "${!_sample_dir_links[@]}"; do
+  check_sample_directory_graph "$_sample_index"
+done
+require "$DS_INSTALL_ROOT/lib/libnvds_infer.so" "TensorRT $PACKAGE_TRT_MAJOR SDK inference runtime"
+command -v readelf >/dev/null || { echo "error: readelf (binutils) is required to verify runtime inputs" >&2; exit 1; }
+_infer_header=$(LC_ALL=C readelf -h "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
+_infer_dynamic=$(LC_ALL=C readelf -d "$DS_INSTALL_ROOT/lib/libnvds_infer.so")
+case "$DEB_ARCH" in
+  amd64) _elf_machine='Advanced Micro Devices X86-64' ;;
+  arm64) _elf_machine='AArch64' ;;
+esac
+_other_trt_major=10
+[[ "$PACKAGE_TRT_MAJOR" = 10 ]] && _other_trt_major=11
+if ! grep -q "Machine:.*${_elf_machine}" <<< "$_infer_header" ||
+   ! grep -Fq "[libnvinfer.so.$PACKAGE_TRT_MAJOR]" <<< "$_infer_dynamic" ||
+   grep -Fq "[libnvinfer.so.$_other_trt_major]" <<< "$_infer_dynamic"; then
+  echo "error: runtime must contain matching $DEB_ARCH TensorRT $PACKAGE_TRT_MAJOR inference binaries" >&2
+  exit 1
+fi
+
+# Only discard scratch owned by this packager. Ancestor checks alone would
+# still allow a tracked source subtree or an unrelated populated directory.
+case "$STAGE_DIR" in
+  /|/tmp|/var/tmp|/home|"${HOME:-/nonexistent}")
+    echo "error: refusing broad staging directory: $STAGE_DIR" >&2; exit 1 ;;
+esac
+case "$SCRIPT_DIR/" in "$STAGE_DIR/"*)
+  echo "error: staging overlaps build scripts" >&2; exit 1 ;;
+esac
+if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+   [[ -n "$(git -C "$REPO_ROOT" ls-files -- "$STAGE_DIR")" ]]; then
+  echo "error: staging contains tracked repository files" >&2; exit 1
+fi
+STAGE_OWNER="${STAGE_DIR}.deepstream-package-owner"
+if [[ -d "$STAGE_DIR" && -n "$(find "$STAGE_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  if [[ ! -f "$STAGE_OWNER" || "$(<"$STAGE_OWNER")" != "$REPO_ROOT" ]]; then
+    echo "error: refusing to delete unowned staging directory; choose a new empty --stage-dir" >&2
+    exit 1
+  fi
+fi
+mkdir -p "$(dirname "$STAGE_DIR")"
+printf '%s\n' "$REPO_ROOT" > "$STAGE_OWNER"
 
 log "Packaging DeepStream $NVDS_VERSION (pkg $PKG_VERSION-$PKG_REVISION, arch $DEB_ARCH, aarch64=$IS_AARCH64)"
 log "Source install tree : $DS_INSTALL_ROOT"
@@ -166,14 +392,14 @@ copy_into() {  # copy_into <src> <dest-dir>   (preserves attrs, copies the entry
   local src=$1 dest=$2
   require "$src" "$src"
   mkdir -p "$dest"
-  cp -a "$src" "$dest/"
+  cp -a --remove-destination "$src" "$dest/"
 }
 
 copy_contents_into() {  # copy_contents_into <src-dir> <dest-dir>  (copies dir contents)
   local src=$1 dest=$2
   require "$src" "$src"
   mkdir -p "$dest"
-  cp -a "$src"/. "$dest/"
+  cp -a --remove-destination "$src"/. "$dest/"
 }
 
 # Literal (non-regex) in-place replacement on a STAGED file only. Handles
@@ -208,12 +434,18 @@ trap cleanup_mirror EXIT
 if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   SRC_MIRROR=$(mktemp -d "${TMPDIR:-/tmp}/ds-srcmirror.XXXXXX")
   log "Mirroring git-tracked sources only (excluding untracked files)"
-  git -C "$REPO_ROOT" ls-files -z -- \
+  _source_flags=(--cached)
+  if [[ "$INCLUDE_UNTRACKED" -eq 1 ]]; then
+    _source_flags+=(--others --exclude-standard)
+    log "Including non-ignored new source files (local validation mode)"
+  fi
+  git -C "$REPO_ROOT" ls-files "${_source_flags[@]}" -z -- \
       includes \
       src/apps/sample_apps src/apps/common \
       src/gst-plugins src/utils src/gst-utils src/service-maker \
       scripts \
       tools/deepstream-otelcol \
+      tools/modelopt \
     | rsync -a --files-from=- --from0 "$REPO_ROOT/" "$SRC_MIRROR/"
   REPO_ROOT="$SRC_MIRROR"
 else
@@ -224,6 +456,14 @@ fi
 log "Staging runtime (bin, lib, samples, service-maker, LicenseAgreement.pdf)"
 for item in bin lib samples service-maker LicenseAgreement.pdf; do
   copy_into "$DS_INSTALL_ROOT/$item" "$DS_ROOT"
+done
+# Canonical relative aliases point only into the copied samples tree, even when
+# the original traversed other aliases. Never rewrite a link in the input SDK.
+for _sample_index in "${!_sample_dir_links[@]}"; do
+  _sample_link="$DS_ROOT/${_sample_dir_links[_sample_index]}"
+  _sample_target="$DS_ROOT/${_sample_dir_targets[_sample_index]}"
+  _sample_value=$(realpath --relative-to="${_sample_link%/*}" -- "$_sample_target")
+  ln -sfn -- "$_sample_value" "$_sample_link"
 done
 # Keep only the top-level license; the duplicate bundled with samples is excluded.
 rm -f "$DS_ROOT/samples/LicenseAgreement.pdf"
@@ -265,6 +505,14 @@ copy_contents_into "$REPO_ROOT/src/service-maker" "$DS_ROOT/service-maker"
 log "Staging tools/deepstream-otelcol -> otelcol/"
 copy_contents_into "$REPO_ROOT/tools/deepstream-otelcol" "$DS_ROOT/otelcol"
 
+# Conversion is an explicit post-install step, never a packaging dependency.
+if [[ -d "$REPO_ROOT/tools/modelopt" ]]; then
+  mkdir -p "$DS_ROOT/samples/modelopt"
+  for helper in prepare_model.py prepare_samples.py requirements.txt README.md; do
+    copy_into "$REPO_ROOT/tools/modelopt/$helper" "$DS_ROOT/samples/modelopt"
+  done
+fi
+
 # 3. sources/ tree (also creates sources/apps).
 log "Staging sources/ tree"
 mkdir -p "$DS_ROOT/sources/apps"
@@ -282,23 +530,32 @@ for t in TritonBackendEnsemble TritonOnnxYolo; do
 done
 
 # Drop platform-specific sample apps that build/build.sh does not build on this
-# target (mirrors its sample_apps skip logic; sbsa ignored for now):
+# target. Jetson and legacy IGX use its aarch64 source-build path; SBSA is a
+# separate platform even though all three have Debian architecture arm64:
 #   x86 only      : deepstream-ucx-test, deepstream-multigpu-nvlink-test
 #   x86 (+sbsa)   : deepstream-appsrc-cuda-test
-#   Jetson only   : deepstream-ipc-test
-if [[ "$DEB_ARCH" = "amd64" ]]; then
-  SAMPLE_APPS_SKIP=(deepstream-ipc-test)
-else
-  SAMPLE_APPS_SKIP=(
-    deepstream-ucx-test
-    deepstream-multigpu-nvlink-test
-    deepstream-appsrc-cuda-test
-  )
-fi
+#   Jetson (+IGX) : deepstream-ipc-test
+case "$PLATFORM" in
+  x86) SAMPLE_APPS_SKIP=(deepstream-ipc-test) ;;
+  sbsa)
+    SAMPLE_APPS_SKIP=(
+      deepstream-ucx-test
+      deepstream-multigpu-nvlink-test
+      deepstream-ipc-test
+    )
+    ;;
+  jetson|igx)
+    SAMPLE_APPS_SKIP=(
+      deepstream-ucx-test
+      deepstream-multigpu-nvlink-test
+      deepstream-appsrc-cuda-test
+    )
+    ;;
+esac
 for app in "${SAMPLE_APPS_SKIP[@]}"; do
   if [[ -d "$DS_ROOT/sources/apps/sample_apps/$app" ]]; then
     rm -rf "$DS_ROOT/sources/apps/sample_apps/$app"
-    log "Excluding sample app (not for $DEB_ARCH): $app"
+    log "Excluding sample app (not for $PLATFORM): $app"
   fi
 done
 
@@ -308,19 +565,20 @@ copy_contents_into "$REPO_ROOT/src/gst-utils" "$DS_ROOT/sources/libs"     # -> s
 
 # Drop plugin / gst-utils sources that build/build.sh gates off this target, so
 # the shipped sources match what the package's runtime was actually built from.
-# gst-nvdsudp and gst-dsexample-cuda are deliberately kept on both: build.sh
-# skips them, but they are meant to be built by hand per their READMEs.
-if [[ "$DEB_ARCH" = "amd64" ]]; then
-  # gst-nvipcmeta is Jetson/aarch64 only.
+# gst-nvdsudp and gst-dsexample-cuda are deliberately kept on every platform:
+# build.sh skips them, but they are meant to be built by hand per their READMEs.
+if [[ "$PLATFORM" != jetson && "$PLATFORM" != igx ]]; then
+  # gst-nvipcmeta follows the Jetson/legacy IGX aarch64 build path, not SBSA.
   if [[ -d "$DS_ROOT/sources/libs/gst-nvipcmeta" ]]; then
     rm -rf "$DS_ROOT/sources/libs/gst-nvipcmeta"
-    log "Excluding gst-utils source (not for $DEB_ARCH): gst-nvipcmeta"
+    log "Excluding gst-utils source (not for $PLATFORM): gst-nvipcmeta"
   fi
-else
+fi
+if [[ "$PLATFORM" != x86 ]]; then
   for plugin in gst-nvblender gst-nvbufferpool gst-nvbufsurfacewrite gst-nvdsucx gst-nvdsxfer; do
     if [[ -d "$DS_ROOT/sources/gst-plugins/$plugin" ]]; then
       rm -rf "$DS_ROOT/sources/gst-plugins/$plugin"
-      log "Excluding plugin source (not for $DEB_ARCH): $plugin"
+      log "Excluding plugin source (not for $PLATFORM): $plugin"
     fi
   done
 fi
@@ -380,6 +638,50 @@ if [[ -d "$SPARSE4D_SRC/configs" ]]; then
   copy_into "$SPARSE4D_SRC/README" "$DS_ROOT/sources/sparse4d"
 fi
 
+# The parent TRT11 ARM engineering drop retains Sparse4D but omits OCR. Overlaying
+# source configs must not silently re-enable the omitted libraries, including
+# when setup later imports a DS-Configurator YAML. Transform staged copies only.
+if [[ "$SKIP_SPARSE4D_OCR" -eq 1 ]]; then
+  for config_root in "$DS_ROOT/sources/sparse4d/configs" \
+      "$DS_ROOT/sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/configs"; do
+    [[ -d "$config_root" ]] || continue
+    case "$(realpath "$config_root")/" in
+      "$STAGE_DIR/"*) ;;
+      *) echo 'error: Sparse4D config directory escapes package staging' >&2; exit 1 ;;
+    esac
+    require "$config_root/config.yaml" "Sparse4D configuration"
+    _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+    awk '/^[[:blank:]]*generate_2d_bbox[[:blank:]]*:/ { n++; print "generate_2d_bbox: False"; next }
+         { print } END { if (n != 1) exit 1 }' "$config_root/config.yaml" > "$_ocr_tmp"
+    chmod --reference="$config_root/config.yaml" "$_ocr_tmp"
+    mv -f -- "$_ocr_tmp" "$config_root/config.yaml"
+    for config in deepstream_test5_app_sparse4d.txt deepstream_test5_app_sparse4d_filesrc.txt \
+        deepstream_test5_app_sparse4d_realtime.txt; do
+      require "$config_root/$config" "Sparse4D sample configuration"
+      _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+      awk '/^\[/ { ocr=($0 == "[secondary-pre-process0]"); if (ocr) sections++ }
+           ocr && /^[[:blank:]]*enable[[:blank:]]*=/ { n++; print "enable=0"; next }
+           { print } END { if (sections != 1 || n != 1) exit 1 }' \
+          "$config_root/$config" > "$_ocr_tmp"
+      chmod --reference="$config_root/$config" "$_ocr_tmp"
+      mv -f -- "$_ocr_tmp" "$config_root/$config"
+    done
+    require "$config_root/sparse4d_setup.sh" "Sparse4D setup script"
+    _ocr_tmp=$(mktemp "$config_root/.no-ocr.XXXXXX")
+    awk '/^OCR_INFERENCE=/ {
+           n++; print "# OCR is omitted from this ARM engineering package."
+           print "sed -i \"s/^[[:blank:]]*generate_2d_bbox[[:blank:]]*:.*/generate_2d_bbox: False/\" \"${CONFIG_FILE_PATH}\""
+           print "OCR_INFERENCE=False"; next }
+         { print } END { if (n != 1) exit 1 }' "$config_root/sparse4d_setup.sh" > "$_ocr_tmp"
+    chmod --reference="$config_root/sparse4d_setup.sh" "$_ocr_tmp"
+    mv -f -- "$_ocr_tmp" "$config_root/sparse4d_setup.sh"
+    rm -f -- "$_ocr_tmp" "$config_root/config_preprocess_ocr.txt" "$config_root/config_ocr.yaml"
+  done
+  rm -f -- "$DS_ROOT/sources/sparse4d/libcustom_preprocess_ocr.so" \
+    "$DS_ROOT/sources/sparse4d/libnvocdr.so"
+  log 'SKIP_SPARSE4D_OCR=1: retained Sparse4D, disabled OCR in both packaged config trees'
+fi
+
 # 4. Scripts shipped at DS_ROOT root / samples.
 log "Staging install/uninstall + helper scripts"
 copy_into "$REPO_ROOT/scripts/uninstall.sh" "$DS_ROOT"
@@ -397,6 +699,9 @@ done
 if [[ "$IS_AARCH64" -eq 1 ]]; then
   log "aarch64 packaging: including triton_backend_setup.sh in samples/"
   copy_into "$REPO_ROOT/scripts/triton_backend_setup.sh" "$DS_ROOT/samples"
+  patch_staged_file "samples/triton_backend_setup.sh" 'set -e' \
+    "set -e
+DEEPSTREAM_VARIANT=\${DEEPSTREAM_VARIANT:-$PLATFORM}"
 fi
 
 # 4b. Patch staged Makefiles so paths resolve against the installed sources/
@@ -407,10 +712,20 @@ fi
 # (SonarQube S1192: avoid repeating the '../../libs' literal).
 LIBS_REL_PATH="../../libs"
 log "Patching staged Makefile paths (utils -> libs)"
+if [[ -f "$DS_ROOT/sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/Makefile" ]]; then
+  patch_staged_file "sources/gst-plugins/gst-nvdsvideotemplate/ds-sparse4d/Makefile" \
+    '../../../utils/nvdsinfer' '../../../libs/nvdsinfer'
+fi
+if [[ -f "$DS_ROOT/sources/libs/nvmultiobjecttracker/Makefile" ]]; then
+  patch_staged_file "sources/libs/nvmultiobjecttracker/Makefile" \
+    '../nvds_msgapi/mqtt_protocol_adaptor' '../mqtt_protocol_adaptor'
+  patch_staged_file "sources/libs/nvmultiobjecttracker/Makefile" \
+    '../nvds_msgapi/common_src' '../nvds_msgapi_common_src'
+fi
 for p in gst-nvinfer gst-nvinferserver gst-nvmsgconv gst-nvmultistream2 \
          gst-nvmultiurisrcbin gst-nvds3dbridge gst-nvds3dfilter gst-nvds3dmixer \
          gst-nvdsbins gst-nvdslogger gst-nvmodelmux gst-nvmultistream gst-nvsegvisual \
-         gst-nvtiler; do
+         gst-nvtiler gst-nvdsvisionencoder-c; do
   patch_staged_file "sources/gst-plugins/$p/Makefile" "../../utils" "$LIBS_REL_PATH"
 done
 
@@ -479,6 +794,14 @@ for proto in amqp_protocol_adaptor kafka_protocol_adaptor mqtt_protocol_adaptor 
     patch_staged_file "sources/libs/$proto/Makefile" \
       "../common_src/nvds_utils.cpp" \
       "../nvds_msgapi_common_src/nvds_utils.cpp"
+    if [[ "$proto" = "kafka_protocol_adaptor" ]]; then
+      patch_staged_file "sources/libs/$proto/Makefile" \
+        "include ../../../../includes/nvds_protobuf.mk" \
+        "include ../../../includes/nvds_protobuf.mk"
+      patch_staged_file "sources/libs/$proto/Makefile" \
+        "../../nvmsgconv/deepstream_schema" \
+        "../nvmsgconv/deepstream_schema"
+    fi
   fi
   if [[ -f "$DS_ROOT/sources/libs/$proto/Makefile.test" ]]; then
     if [[ "$proto" = "amqp_protocol_adaptor" || "$proto" = "mqtt_protocol_adaptor" ]]; then
@@ -610,13 +933,15 @@ log "  removed $rules_pruned Rules.mk file(s)"
 # OpenTelemetry collector documentation shipped with otelcol.
 log "Pruning README.md files from staged tree (except otelcol/README.md)"
 readmes_pruned=$(find "$DS_ROOT" -type f -name 'README.md' \
-  ! -path "$DS_ROOT/otelcol/README.md" -print -delete | wc -l)
+  ! -path "$DS_ROOT/otelcol/README.md" ! -path "$DS_ROOT/samples/modelopt/README.md" -print -delete | wc -l)
 log "  removed $readmes_pruned README.md file(s)"
 
 # ---------------------------------------------------------------------------
 # Emit tarball
 # ---------------------------------------------------------------------------
-if [[ "$DEB_ARCH" = "arm64" ]]; then
+if [[ "$PLATFORM" = sbsa || "$PLATFORM" = igx ]]; then
+  TAR_PLATFORM="$PLATFORM"
+elif [[ "$DEB_ARCH" = "arm64" ]]; then
   TAR_PLATFORM="jetson"
 else
   TAR_PLATFORM="x86_64"
@@ -654,12 +979,19 @@ build_deb() {
   # with `apt install ./pkg.deb`; a plain `dpkg -i` still needs them removed
   # first). Harmless no-op when the artifacts were installed via tar (no
   # registered dpkg owner).
-  local depends conflicts
+  local depends conflicts cuda_deb trt_min trt_upper trt_dep
+  cuda_deb=${PACKAGE_CUDA_VER/./-}
+  trt_min=$PACKAGE_TRT_VER
+  trt_upper="${trt_min%.*}.$((10#${trt_min##*.} + 1))"
+  trt_dep="libnvinfer${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
+  local vpi_dep='libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7)'
+  # Preserve the legacy IGX dependency contract; do not pull the new Jetson VPI.
+  [[ "$PLATFORM" != igx ]] || vpi_dep=libnvvpi4
   if [[ "$DEB_ARCH" = "arm64" ]]; then
-    depends="cuda-cudart-13-0 | cuda-cudart-13-2, cuda-cudart-dev-13-0 | cuda-cudart-dev-13-2, libnpp-13-0 | libnpp-13-2, libnpp-dev-13-0 | libnpp-dev-13-2, libcufft-13-0 | libcufft-13-2, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer10 (>= 10.0.0), libnvinfer-dev (>= 10.0.0), libnvonnxparsers10 (>= 10.0.0), libnvonnxparsers-dev (>= 10.0.0), libnvinfer-plugin10 (>= 10.0.0), libnvinfer-plugin-dev (>= 10.0.0), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libnvvpi4, libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1)"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, ${vpi_dep}, libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="deepstream-binaries-aarch64, deepstream-sample-data"
   else
-    depends="cuda-cudart-13-0 | cuda-cudart-13-2, cuda-cudart-dev-13-0 | cuda-cudart-dev-13-2, libnpp-13-0 | libnpp-13-2, libnpp-dev-13-0 | libnpp-dev-13-2, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), libnvinfer10 (>= 10.0.0), libnvinfer-dev (>= 10.0.0), libnvonnxparsers10 (>= 10.0.0), libnvonnxparsers-dev (>= 10.0.0), libnvinfer-plugin10 (>= 10.0.0), libnvinfer-plugin-dev (>= 10.0.0), libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1)"
+    depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, libyaml-cpp-dev (>=0.6.2), libgbm1 (>= 23.0.4-0ubuntu1~24.04.1), libglapi-mesa (>= 23.0.4-0ubuntu1~24.04.1), libgles2-mesa-dev (>= 23.0.4-0ubuntu1~24.04.1), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="libglapi-amber, deepstream-binaries-x86, deepstream-sample-data"
   fi
 
@@ -760,6 +1092,7 @@ esac
 
 if [[ "$KEEP_STAGE" -eq 0 ]]; then
   rm -rf "$STAGE_DIR"
+  rm -f "$STAGE_OWNER"
 else
   log "Keeping staging directory: $STAGE_DIR"
 fi

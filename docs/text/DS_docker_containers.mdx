@@ -4,6 +4,43 @@ title: "Docker Containers"
 
 DeepStream 9.2 provides Docker containers for dGPU on x86 and ARM platforms (like SBSA, GH200, GB200, DGX Spark etc.,) and Jetson platforms. These containers provide a convenient, out-of-the-box way to deploy DeepStream applications by packaging all associated dependencies within the container. The associated Docker images are distributed through the [DeepStream package on GitHub Container Registry (GHCR)](https://github.com/orgs/NVIDIA/packages/container/package/deepstream) under the `ghcr.io/nvidia/deepstream` image namespace. They use the `nvidia-docker` package, which enables access to the required GPU resources from containers. This section describes the features supported by the DeepStream Docker container for dGPU on both x86 and ARM and Jetson platforms.
 
+## DeepStream 9.2.1 upgrade recipes
+
+This checkout contains **9.2.1 candidate recipes**, distinct from the published
+9.2 container tags listed later on this page. The Dockerfiles assemble a matching
+SDK tarball; they do not compile SDK sources or upgrade an older SDK payload.
+
+| Platform | Recipe / base input | CUDA | TensorRT | cuDNN |
+| --- | --- | --- | --- | --- |
+| x86 Triton | `Dockerfile_triton_x86`; matching AMD64 `26.10-py3` / `26.10-py3-sdk` | 13.4.3 | 11.4.0.106 | 9.27.0.42 |
+| x86 samples | `Dockerfile_samples_x86`; CUDA 13.4.3 runtime, Ubuntu 24.04 | 13.4.3 | 11.4.0.106 | 9.27.0.42 |
+| Generic SBSA / DGX Spark | `Dockerfile_SBSA_Triton`; matching ARM64 `26.10-py3` / `26.10-py3-sdk` | 13.4.3 | 11.4.0.106 | 9.27.0.42 |
+| Jetson AGX Orin / Thor | JetPack 7.2.2+ compatible explicit image providers; Python 3.12 | 13.2.2 | 11.4.1.31 | 9.20.0.46 |
+
+The x86/SBSA Triton bases are under `nvcr.io/nvidia/tritonserver`. A raw Triton
+image does not contain the DeepStream SDK. The samples recipe installs pinned
+TensorRT/cuDNN packages; the Triton recipes retain the base's matching backend
+stack instead of swapping TensorRT beneath it. x86 keeps VPI 4.1.3; ARM targets
+VPI 4.1.6. The SBSA recipe requires genuine SBSA VPI runtime/development inputs
+with SHA-256 values, not a Jetson or native x86 package.
+
+Jetson has no stock 26.10 fallback. The devel recipe requires explicit matching
+`JETSON_TRITON_IMAGE` and `JETSON_TRITON_SDK_IMAGE`; the run recipe requires
+`JETSON_RUNTIME_IMAGE`. Those inputs must already provide the required JetPack
+compute stack. The run recipe does not add Triton to a runtime lacking it.
+Matching ARM64 architecture alone does not make a generic SBSA image suitable
+for Jetson. The Docker path does not run a native Triton backend installer.
+
+Follow `deepstream_dockers/README.md` in this checkout for staging and build
+commands, provider variables and identity checks. Use a source-matched SDK
+tarball created with `build/build.sh --package` (or the documented
+`--package-from` flow), not renamed 9.2.0 assets. Select a reviewed resulting
+DeepStream image tag or digest when following the
+[Quickstart](/text/DS_Quickstart#deepstream-triton-inference-server-usage-guidelines).
+No new published image tag or completed all-platform qualification is claimed
+by these configured targets. Host driver/BSP compatibility and runtime tests
+remain necessary. See the [installation matrix](/text/DS_Installation#deepstream-921-upgrade-targets).
+
 <Note>
 The DeepStream 9.2 containers for dGPU on x86, ARM SBSA/DGX Spark and Jetson are distinct, so you must get the right image for your platform.
 </Note>
@@ -17,7 +54,10 @@ Run the below script inside the docker images to install additional packages (e.
 
 <Note>
 * The script `prepare_classification_test_video.sh` present at `/opt/nvidia/deepstream/deepstream/samples` requires `ffmpeg` to be installed. Some of the low level codec libraries need to be re-installed along with ffmpeg.
-* Use the following command to install/re-install  ffmpeg: `apt-get install --reinstall libflac8 libmp3lame0 libxvidcore4 ffmpeg`
+* On the Ubuntu 24.04 target, the corresponding command is
+  `apt-get install --reinstall libflac12t64 libmp3lame0 libxvidcore4 ffmpeg`.
+  Prefer the image's `user_additional_install.sh` for its complete multimedia
+  dependency set; do not copy Ubuntu 22.04 package names into the new image.
 </Note>
 
 ## Prerequisites
@@ -29,8 +69,10 @@ Run the below script inside the docker images to install additional packages (e.
 
 2. Install `nvidia-container-toolkit` by following the [install-guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-3. Use the DeepStream image namespace `ghcr.io/nvidia/deepstream`. Select the
-   platform-specific tag from the tables below.
+3. For the upgrade, select the reviewed image produced by the matching monorepo
+   recipe. For the older published baseline, select the platform-specific
+   `ghcr.io/nvidia/deepstream` tag from the labelled tables below. Those existing
+   tags must not be assumed to contain the 9.2.1 stack.
 
 Sample commands to run a docker container:
 
@@ -45,7 +87,11 @@ $ docker run -it --rm --network=host --gpus all -e DISPLAY=$DISPLAY --device /de
 
 ## A Docker Container for dGPU
 
-Current DeepStream container images are distributed through the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream). Both the dGPU and Jetson containers use the same `ghcr.io/nvidia/deepstream` image namespace.
+The published **9.2 baseline** images described in this section are distributed
+through the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream).
+Use the upgrade recipes above for the new stack; the example tags here are not
+new 9.2.1 publications. Both the dGPU and Jetson published images use the same
+`ghcr.io/nvidia/deepstream` namespace.
 Unlike the container in DeepStream 3.0, the dGPU DeepStream 9.2 container supports DeepStream application development within the container. It contains the same build tools and development libraries as the DeepStream 9.2 SDK.
 In a typical scenario, you build, execute and debug a DeepStream application within the DeepStream container. Once your application is ready, you can use the DeepStream 9.2 container as a base image to create your own Docker container holding your application files (binaries, libraries, models, configuration file, etc.,). Here is an example snippet of `Dockerfile` for creating your own Docker container:
 
@@ -75,11 +121,18 @@ See the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/con
 
 ## A Docker Container for Jetson
 
+This section's image tags describe the **published 9.2 baseline**. For the
+9.2.1 upgrade, use the separate JetPack 7.2.2+ providers and recipes above.
+
 As of JetPack release 4.2.1, [NVIDIA Container Runtime](https://github.com/NVIDIA/nvidia-docker/wiki/NVIDIA-Container-Runtime-on-Jetson) for Jetson has been added, enabling you to run GPU-enabled containers on Jetson devices. Using this capability, DeepStream 9.2 can be run inside containers on Jetson devices using Docker images from `ghcr.io/nvidia/deepstream`.
 Pull and run the appropriate container image from `ghcr.io/nvidia/deepstream`.
 The DeepStream container no longer expects CUDA, TensorRT to be installed on the Jetson device, because it is included within the container image.
 Make sure that the BSP is installed using JetPack and nvidia-container tools installed from Jetpack or apt server (See instructions below) on your Jetson prior to launching the DeepStream container.
-The Jetson Docker containers are for deployment only. They do not support DeepStream software development within a container. You can build applications natively on the Jetson target and create containers for them by adding binaries to your docker images. Alternatively, you can generate Jetson containers from your workstation using instructions in the `Building Jetson Containers on an x86 Workstation` section in the NVIDIA Container Runtime for Jetson documentation.
+Deployment images should not be assumed to contain a development toolchain.
+For development with the upgrade, use the monorepo's explicit Jetson devel
+recipe and a compatible SDK provider. A workstation Docker build requires
+native ARM64 execution or separately configured emulation; it does not turn the
+runtime Dockerfile into an SDK source cross-compiler.
 The table below lists the docker containers for Jetson released with DeepStream 9.2:
 
 **Docker Containers for Jetson**
@@ -101,7 +154,11 @@ See the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/con
 
 ## A Docker Container for dGPU on ARM (GH200, GB200, SBSA)
 
-Current DeepStream container images are distributed through the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream). The dGPU on ARM image is `ghcr.io/nvidia/deepstream:<version>-triton-sbsa-dgx-spark`; Jetson images use the same `ghcr.io/nvidia/deepstream` namespace with their corresponding tags.
+The following tags describe the **published 9.2 baseline**, distributed through
+the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/container/package/deepstream).
+For the upgrade, build or select the reviewed SBSA image described above. The
+published dGPU on ARM image is `ghcr.io/nvidia/deepstream:<version>-triton-sbsa-dgx-spark`;
+Jetson images use the same namespace with separate platform requirements.
 Unlike the container in DeepStream 3.0, the dGPU DeepStream 9.2 container supports DeepStream application development within the container. It contains the same build tools and development libraries as the DeepStream 9.2 SDK.
 In a typical scenario, you build, execute and debug a DeepStream application within the DeepStream container. Once your application is ready, you can use the DeepStream 9.2 container as a base image to create your own Docker container holding your application files (binaries, libraries, models, configuration file, etc.,). Here is an example snippet of `Dockerfile` for creating your own Docker container:
 
@@ -129,6 +186,9 @@ See the [DeepStream package on GHCR](https://github.com/orgs/NVIDIA/packages/con
 </Note>
 
 ## A Docker Container for DGX Spark
+
+The image tags below describe the **published 9.2 baseline**. The 9.2.1 candidate
+uses the upgraded SBSA recipe above and still needs DGX Spark validation.
 
 [NVIDIA DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) is an
 aarch64-based desktop AI system running Ubuntu, powered by an integrated NVIDIA GPU.
@@ -195,7 +255,10 @@ container (or a derived image). See the [DeepStream package on GHCR](https://git
 See the [DeepStream Dockerfile Guide](https://github.com/NVIDIA/DeepStream/tree/main/deepstream_dockers) on GitHub for more details.
  </Note>
 
-### Usage of heavy TRT base dockers since DS 6.1.1
+### Historical container changes (DS 6.1.1–6.3)
+
+The following notes explain earlier releases; the JetPack 5.x restrictions here
+are not installation instructions for the 9.2.1 target.
 
 Since Jetpack 5.0.2, NVIDIA Container Runtime no longer mounts user level libraries like CUDA, cuDNN and TensorRT from the host. These will instead be installed inside the containers.
 
@@ -207,28 +270,19 @@ Since Jetpack 5.0.2, NVIDIA Container Runtime no longer mounts user level librar
 
 3) Older DS dockers are not compatible with Jetpack 5.1.2.
 
-## Recommended Minimal L4T Setup necessary to run the new docker images on Jetson
+## Minimal Jetson host setup
 
-Users are encouraged to install the L4T BSP alone from Jetpack and later use command line to install NVIDIA Container runtime from Debian repo
-to save space on the Jetson device.
+For the upgrade, install the matching JetPack 7.2.2+ BSP and NVIDIA Container
+Toolkit for the selected eligible device. Keep BSP and runtime packages matched
+to that JetPack release. Follow the [NVIDIA Container Toolkit installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+and the JetPack instructions for your device rather than using an older generic
+`nvidia-container` package recipe.
 
 1. In Step 02 of `sdkmanager` Jetpack setup, select "Jetson OS" and de-select "Jetson SDK Components" to flash just the BSP.
 Refer to the screenshot below for reference.
 
 ![Gst-nvstreammux AV pipeline](/assets/images/content/DS_docker_containers_screenshot_BSP_only.png)
 
-2. Instructions for installing nvidia-container from command line:
-
-```
-Flash BSP from Jetpack and boot
-
-Run "sudo apt update"
-
-Run "sudo apt install docker.io"
-
-Run "sudo apt install nvidia-container"
-
-Run "sudo apt install nvidia-l4t-gstreamer"
-
-Run "sudo service docker restart"
-```
+2. Install/configure Docker and the NVIDIA Container Toolkit using those
+   version-matched instructions. Verify the host and reviewed image together;
+   container compute libraries do not replace the host BSP.

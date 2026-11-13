@@ -34,7 +34,7 @@ NVDS_VERSION:=9.2
 GST_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/gst-plugins/
 LIB_INSTALL_DIR?=/opt/nvidia/deepstream/deepstream-$(NVDS_VERSION)/lib/
 
-CFLAGS:= -fPIC -std=c++17 -Wall -DDS_VERSION=\"9.2.0\"
+CFLAGS:= -fPIC -std=c++17 -Wall -DDS_VERSION=\"9.2.1\"
 
 CFLAGS+= -I../../../includes \
 	 -I../../utils/nvdsmeta \
