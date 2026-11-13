@@ -1,0 +1,21 @@
+{
+  "name": "custom_recording",
+  "world_units": "m",
+  "physical_fps": 10,
+  "source_time_origin_seconds": 0,
+  "cameras": [
+    {"id": "cam0", "video": "prepared/videos/cam0.mp4", "calibration": "prepared/camInfo/cam0.yml"},
+    {"id": "cam1", "video": "prepared/videos/cam1.mp4", "calibration": "prepared/camInfo/cam1.yml"}
+  ],
+  "ground_truth": "prepared/ground_truth.csv",
+  "artifacts": [],
+  "evaluation": {
+    "output_semantics": "native retrospective trajectories, active observations",
+    "class_id": "0",
+    "frames": {"start": 1, "stop": 1200, "step": 1},
+    "fusion": "closest",
+    "zero_distance": 2.0,
+    "region": null,
+    "max_distance": null
+  }
+}

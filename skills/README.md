@@ -61,6 +61,7 @@ deepstream/                                 # mono-repo root
 │   ├── deepstream-import-vision-model/     # Unified detection/classification/segmentation/2D-pose/depth import skill
 │   ├── deepstream-eval-and-finetune/       # DeepStream accuracy evaluation + AutoML fine-tuning skill
 │   ├── deepstream-run-mv3dt/               # MV3DT reference-app operations skill
+│   ├── deepstream-tune-mv3dt/              # MV3DT configuration tuning with GT or visual diagnostics
 │   ├── deepstream-sop/                     # DeepStream SOP microservice skill (step-sequence compliance via GEBD + VLM)
 │   ├── deepstream-setup-on-wsl/            # DeepStream-in-Docker setup and verification for WSL2
 │   ├── deepstream-build-compute-stack/     # NVIDIA driver/CUDA/cuDNN/TensorRT host provisioning
@@ -89,7 +90,7 @@ An **agentic skill** is a structured knowledge package that an AI coding assista
 
 Each subdirectory under `skills/` contains a DeepStream agentic skill that follows the standard `SKILL.md` convention supported by AI coding assistants such as Cursor, Claude Code, and others.
 
-This project ships **eighteen complementary skills**:
+This project ships **nineteen complementary skills**:
 
 | Skill | Mode | Use when you want to… |
 |-------|------|----------------------|
@@ -103,6 +104,7 @@ This project ships **eighteen complementary skills**:
 | [`deepstream-import-vision-model`](deepstream-import-vision-model/) | Unified category-aware orchestration | Preserve the native end-to-end object-detection workflow and route image classification, semantic segmentation, 2D pose, or monocular depth through fail-closed type adapters, parity gates, structured output, and visual validation. |
 | [`deepstream-eval-and-finetune`](deepstream-eval-and-finetune/) | Accuracy evaluation + fine-tuning orchestration | Deploy an object-detection model to DeepStream (TensorRT FP16), measure mAP and performance on a KPI dataset through the real pipeline, fine-tune it with a single run or AutoML sweep, re-deploy, and produce a before/after report. |
 | [`deepstream-run-mv3dt`](deepstream-run-mv3dt/) | Reference-app operations (the agent sets up and runs MV3DT) | Run the DeepStream Multi-View 3D Tracking reference app on shipped samples or synchronized MP4 datasets, including calibration handoff, Kafka metadata, and OSD/BEV outputs. |
+| [`deepstream-tune-mv3dt`](deepstream-tune-mv3dt/) | Long-running configuration tuning | Inspect recordings, agree on a dataset-scaled budget, tune geometric tracking first, then test optional modules using GT metrics or diagnostics and visual review. |
 | [`deepstream-sop`](deepstream-sop/) | Microservice scaffold + evaluate-and-fix loop | Build, deploy, evaluate, debug, or measure latency for a DeepStream SOP (Standard Operating Procedure) inference microservice — GPU-accelerated operator step-sequence compliance on industrial video via GEBD + VLM (Cosmos Reason 1/2), with file / RTSP / Basler camera inputs and SSE / Kafka output. |
 | [`deepstream-setup-on-wsl`](deepstream-setup-on-wsl/) | Consent-first setup and verification | Set up and verify DeepStream in Docker inside WSL2 on a supported local or remote Windows workstation, with secure remote access and GPU compatibility gates. |
 | [`deepstream-build-compute-stack`](deepstream-build-compute-stack/) | Version-pinned host provisioning | Provision an Ubuntu 24.04 x86_64 or ARM SBSA host with the NVIDIA open driver, CUDA, cuDNN, TensorRT, and NVIDIA Docker; optionally install DeepStream OS dependencies. |

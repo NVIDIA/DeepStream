@@ -17,6 +17,23 @@ limitations under the License.
 
 #  Multi-View 3D Tracking in DeepStream
 
+## 📰 News
+
+**🚀 November 2026 | WILDTRACK and SCOUT examples**
+
+Explore real-world multi-camera tracking with seven WILDTRACK views or eight SCOUT views. Run the examples, evaluate the tracking results, and optionally connect SCOUT to the ReID service.
+
+| Dataset       | Method      | HOTA         | MOTA     | IDF1     |
+| ------------- | ----------- | :----------: | :------: | :------: |
+| WILDTRACK     | MVTrajecter | Not reported | 94.3     | 96.5     |
+| **WILDTRACK** | **MV3DT**   | **90.6**     | **95.6** | **97.4** |
+| SCOUT         | UMPN + SP   | Not reported | 25.0     | 27.0     |
+| **SCOUT**     | **MV3DT**   | **43.7**     | **63.0** | **54.7** |
+
+[MVTrajecter](https://openaccess.thecvf.com/content/ICCV2025/html/Yamane_MVTrajecter_Multi-View_Pedestrian_Tracking_with_Trajectory_Motion_Cost_and_Trajectory_ICCV_2025_paper.html) and [UMPN + SP](https://arxiv.org/html/2507.08494v2) metrics are state-of-the-art methods for multi-view tracking as published in their respective papers. MV3DT results use cached PeopleNet Transformer detections and the included TrackEval workflow.
+
+[Evaluation protocol](docs/step-by-step-deepstream.md#evaluation) | [Optional ReID service](docs/step-by-step-deepstream.md#optional-reid-service)
+
 <img src="figures/MV3DT_12cam_live.gif" alt="MV3DT 12-camera live demo" width="100%"/>
 
 ## Introduction
@@ -40,7 +57,7 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
 
 > On **Jetson Thor**, Option 2 Sample 2 (with Inference Builder, on 12-camera dataset) may hang due to file descriptor limitation in the third-party library libmosquitto. This issue is planned to be fixed in the next release.
 
-> On **Blackwell-based GPUs** such as RTX PRO 2000-6000 Blackwell, GB10, GB200, DGX Spark, and related platforms, the RT-DETR model requires TensorRT strongly typed mode to produce valid inference outputs. Without it, the app may complete successfully but produce empty detections, tracker output, Kafka metadata, and BEV output. If you are running RT-DETR on these GPUs, add `strongly-typed=1` to the `[property]` section of `config_templates/config_pgie_rt_detr.txt` before launching the pipeline. If an RT-DETR engine was already built without this setting, remove the matching cached `models/RTDETR/*.engine` file so DeepStream rebuilds it.
+> On **Blackwell-based GPUs** such as RTX PRO 2000-6000 Blackwell, GB10, GB200, DGX Spark, and related platforms, the RT-DETR model requires TensorRT strongly typed mode to produce valid inference outputs. Without it, the app may complete successfully but produce empty detections, tracker output, Kafka metadata, and BEV output. If you are running RT-DETR on these GPUs, add `strongly-typed=1` to the `[property]` section of your `mtmc_4cam_detr/config_pgie.txt` or `mtmc_12cam_detr/config_pgie.txt` under `config_templates/` before launching the pipeline. If an RT-DETR engine was already built without this setting, remove the matching cached `models/RTDETR/*.engine` file so DeepStream rebuilds it.
 
 > On **B200**, the sample apps with PeopleNetTransformer model may occasionally crash with a segmentation fault during inference. If this occurs, add `-e MALLOC_CHECK_=3` to the `docker run` command in launch scripts to mitigate the issue.
 
@@ -48,23 +65,30 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
 
 1. Please check [DeepStream Container Prerequisites](https://docs.nvidia.com/deepstream/9.2/text/DS_docker_containers#prerequisites) for DeepStream container setup.
 
-2. Git clone the current `deepstream_reference_apps` repository to the host machine and enter `deepstream-tracker-3d-multi-view` directory
+2. Set the DeepStream checkout path and derive the app path:
+    ```bash
+    export DS_DIR="/path/to/your/deepstream" # e.g., export DS_DIR="$HOME/Documents/deepstream"
+    MV3DT_DIR="$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+    ```
+
+3. Clone the DeepStream repository and enter the app directory
     ```bash
     # Install Git LFS
     sudo apt install git-lfs
     git lfs install
 
-    git clone https://github.com/NVIDIA/deepstream.git
-    cd deepstream/src/apps/reference_apps/deepstream-tracker-3d-multi-view
+    git clone https://github.com/NVIDIA/deepstream.git "$DS_DIR"
+    cd "$MV3DT_DIR"
     git lfs pull  # In case repo is already cloned before installing git-lfs
     ```
 
-3. Run the automated prerequisites setup script:
+4. Run the automated prerequisites setup script:
 
     The setup script takes about 10-20 minutes to complete. And it may prompt you to enter your password for sudo access and github credentials. After the initial setup, if you close the session or restart your machine, you can still use this script to set up and check prerequisites, then the completion time will be much shorter.
 
     ```bash
     # For DeepStream Container only (Option 1)
+    cd "$MV3DT_DIR"
     ./scripts/setup_prerequisites.sh
 
     # Additionally, if you want to try out Inference Builder (Option 2)
@@ -74,11 +98,17 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
     # [SUCCESS] Prerequisites check passed! You're ready to use MV3DT.
     ```
 
+    Setup extracts all four datasets, downloads detector and pose models, exports CLIP ReID, builds parsers, and installs Python and evaluation dependencies. For an older Python environment, run `bash scripts/setup_evaluation.sh` once to add evaluation dependencies.
+
+    For model-only setup or recovery, run `bash scripts/setup_models.sh`. The first [CLIP ReID](https://github.com/Syliz517/CLIP-ReID) export uses a GPU and the public `nvcr.io/nvidia/vss-core/reid-embed:3.3.0` image. This is a one-shot model conversion, not a ReID service deployment. Existing nonempty models are reused. Downloaded models and export dependencies stay outside tracked source files.
+
     **Environment Variables:**
     - `USE_INFERENCE_BUILDER` - Enable Inference Builder setup (default: false, DeepStream Container only)
     - `BASE_DIR` - Base directory for the Kafka installation (default: `$HOME`)
-    - `INFERENCE_BUILDER_DIR` - Inference Builder component path (default: `<deepstream-root>/tools/inference_builder`)
+    - `DS_DIR` - DeepStream checkout root, set above
+    - `INFERENCE_BUILDER_DIR` - Inference Builder component path (default: `$DS_DIR/tools/inference_builder`)
     - `DEEPSTREAM_IMAGE` - DeepStream Docker image (default: `ghcr.io/nvidia/deepstream:9.2-triton-multiarch` for x86 and Jetson platforms)
+    - `CLIP_REID_IMAGE` - PyTorch-capable image for the initial CLIP ReID export (default: `nvcr.io/nvidia/vss-core/reid-embed:3.3.0`)
 
     * **Use case 1: If you want to use a different base directory** for Kafka, set the `BASE_DIR` environment variable before running the script. Override `INFERENCE_BUILDER_DIR` only when testing a different checkout.
         ```bash
@@ -104,6 +134,8 @@ The sample applications in this repository require Ubuntu 24.04 and NVIDIA drive
 
 The following examples demonstrate running MV3DT using DeepStream container. Note that the configurations are auto-generated from `config_templates` using the [auto-configurator](utils/README.md#deepstream_auto_configuratorpy).
 
+Templates are organized into [configuration profiles](config_templates/README.md): SCOUT has `_pnt` and `_pn2` profiles, and both `mtmc_4cam` and `mtmc_12cam` have `_pnt`, `_pn2`, and `_detr` profiles. WILDTRACK has one `wildtrack` profile. Shared templates are in `config_templates/common/`. Select a folder with `--profile`. Generated filenames and native configuration formats are unchanged.
+
 ### Sample 1: 4-camera dataset
 ---
 
@@ -111,7 +143,7 @@ The following examples demonstrate running MV3DT using DeepStream container. Not
 Run the provided script to quickly launch the 4-camera DeepStream pipeline. 
 
 ```bash
-cd <path to current repo, i.e. deepstream-tracker-3d-multi-view>
+cd "$MV3DT_DIR"
 
 sudo xhost + # give container access to display, only need to run once per session
 # [expected output]: access control disabled, clients can connect from any host
@@ -165,6 +197,7 @@ For detailed step-by-step instructions, see [DeepStream Container: Step-by-step 
 Run the provided script to quickly launch the 12-camera DeepStream pipeline. For detailed window explanations and important notes, see the [4-camera Quick Start section](#quick-start) above.
 
 ```bash
+cd "$MV3DT_DIR"
 # sudo xhost + # give container access to display
 
 # chmod +x scripts/test_12cam_ds.sh
@@ -179,11 +212,32 @@ Run the provided script to quickly launch the 12-camera DeepStream pipeline. For
 #### Step-by-step Instructions
 For detailed step-by-step instructions, see [DeepStream Container: Step-by-step Instructions](docs/step-by-step-deepstream.md#sample-2-12-camera-dataset).
 
+### SCOUT and WILDTRACK
+
+The [SCOUT](docs/step-by-step-deepstream.md#sample-4-scout) and [WILDTRACK](docs/step-by-step-deepstream.md#sample-3-wildtrack) examples include packaged datasets, tracker configurations, and ground truth. Run live inference or cached detections, then evaluate saved trajectories using pinned public TrackEval. SCOUT supports TAO [PeopleNet Transformer](https://catalog.ngc.nvidia.com/orgs/nvidia/tao/models/peoplenet_transformer_v2/deployable_v1.0) and [PeopleNet 2.6.3](https://catalog.ngc.nvidia.com/orgs/nvidia/tao/models/peoplenet/deployable_quantized_onnx_v2.6.3/file-browser). WILDTRACK uses PeopleNet Transformer replay with geometric 3D tracking, Pose off, and ReID off. Both use in-memory peer communication.
+
+```bash
+cd "$MV3DT_DIR"
+bash scripts/test_wildtrack_ds.sh
+bash scripts/test_scout_ds.sh
+DETECTOR_MODEL=PeopleNet2.6.3 bash scripts/test_scout_ds.sh
+```
+
+These headless launchers save tiled video and run logs. Both default to cached detections, with `REPLAY=0` for live detector inference. SCOUT selects the cache matching `DETECTOR_MODEL`. Set a new `EXPERIMENT_DIR` for repeat runs. `DATASET_DIR`, `MODEL_REPO`, and `DEEPSTREAM_IMAGE` can also be overridden. See the step-by-step instructions for configuration and evaluation.
+
+To use the optional [ReID service](docs/step-by-step-deepstream.md#optional-reid-service), deploy it first and run:
+
+```bash
+REID_SERVICE=1 bash scripts/test_scout_ds.sh
+```
+
+The default run does not use the external service.
+
 ## Option 2: Running MV3DT using Inference Builder
 
 Inference Builder is a tool that automatically generates inference pipelines and integrates them into either a microservice or a standalone application. In the samples in this repo, it is used to generate a Python package containing the MV3DT inference flow.
 
-Compared to traditional DeepStream configuration files, the Inference Builder configuration (e.g., `config_templates/ds_mv3dt.yaml`) is significantly simpler and more concise, making it easier to define and modify.
+Compared to traditional DeepStream configuration files, the Inference Builder configuration (e.g., `config_templates/common/ds_mv3dt.yaml`) is significantly simpler and more concise, making it easier to define and modify.
 
 ### Sample 1: 4-camera dataset
 ---
@@ -192,6 +246,7 @@ Compared to traditional DeepStream configuration files, the Inference Builder co
 
 Run the provided script to quickly start the 4-camera DeepStream Inference Builder pipeline.
 ```bash
+cd "$MV3DT_DIR"
 # sudo xhost + # give container access to display
 
 # The script uses tools/inference_builder by default. Override only for another checkout:
@@ -210,7 +265,7 @@ Run the provided script to quickly start the 4-camera DeepStream Inference Build
 For detailed window explanations and important notes, see the [4-camera DeepStream Quick Start section](#quick-start) above. Additional notes:
 
 
-**Note 1:** By default, the application waits **1000 seconds** if there is no data being streamed before exiting gracefully. It is expected to see 0 FPS printed during the 1000 seconds wait time. This waiting time is controlled by the `inference_timeout` parameter in `config_templates/ds_mv3dt.yaml`. To avoid this delay:
+**Note 1:** By default, the application waits **1000 seconds** if there is no data being streamed before exiting gracefully. It is expected to see 0 FPS printed during the 1000 seconds wait time. This waiting time is controlled by the `inference_timeout` parameter in `config_templates/common/ds_mv3dt.yaml`. To avoid this delay:
 * Option 1: Pre-generate the engine files and place them in the correct directories before starting the pipeline. Then, set `inference_timeout` to a lower value (e.g., 30 seconds).
 * Option 2: Use the default 1000-second timeout for the initial run to allow engine file creation. For later runs, reduce `inference_timeout` (e.g., to 30 seconds) so the container exits promptly after inference completes.
 
@@ -237,6 +292,7 @@ Run the provided script to quickly start the 12-camera DeepStream Inference Buil
 For detailed window explanations and important notes, see the [4-camera DeepStream Quick Start section](#quick-start) above. 
 
 ```bash
+cd "$MV3DT_DIR"
 # sudo xhost + # give container access to display
 
 # The script uses tools/inference_builder by default. Override only for another checkout:
@@ -284,7 +340,7 @@ If you don't need on-screen display, you can disable it:
     * Remove the `--enable-osd` option from `deepstream_auto_configurator.py` command in the quick-start script and run again.
 
 * **For Inference Builder:**
-    * Comment out the `render_config` section in `config_templates/ds_mv3dt.yaml` and run the quick-start script again.
+    * Comment out the `render_config` section in `config_templates/common/ds_mv3dt.yaml` and run the quick-start script again.
 
 
 
@@ -321,6 +377,7 @@ Note that the BEV visualization script should be launched before launching the M
 MV3DT streams tracking metadata (frame ID, sensor ID, object IDs, 3D bounding boxes, etc.) to a Kafka topic as protobuf messages. The `kafka_client.py` script demonstrates how to connect to the Kafka broker, deserialize the protobuf messages, and print them as JSON. For building downstream applications using MV3DT tracking metadata, this can be a reference implementation.
 
 ```bash
+cd "$MV3DT_DIR"
 source mv3dt_venv/bin/activate
 
 # Default: connects to localhost:9092, topic 'mv3dt'
@@ -396,16 +453,16 @@ If you have an existing 2D detection and tracking pipeline using DeepStream, the
     - Follow the instructions in the previous section.
 
 4. **Optional: Set up your model configs** (required if using a different detector than PeopleNetTransformer)
-    - For example, if you are using PeopleNet as your detector, create a `PeopleNet` folder under `models` and modify `config_templates/config_pgie.txt` to point to your model files.
+    - For example, if you are using PeopleNet as your detector, create a `PeopleNet` folder under `models` and modify your selected profile's `config_pgie.txt` to point to your model files.
 
 5. **Optional: Set up your DeepStream pipeline config** (required if using a custom DeepStream pipeline config) 
-    - Modify `config_templates/config_deepstream.txt` based on your use case. For example, if you have a custom `[pre-process]` section, copy that section to `config_templates/config_deepstream.txt`. Note that `[source%d]` and `[sink%d]` sections will be handled by the auto-configurator.
+    - Modify `config_templates/common/config_deepstream.txt` based on your use case, or place a profile-specific copy in the selected profile folder. For example, copy a custom `[pre-process]` section there. Note that `[source%d]` and `[sink%d]` sections will be handled by the auto-configurator.
 
-6. **Place your tracker config file in the `config_templates` folder.** 
+6. **Place your tracker config file in the selected profile folder or provide an explicit path.**
 
 
 7. **Generate MV3DT configs** 
-    - Use the auto-configurator with `--tracker-config` argument, i.e. suppose your tracker config file is named `config_tracker_custom_2d.yml`, pass `--tracker-config=config_tracker_custom_2d.yml` to the auto-configurator. The auto-configurator assumes all template configs are located in the `config_templates` folder, so only the file name is needed, not the full path.
+    - Select the folder with `--profile`, then pass the tracker filename with `--tracker-config=config_tracker_custom_2d.yml`. Filenames are resolved in the selected profile, then `config_templates/common/`. Explicit file paths are also accepted.
 
 8. **Launch the MV3DT pipeline** using your generated configs. 
 
@@ -415,35 +472,32 @@ If you have an existing 2D detection and tracking pipeline using DeepStream, the
 
 1. To simulate a custom dataset, let's create a 6-camera subset (randomly selected) from the 12-camera dataset. Run the following command to generate a new dataset in `datasets/mtmc_6cam`.
     ```bash
+    cd "$MV3DT_DIR"
     ./scripts/create_6cam_subset.sh
     ```
 
-2. Assume you have an existing 2D tracking config file. In this example, we will use the `config_tracker_2d.yml` file in the `config_templates` folder.
+2. Assume you have an existing 2D tracking config file. In this example, we will use `config_templates/common/config_tracker_2d.yml`.
 
-3. Set up output directories and run the auto-configurator to generate the MV3DT config files.
+3. Set paths and run the auto-configurator to generate the MV3DT config files and output directories.
     ```bash
-    export DATASET_DIR=$PWD/datasets/mtmc_6cam/
-    export EXPERIMENT_DIR=$PWD/experiments/deepstream/6cam
+    DATASET_DIR="$MV3DT_DIR/datasets/mtmc_6cam"
+    EXPERIMENT_DIR="$MV3DT_DIR/experiments/deepstream/6cam"
 
-    mkdir -p $EXPERIMENT_DIR/infer-kitti-dump
-    mkdir -p $EXPERIMENT_DIR/tracker-kitti-dump
-
-    python utils/deepstream_auto_configurator.py \
-        --dataset-dir=$DATASET_DIR \
+    python -m utils.deepstream_auto_configurator \
+        --profile=mtmc_12cam_pnt \
+        --dataset-dir="$DATASET_DIR" \
         --tracker-config=config_tracker_2d.yml \
         --enable-msg-broker \
         --enable-osd \
-        --output-dir=$EXPERIMENT_DIR
+        --output-dir="$EXPERIMENT_DIR"
     ```
 
 4. Launch the MV3DT pipeline:
     ```bash
-    export MODEL_REPO=$PWD/models
-
     docker run -t --privileged --rm --net=host --runtime=nvidia \
-        -v $MODEL_REPO:/workspace/models \
-        -v $DATASET_DIR:/workspace/inputs \
-        -v $EXPERIMENT_DIR:/workspace/experiments \
+        -v "$MV3DT_DIR/models:/workspace/models" \
+        -v "$DATASET_DIR:/workspace/inputs" \
+        -v "$EXPERIMENT_DIR:/workspace/experiments" \
         -v /tmp/.X11-unix/:/tmp/.X11-unix \
         -e DISPLAY=$DISPLAY \
         -w /workspace/experiments \
@@ -469,7 +523,7 @@ If you have an existing 2D detection and tracking pipeline using DeepStream, the
 The auto-configurator generates a complete set of MV3DT config files based on your custom 2D tracker, pipeline, and model configs, as well as your dataset.
 
 1. **Detects dataset structure** - Scans your `videos/` and `camInfo/` directories to determine camera count and calibration files
-2. **Generates pipeline configuration** - Uses your updated `config_templates/config_deepstream.txt` as template and generates `$EXPERIMENT_DIR/config_deepstream.txt` with appropriate source URIs, batch sizes, and display grid layout
+2. **Generates pipeline configuration** - Uses the selected profile's pipeline template, falling back to `config_templates/common/config_deepstream.txt`, and generates `$EXPERIMENT_DIR/config_deepstream.txt` with appropriate source URIs, batch sizes, and display grid layout
 3. **Extends 2D tracker configs with MV3DT additional sections** - automatically injects MV3DT sections (`ObjectModelProjection` for 3D model projection, `MultiViewAssociator` for multi-view association, and `Communicator` for inter-camera communication) to your 2D tracker config
 4. **Creates inter-camera communication configs** - Generates `$EXPERIMENT_DIR/pub_sub_info_config_0.yml` defining camera publish/subscribe relationships for multi-view data sharing
 5. **(Optional) Applies overrides** - Uses override files to customize tracker settings for specific datasets or requirements

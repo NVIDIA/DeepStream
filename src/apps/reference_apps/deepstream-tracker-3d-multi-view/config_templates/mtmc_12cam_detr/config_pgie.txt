@@ -13,11 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VisualTracker:
-  visualTrackerType: 0
-MultiViewAssociator:
-  multiViewAssociatorType: 1
-  maxPeerToPredDistance4Fusion: 4.0 # mtmc 4.0 # 1.0 # sdg 1.3475168402461755
-  minPeerTrackletMatchScore: 0.3 # mtmc 0.3 # sdg 0.48 # 0.48177346044415703
-  minPeerVisibility4Fusion: 0.15 # sdg 0.1575362440818593
-  recentlyActiveAge: 178
+[property]
+cluster-mode=4
+custom-lib-path=/workspace/models/RTDETR/custom_parser/libnvds_infercustomparser_tao.so
+gie-unique-id=1
+infer-dims=3;544;960
+labelfile-path=/workspace/models/RTDETR/detector_labels.txt
+maintain-aspect-ratio=1
+model-color-format=0
+net-scale-factor=0.00392156862745098
+network-mode=2
+network-type=0
+num-detected-classes=7
+filter-out-class-ids=6
+offsets=0;0;0
+onnx-file=/workspace/models/RTDETR/rtdetr_warehouse_v1.0.fp16.onnx
+output-blob-names=pred_logits;pred_boxes
+output-tensor-meta=1
+parse-bbox-func-name=NvDsInferParseCustomDDETRTAO
+workspace-size=1048576
+
+[class-attrs-all]
+pre-cluster-threshold=0.4652309073592239
+topk=20

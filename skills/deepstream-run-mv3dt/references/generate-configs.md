@@ -14,7 +14,8 @@ Set these before running the command block:
 - `MV3DT_RUN_MODE`: `display` or `headless`.
 - `MV3DT_SAVE_OUTPUTS`: set to `1` when display mode should also save tiled MP4 output.
 - `DETECTOR_MODEL`: optional; defaults to `PeopleNetTransformer`. Supported values: `PeopleNetTransformer`, `RTDETR`, `PeopleNet2.6.3`.
-- `TRACKER_CONFIG`: optional; defaults to `config_tracker.yml`. For the DeepStream 12-camera sample, callers should set `config_tracker_tuned_12cam.yml` with `PeopleNetTransformer`, `config_tracker_tuned_12cam_rt_detr.yml` with `RTDETR`, and `config_tracker.yml` with `PeopleNet2.6.3`.
+- `CONFIG_PROFILE`: optional; detector-specific folder under `config_templates`. Defaults to the matching `mtmc_4cam_pnt`, `mtmc_4cam_detr`, or `mtmc_4cam_pn2` profile. For 12 cameras, use `mtmc_12cam_pnt`, `mtmc_12cam_detr`, or `mtmc_12cam_pn2`.
+- `TRACKER_CONFIG`: optional; defaults to `config_tracker.yml` in the selected profile.
 - `CONFIG_OVERRIDES`: optional; set to a config override filename such as `override_tracker_4cam.yml` when needed.
 - `MV3DT_KAFKA_HOST`, `MV3DT_KAFKA_PORT`: verified bridge-reachable broker endpoint from [Container Networking](container-network.md).
 - `MV3DT_KAFKA_CONFIG_FILE`: protected Kafka adapter config when the broker requires TLS/authentication; copied locally with mode `0600` and never printed.
@@ -24,6 +25,7 @@ Set these before running the command block:
 ## Generate Configs
 
 ```bash
+cd "${REPO_ROOT}"
 mkdir -p "${EXPERIMENT_DIR}/infer-kitti-dump" \
          "${EXPERIMENT_DIR}/tracker-kitti-dump" \
          "${EXPERIMENT_DIR}/outVideos" \
@@ -34,13 +36,13 @@ export PATH="${REPO_ROOT}/mv3dt_venv/bin:${PATH}"
 export DETECTOR_MODEL="${DETECTOR_MODEL:-PeopleNetTransformer}"
 case "${DETECTOR_MODEL}" in
   PeopleNetTransformer)
-    DETECTOR_CONFIG="${DETECTOR_CONFIG:-config_pgie.txt}"
+    CONFIG_PROFILE="${CONFIG_PROFILE:-mtmc_4cam_pnt}"
     ;;
   RTDETR)
-    DETECTOR_CONFIG="${DETECTOR_CONFIG:-config_pgie_rt_detr.txt}"
+    CONFIG_PROFILE="${CONFIG_PROFILE:-mtmc_4cam_detr}"
     ;;
   PeopleNet2.6.3)
-    DETECTOR_CONFIG="${DETECTOR_CONFIG:-config_pgie_peoplenet.txt}"
+    CONFIG_PROFILE="${CONFIG_PROFILE:-mtmc_4cam_pn2}"
     ;;
   *)
     echo "ERROR: unsupported DETECTOR_MODEL=${DETECTOR_MODEL}. Use PeopleNetTransformer, RTDETR, or PeopleNet2.6.3."
@@ -48,6 +50,7 @@ case "${DETECTOR_MODEL}" in
     ;;
 esac
 TRACKER_CONFIG="${TRACKER_CONFIG:-config_tracker.yml}"
+DETECTOR_CONFIG="${DETECTOR_CONFIG:-config_pgie.txt}"
 echo "Using detector model: ${DETECTOR_MODEL} (detector=${DETECTOR_CONFIG}, tracker=${TRACKER_CONFIG})"
 
 CONFIG_FLAGS=(--enable-msg-broker)
@@ -65,7 +68,8 @@ if [ -n "${CONFIG_OVERRIDES:-}" ]; then
   CONFIG_OVERRIDE_ARGS+=(--config-overrides="${CONFIG_OVERRIDES}")
 fi
 
-python "${REPO_ROOT}/utils/deepstream_auto_configurator.py" \
+python -m utils.deepstream_auto_configurator \
+  --profile="${CONFIG_PROFILE}" \
   --dataset-dir="${DATASET_DIR}" \
   "${CONFIG_FLAGS[@]}" \
   --detector-config="${DETECTOR_CONFIG}" \
@@ -199,4 +203,4 @@ The automatic GPU check reads the host's visible GPUs. If container device restr
 
 Immediately before each launch or retry, repeat the container-side Kafka and MQTT reachability checks in [Container Networking](container-network.md), using the exact endpoints saved in the generated configs. Recheck Kafka advertised listeners and MQTT authentication, not just host TCP access. If the bridge gateway or broker endpoint changed after generation, regenerate and verify configs before launching; do not run with stale endpoints.
 
-Report the selected `DETECTOR_MODEL`, `DETECTOR_CONFIG`, `TRACKER_CONFIG`, `CONFIG_FLAGS`, optional `CONFIG_OVERRIDES`, whether the RTDETR strongly typed guard ran, and `EXPERIMENT_DIR` before launching DeepStream.
+Report the selected `DETECTOR_MODEL`, `CONFIG_PROFILE`, `DETECTOR_CONFIG`, `TRACKER_CONFIG`, `CONFIG_FLAGS`, optional `CONFIG_OVERRIDES`, whether the RTDETR strongly typed guard ran, and `EXPERIMENT_DIR` before launching DeepStream.

@@ -1,7 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 [application]
 kitti-track-output-dir=tracker-kitti-dump
 gie-kitti-output-dir=infer-kitti-dump
-perf-measurement-interval-sec=5
+perf-measurement-interval-sec=1
 enable-perf-measurement=1
 
 [source0]
@@ -10,7 +25,7 @@ enable=1
 cudadec-memtype=0
 gpu-id=0
 num-sources=1
-uri=file://videos/Warehouse_Synthetic_Cam001.mp4
+uri=file:///workspace/inputs/videos/000.mp4
 
 [source1]
 type=3
@@ -18,7 +33,7 @@ enable=1
 cudadec-memtype=0
 gpu-id=0
 num-sources=1
-uri=file://videos/Warehouse_Synthetic_Cam002.mp4
+uri=file:///workspace/inputs/videos/001.mp4
 
 [source2]
 type=3
@@ -26,7 +41,7 @@ enable=1
 cudadec-memtype=0
 gpu-id=0
 num-sources=1
-uri=file://videos/Warehouse_Synthetic_Cam003.mp4
+uri=file:///workspace/inputs/videos/002.mp4
 
 [source3]
 type=3
@@ -34,30 +49,55 @@ enable=1
 cudadec-memtype=0
 gpu-id=0
 num-sources=1
-uri=file://videos/Warehouse_Synthetic_Cam004.mp4
+uri=file:///workspace/inputs/videos/003.mp4
+
+[source4]
+type=3
+enable=1
+cudadec-memtype=0
+gpu-id=0
+num-sources=1
+uri=file:///workspace/inputs/videos/004.mp4
+
+[source5]
+type=3
+enable=1
+cudadec-memtype=0
+gpu-id=0
+num-sources=1
+uri=file:///workspace/inputs/videos/005.mp4
+
+[source6]
+type=3
+enable=1
+cudadec-memtype=0
+gpu-id=0
+num-sources=1
+uri=file:///workspace/inputs/videos/006.mp4
 
 [streammux]
+attach-sys-ts-as-ntp=0
 enable-padding=0
 nvbuf-memory-type=0
 width=1920
 height=1080
 batched-push-timeout=-1
-batch-size=4
+batch-size=7
 live-source=0
 gpu-id=0
 
 [primary-gie]
-enable=1
+enable=0
 nvbuf-memory-type=0
 bbox-border-color3=0;1;0;1
 bbox-border-color2=0;0;1;1
 bbox-border-color1=0;1;1;1
 bbox-border-color0=1;0;0;1
-batch-size=4
+batch-size=7
 gpu-id=0
 gie-unique-id=1
 interval=0
-model-engine-file=/workspace/models/PeopleNetTransformer/peoplenet_transformer_model_op17.onnx_b4_gpu0_fp16.engine
+model-engine-file=/workspace/models/PeopleNetTransformer/peoplenet_transformer_model_op17.onnx_b7_gpu0_fp16.engine
 config-file=config_pgie.txt
 
 [tracker]
@@ -91,8 +131,8 @@ gpu-id=0
 width=1920
 height=1080
 nvbuf-memory-type=0
-rows=2
-columns=2
+rows=3
+columns=3
 
 [sink0]
 enable=1
@@ -113,19 +153,17 @@ source-id=0
 sync=0
 
 [sink2]
-enable=0
-type=3 # file
-container=1 # mp4
-codec=1 #h264
-enc-type=0 # hardware
+enable=1
+type=3
+container=1
+codec=1
+enc-type=0
 sync=0
-# bitrate=2000000
-profile=0 # baseline
+profile=0
 output-file=outVideos/tiled_display_raw.mp4
 
 [sink3]
 enable=0
-#Type - 1=FakeSink 2=EglSink 3=File 4=UDPSink 5=nvdrmvideosink 6=MsgConvBroker
 type=6
 msg-conv-config=config_msgconv.txt
 msg-conv-payload-type=2
@@ -138,3 +176,12 @@ topic=mv3dt
 
 [tests]
 file-loop=0
+
+[replay]
+enable=1
+label-dir=/workspace/inputs/detections/PeopleNetTransformer/
+file-names=000.txt;001.txt;002.txt;003.txt;004.txt;005.txt;006.txt
+max-frame-nums=196;196;196;196;196;196;196
+label-width=1920
+label-height=1080
+interval=0
