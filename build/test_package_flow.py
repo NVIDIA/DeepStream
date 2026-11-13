@@ -185,6 +185,26 @@ class PackageFlowTests(unittest.TestCase):
     def assert_no_build_or_install(self):
         self.assertFalse(self.forbidden.exists(), self.forbidden.read_text() if self.forbidden.exists() else "")
 
+    def setup_preflight_command(self, setup, *, neutralize_root_guard=True):
+        """Exercise provider guards; intercept the first scratch-creation call.
+
+        The private copy neutralizes only the root-only guard, never provider
+        checks. This lets an unprivileged CPU test reach the synthetic mutation
+        boundary without changing the production helper's privilege policy.
+        """
+        text = setup.read_text()
+        if neutralize_root_guard:
+            guard = "if [[ $EUID -ne 0 ]]; then"
+            self.assertEqual(text.count(guard), 1)
+            text = text.replace(guard, "if false; then # private unprivileged fixture only")
+        private_setup = self.root / "guarded-triton-setup.sh"
+        self.write(private_setup, text)
+        self.env["DEEPSTREAM_LIB_DIR"] = str(self.runtime / "lib")
+        return ["bash", "-c",
+                'mktemp() { echo PREPARATION_REACHED >&2; return 97; }; '
+                'mkdir() { echo PREPARATION_REACHED >&2; return 97; }; '
+                'export -f mktemp mkdir; exec bash "$1"', "guarded-setup", str(private_setup)]
+
     def test_help_is_read_only(self):
         for script in ("build.sh", "package.sh"):
             run = self.run_command(["bash", str(self.repo / "build" / script), "--help"])
@@ -342,9 +362,7 @@ class PackageFlowTests(unittest.TestCase):
 
     def test_jetson_triton_setup_requires_both_providers_before_mutation(self):
         setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
-        command = ["bash", "-c",
-                   'mkdir() { echo PREPARATION_REACHED; return 97; }; '
-                   'export -f mkdir; exec bash "$1"', "guarded-setup", str(setup)]
+        command = self.setup_preflight_command(setup)
         server = "https://example.invalid/v2.74.0/server.zip"
         client = "https://example.invalid/v2.74.0/client.zip"
         for variant in ("jetson", "tegra", "aarch64"):
@@ -362,12 +380,38 @@ class PackageFlowTests(unittest.TestCase):
                     self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.env.update(TRITON_PKG_PATH=server, TRITON_CLIENT_SDK_PKG_PATH=client)
         # A reviewed explicit pair reaches the first possible mutation, which
-        # is intercepted; no installer, download or mkdir actually executes.
+        # is intercepted; no installer, download or scratch creation executes.
         result = self.run_command(command, expected=97)
         self.assertIn("PREPARATION_REACHED", result.stdout)
         self.env["TRITON_CLIENT_SDK_PKG_PATH"] = "https://example.invalid/v2.73.0/client.zip"
         result = self.run_command(command, expected=1)
         self.assertIn("versions must match", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
+        self.assert_no_build_or_install()
+
+    def test_upgraded_arm_setup_pins_274_before_mutation(self):
+        setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
+        command = self.setup_preflight_command(setup)
+        for variant in ("jetson", "tegra", "aarch64", "sbsa"):
+            for version in ("2.68.0", "2.73.0", "2.74.1", "2.75.0"):
+                with self.subTest(variant=variant, version=version):
+                    self.env.update(DEEPSTREAM_VARIANT=variant,
+                                    TRITON_PKG_PATH=f"https://example.invalid/v{version}/server.zip",
+                                    TRITON_CLIENT_SDK_PKG_PATH=f"https://example.invalid/v{version}/client.zip")
+                    result = self.run_command(command, expected=1)
+                    self.assertIn("2.74.0", result.stdout)
+                    self.assertNotIn("PREPARATION_REACHED", result.stdout)
+        self.assert_no_build_or_install()
+
+    @unittest.skipIf(os.geteuid() == 0, "tests the real unprivileged invocation")
+    def test_valid_pair_still_requires_root_before_scratch_creation(self):
+        setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
+        command = self.setup_preflight_command(setup, neutralize_root_guard=False)
+        self.env.update(DEEPSTREAM_VARIANT="jetson",
+                        TRITON_PKG_PATH="https://example.invalid/v2.74.0/server.zip",
+                        TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.74.0/client.zip")
+        result = self.run_command(command, expected=1)
+        self.assertIn("Must be run as root or sudo", result.stdout)
         self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.assert_no_build_or_install()
 
@@ -488,9 +532,7 @@ class PackageFlowTests(unittest.TestCase):
         self.assertNotIn("cuda-cudart-13-4", depends)
         self.assertEqual(inference.read_bytes(), before)
         setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
-        command = ["bash", "-c",
-                   'mkdir() { echo PREPARATION_REACHED; return 97; }; '
-                   'export -f mkdir; exec bash "$1"', "guarded-igx-setup", str(setup)]
+        command = self.setup_preflight_command(setup)
         result = self.run_command(command, expected=1)
         self.assertIn("IGX", result.stdout)
         self.assertIn("explicit", result.stdout)
@@ -778,9 +820,7 @@ class PackageFlowTests(unittest.TestCase):
         self.run_command(self.package_command("--arch=arm64", "--platform=sbsa", "--keep-stage"))
         setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
         # Intercept the first possible mutation if the early guard regresses.
-        command = ['bash', '-c',
-                   'mkdir() { echo mkdir >> "$PACKAGE_TEST_FORBIDDEN"; return 97; }; '
-                   'export -f mkdir; exec bash "$1"', 'guarded-setup', str(setup)]
+        command = self.setup_preflight_command(setup)
         result = self.run_command(command, expected=None)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("SBSA", result.stdout)

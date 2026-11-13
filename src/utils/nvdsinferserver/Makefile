@@ -74,7 +74,9 @@ SRCS :=   \
      $(NULL)
 
 
-INCS := $(wildcard *.h)
+# model_config.pb.h is selected below; an old generated local copy must not
+# shadow or become a dependency of the selected client SDK's own header.
+INCS := $(filter-out model_config.pb.h,$(wildcard *.h))
 
 # The October client SDK configures Abseil to use C++20 ordering types. Older
 # providers retain C++17 unless the caller explicitly selects a newer standard.
@@ -132,13 +134,57 @@ endif
 # Use that same complete provider for linking, static dependencies and RPATH.
 TRITON_ABSL_LIBS := $(addprefix -l:,$(notdir $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libabsl*.a))))
 TRITON_PROTOBUF_UTF8_LIBS := $(addprefix -l:,$(notdir $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8_range.a $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8_validity.a))))
+TRITON_CORE_VISIBILITY_MAP := .build/triton-client-visibility.map
+
+# Modern client SDK archives contain private protobuf/Abseil state. Keep the
+# client's generated ModelConfig and DeepStream's generated messages in this
+# core's single runtime, rather than passing them between two private runtimes.
+# The SDK's TritonClient::grpcclient_static target links gRPC::grpc++,
+# gRPC::grpc and protobuf::libprotobuf. Their matching support archives are
+# supplied by that same SDK; archive groups pull only the required objects.
+_TRITON_CORE_PRIVATE_STATIC_CLIENT := $(shell test "$(NVDS_PROTOBUF_HEADER_VERSION)" -ge 6000000 2>/dev/null && echo 1)
+ifeq ($(_TRITON_CORE_PRIVATE_STATIC_CLIENT),1)
+TRITON_CORE_REQUIRED_ARCHIVES := $(addprefix $(TRITON_GRPC_CLIENT_LIB_DIR)/, \
+    libgrpcclient_static.a libgrpc++.a libgrpc.a libgpr.a libprotobuf.a \
+    libcares.a libre2.a libaddress_sorting.a libutf8_range.a libutf8_validity.a)
+TRITON_CORE_ABSL_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libabsl*.a))
+TRITON_CORE_UPB_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libupb*.a))
+TRITON_CORE_UTF8_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8*.a))
+TRITON_CORE_CLIENT_ARCHIVES := $(sort $(TRITON_CORE_REQUIRED_ARCHIVES) \
+    $(TRITON_CORE_ABSL_ARCHIVES) $(TRITON_CORE_UPB_ARCHIVES) $(TRITON_CORE_UTF8_ARCHIVES))
+ifeq ($(_DS_NEED_CUDA_VER),1)
+TRITON_CORE_MISSING_ARCHIVES := $(filter-out $(wildcard $(TRITON_CORE_REQUIRED_ARCHIVES)),$(TRITON_CORE_REQUIRED_ARCHIVES))
+ifneq ($(TRITON_CORE_MISSING_ARCHIVES),)
+$(error Modern Triton client core requires matching static SDK archives: $(TRITON_CORE_MISSING_ARCHIVES))
+endif
+ifeq ($(TRITON_CORE_ABSL_ARCHIVES),)
+$(error Modern Triton client core requires the selected SDK's Abseil archives)
+endif
+ifeq ($(TRITON_CORE_UPB_ARCHIVES),)
+$(error Modern Triton client core requires the selected SDK's upb archives)
+endif
+endif
+TRITON_CORE_CLIENT_LIBS := $(TRITON_CORE_CLIENT_ARCHIVES)
+TRITON_CORE_SUPPORT_LIBS :=
+TRITON_CORE_VISIBILITY_DEP := $(TRITON_CORE_VISIBILITY_MAP)
+# Hide archive-owned ModelConfig/protobuf/gRPC/Abseil definitions, not the
+# source-object DeepStream protobuf types and typed reflection entry points.
+# GNU ld also keeps absent optional TLS-init weak hooks non-dynamic, so another
+# DSO cannot supply an initializer for this private runtime's trivial TLS data.
+LDFLAGS += -Wl,--exclude-libs,ALL \
+    -Wl,-z,nodynamic-undefined-weak \
+    -Wl,--defsym,nvds_inferserver_static_protobuf_version=$(NVDS_PROTOBUF_HEADER_VERSION) \
+    -Wl,--version-script=$(TRITON_CORE_VISIBILITY_MAP)
+else
+# Preserve the older SDK's shared-client link and its existing archive support.
+TRITON_CORE_CLIENT_LIBS := -lgrpcclient -l:libprotobuf.a -l:libcares.a
+TRITON_CORE_SUPPORT_LIBS := -Wl,--start-group $(TRITON_ABSL_LIBS) $(TRITON_PROTOBUF_UTF8_LIBS) -Wl,--end-group -l:libre2.a
+endif
 
 LIBS := \
     -L$(TRITON_SERVER_STUB) \
     -L$(TRITON_GRPC_CLIENT_LIB_DIR) \
-    -lgrpcclient \
-    -l:libprotobuf.a \
-    -l:libcares.a \
+    $(TRITON_CORE_CLIENT_LIBS) \
     -ltritonserver \
     -lnvbufsurftransform \
     -lnvbufsurface \
@@ -148,11 +194,7 @@ LIBS := \
     -lnvds_meta \
     -lnvds_inferlogger \
     -lnvds_inferutils \
-    -Wl,--start-group \
-    $(TRITON_ABSL_LIBS) \
-    $(TRITON_PROTOBUF_UTF8_LIBS) \
-    -Wl,--end-group \
-    -l:libre2.a \
+    $(TRITON_CORE_SUPPORT_LIBS) \
     -ldl \
     -pthread \
     -lz \
@@ -205,6 +247,12 @@ LDFLAGS += \
 
 TRITONSERVER_HEADERS := $(wildcard tritonserver_include/*.h)
 TRITONSERVER_PROTOS := $(wildcard tritonserver_include/*.proto)
+TRITON_MODEL_CONFIG_HEADER := $(wildcard $(TRITON_GRPC_CLIENT)/include/model_config.pb.h)
+ifneq ($(TRITON_MODEL_CONFIG_HEADER),)
+# Newer client SDKs supply their exact schema/header alongside libgrpcclient.
+# Retain local generation only for older providers that do not ship the header.
+TRITONSERVER_PROTOS := $(filter-out tritonserver_include/model_config.proto,$(TRITONSERVER_PROTOS))
+endif
 
 INFERSERVER_PROTOS := $(wildcard ../../../includes/*.proto)
 
@@ -218,11 +266,13 @@ INCS += \
     $(INFERSERVER_PROTOS) \
     $(TRITONSERVER_PROTOS) \
     $(TRITONSERVER_HEADERS) \
+    $(TRITON_MODEL_CONFIG_HEADER) \
     $(ALL_PROTOS_PBCC) \
     $(ALL_PROTOS_PBH) \
     $(DEPS)/libtritonserver.so \
     $(NVDS_PROTOBUF_MAKEFILE) \
     $(NVDS_PROTOBUF_PROVIDER_STAMP) \
+    $(TRITON_CORE_CLIENT_ARCHIVES) \
     $(NULL) \
 
 .PRECIOUS:  $(ALL_PROTOS_PBCC)
@@ -244,7 +294,7 @@ all: $(LIB)
 	@echo $(CFLAGS)
 	$(NVCC) -c -o $@ --compiler-options '-fPIC -I../../../includes/nvdsinferserver -I../../../includes'  $<
 
-$(LIB): $(OBJS) $(INCS) $(DEP) Makefile
+$(LIB): $(OBJS) $(INCS) $(DEP) Makefile $(TRITON_CORE_VISIBILITY_DEP)
 	$(CXX) -o $@ $(LDFLAGS) $(OBJS) -Wl,--start-group $(LIBS) -Wl,--end-group
 
 install: $(LIB)
@@ -254,6 +304,41 @@ clean:
 	rm -rf $(OBJS) $(LIB)
 	rm -rf $(DEPS)/libtritonserver.so $(ALL_PROTOS_PBCC) $(ALL_PROTOS_PBH)
 	rm -f "$(NVDS_PROTOBUF_PROVIDER_STAMP)"
+	rm -f "$(TRITON_CORE_VISIBILITY_MAP)"
+
+ifeq ($(_TRITON_CORE_PRIVATE_STATIC_CLIENT),1)
+# --exclude-libs hides archive definitions, but upstream inline/template
+# definitions can also be emitted in ordinary core objects. Localize only
+# their mangled ownership prefixes; do not match protobuf names in arguments
+# of DeepStream APIs. Enumerate CV/ref qualifiers instead of a glob between
+# the nested-name prefix and namespace token, which could overmatch arguments.
+$(TRITON_CORE_VISIBILITY_MAP): Makefile $(NVDS_PROTOBUF_PROVIDER_STAMP)
+	@set -eu; \
+	  mkdir -p '$(@D)'; \
+	  temporary='$@.'$$$$'.tmp'; \
+	  trap 'rm -f "$$temporary"' EXIT HUP INT TERM; \
+	  { \
+	    printf '{\n  global: *;\n  local:\n'; \
+	    for owner in 9inference 6triton6client 6google8protobuf 4absl 4grpc 9grpc_core 9grpc_impl 17grpc_event_engine 3upb 3re2; do \
+	      for cv in '' K V VK r rK rV rVK; do \
+	        for ref in '' R O; do \
+	          for prefix in _ZN _ZZN _ZGVN _ZGVZN _ZTHN _ZTWN; do \
+	            printf '    %s%s%s%s*;\n' "$$prefix" "$$cv" "$$ref" "$$owner"; \
+	          done; \
+	        done; \
+	        printf '    _ZTI%sN%s*;\n    _ZTS%sN%s*;\n' "$$cv" "$$owner" "$$cv" "$$owner"; \
+	      done; \
+	      for prefix in _ZTVN _ZTTN _ZTCN; do \
+	        printf '    %s%s*;\n' "$$prefix" "$$owner"; \
+	      done; \
+	    done; \
+	    for prefix in grpc_ gpr_ upb_ _upb_ ares_ address_sorting_ utf8_range_ utf8_validity_; do \
+	      printf '    %s*;\n' "$$prefix"; \
+	    done; \
+	    printf '};\n'; \
+	  } > "$$temporary"; \
+	  if ! cmp -s "$$temporary" '$@'; then mv -f "$$temporary" '$@'; fi
+endif
 
 $(DEPS)/libtritonserver.so: tritonserver_stub/libtritonserver_dummy.export Makefile
 	@mkdir -p $(dir $@)

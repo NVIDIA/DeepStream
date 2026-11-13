@@ -29,6 +29,9 @@
 #include <gstnvdsinfer.h>
 
 #include "gstnvinferserver_meta_utils.h"
+#if GOOGLE_PROTOBUF_VERSION >= 6000000
+#include "infer_proto_utils.h"
+#endif
 #include "cuda_runtime_api.h"
 #include "cuda.h"
 
@@ -107,6 +110,14 @@ attachDetectionMetadata(
                 (std::find(ids.begin(), ids.end(), obj.classIndex) != ids.end()))
                 continue;
 
+#if GOOGLE_PROTOBUF_VERSION >= 6000000
+            // The core owns this map and its private protobuf/Abseil hash seed.
+            filterParams = nvdsinferserver::findSpecificClassFilter(
+                *detectControl, static_cast<uint32_t>(obj.classIndex));
+            if (!filterParams) {
+                filterParams = &detectControl->default_filter();
+            }
+#else
             auto iter =
                 detectControl->specific_class_filters().find(obj.classIndex);
             if (iter != detectControl->specific_class_filters().end()) {
@@ -114,6 +125,7 @@ attachDetectionMetadata(
             } else {
                 filterParams = &detectControl->default_filter();
             }
+#endif
         }
 
         /* Scale the bounding boxes proportionally based on how the object/frame

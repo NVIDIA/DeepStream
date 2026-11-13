@@ -20,7 +20,8 @@ Dependencies:
 - Triton Inference Server library (/opt/tritonserver/lib/libtritonserver.so)
 - Matching Triton26.10 gRPC client SDK for x86 and genericSBSA/Spark
 - Separately qualified JetPack7.2.2/TRT11.4.1 client/server inputs for Jetson
-- Google Protobuf compiler v3.21.12
+- Google Protobuf compiler matching the selected Triton client SDK's headers
+  and protobuf libraries (do not assume the older v3.21.12 compiler matches)
 - Half - Half precision floating point C++ library v2.1.0 
 
 Please ensure that the above dependencies are installed and update corresponding
@@ -29,6 +30,21 @@ Current set paths are as follows:
 PROTOBUF_BIN_DIR ?= /opt/proto/bin
 TRITON_GRPC_CLIENT ?= /opt/tritonclient
 HALF_PRECISION_LIB ?= /opt/half
+
+When the selected client SDK supplies include/model_config.pb.h, the build uses
+that header instead of regenerating the older bundled Triton schema. Older SDKs
+without that header retain local schema generation. PROTOBUF_BIN_DIR must select
+the matching protoc for the SDK in either case; DeepStream's own protobuf files
+are regenerated with it. Rebuild both this library and gst-nvinferserver when
+changing providers; headers, generated code and client/server binaries must agree.
+
+For protobuf 6 and newer, the core uses the matching SDK's static client, gRPC,
+protobuf, Abseil and upb archives as one private runtime. Supply the complete SDK,
+not just libgrpcclient.so. Its generated model types cannot safely be reflected
+using a second private protobuf runtime. The build keeps archive/header symbols
+private while exporting DeepStream's own generated types and typed helpers.
+Older providers retain their existing shared-client link. Rebuild dependent
+protobuf consumers as well; do not reuse objects linked to a previous provider.
 
 For installing the Triton gRPC client library and the protobuf compiler please
 check the steps in /opt/nvidia/deepstream/deepstream/sources/gst-plugins/gst-nvinferserver/README 

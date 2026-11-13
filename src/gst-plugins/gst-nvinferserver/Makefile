@@ -44,11 +44,15 @@ SRCS := \
     $(NULL)
 
 ifeq ($(shell uname -m), aarch64)
-SRCS +=   \
-     ../../utils/nvdsinferserver/infer_utils.cpp \
+SRCS += ../../utils/nvdsinferserver/infer_utils.cpp
+# Legacy ARM builds own these generated messages in the plugin. With modern
+# protobuf, keep message/descriptor ownership in core as on x86.
+ifeq ($(shell awk 'BEGIN { print ("$(NVDS_PROTOBUF_HEADER_VERSION)" + 0 >= 6000000) }'),0)
+SRCS += \
      nvdsinferserver_config.pb.cc \
      nvdsinferserver_plugin.pb.cc \
      nvdsinferserver_common.pb.cc
+endif
 endif
 
 

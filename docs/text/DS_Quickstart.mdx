@@ -305,8 +305,14 @@ libraries; no backend installer is needed for that Docker path.
 
 For an optional native archive installation, the **monorepo**
 `scripts/triton_backend_setup.sh` requires explicit matching `TRITON_PKG_PATH`
-and `TRITON_CLIENT_SDK_PKG_PATH` URLs. It has no 26.04 fallback, and installing
-archives does not qualify their compatibility. Its backend directory is
+and `TRITON_CLIENT_SDK_PKG_PATH` ZIP URLs. Jetson and SBSA require release
+**2.74.0 (26.10)**, with `/v2.74.0/` in both URLs; older or mismatched pairs
+are rejected before installation. Jetson still needs a provider qualified for
+its JetPack7.2.2/CUDA13.2.2/TRT11.4.1 stack, not stock SBSA binaries. There is no
+26.04 fallback. The unchanged legacy IGX/TRT10 path retains its explicit matching
+pair policy rather than being forced onto 2.74. Installing selected archives does
+not qualify their compatibility. Forward both URL variables explicitly through
+`sudo env`, as shown in the repository README. Its backend directory is
 `/opt/tritonserver/backends`. Follow the selected provider's layout when setting
 `model_repo.backend_dir` in an inference configuration.
 

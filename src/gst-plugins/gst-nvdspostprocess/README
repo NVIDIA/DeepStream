@@ -46,13 +46,25 @@ NOTE:
 --------------------------------------------------------------------------------
 How to test :
 
-Single Stream and Rendering, set appropriate CUDA_VER, 13.2 for both Jetson and dGPU
-   $ export CUDA_VER=13.2
+Single Stream and Rendering: set CUDA_VER to the target stack's CUDA Toolkit
+version: 13.4 for x86/SBSA and 13.2 for Jetson. Use the same CUDA_VER when building
+and installing. The example below uses x86/SBSA.
+   $ export CUDA_VER=13.4
    $ make
    $ sudo -E make install
    $ cd postprocesslib_impl
    $ make
+   $ sudo -E make install
    $ cd -
+The GStreamer plugin is installed in lib/gst-plugins; its custom postprocessing
+implementation is installed in lib/libpostprocess_impl.so. The commands below
+use the installed implementation rather than a source-tree build output.
+
+For TensorRT 11, prepare the sample models before running these pipelines:
+   $ python3.12 /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py
+This prepares TrafficCamNet, VehicleMake and VehicleTypes. Keep network-mode=2
+for these FP16 examples; do not add an INT8 calibration cache.
+
 Tests for cascaded detector/classifier models
 On dGPU
    $ gst-launch-1.0 uridecodebin \
@@ -61,16 +73,16 @@ On dGPU
      nvinfer config-file-path=config_infer_primary_post_process.txt  \
     ! nvdspostprocess \
     postprocesslib-config-file=config_detector.yml \
-    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+    postprocesslib-name= /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so \
     ! queue ! nvinfer \
     config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
     ! nvdspostprocess \
     postprocesslib-config-file= config_classifier_vehicle_make.yml \
-    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+    postprocesslib-name= /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so ! queue ! nvinfer \
     config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
     ! nvdspostprocess  postprocesslib-config-file= \
     config_classifier_vehicle_type.yml  postprocesslib-name= \
-    ./postprocesslib_impl/libpostprocess_impl.so    ! queue ! nvmultistreamtiler !  nvvideoconvert \
+    /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so    ! queue ! nvmultistreamtiler !  nvvideoconvert \
     gpu-id=0 ! nvdsosd ! nveglglessink sync=1 -v  uridecodebin \
     uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1
 
@@ -81,15 +93,15 @@ On Jetson
     nvinfer config-file-path=config_infer_primary_post_process.txt  \
     ! nvdspostprocess \
     postprocesslib-config-file=config_detector.yml \
-    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so \
+    postprocesslib-name= /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so \
     ! queue ! nvinfer \
     config-file-path= config_infer_secondary_vehiclemake_postprocess.txt \
     ! nvdspostprocess \
     postprocesslib-config-file=config_classifier_vehicle_make.yml \
-    postprocesslib-name= ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvinfer \
+    postprocesslib-name= /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so ! queue ! nvinfer \
     config-file-path= config_infer_secondary_vehicletypes_postprocess.txt \
     ! nvdspostprocess  postprocesslib-config-file= \
     config_classifier_vehicle_type.yml  postprocesslib-name= \
-    ./postprocesslib_impl/libpostprocess_impl.so ! queue ! nvmultistreamtiler !  nvvideoconvert \
+    /opt/nvidia/deepstream/deepstream/lib/libpostprocess_impl.so ! queue ! nvmultistreamtiler !  nvvideoconvert \
     gpu-id=0 ! nvdsosd ! nv3dsink sync=1 -v  uridecodebin \
     uri=file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4 ! m.sink_1

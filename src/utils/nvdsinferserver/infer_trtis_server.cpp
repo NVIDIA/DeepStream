@@ -1216,6 +1216,7 @@ NvDsTritonServerInit(
     if (!google::protobuf::TextFormat::ParseFromString(
         {configStr, (size_t)configStrLen}, &modelRepo)) {
         InferError("NvDsTritonServerInit: failed to parse TritonModelRepo prototxt");
+        return NVDSINFER_CONFIG_FAILED;
     }
     triton::RepoSettings repoSettings;
     if (!repoSettings.initFrom(modelRepo, {})) {

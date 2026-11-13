@@ -25,6 +25,33 @@
 
 namespace nvdsinferserver {
 
+bool parsePluginControl(const std::string& text, ic::PluginControl& config) {
+    return google::protobuf::TextFormat::ParseFromString(text, &config);
+}
+
+bool parseInferenceConfig(const std::string& text, ic::InferenceConfig& config) {
+    return google::protobuf::TextFormat::ParseFromString(text, &config);
+}
+
+bool formatInferenceConfig(const ic::InferenceConfig& config, std::string& text) {
+    std::string formatted;
+    if (!google::protobuf::TextFormat::PrintToString(config, &formatted)) {
+        text.clear();
+        return false;
+    }
+    text.swap(formatted);
+    return true;
+}
+
+const ic::PluginControl::DetectClassFilter*
+findSpecificClassFilter(
+    const ic::PluginControl::OutputDetectionControl& control, uint32_t classId)
+{
+    const auto& filters = control.specific_class_filters();
+    const auto found = filters.find(classId);
+    return found == filters.end() ? nullptr : &found->second;
+}
+
 InferDataType dataTypeFromDsProto(ic::TensorDataType dt) {
     const static std::unordered_map<ic::TensorDataType, InferDataType> sFrProto{
         {ic::TENSOR_DT_FP32, InferDataType::kFp32},
@@ -341,14 +368,19 @@ bool
 validateInferConfigStr(const std::string& configStr, const std::string& path, std::string& updated)
 {
     ic::InferenceConfig config;
-    if (!google::protobuf::TextFormat::ParseFromString(configStr, &config)) {
+    if (!parseInferenceConfig(configStr, config)) {
+        updated.clear();
         InferError("error: failed to parse internal lowlevel infer_config: %s", safeStr(path));
         return false;
     }
     if (!validateProtoConfig(config, path)) {
+        updated.clear();
         InferError("error: failed to validate lowlevel infer_config: %s", safeStr(path));
         return false;
     }
-    updated = config.DebugString();
+    if (!formatInferenceConfig(config, updated)) {
+        InferError("error: failed to serialize validated lowlevel infer_config: %s", safeStr(path));
+        return false;
+    }
     return true;
 }

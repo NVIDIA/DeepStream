@@ -24,13 +24,13 @@ Pre-requisites:
   (CUDA_VER=13.2) for the JetPack7.2.2 Jetson upgrade target
 
 Install gstreamer developement packages using:
-   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
-        libprotobuf-dev protobuf-compiler
+   sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
 
 Other dependencies:
 - Matching Triton26.10 C++ client SDK for x86/genericSBSA
 - Separately qualified JetPack7.2.2/TRT11.4.1-compatible SDK for Jetson
-- Google Protobuf compiler v3.21.12
+- Google Protobuf compiler matching the selected Triton client SDK's headers
+  and protobuf libraries
 
 Install other dependencies (writing /opt requires root privileges):
 1. Preprovision the complete matching client SDK at /opt/tritonclient, containing
@@ -42,20 +42,22 @@ https://github.com/triton-inference-server/server/releases/tag/v2.74.0.
 For the dependency stage an alternate complete location may be supplied using
 TRITON_CLIENT_SDK_ROOT; a standalone Makefile uses TRITON_GRPC_CLIENT instead.
 Headers/library presence alone does not prove SDK release provenance.
+For protobuf 6 and newer the inference core also requires the complete matching
+static client/gRPC/protobuf/Abseil/upb archive set. Rebuild and install the core
+before this plugin; copying a newer libgrpcclient.so onto an older core is not a
+supported replacement. Configuration reflection and per-class filter lookups
+must stay in the library owning those generated messages.
 
-A. Protobuf compiler v3.21.12 for x86 into "/opt/proto":
-mkdir /opt/proto
-PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-x86_64.zip
-unzip protoc-21.12-linux-x86_64.zip -d /opt/proto
+2. Supply the protoc compiler matching the selected SDK's protobuf headers and
+libraries, and set PROTOBUF_BIN_DIR to its bin directory. Use the compiler from
+that SDK's build or the corresponding official Protobuf release; do not assume
+the system compiler or a hardcoded older v3.21.12 download is compatible. The
+shared build rules verify the selected compiler version before regeneration.
+The compiler executes on the build host; select its architecture accordingly.
 
-B. Jetson requires its qualified matching SDK, not the genericSBSA image or a
-legacy26.04 archive assumed compatible with TRT11.4.1. Protobuf compilerv3.21.12:
-mkdir /opt/proto
-PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-curl -LO $PB_REL/download/v21.12/protoc-21.12-linux-aarch_64.zip
-unzip protoc-21.12-linux-aarch_64.zip -d /opt/proto
-chmod -R +rx /opt/proto/
+Jetson requires its qualified matching SDK, not the genericSBSA image or a
+legacy26.04 archive assumed compatible with TRT11.4.1. Apply the same matching
+compiler/header/library requirement to that separately qualified provider.
 
 Please ensure that the above dependencies are installed and update corresponding
 paths in the Makefile if required.

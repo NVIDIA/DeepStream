@@ -175,9 +175,12 @@ Prepare Triton dependencies and sample models on Jetson.
 ```bash
 # Run from the cloned repository root after the DeepStream build has completed.
 
-# Install only reviewed, matching JetPack7.2.2/TRT11.4.1 server/client inputs.
-# Both archive URLs must be supplied explicitly; there is no legacy26.04 fallback.
-sudo -E DEEPSTREAM_VARIANT=jetson ./scripts/triton_backend_setup.sh
+# First set both URL variables to reviewed Triton2.74.0 (26.10) ZIP inputs
+# qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1, not the stock SBSA build.
+# Each URL must contain /v2.74.0/; there is no legacy26.04 fallback.
+sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
+    TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
+    ./scripts/triton_backend_setup.sh
 
 # Clear the plugin cache after the Triton libraries are installed.
 rm -rf ~/.cache/gstreamer-1.0/

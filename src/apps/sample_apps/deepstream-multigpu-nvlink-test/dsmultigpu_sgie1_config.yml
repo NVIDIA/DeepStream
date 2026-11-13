@@ -20,7 +20,7 @@ property:
   onnx-file: /opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/resnet18_vehiclemakenet_pruned.onnx
   model-engine-file: /opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/resnet18_vehiclemakenet_pruned.onnx_b16_gpu0_fp16.engine
   labelfile-path: /opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/labels.txt
-  int8-calib-file: /opt/nvidia/deepstream/deepstream/samples/models/Secondary_VehicleMake/cal_trt.bin
+  # FP16 uses the model tensor types; no INT8 calibration cache is used.
   batch-size: 16
   model-color-format: 1
   process-mode: 2

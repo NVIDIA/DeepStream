@@ -140,14 +140,16 @@ The DeepStream Triton container already includes Triton Server and backends. To 
 
 ```bash
 cd <DS_ROOT>/scripts/
-sudo ./triton_backend_setup.sh
+sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
+  TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
+  ./triton_backend_setup.sh
 export PATH="${PATH:+${PATH}:}/opt/tritonserver/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/opt/tritonserver/lib"
 ```
 
 > **Notes:**
 >
-> 1. By default the script downloads Triton Server version 2.60.0. For setting up any other version, change the package path accordingly. Without running this script and exporting the paths above, components using `nvinferserver` fail at runtime on Jetson.
+> 1. First set both URL variables to reviewed Triton2.74.0 (26.10) server/client ZIPs with `/v2.74.0/` in each URL. No default is selected. Jetson requires a JetPack7.2.2/CUDA13.2.2/TRT11.4.1-compatible pair; stock SBSA binaries are not a substitute. Backend setup remains blocked without qualified inputs.
 > 2. The script extracts the Triton server executable to the `/opt/tritonserver/bin` folder. To run both the Triton server and DeepStream applications on the same Jetson device, use the following steps to start the Triton server:
 >
 > ```bash

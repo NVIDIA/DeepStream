@@ -69,7 +69,12 @@ Pre-requisites:
    $ ls $SDK_ROOT/samples/triton_backend_setup.sh
    $ cd $SDK_ROOT/samples
    Then:
-   $ sudo ./triton_backend_setup.sh
+   First set both URL variables to reviewed JetPack7.2.2/CUDA13.2.2/TRT11.4.1-
+   compatible Triton2.74.0 ZIP URLs containing /v2.74.0/. There is no default
+   provider; stock SBSA binaries are not a Jetson substitute.
+   $ sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
+       TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
+       ./triton_backend_setup.sh
    $ rm -rf ~/.cache/gstreamer-1.0/
 
 - Back to current directory and download ONNX yolo-v3 model file.

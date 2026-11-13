@@ -50,6 +50,14 @@ TRITON_CLIENT_LIB_DIR ?= $(NVDS_PROTOBUF_LIB_DIR)
 NVDSINFERSERVER_LIB_DIR ?= $(LIB_INSTALL_DIR)
 _LIDAR_PROTOBUF_MIN_CXX_STANDARD := $(NVDS_PROTOBUF_MIN_CXX_STANDARD)
 TRITON_CLIENT_CXX_STANDARD ?= $(_LIDAR_PROTOBUF_MIN_CXX_STANDARD)
+NVDS_PROTOBUF_SELECTED_CXX_STANDARD = $(TRITON_CLIENT_CXX_STANDARD)
+NVDS_PROTOBUF_SELECTED_LIB_DIR = $(TRITON_CLIENT_LIB_DIR)
+INCS += \
+    ../../../nvdsinferserver/nvdsinferserver_config.pb.h \
+    ../../../nvdsinferserver/nvdsinferserver_plugin.pb.h \
+    ../../../nvdsinferserver/nvdsinferserver_common.pb.h \
+    $(NVDS_PROTOBUF_MAKEFILE) \
+    $(NVDS_PROTOBUF_PROVIDER_STAMP)
 ifeq ($(_DS_NEED_CUDA_VER),1)
 ifeq ($(filter $(TRITON_CLIENT_CXX_STANDARD),17 20 23),)
 $(error TRITON_CLIENT_CXX_STANDARD must be 17, 20 or 23)
@@ -92,7 +100,9 @@ LIBS+= -shared -Wl,-no-undefined \
 
 all: $(TARGET_LIB)
 
-%.o: %.cpp $(INCS) Makefile
+$(OBJS): $(INCS) Makefile
+
+%.o: %.cpp
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
 $(TARGET_LIB): $(OBJS) Makefile
@@ -103,3 +113,4 @@ install: $(TARGET_LIB)
 
 clean:
 	rm -rf $(OBJS) $(TARGET_LIB)
+	rm -f "$(NVDS_PROTOBUF_PROVIDER_STAMP)"

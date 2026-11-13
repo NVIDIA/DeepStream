@@ -62,11 +62,16 @@ The sample should be downloaded and built with **root** permission.
 
 2. Generate Inference Engines
 
-   Below instructions are only needed on **Jetson** ([Jetpack 5.0.2 or above](https://developer.nvidia.com/embedded/jetpack-sdk-502))
+   Below instructions are only needed on **Jetson** (JetPack7.2.2+ for this upgrade).
+   First select reviewed Triton2.74.0 server/client ZIP URLs containing
+   `/v2.74.0/`, qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1. There is no
+   default provider; stock SBSA binaries are not a Jetson substitute.
 
    ```
    apt-get install -y libjson-glib-dev libgstrtspserver-1.0-dev
-   <DS_ROOT>/scripts/triton_backend_setup.sh
+   sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
+     TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
+     <DS_ROOT>/scripts/triton_backend_setup.sh
    ## Only DeepStream 6.1.1 GA need to copy the metamux plugin library. Skip this copy command if DeepStream version is above 6.1.1 GA
    cp tritonclient/sample/gst-plugins/gst-nvdsmetamux/libnvdsgst_metamux.so /opt/nvidia/deepstream/deepstream/lib/gst-plugins/libnvdsgst_metamux.so
    ## set power model and boost CPU/GPU/EMC clocks

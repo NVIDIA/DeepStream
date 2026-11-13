@@ -77,7 +77,8 @@ $(DEP): $(DEP_FILES)
 	$(MAKE) -C postprocesslib_impl/
 
 install: $(LIB)
-	cp -rv $(LIB) $(GST_INSTALL_DIR)
+	install -d $(LIB_INSTALL_DIR)
+	cp -rv $(LIB) $(LIB_INSTALL_DIR)
 
 clean:
 	rm -rf $(OBJS) $(LIB)
