@@ -16,6 +16,7 @@
  */
 
 #include <gst/gst.h>
+#include <gst/video/video.h>
 #include "gstnvdsmeta.h"
 
 /* Custom metadata type for source identification */
@@ -203,6 +204,11 @@ static GstPadProbeReturn srcbin_src_pad_probe_callback(GstPad *pad, GstPadProbeI
     if (GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM) {
         GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
         if (GST_EVENT_TYPE(event) == GST_EVENT_CUSTOM_DOWNSTREAM) {
+            /* The still-frame event only drains the decoder at the end of a
+             * file; it is internal to the bin and not forwarded downstream */
+            if (gst_video_event_parse_still_frame(event, NULL)) {
+                return GST_PAD_PROBE_DROP;
+            }
             const GstStructure *structure = gst_event_get_structure(event);
             if(structure && gst_structure_has_name(structure, "custom-stream-start-event")) {
                 // Get source_id from the custom event
@@ -387,6 +393,13 @@ static GstPadProbeReturn custom_event_generator_probe(GstPad *pad, GstPadProbeIn
             }
             g_mutex_unlock(&srcbin->source_id_list_lock);
 
+            /* The decoder still holds the last frames of the file. A still-frame
+             * event makes it drain them without going EOS, so that the
+             * custom-eos-event below follows the file's last frame. */
+            if (!gst_pad_push_event(pad, gst_video_event_new_still_frame(TRUE))) {
+                GST_WARNING_OBJECT(srcbin, "Failed to push still-frame event");
+            }
+
             // Create the custom event
             GstEvent *custom_event = gst_event_new_custom(
                 GST_EVENT_CUSTOM_DOWNSTREAM,
@@ -518,6 +531,23 @@ static void dynamic_src_bin_terminate(DynamicSrcBin *srcbin) {
     }
 }
 
+/* Keep RECONFIGURE events from parsebin away from filesrc ! queue
+ *
+ * Upstream of parsebin is an unparsed byte stream, so there is nothing to
+ * renegotiate there. parsebin links its internal elements and its src pad
+ * while filesrc is still reading the file, and each link sends a RECONFIGURE
+ * upstream. If one arrives right after filesrc pushed the file's last buffer,
+ * filesrc renegotiates and its serialized ALLOCATION query is queued behind
+ * that buffer; the queue drops the query when the demuxer returns EOS for the
+ * buffer, filesrc never returns and the file's EOS is never produced.
+ */
+static GstPadProbeReturn parsebin_sink_reconfigure_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    if (GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT(info)) == GST_EVENT_RECONFIGURE) {
+        return GST_PAD_PROBE_DROP;
+    }
+    return GST_PAD_PROBE_OK;
+}
+
 static void srcbin_child_added(GstChildProxy *child_proxy, GObject *object,
                                 gchar *name, gpointer user_data) {
     DynamicSrcBin *srcbin = DYNAMIC_SRC_BIN(user_data);
@@ -529,6 +559,16 @@ static void srcbin_child_added(GstChildProxy *child_proxy, GObject *object,
         // Update the callback name here
         g_signal_connect(srcbin->parsebin, "pad-added",
                         G_CALLBACK(parsebin_pad_added_handler), srcbin);
+
+        GstPad *parsebin_sink_pad = gst_element_get_static_pad(srcbin->parsebin, "sink");
+        if (parsebin_sink_pad) {
+            gst_pad_add_probe(parsebin_sink_pad, GST_PAD_PROBE_TYPE_EVENT_UPSTREAM,
+                              parsebin_sink_reconfigure_probe, srcbin, NULL);
+            gst_object_unref(parsebin_sink_pad);
+        }
+        else {
+            GST_ERROR_OBJECT(srcbin, "Failed to get parsebin's sink pad");
+        }
     }
 }
 
