@@ -150,7 +150,8 @@ void module_pipeline_bind(py::module &m) {
             py::gil_scoped_release release;
             self.wait();
         }, pydeepstreamdoc::pipeline::PipelineDoc::wait)
-        .def("stop", &Pipeline::stop, pydeepstreamdoc::pipeline::PipelineDoc::stop)
+        .def("stop", &Pipeline::stop, py::call_guard<py::gil_scoped_release>(),
+             pydeepstreamdoc::pipeline::PipelineDoc::stop)
         .def("start_rtsp_server", &Pipeline::startRTSP, pydeepstreamdoc::pipeline::PipelineDoc::start_rtsp_server)
         .def("seek",  [](PipelineWrapper& self, uint64_t timestamp) {
             py::gil_scoped_release release;
