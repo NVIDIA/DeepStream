@@ -19,6 +19,12 @@ limitations under the License.
 
 This directory contains Python utility scripts to help with configuration generation and visualization for the DeepStream Multi-View 3D Tracking project.
 
+Use `DS_DIR` from the [prerequisites](../README.md#prerequisites) and run from the app directory:
+
+```bash
+cd "$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+```
+
 
 ### `deepstream_auto_configurator.py`
 
@@ -26,20 +32,25 @@ The Deepstream auto-configurator automatically generates DeepStream configuratio
 
 **Usage:**
 ```bash
-python deepstream_auto_configurator.py --dataset-dir DATASET_DIR [OPTIONS]
+python -m utils.deepstream_auto_configurator --profile mtmc_4cam_pnt --dataset-dir DATASET_DIR [OPTIONS]
 ```
 
 **Arguments:**
 ```
 - `--dataset-dir`: Dataset directory containing `videos/` and `camInfo/` subdirectories
 - `--output-dir`: Output directory for generated configs (default: `temp_outputs`)
+- `--profile`: Folder under config_templates (default: `mtmc_4cam_pnt`)
 - `--enable-osd`: Enable OSD display sink
 - `--enable-file-output`: Enable video file output
 - `--enable-msg-broker`: Enable Kafka message broker output
+- `--enable-reid-service`: Enable SCOUT CLIP embeddings, Kafka output, and queries to a separately deployed ReID service
+- `--replay`: MOT detection folder inside the dataset, containing 000.txt, 001.txt, and so on
 - `--num_vision_neighbor`: Number of vision neighbors per camera
 - `--tracker-config`: Base tracker configuration file (default: `config_tracker.yml`)
 - `--config-overrides`: YAML file containing section overrides for tracker configuration
 ```
+
+Profiles with `communicatorType: 1` automatically generate all-to-all in-memory peer files. The configurator creates the standard output directories. Docker launch commands remain in the sample instructions.
 
 
 ### `inference_builder_auto_configurator.py`
@@ -48,13 +59,14 @@ The Inference Builder auto-configurator automatically generates Inference Builde
 
 **Usage:**
 ```bash
-python inference_builder_auto_configurator.py --dataset-dir DATASET_DIR [OPTIONS]
+python -m utils.inference_builder_auto_configurator --profile mtmc_4cam_pnt --dataset-dir DATASET_DIR [OPTIONS]
 ```
 
 **Arguments:**
 ```
 - `--dataset-dir`: Dataset directory containing `videos/` and `camInfo/` subdirectories
 - `--output-dir`: Output directory for generated configs (default: `temp_outputs`)
+- `--profile`: Folder under config_templates (default: `mtmc_4cam_pnt`)
 - `--tracker-config`: Base tracker configuration file (default: `config_tracker.yml`)
 - `--config-overrides`: YAML file containing section overrides for tracker configuration
 ```

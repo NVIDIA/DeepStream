@@ -14,29 +14,25 @@
 # limitations under the License.
 
 # Set dataset, model, experiment, and repo directories
-export DATASET_DIR=$PWD/datasets/mtmc_4cam/
-export EXPERIMENT_DIR=$PWD/experiments/inference_builder/4cam
-export MODEL_REPO=$PWD/models
-
-REPO_DIR=$PWD
-DEEPSTREAM_ROOT="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
-INFERENCE_BUILDER_DIR=${INFERENCE_BUILDER_DIR:-$DEEPSTREAM_ROOT/tools/inference_builder}
+DS_DIR="${DS_DIR:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+MV3DT_DIR="$DS_DIR/src/apps/reference_apps/deepstream-tracker-3d-multi-view"
+cd "$MV3DT_DIR" || exit 1
+DATASET_DIR="${DATASET_DIR:-$MV3DT_DIR/datasets/mtmc_4cam}"
+EXPERIMENT_DIR="${EXPERIMENT_DIR:-$MV3DT_DIR/experiments/inference_builder/4cam}"
+MODEL_REPO="${MODEL_REPO:-$MV3DT_DIR/models}"
+INFERENCE_BUILDER_DIR="${INFERENCE_BUILDER_DIR:-$DS_DIR/tools/inference_builder}"
 
 # Select detector model: PeopleNetTransformer (default), RTDETR, or PeopleNet2.6.3
 export DETECTOR_MODEL=${DETECTOR_MODEL:-PeopleNetTransformer}
 
-if [[ "$DETECTOR_MODEL" = "RTDETR" ]]; then
-    DETECTOR_CONFIG="config_pgie_rt_detr.txt"
-    TRACKER_CONFIG="config_tracker.yml"
-elif [[ "$DETECTOR_MODEL" = "PeopleNet2.6.3" ]]; then
-    DETECTOR_CONFIG="config_pgie_peoplenet.txt"
-    TRACKER_CONFIG="config_tracker.yml"
-else
-    DETECTOR_CONFIG="config_pgie.txt"
-    TRACKER_CONFIG="config_tracker.yml"
-fi
+case "$DETECTOR_MODEL" in
+    PeopleNetTransformer) CONFIG_PROFILE=mtmc_4cam_pnt ;;
+    PeopleNet2.6.3) CONFIG_PROFILE=mtmc_4cam_pn2 ;;
+    RTDETR) CONFIG_PROFILE=mtmc_4cam_detr ;;
+    *) echo "Unsupported detector: $DETECTOR_MODEL" >&2; exit 1 ;;
+esac
 
-echo "Using detector model: $DETECTOR_MODEL (detector=$DETECTOR_CONFIG, tracker=$TRACKER_CONFIG)"
+echo "Using detector model: $DETECTOR_MODEL (profile=$CONFIG_PROFILE)"
 
 # Set correct GPU flag considering diffent platforms
 if docker info | grep -q 'Runtimes.*nvidia'; then
@@ -49,42 +45,41 @@ else
 fi
 
 # Create directories for output
-mkdir -p $EXPERIMENT_DIR/infer-kitti-dump
-mkdir -p $EXPERIMENT_DIR/tracker-kitti-dump
+mkdir -p "$EXPERIMENT_DIR/infer-kitti-dump"
+mkdir -p "$EXPERIMENT_DIR/tracker-kitti-dump"
 
 # Generate Inference Builder configuration files
 source mv3dt_venv/bin/activate
-python utils/inference_builder_auto_configurator.py \
-    --dataset-dir=$DATASET_DIR \
-    --detector-config=$DETECTOR_CONFIG \
-    --tracker-config=$TRACKER_CONFIG \
+python -m utils.inference_builder_auto_configurator \
+    --profile="$CONFIG_PROFILE" \
+    --dataset-dir="$DATASET_DIR" \
     --config-overrides=override_tracker_4cam.yml \
-    --output-dir=$EXPERIMENT_DIR
+    --output-dir="$EXPERIMENT_DIR"
 
-cp $EXPERIMENT_DIR/nvdsinfer_config.yaml $MODEL_REPO/$DETECTOR_MODEL/
+cp "$EXPERIMENT_DIR/nvdsinfer_config.yaml" "$MODEL_REPO/$DETECTOR_MODEL/"
 
 # Generate Python package for MV3DT inference flow using Inference Builder
-cd $INFERENCE_BUILDER_DIR
+cd "$INFERENCE_BUILDER_DIR" || exit 1
 source .venv/bin/activate
-python builder/main.py $EXPERIMENT_DIR/ds_mv3dt.yaml \
+python builder/main.py "$EXPERIMENT_DIR/ds_mv3dt.yaml" \
     -o builder/samples/mv3dt_app \
     --server-type serverless
 
 # # Launch real-time BEV visualization
-cd $REPO_DIR
+cd "$MV3DT_DIR" || exit 1
 source mv3dt_venv/bin/activate
 python utils/kafka_bev_visualizer.py \
-    --dataset-path=$DATASET_DIR \
-    --msgconv-config=$EXPERIMENT_DIR/config_msgconv.txt \
+    --dataset-path="$DATASET_DIR" \
+    --msgconv-config="$EXPERIMENT_DIR/config_msgconv.txt" \
     --average-multi-cam \
     --show-ids &
 
 # Launch MV3DT pipeline with Inference Builder
 docker run --privileged --rm -it --net=host $GPU_FLAG \
-    -v $INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app/deepstream-app:/mv3dt_app \
-    -v $MODEL_REPO:/workspace/models \
-    -v $DATASET_DIR:/workspace/inputs \
-    -v $EXPERIMENT_DIR:/workspace/experiments \
+    -v "$INFERENCE_BUILDER_DIR/builder/samples/mv3dt_app/deepstream-app:/mv3dt_app" \
+    -v "$MODEL_REPO:/workspace/models" \
+    -v "$DATASET_DIR:/workspace/inputs" \
+    -v "$EXPERIMENT_DIR:/workspace/experiments" \
     -v /tmp/.X11-unix/:/tmp/.X11-unix \
     -e DISPLAY=$DISPLAY \
     -w /mv3dt_app \
