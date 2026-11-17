@@ -35,9 +35,10 @@ Other dependencies:
 Install other dependencies (writing /opt requires root privileges):
 1. Preprovision the complete matching client SDK at /opt/tritonclient, containing
 include/grpc_client.h, include/common.h and the C++ libraries under lib/.
-For x86/SBSA, the vendor26.10-py3-sdk container supplies /workspace/install;
-select the matching architecture. No26.10 SDK ZIP URL is assumed or invented.
-The build driver never pulls this image automatically. See build/BUILD.md and
+A missing /opt/tritonclient is filled from the published v2.74.0 nv26.10
+client SDK archive: x86_64 on x86, aarch64 on Jetson and SBSA. The
+26.10-py3-sdk container's /workspace/install remains a valid explicit provider.
+The build driver never pulls that image. See build/BUILD.md and
 https://github.com/triton-inference-server/server/releases/tag/v2.74.0.
 For the dependency stage an alternate complete location may be supplied using
 TRITON_CLIENT_SDK_ROOT; a standalone Makefile uses TRITON_GRPC_CLIENT instead.

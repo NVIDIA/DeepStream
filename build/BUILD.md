@@ -106,14 +106,21 @@ For installation instructions, refer to the official [DeepStream SDK Installatio
 ### Matching Triton client SDK and VPI inputs
 
 The dependency script no longer downloads the old x8626.03/Jetson26.04 client
-SDKs for this upgrade. For x86/SBSA, preprovision the matching26.10 C++ SDK at
-`/opt/tritonclient`, or supply `TRITON_CLIENT_SDK_ROOT=/path/to/sdk/install` to
-`scripts/install_opensource_deps.sh`. The official26.10 SDK is supplied through
-the `26.10-py3-sdk` container: its `/workspace/install/include` and
-`/workspace/install/lib` are the inputs. No container is pulled by these scripts.
-See the [Triton2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
-Jetson needs an explicitly qualified JP7.2.2/TRT11.4.1-compatible SDK instead;
-do not substitute the stock SBSA SDK simply because both are ARM64.
+SDKs. When `/opt/tritonclient` does not already contain `include/grpc_client.h`
+and `include/common.h`, and `TRITON_CLIENT_SDK_ROOT` is left at that default,
+`scripts/install_opensource_deps.sh` downloads the published Triton 2.74.0
+nv26.10 archive for the selected platform and checks its SHA-256 before
+installing `install/include` and `install/lib64`. x86 uses
+`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip`. Jetson
+and SBSA use
+`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip`.
+Those archives' protobuf headers are 6.33.5, so the same path then downloads
+protoc 33.5 for that architecture when `/opt/proto` does not already match.
+An explicit `TRITON_CLIENT_SDK_ROOT` that is missing headers is still rejected.
+The `26.10-py3-sdk` container's `/workspace/install` remains a valid explicit
+provider. No container is pulled by these scripts. See the
+[Triton 2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
+SBSA dependency installation still has to run inside the matching SBSA container.
 
 Provider checks require C++ headers, static client dependencies (including
 `libcares.a`), and `libgrpcclient.so` or `libgrpcclient.a` for the SDK's actual
@@ -570,9 +577,13 @@ Clean old component objects explicitly before a stack change, then run without
 `--resume`; recording new stage identity does not itself rebuild stale objects.
 
 To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
-the install tree uses the truncated `MAJOR.MINOR` form). The GitHub Release
-proprietary-libs / sample-data assets are always fetched from the `v9.2.0`
-release (hardcoded, not derived from `NVDS_VERSION`):
+the install tree uses the truncated `MAJOR.MINOR` form). Proprietary-library and
+sample-data filenames stay at `9.2.0` unless `GITHUB_ASSET_VERSION` is set. By
+default those files are downloaded from
+`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`. Set
+`GITHUB_RELEASE_BASE` to another directory to fetch the same filenames from
+there. The override is the directory itself; it does not append
+`GITHUB_RELEASE_TAG`.
 
 ```bash
 NVDS_VERSION=9.2.1 bash build/build.sh

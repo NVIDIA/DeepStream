@@ -170,7 +170,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 
 Prepare Triton dependencies and sample models on Jetson.
 
-> **Building `gst-nvinferserver`?** Preprovision the matching Triton C++ client SDK at `/opt/tritonclient` or set `TRITON_CLIENT_SDK_ROOT` for the dependency stage. This applies to both `build/build.sh` and standalone builds; the SDK package does not bundle that development SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
+> **Building `gst-nvinferserver`?** The dependency stage downloads the published Triton 2.74.0 client SDK when `/opt/tritonclient` has no `include/grpc_client.h`. x86 uses the x86_64 archive. Jetson and SBSA use the aarch64 archive. An explicit `TRITON_CLIENT_SDK_ROOT` must already be complete. The DeepStream package does not bundle that SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
 
 ```bash
 # Run from the cloned repository root after the DeepStream build has completed.

@@ -26,8 +26,10 @@
 # Additional prerequisites installed:
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
-#                      x86/SBSA: 26.10-py3-sdk; Jetson: JP/TRT11.4.1-qualified SDK
-#   protobuf compiler  explicit SDK-matched provider (legacy default v3.21.12) -> /opt/proto
+#                      x86, Jetson, and SBSA: published v2.74.0 nv26.10 SDK zip
+#                      for that architecture when the default tree is absent
+#   protobuf compiler  explicit SDK-matched provider, or the published compiler
+#                      for protobuf 3.21.12 and 33.5 -> /opt/proto
 #   pybind11           v2.12.0 (headers)  -> /opt/pybind11
 #   dlpack             v0.8    (headers)  -> /opt/dlpack
 #   apt packages: python3-build, python3-venv, python3-setuptools, python3-wheel,
@@ -56,10 +58,12 @@
 #   DS_DEPS_WORK_ROOT         Existing writable parent for dependency build
 #                             directories (default: /tmp).
 #   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
+#                            A missing default tree is filled from the published
+#                            Triton 2.74.0 nv26.10 SDK archive for x86, Jetson,
+#                            or SBSA. An explicit incomplete root is rejected.
 #   PROTOC_ROOT              Optional protoc distribution matching the selected
 #                            Triton SDK protobuf headers; copied to /opt/proto.
-#                            Must contain include/ and lib/ (or lib64/); no image
-#                            pull or unverified legacy SDK download is performed.
+#                            Must contain bin/protoc and include/. No image pull.
 #   VPI_DIR                  ARM vendor VPI4.1.6 installation (default: /opt/nvidia/vpi4).
 #   TORCH_PATH               Optional preprovisioned CUDA ABI1 LibTorch provider;
 #                            preserved by the Sparse4D helper, never replaced by pip.
@@ -325,13 +329,73 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 TRITON_CLIENT_SDK_ROOT=${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}
+install_published_triton_sdk() {
+  local zip_name zip_url zip_sha tmp_dir include_dir lib_dir actual_sha
+  case "$PLATFORM" in
+    x86)
+      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip
+      zip_sha=4e7c451dac46a1bbae243609c225f6547d74f386107bbe767065593d7682f2fd
+      ;;
+    aarch64|sbsa)
+      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip
+      zip_sha=27094abcc4e323400c1c58f60f5dae33b7bd8b9c29b25a65bc0ad34474dd44dd
+      ;;
+    *)
+      echo "error: no published Triton 2.74.0 client SDK is selected for PLATFORM=$PLATFORM." >&2
+      return 1
+      ;;
+  esac
+  zip_url=https://github.com/triton-inference-server/server/releases/download/v2.74.0/${zip_name}
+  tmp_dir=$(mktemp -d)
+  echo "--- Triton client SDK: downloading published $PLATFORM 2.74.0 / 26.10 archive ---"
+  if ! curl -fL --retry 2 -o "$tmp_dir/$zip_name" "$zip_url"; then
+    rm -rf "$tmp_dir"
+    echo "error: could not download the published Triton 2.74.0 $PLATFORM client SDK." >&2
+    return 1
+  fi
+  actual_sha=$(sha256sum "$tmp_dir/$zip_name" | awk '{print $1}')
+  if [[ "$actual_sha" != "$zip_sha" ]]; then
+    rm -rf "$tmp_dir"
+    echo "error: published Triton SDK checksum mismatch (got $actual_sha)." >&2
+    return 1
+  fi
+  if ! unzip -q -o "$tmp_dir/$zip_name" -d "$tmp_dir/sdk"; then
+    rm -rf "$tmp_dir"
+    echo "error: could not unpack the published Triton SDK archive." >&2
+    return 1
+  fi
+  include_dir=$tmp_dir/sdk/tritonserver_sdk/install/include
+  lib_dir=$tmp_dir/sdk/tritonserver_sdk/install/lib64
+  if [[ ! -r "$include_dir/grpc_client.h" || ! -r "$include_dir/common.h" ||
+        ! -r "$lib_dir/libgrpcclient.so" || ! -r "$lib_dir/libprotobuf.a" ||
+        ! -r "$lib_dir/libcares.a" ]]; then
+    rm -rf "$tmp_dir"
+    echo "error: published Triton SDK archive is missing include/ or lib64/ inputs." >&2
+    return 1
+  fi
+  mkdir -p /opt/tritonclient
+  rm -rf /opt/tritonclient/include /opt/tritonclient/lib
+  mv "$include_dir" /opt/tritonclient/include
+  mv "$lib_dir" /opt/tritonclient/lib
+  rm -rf "$tmp_dir"
+  TRITON_CLIENT_SDK_ROOT=/opt/tritonclient
+}
+triton_headers_ready=1
 for header in grpc_client.h common.h; do
   if [[ ! -r "$TRITON_CLIENT_SDK_ROOT/include/$header" ]]; then
-    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/$header)." >&2
-    echo "x86/SBSA use the 26.10-py3-sdk image's /workspace/install; Jetson needs a JetPack/TRT11.4.1-qualified SDK." >&2
-    exit 1
+    triton_headers_ready=0
+    break
   fi
 done
+if [[ "$triton_headers_ready" -eq 0 ]]; then
+  if [[ "$TRITON_CLIENT_SDK_ROOT" == /opt/tritonclient ]]; then
+    install_published_triton_sdk || exit 1
+  else
+    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/grpc_client.h or include/common.h)." >&2
+    echo "The default /opt/tritonclient tree is downloaded from the published Triton 2.74.0 nv26.10 SDK for x86, Jetson, and SBSA. An explicit TRITON_CLIENT_SDK_ROOT must already be complete." >&2
+    exit 1
+  fi
+fi
 triton_client_library_dir_is_complete() {
   local directory=$1 library
   for library in libprotobuf.a libcares.a; do
@@ -453,6 +517,36 @@ if [[ -v PROTOC_ROOT ]]; then
   echo "    Stage deps-protoc: DONE"
 elif PROTOC_SELECTED_VERSION=$(validate_protoc_provider /opt/proto "$TRITON_CLIENT_SDK_ROOT" 2>/dev/null); then
   echo "--- Protobuf compiler $PROTOC_SELECTED_VERSION (using matching /opt/proto provider) ---"
+  mark_stage_done deps-protoc
+  echo "    Stage deps-protoc: DONE"
+elif [[ "$PROTOC_REQUIRED_VERSION" == 33.5 ]]; then
+  echo "--- Protobuf compiler v33.5 (PLATFORM=$PLATFORM) ---"
+  case "$PLATFORM" in
+    x86)
+      protoc_name=protoc-33.5-linux-x86_64.zip
+      protoc_sha=24e58fb231d50306ee28491f33a170301e99540f7e29ca461e0e80fd1239f8d1
+      ;;
+    aarch64|sbsa)
+      protoc_name=protoc-33.5-linux-aarch_64.zip
+      protoc_sha=2b0fcf9b2c32cbadccc0eb7a88b841fffecd4a06fc80acdba2b5be45e815c38a
+      ;;
+    *)
+      echo "error: no protoc 33.5 archive is selected for PLATFORM=$PLATFORM." >&2
+      exit 1
+      ;;
+  esac
+  curl -fL --retry 2 -o "/tmp/$protoc_name" \
+    "https://github.com/protocolbuffers/protobuf/releases/download/v33.5/$protoc_name"
+  if [[ "$(sha256sum "/tmp/$protoc_name" | awk '{print $1}')" != "$protoc_sha" ]]; then
+    rm -f "/tmp/$protoc_name"
+    echo "error: protoc 33.5 archive checksum mismatch." >&2
+    exit 1
+  fi
+  mkdir -p /opt/proto
+  unzip -o "/tmp/$protoc_name" -d /opt/proto
+  chmod -R +rx /opt/proto/
+  rm -f "/tmp/$protoc_name"
+  PROTOC_SELECTED_VERSION=$(validate_protoc_provider /opt/proto "$TRITON_CLIENT_SDK_ROOT") || exit 1
   mark_stage_done deps-protoc
   echo "    Stage deps-protoc: DONE"
 elif [[ "$PROTOC_REQUIRED_VERSION" != 3.21.12 || "$PLATFORM" = "sbsa" ]]; then
