@@ -24,6 +24,6 @@
 
 cd sbsa_dockerfiles
 
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.0-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
+sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.1-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
 
 cd ..

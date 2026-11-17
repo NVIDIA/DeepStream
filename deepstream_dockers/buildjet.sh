@@ -21,10 +21,10 @@ cd jetson_dockerfiles
 
 # Jetson triton
 
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.2.0-triton-local -f Dockerfile_Jetson_Devel ..
+sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.2.1-triton-local -f Dockerfile_Jetson_Devel ..
 
 # Jetson samples
 
-# sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.2.0-samples-local -f Dockerfile_Jetson_Run ..
+# sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream-l4t:9.2.1-samples-local -f Dockerfile_Jetson_Run ..
 
 cd ..
