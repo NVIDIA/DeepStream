@@ -166,13 +166,13 @@ RUN apt-get update && \
        ls -l /tmp/temp_trt/ && \
        chmod +x /etc/init.d/rsyslog && \
        dpkg -i /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4_1.0-1_amd64.deb && \
-       dpkg -i /tmp/docker/cudnn-local-repo-ubuntu2404-9.20.0_1.0-1_amd64.deb && \
+       dpkg -i /tmp/docker/cudnn-local-repo-ubuntu2404-9.27.0_1.0-1_amd64.deb && \
        ls -l /tmp/temp_trt/ && \
        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
        cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4/nv-tensorrt-local-558FF61D-keyring.gpg /usr/share/keyrings/ && \
-       cp /var/cudnn-local-repo-ubuntu2404-9.20.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
+       cp /var/cudnn-local-repo-ubuntu2404-9.27.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
        apt-get update && \
        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
        tensorrt \
@@ -188,7 +188,7 @@ RUN apt-get update && \
        ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so && \
        cd /tmp && \
        dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4 && \
-       dpkg --purge cudnn-local-repo-ubuntu2404-9.20.0 && \
+       dpkg --purge cudnn-local-repo-ubuntu2404-9.27.0 && \
        rm -rf /root/tmp && \
        rm -rf temp_trt && \
        rm -rf /var/lib/apt/lists/* && \
