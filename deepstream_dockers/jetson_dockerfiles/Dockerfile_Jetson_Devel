@@ -118,7 +118,7 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         libhiredis-dev \
         libcjson-dev \
         librdkafka1 && \
-        tar --version ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v9.2.0_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
+        tar --version ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v*_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
         cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
         cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
         cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
