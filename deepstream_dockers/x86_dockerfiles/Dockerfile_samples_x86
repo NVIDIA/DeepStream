@@ -94,6 +94,7 @@ RUN apt-get update && \
         libcups2t64 \
         mosquitto \
         libmosquitto-dev \
+        python3.12 \
         python3.12-venv \
         tzdata && \
         rm -f /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstaudioparsers.so \
@@ -201,8 +202,8 @@ RUN apt-get update && \
     ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
     rm -rf /var/lib/apt/lists/*
 
-# RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
-#    /usr/bin/python3.12 ./prepare_samples.py
+RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
+    /usr/bin/python3.12 ./prepare_samples.py
 
 # open telemetry
 # Built from source instead of prebuilt .deb packages: the Debian/Ubuntu archives
