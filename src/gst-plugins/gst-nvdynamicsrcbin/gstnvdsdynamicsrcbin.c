@@ -343,6 +343,30 @@ static void parsebin_pad_added_handler(GstElement *src, GstPad *new_pad, gpointe
 
 gint stream_start_count = 0;
 
+/* Name of the event that marks the end of a file inside the bin */
+#define FILE_END_EVENT_NAME "nvdsdynamicsrcbin-file-end"
+
+/* Turn the EOS of a file into a FILE_END_EVENT_NAME event before queue_parsebin
+ *
+ * queue_parsebin stays in the bin for all files. If it received the EOS, its
+ * task would pause with EOS once it has pushed the EOS. The next file can be
+ * linked while that push is still running (the events pushed for the end of
+ * the file wait for the elements downstream, e.g. nvinfer); its stream-start
+ * then clears the EOS state before the task pauses, nothing restarts the task
+ * afterwards and every buffer of the next file gets EOS, so playback stops
+ * with no error. A custom serialized event keeps its place in the data flow
+ * without putting the queue in EOS.
+ */
+static GstPadProbeReturn queue_parsebin_sink_eos_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+    if (GST_EVENT_TYPE(event) == GST_EVENT_EOS) {
+        GST_PAD_PROBE_INFO_DATA(info) = gst_event_new_custom(
+            GST_EVENT_CUSTOM_DOWNSTREAM, gst_structure_new_empty(FILE_END_EVENT_NAME));
+        gst_event_unref(event);
+    }
+    return GST_PAD_PROBE_OK;
+}
+
 /* Custom event generator probe
  * Generates and injects custom events for stream start and EOS handling
  */
@@ -379,7 +403,8 @@ static GstPadProbeReturn custom_event_generator_probe(GstPad *pad, GstPadProbeIn
             }
             return GST_PAD_PROBE_OK;
         }
-        else if (GST_EVENT_TYPE(event) == GST_EVENT_EOS) {
+        else if (GST_EVENT_TYPE(event) == GST_EVENT_CUSTOM_DOWNSTREAM &&
+                 gst_event_has_name(event, FILE_END_EVENT_NAME)) {
             gint current_source_id = -1;
 
             g_mutex_lock(&srcbin->source_id_list_lock);
@@ -726,6 +751,20 @@ static void dynamic_src_bin_init(DynamicSrcBin *srcbin) {
     }
     gst_object_unref(ghost_pad);
     gst_object_unref(decoder_src_pad);
+
+    // Add probe to queue_parsebin's sink pad
+    GstPad *queue_parsebin_sink_pad = gst_element_get_static_pad(srcbin->queue_parsebin, "sink");
+    if (queue_parsebin_sink_pad) {
+        gst_pad_add_probe(queue_parsebin_sink_pad,
+                        GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+                        queue_parsebin_sink_eos_probe,
+                        srcbin,
+                        NULL);
+        gst_object_unref(queue_parsebin_sink_pad);
+    }
+    else {
+        GST_ERROR_OBJECT(srcbin, "Failed to get queue_parsebin's sink pad");
+    }
 
     // Add probe to queue_parsebin's src pad
     GstPad *queue_parsebin_src_pad = gst_element_get_static_pad(srcbin->queue_parsebin, "src");
