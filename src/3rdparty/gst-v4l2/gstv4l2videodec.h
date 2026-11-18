@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2014 Collabora Ltd.
  *     Author: Nicolas Dufresne <nicolas.dufresne@collabora.co.uk>
- * SPDX-FileCopyrightText: Copyright (c) 2018-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: LGPL-2.0-only
  *
  * This library is free software; you can redistribute it and/or
@@ -109,6 +109,9 @@ struct _GstV4l2VideoDec
   guint32 current_height;
   guint32 old_width;
   guint32 old_height;
+  /* DPB frames required by the latest SPS and by the previous one */
+  guint32 current_dpb_size;
+  guint32 old_dpb_size;
   gboolean valid_vpx;
   GMutex pts_hashtable_lock;
   guint64 ts;

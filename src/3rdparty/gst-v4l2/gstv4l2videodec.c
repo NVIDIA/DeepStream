@@ -1529,6 +1529,8 @@ gst_h265_parse_process_nal (GstV4l2VideoDec *self, H265NalUnit * nalu)
       }
       self->current_width = sps.width;
       self->current_height = sps.height;
+      self->current_dpb_size =
+          sps.max_dec_pic_buffering_minus1[sps.max_sub_layers_minus1] + 1;
       break;
   }
 
@@ -1572,6 +1574,7 @@ gst_h264_parse_process_nal (GstV4l2VideoDec *self, H264NalUnit * nalu)
 
       self->current_width = (sps.pic_width_in_mbs_minus1 + 1) << 4;
       self->current_height = (sps.pic_height_in_map_units_minus1 + 1) << 4;
+      self->current_dpb_size = sps.num_ref_frames;
 
       break;
   }
@@ -1814,10 +1817,20 @@ gst_v4l2_video_dec_handle_frame (GstVideoDecoder * decoder,
                                 self->old_width, self->old_height, self->current_width, self->current_height);
                 trigger_drc = true;
             }
+            else if (self->current_dpb_size > self->old_dpb_size)
+            {
+                /* Same size, but the new sequence needs a larger DPB than the
+                 * previous one: restart the decoder like a resolution change. */
+                GST_INFO_OBJECT(self, "Decoder found larger DPB. triggering DRC seq.");
+                GST_INFO_OBJECT(self, "Old DPB: %u, New DPB: %u",
+                                self->old_dpb_size, self->current_dpb_size);
+                trigger_drc = true;
+            }
         }
 
         self->old_width = self->current_width;
         self->old_height = self->current_height;
+        self->old_dpb_size = self->current_dpb_size;
 
         if (trigger_drc == true)
         {
@@ -2712,6 +2725,8 @@ gst_v4l2_video_dec_init (GstV4l2VideoDec * self)
   self->rate = 1;
   self->old_width = 0;
   self->old_height = 0;
+  self->current_dpb_size = 0;
+  self->old_dpb_size = 0;
   self->cap_buf_dynamic_allocation = DEFAULT_CAP_BUF_DYNAMIC_ALLOCATION;
 #endif
 
