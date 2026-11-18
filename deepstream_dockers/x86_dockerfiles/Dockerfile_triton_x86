@@ -173,8 +173,8 @@ RUN pip3 install starlette==0.52.1 fastapi
 
 # https://github.com/triton-inference-server/server/releases/download/v2.74.0/tritonserver-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip
 
-RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
-    /usr/bin/python3.12 ./prepare_samples.py 
+# RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
+#    /usr/bin/python3.12 ./prepare_samples.py 
 
 
 
@@ -251,6 +251,10 @@ RUN apt-get update && \
 ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphics,utility
 
 ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
+RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
+    /usr/bin/python3.12 ./prepare_samples.py
+
 
 ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
 
