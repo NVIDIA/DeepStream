@@ -5,8 +5,9 @@
 
 Run with ``python3 -m unittest discover -s build -p test_package_flow.py -v``.
 No SDK build, download, package installation or privileged operation is needed.
-Two tiny fixture DSOs are compiled to exercise real ELF metadata inspection;
-they are not genuine SDK binaries and do not qualify a GVS runtime.
+Tiny fixture DSOs are compiled to exercise real ELF metadata inspection;
+they are not genuine SDK/VPI binaries and do not establish vendor provenance
+or qualify a GVS runtime.
 """
 
 import hashlib
@@ -42,6 +43,9 @@ class PackageFlowTests(unittest.TestCase):
         (self.repo / "build").mkdir()
         for name in ("build.sh", "package.sh"):
             shutil.copy2(BUILD_DIR / name, self.repo / "build" / name)
+        (self.repo / "scripts").mkdir()
+        shutil.copy2(BUILD_DIR.parent / "scripts/lib_vpi_runtime.sh",
+                     self.repo / "scripts/lib_vpi_runtime.sh")
         self.env = os.environ.copy()
         for name in ("NVDS_VERSION", "PKG_VERSION", "CUDA_VER", "TRT_VER", "CUDNN_VERSION",
                      "SKIP_SPARSE4D_OCR", "DEEPSTREAM_VARIANT", "PLATFORM",
@@ -155,6 +159,18 @@ class PackageFlowTests(unittest.TestCase):
         self.write(self.runtime / "service-maker/lib/libfixture-service.so", b"GVS service library fixture")
         self.write(self.runtime / "LicenseAgreement.pdf", b"fixture license asset, not a real agreement")
         self.make_infer_fixture(11)
+        self.make_vpi_fixture()
+
+    def make_vpi_fixture(self):
+        """Minimal metadata fixture, never a genuine NVIDIA VPI implementation."""
+        library = self.runtime / "lib/libnvvpi.so.4.1.4"
+        run = subprocess.run(
+            ["cc", "-shared", "-fPIC", "-x", "c", "-", "-Wl,-soname,libnvvpi.so.4",
+             "-o", str(library)],
+            input="int fixture_vpi(void) { return 1; }\n", env=self.env, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+        self.assertEqual(run.returncode, 0, run.stdout)
+        (library.parent / "libnvvpi.so.4").symlink_to(library.name)
 
     def make_infer_fixture(self, major):
         """Create an actual ELF DT_NEEDED fixture, not a TensorRT implementation."""
@@ -185,25 +201,14 @@ class PackageFlowTests(unittest.TestCase):
     def assert_no_build_or_install(self):
         self.assertFalse(self.forbidden.exists(), self.forbidden.read_text() if self.forbidden.exists() else "")
 
-    def setup_preflight_command(self, setup, *, neutralize_root_guard=True):
-        """Exercise provider guards; intercept the first scratch-creation call.
-
-        The private copy neutralizes only the root-only guard, never provider
-        checks. This lets an unprivileged CPU test reach the synthetic mutation
-        boundary without changing the production helper's privilege policy.
-        """
-        text = setup.read_text()
-        if neutralize_root_guard:
-            guard = "if [[ $EUID -ne 0 ]]; then"
-            self.assertEqual(text.count(guard), 1)
-            text = text.replace(guard, "if false; then # private unprivileged fixture only")
-        private_setup = self.root / "guarded-triton-setup.sh"
-        self.write(private_setup, text)
+    def setup_preflight_command(self, setup, *, check_only=True):
+        """Inspect selections with privilege and mutation guards intact."""
         self.env["DEEPSTREAM_LIB_DIR"] = str(self.runtime / "lib")
         return ["bash", "-c",
                 'mktemp() { echo PREPARATION_REACHED >&2; return 97; }; '
                 'mkdir() { echo PREPARATION_REACHED >&2; return 97; }; '
-                'export -f mktemp mkdir; exec bash "$1"', "guarded-setup", str(private_setup)]
+                'export -f mktemp mkdir; exec bash "$1" "${@:2}"',
+                "guarded-setup", str(setup), *(["--check-only"] if check_only else [])]
 
     def test_help_is_read_only(self):
         for script in ("build.sh", "package.sh"):
@@ -379,13 +384,14 @@ class PackageFlowTests(unittest.TestCase):
                     self.assertIn("explicit", result.stdout)
                     self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.env.update(TRITON_PKG_PATH=server, TRITON_CLIENT_SDK_PKG_PATH=client)
-        # A reviewed explicit pair reaches the first possible mutation, which
-        # is intercepted; no installer, download or scratch creation executes.
-        result = self.run_command(command, expected=97)
-        self.assertIn("PREPARATION_REACHED", result.stdout)
+        # A reviewed explicit pair passes selection without reaching mutation.
+        result = self.run_command(command)
+        self.assertIn("Selected Triton 2.74.0", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.env["TRITON_CLIENT_SDK_PKG_PATH"] = "https://example.invalid/v2.73.0/client.zip"
         result = self.run_command(command, expected=1)
-        self.assertIn("versions must match", result.stdout)
+        self.assertIn("2.74.0", result.stdout)
+        self.assertIn("not 2.73.0", result.stdout)
         self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.assert_no_build_or_install()
 
@@ -406,7 +412,7 @@ class PackageFlowTests(unittest.TestCase):
     @unittest.skipIf(os.geteuid() == 0, "tests the real unprivileged invocation")
     def test_valid_pair_still_requires_root_before_scratch_creation(self):
         setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
-        command = self.setup_preflight_command(setup, neutralize_root_guard=False)
+        command = self.setup_preflight_command(setup, check_only=False)
         self.env.update(DEEPSTREAM_VARIANT="jetson",
                         TRITON_PKG_PATH="https://example.invalid/v2.74.0/server.zip",
                         TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.74.0/client.zip")
@@ -532,17 +538,20 @@ class PackageFlowTests(unittest.TestCase):
         self.assertNotIn("cuda-cudart-13-4", depends)
         self.assertEqual(inference.read_bytes(), before)
         setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
+        self.run_command(["bash", "-n", str(setup)])
+        self.assertEqual(setup.read_text().count(
+            'DEEPSTREAM_VARIANT=${DEEPSTREAM_VARIANT:-igx}'), 1)
         command = self.setup_preflight_command(setup)
         result = self.run_command(command, expected=1)
-        self.assertIn("IGX", result.stdout)
+        self.assertIn('DEEPSTREAM_VARIANT=${DEEPSTREAM_VARIANT:-igx}', setup.read_text())
         self.assertIn("explicit", result.stdout)
         self.assertNotIn("PREPARATION_REACHED", result.stdout)
         # Fixture URLs test selection only; they are never fetched or qualified.
         self.env.update(TRITON_PKG_PATH="https://example.invalid/v2.70.0/server.zip",
                         TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.70.0/client.zip")
-        result = self.run_command(command, expected=97)
-        self.assertIn("Explicit IGX", result.stdout)
-        self.assertIn("PREPARATION_REACHED", result.stdout)
+        result = self.run_command(command)
+        self.assertIn("Selected Triton 2.70.0 for igx", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.env["TRITON_CLIENT_SDK_PKG_PATH"] = "https://example.invalid/v2.69.0/client.zip"
         result = self.run_command(command, expected=1)
         self.assertIn("versions must match", result.stdout)
@@ -811,7 +820,7 @@ class PackageFlowTests(unittest.TestCase):
         self.assert_no_build_or_install()
 
     @unittest.skipUnless(shutil.which("rsync"), "requires rsync")
-    def test_sbsa_packaged_setup_rejects_jetson_defaults_before_mutation(self):
+    def test_sbsa_packaged_setup_refuses_native_apply_before_mutation(self):
         inference = self.runtime / "lib/libnvds_infer.so"
         metadata = bytearray(inference.read_bytes())
         metadata[18:20] = (183).to_bytes(2, "little")
@@ -819,12 +828,16 @@ class PackageFlowTests(unittest.TestCase):
         self.env.pop("CUDA_VER", None)
         self.run_command(self.package_command("--arch=arm64", "--platform=sbsa", "--keep-stage"))
         setup = self.stage / SDK_PATH / "samples/triton_backend_setup.sh"
+        self.run_command(["bash", "-n", str(setup)])
+        self.assertEqual(setup.read_text().count(
+            'DEEPSTREAM_VARIANT=${DEEPSTREAM_VARIANT:-sbsa}'), 1)
         # Intercept the first possible mutation if the early guard regresses.
-        command = self.setup_preflight_command(setup)
+        command = self.setup_preflight_command(setup, check_only=False)
         result = self.run_command(command, expected=None)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("SBSA", result.stdout)
-        self.assertIn("26.10", result.stdout)
+        self.assertIn("container-only", result.stdout)
+        self.assertNotIn("PREPARATION_REACHED", result.stdout)
         self.assert_no_build_or_install()
 
     @unittest.skipUnless(shutil.which("rsync"), "requires rsync")

@@ -80,11 +80,15 @@ The published baseline below is not qualification of the upgrade branch.
 
 The local upgrade branch selects these separate compute-stack targets:
 
-| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | ARM VPI |
+| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | VPI |
 |---|---|---|---|---|
-| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | Unchanged x86 input |
+| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.4 |
 | Generic SBSA | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.6 |
 | Jetson, JetPack 7.2.2 | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+
+The x86/SBSA host-driver target is **620.70.06**. Its `nvidia-smi` CUDA UMD
+**13.5** reading describes driver capability, not the selected **13.4.3** toolkit.
+Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
 
 These are build targets, not completed platform qualification. IGX's existing
 stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
@@ -170,7 +174,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 
 Prepare Triton dependencies and sample models on Jetson.
 
-> **Building `gst-nvinferserver`?** Preprovision the matching Triton C++ client SDK at `/opt/tritonclient` or set `TRITON_CLIENT_SDK_ROOT` for the dependency stage. This applies to both `build/build.sh` and standalone builds; the SDK package does not bundle that development SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
+> **Building `gst-nvinferserver`?** The dependency stage downloads the published Triton 2.74.0 client SDK when `/opt/tritonclient` has no `include/grpc_client.h`. x86 uses the x86_64 archive. Jetson and SBSA use the aarch64 archive. An explicit `TRITON_CLIENT_SDK_ROOT` must already be complete. The DeepStream package does not bundle that SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
 
 ```bash
 # Run from the cloned repository root after the DeepStream build has completed.
@@ -193,12 +197,13 @@ cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app-triton
 deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 ```
 
-> **Explicit provider required for the upgrade.** Set reviewed matching
-> `TRITON_PKG_PATH` and `TRITON_CLIENT_SDK_PKG_PATH` before using this installer.
-> Both Jetson and SBSA refuse missing or empty archive selections before any
-> installation; legacy26.04 is not an automatic fallback. For remote Triton inference
-> over gRPC, use `samples/configs/deepstream-app-triton-grpc/` and start
-> `tritonserver` separately.
+> **Explicit provider required for native Jetson.** Set reviewed matching
+> `TRITON_PKG_PATH` and `TRITON_CLIENT_SDK_PKG_PATH`; legacy26.04 is not a fallback.
+> Provision matching native dependencies and stop DeepStream/Triton before applying;
+> the helper does not install platform dependencies. `--check-only` checks URL
+> selection without downloading or installing; it does not qualify compatibility.
+> SBSA remains container-only. For remote inference over gRPC, use
+> `samples/configs/deepstream-app-triton-grpc/` and start `tritonserver` separately.
 
 # Documentation
 

@@ -51,6 +51,8 @@ Go to samples directory and run the following command to set up the Triton Serve
 First set both URL variables to reviewed JetPack7.2.2/CUDA13.2.2/TRT11.4.1-
 compatible Triton2.74.0 ZIP URLs containing /v2.74.0/. There is no default
 provider; stock SBSA binaries are not a Jetson substitute.
+Provision matching native dependencies and stop DeepStream/Triton before
+applying; see ./triton_backend_setup.sh --help.
 
 $ cd <DS_ROOT>/scripts
    NOTE: <DS_ROOT> is the path where the repo is cloned.

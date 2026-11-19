@@ -16,7 +16,6 @@
 
 SPARSE4D_CONFIG_PATH="${SPARSE4D_CONFIG_PATH:-/opt/data/ds-configurator/}"
 SHARED_CONFIG_FILE_PATH="${SPARSE4D_CONFIG_PATH}config.yaml"
-GPU_ARCH=$(nvidia-smi -q | grep "Product Architecture" | cut -d: -f2 | tr -d ' ' | head -1)
 CONFIG_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/configs/config.yaml"
 PREPROCESS_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/configs/config_preprocess.txt"
 NETWORK_WIDTH="${NETWORK_WIDTH:-0}"
@@ -518,10 +517,10 @@ update_preprocessed_dims() {
   return 0
 }
 
-# Runtime selection only; the existing TensorRT10 build/reuse paths below are
-# retained. TensorRT11 uses explicit typed models and private engine builds.
-TRT_VERSION=$(detect_tensorrt_version) || exit 1
+set -e -o pipefail
+TRT_VERSION=$(detect_tensorrt_version)
 TRT_MAJOR=${TRT_VERSION%%.*}
+echo "[INFO] TensorRT runtime: ${TRT_VERSION}"
 if (( TRT_MAJOR >= 11 )); then
   TRTEXEC="${NVDS_ENGINE_BUILDER:-/opt/nvidia/deepstream/deepstream/bin/nvdsinfer-engine-builder}"
   command -v "$TRTEXEC" >/dev/null || { echo "Missing SDK engine builder: $TRTEXEC" >&2; exit 1; }
@@ -564,6 +563,25 @@ else
 fi
 # Validate Sparse4D ONNX model file exists and is accessible
 validate_file_exists "Sparse4D ONNX model file" "${ONNX_MODEL_PATH}"
+ENABLE_FP16=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "enable_fp16")
+CORE_PRECISION_FLAGS=()
+OCR_PRECISION_FLAGS=()
+if (( TRT_MAJOR >= 11 )); then
+  if [[ "$ENABLE_FP16" == True && -n "${SPARSE4D_TRT11_ONNX_MODEL_PATH:-}" ]]; then
+    validate_file_exists "TRT11 typed Sparse4D model" "$SPARSE4D_TRT11_ONNX_MODEL_PATH"
+    validate_pretyped_model "$ONNX_MODEL_PATH" "$SPARSE4D_TRT11_ONNX_MODEL_PATH"
+    ONNX_MODEL_PATH="$SPARSE4D_TRT11_ONNX_MODEL_PATH"
+    update_yaml "${CONFIG_FILE_PATH}" "onnx_file" "$ONNX_MODEL_PATH"
+  fi
+  # This is the SDK front-end's prepared-graph validation switch, NOT the
+  # removed TensorRT/trtexec builder precision flag. The main build stays in-app.
+  OCR_PRECISION_FLAGS+=(--fp16)
+else
+  CORE_PRECISION_FLAGS+=(--noTF32)
+  if [[ "$ENABLE_FP16" == True ]]; then CORE_PRECISION_FLAGS+=(--fp16); fi
+  OCR_PRECISION_FLAGS+=(--fp16)
+fi
+GPU_ID=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "gpu_id")
 
 if [[ -z "$MODEL_LABELS_PATH" ]]; then
   # Update model_labels_path from the config file if MODEL_LABELS_PATH is not set
@@ -580,11 +598,10 @@ echo "[INFO] Sparse4D Labels: $(cat "${MODEL_LABELS_PATH}")"
 ENGINE_FILE_PATH=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "engine_file")
 
 # Check if the force_engine_rebuild flag is set to True
-# If it is, remove the local engine file
+# Rebuild into a temporary file; never delete the user's old plan before success.
 FORCE_ENGINE_REBUILD=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "force_engine_rebuild")
-if (( TRT_MAJOR < 11 )) && [[ "${FORCE_ENGINE_REBUILD}" == "True" ]]; then
-  echo "[INFO] Force engine rebuild is set to True, removing local engine file ${ENGINE_FILE_PATH}"
-  rm -f "${ENGINE_FILE_PATH}"
+if [[ "${FORCE_ENGINE_REBUILD}" == "True" ]]; then
+  echo "[INFO] Force engine rebuild is set to True; existing engine will not be reused"
 fi
 
 # Fetch preprocessed_height, preprocessed_width and num_sensors from the config file
@@ -600,50 +617,21 @@ if [[ "${NETWORK_WIDTH}" -ne 0 && "${NETWORK_HEIGHT}" -ne 0 && "${NETWORK_WIDTH}
   PREPROCESSED_WIDTH="${NETWORK_WIDTH}"
 fi
 
-# Extract model name from Sparse4D ONNX path to use in engine file name
 echo "[INFO] Sparse4D ONNX model file: ${ONNX_MODEL_PATH}"
-MODEL_NAME=$(basename "${ONNX_MODEL_PATH}" .onnx)
-PRE_BUILT_ENGINE_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/${GPU_ARCH}-${MODEL_NAME}.engine"
-
-# Check if the local engine file already exists
+validate_file_exists "MSDA plugin" "$MSDA_PLUGIN_PATH"
 if (( TRT_MAJOR >= 11 )); then
-  GPU_ID=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "gpu_id")
-  if [[ -n "${SPARSE4D_TRT11_ONNX_MODEL_PATH:-}" ]]; then
-    validate_pretyped_model "$ONNX_MODEL_PATH" "$SPARSE4D_TRT11_ONNX_MODEL_PATH" || exit 1
-    ONNX_MODEL_PATH="$SPARSE4D_TRT11_ONNX_MODEL_PATH"
-    update_yaml "${CONFIG_FILE_PATH}" "onnx_file" "$ONNX_MODEL_PATH"
-  fi
-  validate_file_exists "TRT11 MSDA plugin" "$MSDA_PLUGIN_PATH"
-  echo "[INFO] TensorRT11 main Sparse4D engine creation is deferred to the application; setup has not built an engine."
-elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
-  echo "[INFO] Using Saved TensorRT engine file for Sparse4D Model: ${ENGINE_FILE_PATH}"
-# Check if the shared engine file already exists and FORCE_ENGINE_REBUILD is not set to True
-elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" && "${FORCE_ENGINE_REBUILD}" != "True" ]]; then
-  cp "${PRE_BUILT_ENGINE_FILE_PATH}" "${ENGINE_FILE_PATH}"
-  echo "[INFO] Copying Pre-Built TensorRT engine file for Sparse4D Model: ${PRE_BUILT_ENGINE_FILE_PATH} to ${ENGINE_FILE_PATH}"
-  echo "[INFO] Using Saved TensorRT engine file for Sparse4D Model: ${ENGINE_FILE_PATH}"
+  echo "[INFO] TensorRT11 main Sparse4D engine build is deferred to the application after plugin/model validation; setup has not built an engine."
+  echo "[INFO] Launch with MSDA_PLUGIN_PATH=$MSDA_PLUGIN_PATH or the matching existing LD_PRELOAD plugin."
 else
-  # Use trtexec to generate the TensorRT engine from the ONNX model
-  echo "[INFO] Generating TensorRT engine from Sparse4D ONNX model ${ONNX_MODEL_PATH}"
-  echo "[INFO] MSDA plugin: ${MSDA_PLUGIN_PATH}"
-  cd /opt/nvidia/deepstream/deepstream/sources/sparse4d/
-  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/deepstream/deepstream/sources/sparse4d/
-  trtexec --onnx=$ONNX_MODEL_PATH \
-          --fp16 \
-          --saveEngine=$ENGINE_FILE_PATH \
+build_cached_engine "$ONNX_MODEL_PATH" "$ENGINE_FILE_PATH" "$MSDA_PLUGIN_PATH" \
+          "${CORE_PRECISION_FLAGS[@]}" \
           --builderOptimizationLevel=3 \
           --noDataTransfers \
-          --noTF32 \
-          --staticPlugins=$MSDA_PLUGIN_PATH \
+          --staticPlugins="$MSDA_PLUGIN_PATH" \
           --useCudaGraph \
           --minShapes=img:1x1x3x${PREPROCESSED_HEIGHT}x${PREPROCESSED_WIDTH},projection_mat:1x1x4x4,image_wh:1x1x2,input_cached_anchor:1x600x11,input_cached_feature:1x600x256,prev_exists:1,interval_mask:1x1x1 \
           --maxShapes=img:1x${NUM_SENSORS}x3x${PREPROCESSED_HEIGHT}x${PREPROCESSED_WIDTH},projection_mat:1x${NUM_SENSORS}x4x4,image_wh:1x${NUM_SENSORS}x2,input_cached_anchor:1x600x11,input_cached_feature:1x600x256,prev_exists:1,interval_mask:1x1x1 \
           --optShapes=img:1x${NUM_SENSORS}x3x${PREPROCESSED_HEIGHT}x${PREPROCESSED_WIDTH},projection_mat:1x${NUM_SENSORS}x4x4,image_wh:1x${NUM_SENSORS}x2,input_cached_anchor:1x600x11,input_cached_feature:1x600x256,prev_exists:1,interval_mask:1x1x1
-
-  # Save the Generated engine file
-  cp "${ENGINE_FILE_PATH}" "${PRE_BUILT_ENGINE_FILE_PATH}"
-  echo "[INFO] Saved the Generated TensorRT engine file for Sparse4D Model: ${PRE_BUILT_ENGINE_FILE_PATH}"
-  echo "[INFO] Using Generated TensorRT engine file for Sparse4D Model: ${ENGINE_FILE_PATH}"
 fi
 
 OCR_INFERENCE=$(fetch_yaml_property_value "${CONFIG_FILE_PATH}" "generate_2d_bbox")
@@ -678,12 +666,15 @@ if [[ "${OCR_INFERENCE}" == "True" ]]; then
   if [[ -f "${OCR_CONFIG_FILE}" ]]; then
     # Extract nested YAML property: ocdnet.onnx_model_path
     OCD_MODEL_PATH=$(awk '/^ocdnet:/,0 {if (/^[[:space:]]+onnx_model_path:/) {sub(/^[[:space:]]+onnx_model_path:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
-    MODEL_NAME=$(basename "${OCD_MODEL_PATH}" .onnx)
+    OCD_SOURCE_MODEL_PATH="$OCD_MODEL_PATH"
     # Validate OCDNet ONNX model file exists
     validate_file_exists "OCDNet ONNX model" "${OCD_MODEL_PATH}"
+    if (( TRT_MAJOR >= 11 )); then
+      OCD_MODEL_PATH=$(prepare_ocr_model "$OCD_MODEL_PATH" "${OCD_TRT11_ONNX_MODEL_PATH:-}" \
+        "${OCD_TRT11_CALIBRATION_DATA:-}" "${OCD_TRT11_PREPARED_DIR:-}" OCD)
+    fi
     # Extract nested YAML property: ocdnet.trt_engine_path
     ENGINE_FILE_PATH=$(awk '/^ocdnet:/,0 {if (/^[[:space:]]+trt_engine_path:/) {sub(/^[[:space:]]+trt_engine_path:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
-    PRE_BUILT_ENGINE_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/${GPU_ARCH}-${MODEL_NAME}.engine"
     BATCH_SIZE=$(awk '/^ocdnet:/,0 {if (/^[[:space:]]+batch_size:/) {sub(/^[[:space:]]+batch_size:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
     # Extract infer_input_shape and parse into array [C, H, W]
     MODEL_DIMS_STR=$(awk '/^ocdnet:/,0 {if (/^[[:space:]]+infer_input_shape:/) {sub(/^[[:space:]]+infer_input_shape:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
@@ -694,49 +685,28 @@ if [[ "${OCR_INFERENCE}" == "True" ]]; then
     echo "[ERROR] OCR config file not found: ${OCR_CONFIG_FILE}" >&2
     exit 1
   fi
-  # Engine file generation
-  if (( TRT_MAJOR >= 11 )); then
-    OCD_SOURCE_MODEL_PATH="$OCD_MODEL_PATH"
-    OCD_MODEL_PATH=$(prepare_ocr_model "$OCD_MODEL_PATH" "${OCD_TRT11_ONNX_MODEL_PATH:-}" \
-      "${OCD_TRT11_CALIBRATION_DATA:-}" "${OCD_TRT11_PREPARED_DIR:-}" OCD) || exit 1
-    SPARSE4D_ENGINE_SOURCE_MODEL="$OCD_SOURCE_MODEL_PATH" \
-    SPARSE4D_ENGINE_CALIBRATION_DATA="${OCD_TRT11_CALIBRATION_DATA:-}" \
-    build_cached_engine "$OCD_MODEL_PATH" "$ENGINE_FILE_PATH" "" --fp16 \
-      --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-      --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-      --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} || exit 1
-  elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
-    echo "[INFO] Using Saved TensorRT engine file for OCDNet Model: ${ENGINE_FILE_PATH}"
-  elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" ]]; then
-    cp "${PRE_BUILT_ENGINE_FILE_PATH}" "${ENGINE_FILE_PATH}" 
-    echo "[INFO] Copying Pre-Built TensorRT engine file for OCDNet Model: ${PRE_BUILT_ENGINE_FILE_PATH} to ${ENGINE_FILE_PATH}"
-    echo "[INFO] Using Saved TensorRT engine file for OCDNet Model: ${ENGINE_FILE_PATH}"
-  else
-    # Use trtexec to generate the TensorRT engine from the OCDNet model
-    echo "[INFO] Generating TensorRT engine from OCDNet ONNX Model ${OCD_MODEL_PATH}"
-    trtexec --onnx=${OCD_MODEL_PATH} \
+  SPARSE4D_ENGINE_SOURCE_MODEL="$OCD_SOURCE_MODEL_PATH" \
+  SPARSE4D_ENGINE_CALIBRATION_DATA="${OCD_TRT11_CALIBRATION_DATA:-}" \
+  build_cached_engine "$OCD_MODEL_PATH" "$ENGINE_FILE_PATH" "" \
+            "${OCR_PRECISION_FLAGS[@]}" \
             --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
             --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-            --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-            --fp16 \
-            --saveEngine=${ENGINE_FILE_PATH}
-    # Save the Generated engine file
-    cp "${ENGINE_FILE_PATH}" "${PRE_BUILT_ENGINE_FILE_PATH}"
-    echo "[INFO] Saved the generated TensorRT engine file for OCDNet Model: ${PRE_BUILT_ENGINE_FILE_PATH}"
-    echo "[INFO] Using Generated TensorRT engine file for OCDNet Model: ${ENGINE_FILE_PATH}"
-  fi
+            --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]}
 
   #########################################################
   # Generate OCRNet engine
   #########################################################
   # Extract onnx model path for OCRNet
   OCR_MODEL_PATH=$(awk '/^ocrnet:/,0 {if (/^[[:space:]]+onnx_model_path:/) {sub(/^[[:space:]]+onnx_model_path:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
-  MODEL_NAME=$(basename "${OCR_MODEL_PATH}" .onnx)
+  OCR_SOURCE_MODEL_PATH="$OCR_MODEL_PATH"
   # Validate OCRNet ONNX model file exists
   validate_file_exists "OCRNet ONNX model" "${OCR_MODEL_PATH}"
+  if (( TRT_MAJOR >= 11 )); then
+    OCR_MODEL_PATH=$(prepare_ocr_model "$OCR_MODEL_PATH" "${OCR_TRT11_ONNX_MODEL_PATH:-}" \
+      "${OCR_TRT11_CALIBRATION_DATA:-}" "${OCR_TRT11_PREPARED_DIR:-}" OCR)
+  fi
   # Extract engine file path for OCRNet
   ENGINE_FILE_PATH=$(awk '/^ocrnet:/,0 {if (/^[[:space:]]+trt_engine_path:/) {sub(/^[[:space:]]+trt_engine_path:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
-  PRE_BUILT_ENGINE_FILE_PATH="/opt/nvidia/deepstream/deepstream/sources/sparse4d/${GPU_ARCH}-${MODEL_NAME}.engine"
   # Extract batch_size for OCRNet
   BATCH_SIZE=$(awk '/^ocrnet:/,0 {if (/^[[:space:]]+batch_size:/) {sub(/^[[:space:]]+batch_size:[[:space:]]*/, ""); gsub(/^"|"[[:space:]]*$|[[:space:]]*#.*$/, ""); print; exit}}' "${OCR_CONFIG_FILE}")
   # Extract dict_file for OCRNet
@@ -748,39 +718,13 @@ if [[ "${OCR_INFERENCE}" == "True" ]]; then
   # Remove brackets and spaces, then split by comma into array
   MODEL_DIMS_STR=$(echo "${MODEL_DIMS_STR}" | tr -d '[]' | tr -d ' ')
   IFS=',' read -r -a MODEL_DIMS <<< "${MODEL_DIMS_STR}"
-  # Engine file generation
-  if (( TRT_MAJOR >= 11 )); then
-    OCR_SOURCE_MODEL_PATH="$OCR_MODEL_PATH"
-    OCR_MODEL_PATH=$(prepare_ocr_model "$OCR_MODEL_PATH" "${OCR_TRT11_ONNX_MODEL_PATH:-}" \
-      "${OCR_TRT11_CALIBRATION_DATA:-}" "${OCR_TRT11_PREPARED_DIR:-}" OCR) || exit 1
-    SPARSE4D_ENGINE_SOURCE_MODEL="$OCR_SOURCE_MODEL_PATH" \
-    SPARSE4D_ENGINE_CALIBRATION_DATA="${OCR_TRT11_CALIBRATION_DATA:-}" \
-    build_cached_engine "$OCR_MODEL_PATH" "$ENGINE_FILE_PATH" "" --fp16 \
-      --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-      --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-      --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} || exit 1
-  elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
-    echo "[INFO] Using Saved TensorRT engine file for OCRNet Model: ${ENGINE_FILE_PATH}"
-  elif [[ -f "${PRE_BUILT_ENGINE_FILE_PATH}" ]]; then
-    cp "${PRE_BUILT_ENGINE_FILE_PATH}" "${ENGINE_FILE_PATH}" 
-    echo "[INFO] Copying Pre-Built TensorRT engine file for OCRNet Model: ${PRE_BUILT_ENGINE_FILE_PATH} to ${ENGINE_FILE_PATH}"
-    echo "[INFO] Using Saved TensorRT engine file for OCRNet Model: ${ENGINE_FILE_PATH}"
-  elif [[ -f "${ENGINE_FILE_PATH}" ]]; then
-    echo "[INFO] Using Saved TensorRT engine file for OCRNet Model: ${ENGINE_FILE_PATH}"
-  else
-    # Use trtexec to generate the TensorRT engine from the OCRNet model
-    echo "[INFO] Generating TensorRT engine from OCRNet ONNX Model ${OCR_MODEL_PATH}"
-    trtexec --onnx=${OCR_MODEL_PATH} \
+  SPARSE4D_ENGINE_SOURCE_MODEL="$OCR_SOURCE_MODEL_PATH" \
+  SPARSE4D_ENGINE_CALIBRATION_DATA="${OCR_TRT11_CALIBRATION_DATA:-}" \
+  build_cached_engine "$OCR_MODEL_PATH" "$ENGINE_FILE_PATH" "" \
+            "${OCR_PRECISION_FLAGS[@]}" \
             --minShapes=input:1x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
             --optShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-            --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]} \
-            --fp16 \
-            --saveEngine=${ENGINE_FILE_PATH}
-    # Save the Generated engine file
-    cp "${ENGINE_FILE_PATH}" "${PRE_BUILT_ENGINE_FILE_PATH}"
-    echo "[INFO] Saved the generated TensorRT engine file for OCRNet Model: ${PRE_BUILT_ENGINE_FILE_PATH}"
-    echo "[INFO] Using Generated TensorRT engine file for OCRNet Model: ${ENGINE_FILE_PATH}"
-  fi
+            --maxShapes=input:${BATCH_SIZE}x${MODEL_DIMS[0]}x${MODEL_DIMS[1]}x${MODEL_DIMS[2]}
 fi
 
-echo "[SUCCESS] Sparse4D model setup complete"
+echo "[SUCCESS] Sparse4D model setup complete (TensorRT11 main engine creation occurs in the application)"

@@ -42,10 +42,10 @@
 # Environment:
 #   INSTALL_METHOD            deb (default) | tar
 #   NVDS_VERSION              MAJOR.MINOR.PATCH (default: 9.2.1); the install
-#                             tree uses MAJOR.MINOR only. GitHub Release
-#                             proprietary-libs / sample-data assets are always
-#                             fetched from the v9.2.0 release (hardcoded;
-#                             not derived from NVDS_VERSION).
+#                             tree uses MAJOR.MINOR only. It does not select
+#                             proprietary-libs / sample-data asset names.
+#   GITHUB_RELEASE_BASE       Asset directory. Default is the v9.2.0 GitHub
+#                             release. A custom value is the directory itself.
 #   PLATFORM                  x86 | aarch64 | sbsa (auto-detected if unset)
 #   ARTIFACTS_DIR             Local artifacts directory (default: <repo>/artifacts)
 #   ARTIFACTS_STAGE_STATE_FILE Stage resume file (default: build/.stage-state.artifacts)
@@ -80,16 +80,16 @@ for argument in "$@"; do
 done
 
 # GitHub Release *tag* the proprietary-libs / sample-data assets are attached to.
-# Hardcoded (not derived from NVDS_VERSION) — this is the release page's tag name,
-# which does not necessarily match the assets' own filename version (see
-# GITHUB_ASSET_VERSION below): new patch-release assets are uploaded onto the
-# existing tag rather than cutting a new tag each patch, so older branches whose
-# build.sh still points at this same tag keep resolving.
-GITHUB_RELEASE_TAG="9.2.0"
+# Default only (not derived from NVDS_VERSION). The tag does not necessarily
+# match the assets' own filename version (see GITHUB_ASSET_VERSION below).
+# GITHUB_RELEASE_BASE overrides the download directory.
+GITHUB_RELEASE_TAG="${GITHUB_RELEASE_TAG:-9.2.0}"
 
 # Version embedded in the release asset filenames themselves (deepstream-binaries-*,
 # deepstream-sample-data_*, …). Bump by hand once newer-patch assets are uploaded.
-GITHUB_ASSET_VERSION="9.2.0"
+GITHUB_ASSET_VERSION="${GITHUB_ASSET_VERSION:-9.2.0}"
+GITHUB_RELEASE_BASE="${GITHUB_RELEASE_BASE:-https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}}"
+GITHUB_RELEASE_BASE="${GITHUB_RELEASE_BASE%/}"
 
 INSTALL_METHOD=${INSTALL_METHOD:-deb}
 NVDS_VERSION=${NVDS_VERSION:-9.2.1}
@@ -136,7 +136,7 @@ fi
 
 # Tarball names mirror the .deb names (minus the arch/_all suffix).
 PROPRIETARY_TAR_NAME="deepstream-binaries-${PLATFORM}_${GITHUB_ASSET_VERSION}.tar.gz"
-GITHUB_RELEASE_URL="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}/${PROPRIETARY_TAR_NAME}"
+GITHUB_RELEASE_URL="${GITHUB_RELEASE_BASE}/${PROPRIETARY_TAR_NAME}"
 
 # Debian package name globs for local files in ARTIFACTS_DIR. They are pinned to
 # GITHUB_ASSET_VERSION: an unpinned glob matches every release left behind in
@@ -154,7 +154,6 @@ case "$PLATFORM" in
 esac
 PROPRIETARY_DEB_NAME="deepstream-binaries-${PLATFORM}_${GITHUB_ASSET_VERSION}_${DEB_ARCH}.deb"
 SAMPLE_DEB_NAME="deepstream-sample-data_${GITHUB_ASSET_VERSION}.deb"
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}"
 GITHUB_RELEASE_DEB_URL="${GITHUB_RELEASE_BASE}/${PROPRIETARY_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_DEB_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_DEB_NAME}"
 GITHUB_RELEASE_SAMPLE_TAR_URL="${GITHUB_RELEASE_BASE}/${SAMPLE_TAR_NAME}"

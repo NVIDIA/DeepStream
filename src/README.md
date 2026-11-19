@@ -149,7 +149,7 @@ export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/opt/tritonserver
 
 > **Notes:**
 >
-> 1. First set both URL variables to reviewed Triton2.74.0 (26.10) server/client ZIPs with `/v2.74.0/` in each URL. No default is selected. Jetson requires a JetPack7.2.2/CUDA13.2.2/TRT11.4.1-compatible pair; stock SBSA binaries are not a substitute. Backend setup remains blocked without qualified inputs.
+> 1. First set both URL variables to reviewed Triton2.74.0 (26.10) server/client ZIPs with `/v2.74.0/` in each URL. No default is selected. Jetson requires a JetPack7.2.2/CUDA13.2.2/TRT11.4.1-compatible pair; stock SBSA binaries are not a substitute. Exact Jetson qualification remains pending. Provision matching native dependencies and stop DeepStream/Triton before applying; see `./triton_backend_setup.sh --help`.
 > 2. The script extracts the Triton server executable to the `/opt/tritonserver/bin` folder. To run both the Triton server and DeepStream applications on the same Jetson device, use the following steps to start the Triton server:
 >
 > ```bash

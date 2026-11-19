@@ -15,236 +15,277 @@
 # limitations under the License.
 
 set -e
+set -u
+set -o pipefail
 
-TRITON_REQUIRED_VERSION=2.74.0
+# Release selection is not platform qualification. An AArch64 early-access ZIP
+# is not automatically a JetPack7.2.2/TRT11.4.1 provider.
+readonly TRITON_REQUIRED_VERSION=2.74.0
+TRITON_VERSION=$TRITON_REQUIRED_VERSION
+TRITON_EXPECTED_TRT=11
+TRITON_PKG_PATH=${TRITON_PKG_PATH:-}
+TRITON_CLIENT_SDK_PKG_PATH=${TRITON_CLIENT_SDK_PKG_PATH:-}
+DEEPSTREAM_LIB_DIR=${DEEPSTREAM_LIB_DIR:-/opt/nvidia/deepstream/deepstream/lib}
+TRITON_INSTALL_DIR=${TRITON_INSTALL_DIR:-/opt/tritonserver}
 
-# Neither legacy JetPack26.04 archives nor stock SBSA26.10 inputs qualify the
-# JetPack7.2.2/TRT11.4.1 target. Require a reviewed explicit server/client pair
-# for either upgraded ARM path before mkdir, APT, download or any host mutation.
-# Legacy IGX likewise needs an explicit pair qualified for its separate stack.
-TRITON_SETUP_IGX=0
-case "${DEEPSTREAM_VARIANT:-${PLATFORM:-}}" in
-    sbsa) TRITON_SETUP_SBSA=1 ;;
-    jetson|tegra|aarch64) TRITON_SETUP_SBSA=0 ;;
-    igx) TRITON_SETUP_SBSA=0; TRITON_SETUP_IGX=1 ;;
-    "")
-        TRITON_SETUP_SBSA=0
-        if [[ "$(uname -m)" == aarch64 && ! -f /etc/nv_tegra_release ]]; then
-            TRITON_SETUP_SBSA=1
-        fi
-        ;;
-    *) echo 'Select DEEPSTREAM_VARIANT=jetson|tegra|sbsa|igx for ARM backend setup' >&2; exit 1 ;;
+fail() { echo "Error: $*" >&2; exit 1; }
+
+case "${1:-}" in
+    --help)
+        echo "Jetson Triton26.10/${TRITON_REQUIRED_VERSION} native setup; exact JetPack qualification is pending."
+        echo "Set TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH to reviewed matching HTTPS ZIP URLs."
+        echo "Jetson URLs must contain /v${TRITON_REQUIRED_VERSION}/; no default or older fallback is selected."
+        echo "DEEPSTREAM_VARIANT=igx retains explicit matching older releases for its separate TRT10/CUDA13 stack."
+        echo "SBSA/DGX Spark is container-only: native apply is refused; --check-only may inspect selections."
+        echo "--check-only checks URL selection only, without downloads or system changes."
+        echo "Provision the matching platform dependencies and stop DeepStream/Triton before installation."
+        exit 0 ;;
+    ''|--check-only) ;;
+    *) fail "Unknown option: $1" ;;
 esac
-if [[ -z "${TRITON_PKG_PATH:-}" || -z "${TRITON_CLIENT_SDK_PKG_PATH:-}" ]]; then
-    if [[ "$TRITON_SETUP_IGX" -eq 1 ]]; then
-        echo 'Legacy IGX requires explicit IGX-SW/CUDA13.0/TRT10-qualified server/client archives; no default is selected.' >&2
-    elif [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
-        echo 'SBSA requires matching Triton26.10/2.74.0 ARM64 inputs; no default archive is selected.' >&2
+[[ $# -le 1 ]] || fail 'Expected at most one option.'
+
+# Preserve the separate legacy IGX stack; do not infer Jetson from ARM64 alone.
+TRITON_SETUP_VARIANT=${DEEPSTREAM_VARIANT:-${PLATFORM:-}}
+case "$TRITON_SETUP_VARIANT" in
+    jetson|tegra|aarch64) TRITON_SETUP_VARIANT=jetson ;;
+    igx) TRITON_EXPECTED_TRT=10 ;;
+    sbsa) ;;
+    '')
+        TRITON_SETUP_VARIANT=jetson
+        if [[ "$(uname -m)" == aarch64 && ! -f /etc/nv_tegra_release ]]; then
+            TRITON_SETUP_VARIANT=sbsa
+        fi ;;
+    *) fail 'Select DEEPSTREAM_VARIANT=jetson|tegra|aarch64|sbsa|igx for ARM backend setup.' ;;
+esac
+if [[ "$TRITON_SETUP_VARIANT" == sbsa && "${1:-}" != --check-only ]]; then
+    fail 'SBSA/DGX Spark is container-only; native Triton setup is not supported. Use --check-only for selection inspection.'
+fi
+
+for selection in TRITON_PKG_PATH TRITON_CLIENT_SDK_PKG_PATH; do
+    value=${!selection}
+    [[ -n "$value" ]] || fail "An explicit matching ${selection} is required; no default archive is selected."
+    [[ "$value" =~ ^https://[^?#[:space:]]+/v([0-9]+\.[0-9]+\.[0-9]+)/[[:alnum:]_.+-]+\.zip(\?[^#[:space:]]*)?$ ]] ||
+        fail "${selection} must select a reviewed /vMAJOR.MINOR.PATCH/ HTTPS ZIP."
+    selected_version=${BASH_REMATCH[1]}
+    if [[ "$TRITON_SETUP_VARIANT" != igx && "$selected_version" != "$TRITON_REQUIRED_VERSION" ]]; then
+        fail "Jetson/SBSA selection targets Triton26.10/${TRITON_REQUIRED_VERSION}, not ${selected_version}."
+    fi
+    if [[ "$selection" == TRITON_PKG_PATH ]]; then
+        TRITON_VERSION=$selected_version
     else
-        echo 'Jetson requires explicit Triton2.74.0 server/client archives qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1; the legacy26.04 pair is not a fallback.' >&2
+        [[ "$selected_version" == "$TRITON_VERSION" ]] || fail 'Server and client SDK archive versions must match.'
     fi
-    echo 'An archive install requires explicit matching TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH; no image is pulled by this script.' >&2
-    exit 1
-fi
-if [[ "$TRITON_SETUP_IGX" -eq 1 ]]; then
-    echo 'Explicit IGX Triton archive overrides selected; target compatibility remains unverified.' >&2
-elif [[ "$TRITON_SETUP_SBSA" -eq 1 ]]; then
-    echo 'Explicit SBSA Triton archive overrides selected; target compatibility remains unverified.' >&2
-else
-    echo 'Explicit Jetson Triton archive overrides selected; target compatibility remains unverified.' >&2
-fi
+done
+[[ "$TRITON_PKG_PATH" != "$TRITON_CLIENT_SDK_PKG_PATH" ]] || fail 'Select separate server and client SDK archives.'
+echo "Selected Triton ${TRITON_VERSION} for ${TRITON_SETUP_VARIANT}; exact target-stack compatibility must be qualified separately."
+[[ "${1:-}" != --check-only ]] || exit 0
 
-TRITON_BACKEND_DIR=/opt/tritonserver/backends
-DEEPSTREAM_LIB_DIR=${DEEPSTREAM_LIB_DIR:=/opt/nvidia/deepstream/deepstream/lib}
-TRITON_SERVER_BIN=/opt/tritonserver/bin
+[[ $EUID -eq 0 ]] || fail 'Must be run as root or sudo.'
+[[ "$(uname -m)" == aarch64 ]] || fail 'This packaged helper is for native ARM targets, not x86.'
+[[ -d "$DEEPSTREAM_LIB_DIR" ]] || fail 'Install the matching DeepStream SDK before setting up Triton.'
+[[ "$TRITON_INSTALL_DIR" == /*/tritonserver ]] || fail 'TRITON_INSTALL_DIR must be an absolute tritonserver directory.'
+[[ ! -L "$TRITON_INSTALL_DIR" ]] || fail 'Use a real tritonserver directory, not a destination symlink.'
+[[ "$DEEPSTREAM_LIB_DIR" == /*/lib || "$DEEPSTREAM_LIB_DIR" == /*/lib64 ]] || fail 'DEEPSTREAM_LIB_DIR must be an absolute SDK library directory.'
+for dependency in python3 wget readelf ldd ldconfig gst-inspect-1.0; do
+    command -v "$dependency" >/dev/null || fail "Missing prerequisite ${dependency}; provision the selected platform dependencies first."
+done
 
-if [[ ! "${TRITON_PKG_PATH}" =~ /v([0-9]+[.][0-9]+[.][0-9]+)/ ]]; then
-    echo "Could not determine Triton server version from TRITON_PKG_PATH"
-    exit 1
-fi
-TRITON_SERVER_VERSION=${BASH_REMATCH[1]}
-
-if [[ ! "${TRITON_CLIENT_SDK_PKG_PATH}" =~ /v([0-9]+[.][0-9]+[.][0-9]+)/ ]]; then
-    echo "Could not determine Triton client SDK version from TRITON_CLIENT_SDK_PKG_PATH"
-    exit 1
-fi
-TRITON_CLIENT_SDK_VERSION=${BASH_REMATCH[1]}
-
-if [[ "${TRITON_SERVER_VERSION}" != "${TRITON_CLIENT_SDK_VERSION}" ]]; then
-    echo "Triton server (${TRITON_SERVER_VERSION}) and client SDK (${TRITON_CLIENT_SDK_VERSION}) versions must match"
-    exit 1
-fi
-if [[ "${TRITON_SETUP_IGX}" -ne 1 && "${TRITON_SERVER_VERSION}" != "${TRITON_REQUIRED_VERSION}" ]]; then
-    echo "This Jetson/SBSA setup targets Triton26.10 / ${TRITON_REQUIRED_VERSION}; selected ${TRITON_SERVER_VERSION} server/client archives are not supported" >&2
-    exit 1
-fi
-# IGX retains its explicit matching-pair policy for the unchanged TRT10 stack.
-# A matching release URL does not qualify the actual backend/JetPack/BSP binaries.
-
-if [[ $EUID -ne 0 ]]; then
-    echo "Must be run as root or sudo"
-    exit 1
-fi
-if [[ ! -d "${DEEPSTREAM_LIB_DIR}" ]]; then
-    echo "DeepStream library directory does not exist: ${DEEPSTREAM_LIB_DIR}" >&2
-    exit 1
-fi
-
-# Own a fresh extraction tree for every invocation: old unpacked files cannot
-# satisfy a missing client in the selected archive.
-TRITON_DOWNLOADS=$(mktemp -d "${TMPDIR:-/tmp}/deepstream-triton-setup.XXXXXXXX")
-TRITON_GRPC_CLIENT_STAGED=
-cleanup_triton_setup() {
-    local setup_status=$?
-    if [[ -n "${TRITON_GRPC_CLIENT_STAGED}" ]]; then
-        rm -f -- "${TRITON_GRPC_CLIENT_STAGED}" || true
+# Never build legacy OpenSSL/Boost, add CUDA repositories or pin an older DCGM
+# here. A qualified 26.10 provider needs its own matching dependency closure.
+TRITON_DOWNLOADS=$(mktemp -d /tmp/deepstream-triton-${TRITON_VERSION}.XXXXXX)
+replacement=
+complete=0
+rollback_targets=()
+rollback_backups=()
+pending_files=()
+cleanup() {
+    local status=$? index target backup
+    trap - EXIT
+    set +e
+    if [[ "$complete" != 1 && -n "$replacement" ]]; then
+        # Restore already-published components in reverse order. Keep failed new
+        # components and the recovery directory instead of deleting their data.
+        for ((index=${#rollback_targets[@]}-1; index>=0; index--)); do
+            target=${rollback_targets[index]}
+            backup=${rollback_backups[index]}
+            if [[ -e "$target" || -L "$target" ]]; then
+                mv -- "$target" "$replacement/failed-$index" || {
+                    echo "Error: recovery needs manual attention in $replacement" >&2
+                    continue
+                }
+            fi
+            if [[ -e "$backup" || -L "$backup" ]]; then
+                mv -- "$backup" "$target" || echo "Error: restore $target from $replacement" >&2
+            fi
+        done
+        echo "Triton setup did not complete; inspect retained recovery files in $replacement" >&2
     fi
-    rm -rf -- "${TRITON_DOWNLOADS}" || true
-    exit "${setup_status}"
+    for target in "${pending_files[@]}"; do rm -f -- "$target"; done
+    rm -rf -- "$TRITON_DOWNLOADS"
+    exit "$status"
 }
-trap cleanup_triton_setup EXIT
+trap cleanup EXIT
+chmod 700 "$TRITON_DOWNLOADS"
+wget -q --https-only --timeout=60 --tries=2 -O "$TRITON_DOWNLOADS/server.zip" -- "$TRITON_PKG_PATH"
+wget -q --https-only --timeout=60 --tries=2 -O "$TRITON_DOWNLOADS/client.zip" -- "$TRITON_CLIENT_SDK_PKG_PATH"
 
-echo "Installing Triton prerequisites ..."
-apt-get update && \
-    apt-get install -y --no-install-recommends libb64-dev libre2-dev libopenblas-dev unzip build-essential binutils ca-certificates perl
+# Validate/extract in a private workspace. Never execute the downloaded server.
+python3 -I -B - "$TRITON_DOWNLOADS" "$TRITON_VERSION" "$TRITON_EXPECTED_TRT" > "$TRITON_DOWNLOADS/layout" <<'PY'
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import struct
+import subprocess
+import sys
+import zipfile
 
-OPENSSL11_VERSION=1.1.1w
-OPENSSL11_INSTALL_DIR=/opt/openssl-${OPENSSL11_VERSION}
-OPENSSL11_SOURCE_URL=https://github.com/openssl/openssl/archive/refs/tags/OpenSSL_1_1_1w.tar.gz
-OPENSSL11_TARBALL=${TRITON_DOWNLOADS}/openssl-${OPENSSL11_VERSION}.tar.gz
-OPENSSL11_SOURCE_DIR=${TRITON_DOWNLOADS}/openssl-OpenSSL_1_1_1w
-OPENSSL11_LDCONF_FILE=/etc/ld.so.conf.d/openssl-${OPENSSL11_VERSION}.conf
+work = Path(sys.argv[1])
+version = sys.argv[2]
+trt_abi = sys.argv[3]
 
-if [[ ! -x "${OPENSSL11_INSTALL_DIR}/bin/openssl" ]] || \
-    ! "${OPENSSL11_INSTALL_DIR}/bin/openssl" version | grep -q "OpenSSL ${OPENSSL11_VERSION}" || \
-    ! ldconfig -p | grep -q "libssl.so.1.1" || \
-    ! ldconfig -p | grep -q "libcrypto.so.1.1"; then
-    echo "OpenSSL 1.1 compatibility libraries not found. Building OpenSSL 1.1.1w for Triton ..."
-    wget -O "${OPENSSL11_TARBALL}" "${OPENSSL11_SOURCE_URL}"
-    tar xzf "${OPENSSL11_TARBALL}" -C "${TRITON_DOWNLOADS}"
+def extract(name):
+    root = work / name
+    root.mkdir()
+    links = []
+    with zipfile.ZipFile(work / (name + '.zip')) as archive:
+        seen = set()
+        for member in archive.infolist():
+            path = PurePosixPath(member.filename)
+            if (path.is_absolute() or '..' in path.parts or '\\' in member.filename
+                    or any(ord(c) < 32 for c in member.filename) or str(path) in seen):
+                raise ValueError('Unsafe or duplicate archive member')
+            seen.add(str(path))
+            destination = root.joinpath(*path.parts)
+            mode = member.external_attr >> 16
+            if member.is_dir():
+                destination.mkdir(parents=True, exist_ok=True)
+            elif stat.S_ISLNK(mode):
+                links.append((destination, archive.read(member).decode('utf-8')))
+            else:
+                if stat.S_IFMT(mode) not in (0, stat.S_IFREG):
+                    raise ValueError('Unsupported archive member type')
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(member) as source, destination.open('xb') as output:
+                    shutil.copyfileobj(source, output)
+                destination.chmod(0o755 if mode & 0o111 else 0o644)
+    for destination, target in links:
+        if Path(target).is_absolute():
+            raise ValueError('Absolute archive symlink')
+        destination.parent.resolve().relative_to(root.resolve())
+        (destination.parent / target).resolve().relative_to(root.resolve())
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.symlink_to(target)
+    for destination, _ in links:
+        destination.resolve(strict=True).relative_to(root.resolve())
+    return root
 
-    pushd "${OPENSSL11_SOURCE_DIR}"
-    ./config shared --prefix="${OPENSSL11_INSTALL_DIR}" --openssldir="${OPENSSL11_INSTALL_DIR}/ssl" --libdir=lib
-    make -j"$(nproc)"
-    make install_sw
-    popd
+def unique(candidates, description):
+    paths = {p.resolve(strict=True) for p in candidates if p.is_file()}
+    if len(paths) != 1:
+        raise ValueError('Expected exactly one ' + description)
+    return paths.pop()
 
-    echo "${OPENSSL11_INSTALL_DIR}/lib" > "${OPENSSL11_LDCONF_FILE}"
-    ldconfig
+def elf(path, executable=False):
+    with path.open('rb') as stream:
+        header = stream.read(20)
+    if (len(header) != 20 or header[:6] != b'\x7fELF\x02\x01'
+            or struct.unpack_from('<H', header, 18)[0] != 183
+            or struct.unpack_from('<H', header, 16)[0] not in ((2, 3) if executable else (3,))):
+        raise ValueError('Expected a genuine ELF64/AArch64 binary: ' + path.name)
 
-    if ! ldconfig -p | grep -q "libssl.so.1.1" || ! ldconfig -p | grep -q "libcrypto.so.1.1"; then
-        echo "OpenSSL ${OPENSSL11_VERSION} installation did not expose libssl.so.1.1 and libcrypto.so.1.1"
-        exit 1
+try:
+    server = extract('server')
+    client = extract('client')
+    binary = unique(server.glob('**/bin/tritonserver'), 'server executable')
+    root = binary.parent.parent
+    library = unique(root.glob('**/libtritonserver.so*'), 'server library')
+    backend = root / 'backends/tensorrt/libtriton_tensorrt.so'
+    grpc = unique(client.glob('**/libgrpcclient.so*'), 'client runtime')
+    for archive, description in ((server, 'Server'), (client, 'Client SDK')):
+        markers = [p for p in archive.rglob('TRITON_VERSION') if p.is_file()]
+        if not markers or any(p.read_text().strip() != version for p in markers):
+            raise ValueError(description + ' archive lacks the selected TRITON_VERSION marker')
+    # Only these subtrees are published. A link into an archive-only sibling
+    # (for example ../../lib/backend.so) would become dangling after copying.
+    # Keep relative links within their own component, never between components.
+    for component in ('bin', 'backends'):
+        directory = root / component
+        if directory.is_symlink() or not directory.is_dir():
+            raise ValueError('Expected a real provider directory: ' + component)
+        for path in directory.rglob('*'):
+            if path.is_symlink():
+                path.resolve(strict=True).relative_to(directory)
+    elf(binary, executable=True)
+    for path in (library, backend, grpc):
+        elf(path)
+    dynamic = subprocess.check_output(['readelf', '-d', str(backend)], text=True)
+    needed = re.findall(r'Shared library: \[([^\]]+)\]', dynamic)
+    if f'libnvinfer.so.{trt_abi}' not in needed or 'libcudart.so.13' not in needed:
+        raise ValueError(f'TensorRT backend must target TensorRT{trt_abi}/CUDA13')
+    for path in (root, library, grpc):
+        print(path)
+except (OSError, UnicodeError, ValueError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
+    raise SystemExit('Error: invalid Triton provider: ' + str(error))
+PY
+mapfile -t layout < "$TRITON_DOWNLOADS/layout"
+[[ ${#layout[@]} -eq 3 ]] || fail 'Invalid provider layout.'
+TRITON_ROOT_DIR=${layout[0]}
+TRITON_SERVER_LIBRARY=${layout[1]}
+TRITON_CLIENT_LIBRARY=${layout[2]}
+
+# Inspect the native dependency closure without starting the server. Inputs
+# resolved inside the download tree are not installed by this minimal helper.
+for library in "$TRITON_SERVER_LIBRARY" "$TRITON_CLIENT_LIBRARY" \
+        "$TRITON_ROOT_DIR/bin/tritonserver" "$TRITON_ROOT_DIR/backends/tensorrt/libtriton_tensorrt.so"; do
+    if ! dependencies=$(LD_LIBRARY_PATH="$DEEPSTREAM_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$library" 2>&1); then
+        fail 'Cannot inspect provider dependencies; no runtime files were replaced.'
     fi
-
-    if ! "${OPENSSL11_INSTALL_DIR}/bin/openssl" version | grep -q "OpenSSL ${OPENSSL11_VERSION}"; then
-        echo "OpenSSL ${OPENSSL11_VERSION} installation version check failed"
-        exit 1
+    if [[ "$dependencies" == *'not found'* || "$dependencies" == *"$TRITON_DOWNLOADS"* ]]; then
+        fail 'Provider dependencies are missing or confined to the download tree; provision the reviewed native dependency closure first.'
     fi
-fi
+done
 
-wget -O "${TRITON_DOWNLOADS}/boost.tar.gz" https://archives.boost.io/release/1.80.0/source/boost_1_80_0.tar.gz
-
-pushd "${TRITON_DOWNLOADS}"
-tar xvf boost.tar.gz
-cd boost_*/
-./bootstrap.sh
-./b2 install
-popd
-
-echo "Downloading ${TRITON_PKG_PATH} to ${TRITON_DOWNLOADS} ... "
-wget -O "${TRITON_DOWNLOADS}/jetpack.zip" "${TRITON_PKG_PATH}"
-
-echo "Creating ${TRITON_BACKEND_DIR} directory ... "
-mkdir -p ${TRITON_BACKEND_DIR}
-
-echo "Creating ${TRITON_SERVER_BIN} directory ... "
-mkdir -p ${TRITON_SERVER_BIN}
-
-echo "Extracting the Triton library and backend binaries ..."
-
-TRITON_ZIP_EXTRACT_DIR=${TRITON_DOWNLOADS}/triton_zip_extract
-mkdir -p "${TRITON_ZIP_EXTRACT_DIR}"
-unzip -q "${TRITON_DOWNLOADS}/jetpack.zip" -d "${TRITON_ZIP_EXTRACT_DIR}"
-
-TRITON_ROOT_DIR=$(find "${TRITON_ZIP_EXTRACT_DIR}" -type d -path "*/tritonserver" | head -n 1)
-if [[ -z "${TRITON_ROOT_DIR}" ]]; then
-    echo "Could not locate tritonserver directory in downloaded zip package"
-    exit 1
-fi
-
-TRITON_LIBTRITONSERVER_PATH=$(find "${TRITON_ROOT_DIR}" -type f -name libtritonserver.so | head -n 1)
-if [[ -z "${TRITON_LIBTRITONSERVER_PATH}" ]]; then
-    echo "Could not locate libtritonserver.so in downloaded zip package"
-    exit 1
-fi
-
-if [[ ! -r "${TRITON_LIBTRITONSERVER_PATH}" || \
-      ! -d "${TRITON_ROOT_DIR}/backends" || \
-      ! -f "${TRITON_ROOT_DIR}/bin/tritonserver" || ! -r "${TRITON_ROOT_DIR}/bin/tritonserver" ]]; then
-    echo "Selected server archive is missing readable Triton runtime inputs" >&2
-    exit 1
-fi
-
-# Always fetch the selected runtime client; an existing development SDK under
-# /opt/tritonclient must not override the requested release. Validate before
-# replacing SDK libraries, accepting lib/ or lib64/ and versioned symlinks.
-echo "Downloading selected Triton client SDK: ${TRITON_CLIENT_SDK_PKG_PATH} ..."
-wget -O "${TRITON_DOWNLOADS}/tritonclient.zip" "${TRITON_CLIENT_SDK_PKG_PATH}"
-TRITON_CLIENT_SDK_EXTRACT_DIR=${TRITON_DOWNLOADS}/tritonclient_sdk_extract
-mkdir -p "${TRITON_CLIENT_SDK_EXTRACT_DIR}"
-unzip -q "${TRITON_DOWNLOADS}/tritonclient.zip" -d "${TRITON_CLIENT_SDK_EXTRACT_DIR}"
-
-find "${TRITON_CLIENT_SDK_EXTRACT_DIR}" \( -type f -o -type l \) \
-    -name libgrpcclient.so -print0 > "${TRITON_DOWNLOADS}/client-candidates"
-mapfile -d '' -t TRITON_GRPC_CLIENT_CANDIDATES < "${TRITON_DOWNLOADS}/client-candidates"
-if [[ ${#TRITON_GRPC_CLIENT_CANDIDATES[@]} -ne 1 ]]; then
-    echo "Selected client SDK must contain exactly one libgrpcclient.so" >&2
-    exit 1
-fi
-if ! TRITON_GRPC_CLIENT_PATH=$(readlink -e -- "${TRITON_GRPC_CLIENT_CANDIDATES[0]}"); then
-    echo "Selected libgrpcclient.so has an unresolved target" >&2
-    exit 1
-fi
-TRITON_CLIENT_SDK_ROOT=$(readlink -e -- "${TRITON_CLIENT_SDK_EXTRACT_DIR}")
-if [[ "${TRITON_GRPC_CLIENT_PATH}" != "${TRITON_CLIENT_SDK_ROOT}/"* || \
-      ! -f "${TRITON_GRPC_CLIENT_PATH}" || ! -r "${TRITON_GRPC_CLIENT_PATH}" ]]; then
-    echo "Selected libgrpcclient.so must resolve to a readable file inside its archive" >&2
-    exit 1
-fi
-if ! TRITON_GRPC_CLIENT_HEADER=$(LC_ALL=C readelf -h -- "${TRITON_GRPC_CLIENT_PATH}" 2>/dev/null) || \
-    ! grep -Eq '^[[:space:]]*Class:[[:space:]]+ELF64[[:space:]]*$' <<< "${TRITON_GRPC_CLIENT_HEADER}" || \
-    ! grep -Eq '^[[:space:]]*Machine:[[:space:]]+AArch64[[:space:]]*$' <<< "${TRITON_GRPC_CLIENT_HEADER}" || \
-    ! grep -Eq '^[[:space:]]*Type:[[:space:]]+DYN[[:space:]]' <<< "${TRITON_GRPC_CLIENT_HEADER}"; then
-    echo "Selected libgrpcclient.so must be an AArch64 ELF64 shared library" >&2
-    exit 1
-fi
-
-# Materialize the resolved file and replace the destination itself, not a stale
-# destination symlink's target. The entire server installation is not atomic.
-TRITON_GRPC_CLIENT_STAGED=$(mktemp "${DEEPSTREAM_LIB_DIR}/.libgrpcclient.so.XXXXXXXX")
-cp -- "${TRITON_GRPC_CLIENT_PATH}" "${TRITON_GRPC_CLIENT_STAGED}"
-chmod 0644 "${TRITON_GRPC_CLIENT_STAGED}"
-mv -fT -- "${TRITON_GRPC_CLIENT_STAGED}" "${DEEPSTREAM_LIB_DIR}/libgrpcclient.so"
-TRITON_GRPC_CLIENT_STAGED=
-
-cp "${TRITON_LIBTRITONSERVER_PATH}" "${DEEPSTREAM_LIB_DIR}/"
-cp -a "${TRITON_ROOT_DIR}/backends/." "${TRITON_BACKEND_DIR}/"
-cp "${TRITON_ROOT_DIR}/bin/tritonserver" "${TRITON_SERVER_BIN}/"
-chmod -R +r $TRITON_BACKEND_DIR
-chmod +rx $TRITON_SERVER_BIN
-
-wget -O /var/tmp/cuda-keyring.deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-keyring_1.1-1_all.deb
-apt install --yes /var/tmp/cuda-keyring.deb
-rm /var/tmp/cuda-keyring.deb
-apt update
-apt install --yes --no-install-recommends datacenter-gpu-manager-4-core=1:4.4.0-1 datacenter-gpu-manager-4-dev=1:4.4.0-1
-
+# Stage the full replacement before publishing; preserve existing components
+# for recovery, and do not merge stale 26.04 backends into the new set.
+mkdir -p "$TRITON_INSTALL_DIR"
+replacement=$(mktemp -d "$TRITON_INSTALL_DIR/.triton-${TRITON_VERSION}.XXXXXX")
+cp -a "$TRITON_ROOT_DIR/bin" "$replacement/bin"
+cp -a "$TRITON_ROOT_DIR/backends" "$replacement/backends"
+chmod 0755 "$replacement/bin/tritonserver"
+# Prepare both SDK files before publishing any server/backend changes.
+for component in libtritonserver.so libgrpcclient.so; do
+    source=$TRITON_SERVER_LIBRARY
+    [[ "$component" != libgrpcclient.so ]] || source=$TRITON_CLIENT_LIBRARY
+    if [[ -e "$DEEPSTREAM_LIB_DIR/$component" || -L "$DEEPSTREAM_LIB_DIR/$component" ]]; then
+        cp -a -- "$DEEPSTREAM_LIB_DIR/$component" "$replacement/previous-$component"
+    fi
+    temporary=$(mktemp "$DEEPSTREAM_LIB_DIR/.${component}.XXXXXX")
+    pending_files+=("$temporary")
+    install -m 0644 -- "$source" "$temporary"
+done
+for component in bin backends; do
+    backup="$replacement/previous-$component"
+    if [[ -e "$TRITON_INSTALL_DIR/$component" || -L "$TRITON_INSTALL_DIR/$component" ]]; then
+        mv -- "$TRITON_INSTALL_DIR/$component" "$backup"
+    fi
+    rollback_targets+=("$TRITON_INSTALL_DIR/$component")
+    rollback_backups+=("$backup")
+    mv -- "$replacement/$component" "$TRITON_INSTALL_DIR/$component"
+done
+index=0
+for component in libtritonserver.so libgrpcclient.so; do
+    rollback_targets+=("$DEEPSTREAM_LIB_DIR/$component")
+    rollback_backups+=("$replacement/previous-$component")
+    mv -fT -- "${pending_files[index]}" "$DEEPSTREAM_LIB_DIR/$component"
+    index=$((index + 1))
+done
 ldconfig
-
 if ! gst-inspect-1.0 nvinferserver >/dev/null; then
-    echo "nvinferserver is not loadable after Triton backend setup"
-    exit 1
+    fail 'nvinferserver is not loadable after Triton backend setup.'
 fi
-
-echo "cleaning up ${TRITON_DOWNLOADS} directory ..."
+complete=1
+echo "Installed selected Triton ${TRITON_VERSION} server/backends and fresh client runtime."
+echo "Previous components, if any, are retained in: $replacement"
+echo 'Installation is not platform/inference qualification. Restart and qualify the selected native workload.'

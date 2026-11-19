@@ -66,6 +66,8 @@ The sample should be downloaded and built with **root** permission.
    First select reviewed Triton2.74.0 server/client ZIP URLs containing
    `/v2.74.0/`, qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1. There is no
    default provider; stock SBSA binaries are not a Jetson substitute.
+   Provision matching native dependencies and stop DeepStream/Triton before
+   applying; see the setup helper's `--help`.
 
    ```
    apt-get install -y libjson-glib-dev libgstrtspserver-1.0-dev

@@ -26,8 +26,10 @@
 # Additional prerequisites installed:
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
-#                      x86/SBSA: 26.10-py3-sdk; Jetson: JP/TRT11.4.1-qualified SDK
-#   protobuf compiler  explicit SDK-matched provider (legacy default v3.21.12) -> /opt/proto
+#                      x86, Jetson, and SBSA: published v2.74.0 nv26.10 SDK zip
+#                      for that architecture when the default tree is absent
+#   protobuf compiler  explicit SDK-matched provider, or the published compiler
+#                      for protobuf 3.21.12 and 33.5 -> /opt/proto
 #   pybind11           v2.12.0 (headers)  -> /opt/pybind11
 #   dlpack             v0.8    (headers)  -> /opt/dlpack
 #   apt packages: python3-build, python3-venv, python3-setuptools, python3-wheel,
@@ -37,7 +39,7 @@
 #                 libprotobuf-dev, libglm-dev (prefer 0.9.9.8), libglfw3-dev
 #                 (prefer 3.3.10), openucx/libucx-dev (prefer 1.13.1), etc.
 #   mosquitto (from Ubuntu packages)
-#   vpi4-dev (from NVIDIA's VPI apt repository, required by nvmultiobjecttracker)
+#   libnvvpi4 + vpi4-dev 4.1.4 (x86, required by nvmultiobjecttracker)
 #   Sparse4D: ds-sparse4d/configs/install_dependencies.sh (PyTorch 2.9.0+cu130,
 #             nlohmann-json, Eigen, OpenCV)
 #
@@ -56,11 +58,16 @@
 #   DS_DEPS_WORK_ROOT         Existing writable parent for dependency build
 #                             directories (default: /tmp).
 #   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
+#                            A missing default tree is filled from the published
+#                            Triton 2.74.0 nv26.10 SDK archive for x86, Jetson,
+#                            or SBSA. An explicit incomplete root is rejected.
 #   PROTOC_ROOT              Optional protoc distribution matching the selected
 #                            Triton SDK protobuf headers; copied to /opt/proto.
-#                            Must contain include/ and lib/ (or lib64/); no image
-#                            pull or unverified legacy SDK download is performed.
-#   VPI_DIR                  ARM vendor VPI4.1.6 installation (default: /opt/nvidia/vpi4).
+#                            Must contain bin/protoc and include/. No image pull.
+#   VPI_DIR                  Explicit preprovisioned vendor VPI installation:
+#                            x86 4.1.4, ARM 4.1.6 (default: /opt/nvidia/vpi4).
+#                            An explicit x86 provider is validated, not installed
+#                            or replaced through APT.
 #   TORCH_PATH               Optional preprovisioned CUDA ABI1 LibTorch provider;
 #                            preserved by the Sparse4D helper, never replaced by pip.
 
@@ -325,13 +332,73 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 TRITON_CLIENT_SDK_ROOT=${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}
+install_published_triton_sdk() {
+  local zip_name zip_url zip_sha tmp_dir include_dir lib_dir actual_sha
+  case "$PLATFORM" in
+    x86)
+      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip
+      zip_sha=4e7c451dac46a1bbae243609c225f6547d74f386107bbe767065593d7682f2fd
+      ;;
+    aarch64|sbsa)
+      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip
+      zip_sha=27094abcc4e323400c1c58f60f5dae33b7bd8b9c29b25a65bc0ad34474dd44dd
+      ;;
+    *)
+      echo "error: no published Triton 2.74.0 client SDK is selected for PLATFORM=$PLATFORM." >&2
+      return 1
+      ;;
+  esac
+  zip_url=https://github.com/triton-inference-server/server/releases/download/v2.74.0/${zip_name}
+  tmp_dir=$(mktemp -d)
+  echo "--- Triton client SDK: downloading published $PLATFORM 2.74.0 / 26.10 archive ---"
+  if ! curl -fL --retry 2 -o "$tmp_dir/$zip_name" "$zip_url"; then
+    rm -rf "$tmp_dir"
+    echo "error: could not download the published Triton 2.74.0 $PLATFORM client SDK." >&2
+    return 1
+  fi
+  actual_sha=$(sha256sum "$tmp_dir/$zip_name" | awk '{print $1}')
+  if [[ "$actual_sha" != "$zip_sha" ]]; then
+    rm -rf "$tmp_dir"
+    echo "error: published Triton SDK checksum mismatch (got $actual_sha)." >&2
+    return 1
+  fi
+  if ! unzip -q -o "$tmp_dir/$zip_name" -d "$tmp_dir/sdk"; then
+    rm -rf "$tmp_dir"
+    echo "error: could not unpack the published Triton SDK archive." >&2
+    return 1
+  fi
+  include_dir=$tmp_dir/sdk/tritonserver_sdk/install/include
+  lib_dir=$tmp_dir/sdk/tritonserver_sdk/install/lib64
+  if [[ ! -r "$include_dir/grpc_client.h" || ! -r "$include_dir/common.h" ||
+        ! -r "$lib_dir/libgrpcclient.so" || ! -r "$lib_dir/libprotobuf.a" ||
+        ! -r "$lib_dir/libcares.a" ]]; then
+    rm -rf "$tmp_dir"
+    echo "error: published Triton SDK archive is missing include/ or lib64/ inputs." >&2
+    return 1
+  fi
+  mkdir -p /opt/tritonclient
+  rm -rf /opt/tritonclient/include /opt/tritonclient/lib
+  mv "$include_dir" /opt/tritonclient/include
+  mv "$lib_dir" /opt/tritonclient/lib
+  rm -rf "$tmp_dir"
+  TRITON_CLIENT_SDK_ROOT=/opt/tritonclient
+}
+triton_headers_ready=1
 for header in grpc_client.h common.h; do
   if [[ ! -r "$TRITON_CLIENT_SDK_ROOT/include/$header" ]]; then
-    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/$header)." >&2
-    echo "x86/SBSA use the 26.10-py3-sdk image's /workspace/install; Jetson needs a JetPack/TRT11.4.1-qualified SDK." >&2
-    exit 1
+    triton_headers_ready=0
+    break
   fi
 done
+if [[ "$triton_headers_ready" -eq 0 ]]; then
+  if [[ "$TRITON_CLIENT_SDK_ROOT" == /opt/tritonclient ]]; then
+    install_published_triton_sdk || exit 1
+  else
+    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/grpc_client.h or include/common.h)." >&2
+    echo "The default /opt/tritonclient tree is downloaded from the published Triton 2.74.0 nv26.10 SDK for x86, Jetson, and SBSA. An explicit TRITON_CLIENT_SDK_ROOT must already be complete." >&2
+    exit 1
+  fi
+fi
 triton_client_library_dir_is_complete() {
   local directory=$1 library
   for library in libprotobuf.a libcares.a; do
@@ -453,6 +520,36 @@ if [[ -v PROTOC_ROOT ]]; then
   echo "    Stage deps-protoc: DONE"
 elif PROTOC_SELECTED_VERSION=$(validate_protoc_provider /opt/proto "$TRITON_CLIENT_SDK_ROOT" 2>/dev/null); then
   echo "--- Protobuf compiler $PROTOC_SELECTED_VERSION (using matching /opt/proto provider) ---"
+  mark_stage_done deps-protoc
+  echo "    Stage deps-protoc: DONE"
+elif [[ "$PROTOC_REQUIRED_VERSION" == 33.5 ]]; then
+  echo "--- Protobuf compiler v33.5 (PLATFORM=$PLATFORM) ---"
+  case "$PLATFORM" in
+    x86)
+      protoc_name=protoc-33.5-linux-x86_64.zip
+      protoc_sha=24e58fb231d50306ee28491f33a170301e99540f7e29ca461e0e80fd1239f8d1
+      ;;
+    aarch64|sbsa)
+      protoc_name=protoc-33.5-linux-aarch_64.zip
+      protoc_sha=2b0fcf9b2c32cbadccc0eb7a88b841fffecd4a06fc80acdba2b5be45e815c38a
+      ;;
+    *)
+      echo "error: no protoc 33.5 archive is selected for PLATFORM=$PLATFORM." >&2
+      exit 1
+      ;;
+  esac
+  curl -fL --retry 2 -o "/tmp/$protoc_name" \
+    "https://github.com/protocolbuffers/protobuf/releases/download/v33.5/$protoc_name"
+  if [[ "$(sha256sum "/tmp/$protoc_name" | awk '{print $1}')" != "$protoc_sha" ]]; then
+    rm -f "/tmp/$protoc_name"
+    echo "error: protoc 33.5 archive checksum mismatch." >&2
+    exit 1
+  fi
+  mkdir -p /opt/proto
+  unzip -o "/tmp/$protoc_name" -d /opt/proto
+  chmod -R +rx /opt/proto/
+  rm -f "/tmp/$protoc_name"
+  PROTOC_SELECTED_VERSION=$(validate_protoc_provider /opt/proto "$TRITON_CLIENT_SDK_ROOT") || exit 1
   mark_stage_done deps-protoc
   echo "    Stage deps-protoc: DONE"
 elif [[ "$PROTOC_REQUIRED_VERSION" != 3.21.12 || "$PLATFORM" = "sbsa" ]]; then
@@ -650,6 +747,101 @@ fi
 # ---------------------------------------------------------------------------
 # VPI4 development headers (ARM must retain the target vendor4.1.6 provider)
 # ---------------------------------------------------------------------------
+
+ds_vpi_installed_package() {
+  local package=$1 state version error_flag query_status
+  if state=$(dpkg-query -W -f='${db:Status-Status}\t${db:Status-Eflag}\t${Version}\n' "$package" 2>/dev/null); then
+    query_status=0
+  else
+    query_status=$?
+    if [[ "$query_status" -ne 1 || -n "$state" ]]; then
+      echo "error: could not reliably query dpkg state for $package (status $query_status)." >&2
+      return 1
+    fi
+    printf '\n'
+    return 0
+  fi
+  IFS=$'\t' read -r state error_flag version <<<"$state"
+  if [[ "$error_flag" != ok ]]; then
+    echo "error: $package has dpkg error flag '$error_flag'; repair it before building." >&2
+    return 1
+  fi
+  case "$state" in
+    installed)
+      [[ -n "$version" ]] || { echo "error: missing installed version for $package." >&2; return 1; }
+      printf '%s\n' "$version" ;;
+    ''|not-installed|config-files) printf '\n' ;;
+    *) echo "error: $package has partial dpkg state '$state'; repair it before building." >&2; return 1 ;;
+  esac
+}
+
+ds_vpi_is_x86_package_version() {
+  [[ "$1" =~ ^([0-9]+:)?4\.1\.4([+-]|$) ]]
+}
+
+ds_vpi_install_x86() {
+  local provider=$1 destination=$2 explicit_provider=$3
+  local runtime_version dev_version selected= candidate package installed holds
+  local runtime_versions dev_versions
+  # shellcheck source=lib_vpi_runtime.sh
+  source "$SCRIPT_DIR/lib_vpi_runtime.sh"
+  if [[ "$explicit_provider" -eq 0 ]]; then
+    runtime_version=$(ds_vpi_installed_package libnvvpi4) || return 1
+    dev_version=$(ds_vpi_installed_package vpi4-dev) || return 1
+    if [[ -n "$runtime_version" && "$runtime_version" == "$dev_version" ]] &&
+       ds_vpi_is_x86_package_version "$runtime_version"; then
+      echo "--- VPI4.1.4 (healthy installed runtime/development pair; no APT changes) ---"
+    else
+      apt-get install -y gnupg software-properties-common || return 1
+      apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc || return 1
+      if [[ "$(lsb_release -cs)" == noble ]]; then
+        add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main' || return 1
+      else
+        add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main' || return 1
+      fi
+      apt-get update || return 1
+      runtime_versions=$(apt-cache madison libnvvpi4 | awk '{print $3}') || return 1
+      dev_versions=$(apt-cache madison vpi4-dev | awk '{print $3}') || return 1
+      while IFS= read -r candidate; do
+        if ds_vpi_is_x86_package_version "$candidate" && grep -Fxq -- "$candidate" <<<"$dev_versions"; then
+          selected=$candidate
+          break
+        fi
+      done <<<"$runtime_versions"
+      if [[ -z "$selected" ]]; then
+        echo "error: the x86 repository has no matching libnvvpi4/vpi4-dev VPI4.1.4 package pair." >&2
+        return 1
+      fi
+      holds=$(apt-mark showhold) || return 1
+      for package in libnvvpi4 vpi4-dev; do
+        installed=$runtime_version
+        [[ "$package" != vpi4-dev ]] || installed=$dev_version
+        if [[ -n "$installed" ]] && dpkg --compare-versions "$installed" gt "$selected"; then
+          echo "error: refusing to downgrade $package from $installed to $selected; review the VPI provider separately." >&2
+          return 1
+        fi
+        if grep -Fxq -- "$package" <<<"$holds" && [[ "$installed" != "$selected" ]]; then
+          echo "error: $package is held at $installed; the build will not override the hold for $selected." >&2
+          return 1
+        fi
+      done
+      apt-get install -y --no-remove "libnvvpi4=$selected" "vpi4-dev=$selected" || return 1
+      runtime_version=$(ds_vpi_installed_package libnvvpi4) || return 1
+      dev_version=$(ds_vpi_installed_package vpi4-dev) || return 1
+      if [[ "$runtime_version" != "$selected" || "$dev_version" != "$selected" ]]; then
+        echo "error: VPI installation did not produce the matching $selected runtime/development pair." >&2
+        return 1
+      fi
+    fi
+  else
+    echo "--- VPI4.1.4 (validating explicit preprovisioned x86 provider $provider; no APT changes) ---"
+  fi
+  ds_vpi_validate_x86_headers "$provider" || return 1
+  ds_vpi_stage_x86_runtime "$provider/lib/x86_64-linux-gnu" "$destination" || return 1
+  mark_stage_done deps-vpi4
+  echo "    Stage deps-vpi4: DONE (x86 VPI4.1.4 headers and SDK runtime verified)"
+}
+
 echo ""
 if [[ "$PLATFORM" == aarch64 && -r /proc/device-tree/model ]] &&
     [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]; then
@@ -671,28 +863,11 @@ elif [[ "$PLATFORM" == aarch64 || "$PLATFORM" == sbsa ]]; then
   fi
   echo "--- VPI4.1.6 (using existing ARM vendor headers; no x86 repository added) ---"
   mark_stage_done deps-vpi4
-elif stage_is_done deps-vpi4; then
-  echo "--- VPI4 (skipped, already DONE) ---"
 else
-  echo "--- VPI4 ---"
-  apt-get install -y gnupg software-properties-common
-  apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
-  if [[ "$(lsb_release -cs)" == "noble" ]]; then
-    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
-  else
-    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main'
-  fi
-  apt-get update
-  # Keep the existing x86 VPI4.1.3 baseline instead of selecting a newer
-  # repository candidate merely because ARM uses VPI4.1.6.
-  VPI_PACKAGE_VERSION=$(apt-cache madison vpi4-dev | awk '$3 ~ /^4\.1\.3(-|$)/ {print $3; exit}')
-  if [[ -z "$VPI_PACKAGE_VERSION" ]]; then
-    echo "error: the configured x86 repository has no VPI4.1.3 development package; provision the reviewed matching vendor package." >&2
-    exit 1
-  fi
-  apt-get install -y "vpi4-dev=$VPI_PACKAGE_VERSION"
-  mark_stage_done deps-vpi4
-  echo "    Stage deps-vpi4: DONE"
+  # A previous DONE marker must not mask a 4.1.3 bundle restored by artifacts.
+  VPI_EXPLICIT_PROVIDER=0
+  [[ ! -v VPI_DIR ]] || VPI_EXPLICIT_PROVIDER=1
+  ds_vpi_install_x86 "${VPI_DIR-/opt/nvidia/vpi4}" "$INSTALL_DIR" "$VPI_EXPLICIT_PROVIDER"
 fi
 
 # ---------------------------------------------------------------------------

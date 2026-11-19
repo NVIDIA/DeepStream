@@ -27,9 +27,9 @@ existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop
 The x86 and generic-SBSA upgrade candidate follows Triton26.10's core versions:
 CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**. Jetson retains
 JetPack **7.2.2+**, CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
-**9.20.0.46**. ARM uses VPI **4.1.6**; x86 retains VPI **4.1.3**. These are
+**9.20.0.46**. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
 declared build targets, not completed build/runtime qualification. IGX's separate
-legacy stack is not upgraded here. See the [official26.10 contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
 `CUDA_VER` selects the toolkit **family directory** (`13.4` x86/SBSA, `13.2`
 Jetson), not the full release. Install the full matching toolkit separately;
@@ -95,6 +95,10 @@ its supported container. Current upgrade targets are:
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
 | SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
 
+The x86/SBSA host-driver target is **620.70.06**, separate from the minimum above.
+Its `nvidia-smi` CUDA UMD **13.5** reading describes driver capability; the toolkit
+remains **13.4.3**. Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
+
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
 > **Docker users:** use a reviewed image matching the selected upgrade stack and
@@ -106,14 +110,21 @@ For installation instructions, refer to the official [DeepStream SDK Installatio
 ### Matching Triton client SDK and VPI inputs
 
 The dependency script no longer downloads the old x8626.03/Jetson26.04 client
-SDKs for this upgrade. For x86/SBSA, preprovision the matching26.10 C++ SDK at
-`/opt/tritonclient`, or supply `TRITON_CLIENT_SDK_ROOT=/path/to/sdk/install` to
-`scripts/install_opensource_deps.sh`. The official26.10 SDK is supplied through
-the `26.10-py3-sdk` container: its `/workspace/install/include` and
-`/workspace/install/lib` are the inputs. No container is pulled by these scripts.
-See the [Triton2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
-Jetson needs an explicitly qualified JP7.2.2/TRT11.4.1-compatible SDK instead;
-do not substitute the stock SBSA SDK simply because both are ARM64.
+SDKs. When `/opt/tritonclient` does not already contain `include/grpc_client.h`
+and `include/common.h`, and `TRITON_CLIENT_SDK_ROOT` is left at that default,
+`scripts/install_opensource_deps.sh` downloads the published Triton 2.74.0
+nv26.10 archive for the selected platform and checks its SHA-256 before
+installing `install/include` and `install/lib64`. x86 uses
+`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip`. Jetson
+and SBSA use
+`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip`.
+Those archives' protobuf headers are 6.33.5, so the same path then downloads
+protoc 33.5 for that architecture when `/opt/proto` does not already match.
+An explicit `TRITON_CLIENT_SDK_ROOT` that is missing headers is still rejected.
+The `26.10-py3-sdk` container's `/workspace/install` remains a valid explicit
+provider. No container is pulled by these scripts. See the
+[Triton 2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
+SBSA dependency installation still has to run inside the matching SBSA container.
 
 Provider checks require C++ headers, static client dependencies (including
 `libcares.a`), and `libgrpcclient.so` or `libgrpcclient.a` for the SDK's actual
@@ -181,8 +192,14 @@ ARM must already have genuine matching **VPI4.1.6** development headers at
 `/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
 adding an x86 repository or guessing a vendor download. Provision the target
 vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
-The x86 installer keeps the **4.1.3** package family; if that version is absent
-from the configured repository, supply the reviewed vendor package explicitly.
+The x86 installer selects matching **4.1.4** `libnvvpi4` and `vpi4-dev` packages,
+or an explicit matching `VPI_DIR`; it respects holds and refuses silent downgrades.
+It stages `libnvvpi.so.4.1.4` with relative aliases in the SDK, whose library path
+takes precedence over system VPI. Package assembly excludes older VPI4 providers
+from its staging tree only; the input SDK is not pruned. `--skip-deps` requires
+matching headers and an SDK-bundled runtime. Refresh affected outputs and rerun
+without `--resume` after changing the baseline. `--package-from` also requires a
+self-contained matching VPI bundle; GPU/runtime qualification remains separate.
 
 ### Installation integration and existing installations
 
@@ -254,12 +271,15 @@ the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) i
    sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
    sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
    sudo apt update
-   # Select the reviewed4.1.3 package revision from this repository.
-   apt-cache madison vpi4-dev
-   sudo apt install 'vpi4-dev=<reviewed-4.1.3-package-revision>'
+   # Select matching reviewed 4.1.4 runtime and development revisions.
+   apt-cache policy libnvvpi4 vpi4-dev
+   sudo apt install 'libnvvpi4=4.1.4' 'vpi4-dev=4.1.4'
    ```
    The headers install to `/opt/nvidia/vpi4/include`. Override the location with
    `VPI_DIR=<path>` when running `make` in `src/utils/nvmultiobjecttracker`.
+   A source build also needs the matching runtime staged in the SDK library
+   directory; the normal dependency stage performs this step. Do not use
+   `--skip-deps` merely because the two APT packages are installed.
 
 ### aarch64 (Jetson)
 
@@ -570,9 +590,13 @@ Clean old component objects explicitly before a stack change, then run without
 `--resume`; recording new stage identity does not itself rebuild stale objects.
 
 To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
-the install tree uses the truncated `MAJOR.MINOR` form). The GitHub Release
-proprietary-libs / sample-data assets are always fetched from the `v9.2.0`
-release (hardcoded, not derived from `NVDS_VERSION`):
+the install tree uses the truncated `MAJOR.MINOR` form). Proprietary-library and
+sample-data filenames stay at `9.2.0` unless `GITHUB_ASSET_VERSION` is set. By
+default those files are downloaded from
+`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`. Set
+`GITHUB_RELEASE_BASE` to another directory to fetch the same filenames from
+there. The override is the directory itself; it does not append
+`GITHUB_RELEASE_TAG`.
 
 ```bash
 NVDS_VERSION=9.2.1 bash build/build.sh

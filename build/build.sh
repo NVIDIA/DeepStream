@@ -147,10 +147,16 @@ Environment variables (alternative to CLI):
   CUDNN_VERSION           Declared cuDNN baseline (9.27.0.42 x86/SBSA;
                           9.20.0.46 Jetson); does not install/verify compute packages
   NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.1); the install
-                          tree uses MAJOR.MINOR only. GitHub Release
-                          proprietary-libs / sample-data assets are always
-                          fetched from the v9.2.0 release (hardcoded; not
-                          derived from NVDS_VERSION).
+                          tree uses MAJOR.MINOR only. It does not select the
+                          proprietary-libs / sample-data asset names.
+  GITHUB_RELEASE_TAG      GitHub release tag without the leading v
+                          (default: 9.2.0). Used only to build the default
+                          GITHUB_RELEASE_BASE.
+  GITHUB_ASSET_VERSION    Version embedded in asset filenames (default: 9.2.0).
+  GITHUB_RELEASE_BASE     Directory that contains those assets. Default:
+                          https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0
+                          A custom value is the directory itself and is not
+                          given another tag.
   INSTALL_METHOD          Artifact install method: deb (default) | tar
   CMAKE_BIN               Path to cmake binary
   PROTOC_ROOT             Explicit protoc distribution matching the selected
@@ -537,6 +543,10 @@ if [[ "$SKIP_DEPS" -eq 1 && -v TRITON_CLIENT_SDK_ROOT && ! -v TRITON_GRPC_CLIENT
   _triton_build_client_root="$TRITON_CLIENT_SDK_ROOT"
 fi
 STACK_STATE="STACK platform=$STACK_PLATFORM CUDA_VER=$CUDA_VER TRT_VER=${TRT_VER:-system} CUDNN_VERSION=$CUDNN_VERSION NVDS_VERSION=$NVDS_FULL_VERSION"
+if [[ "$PLATFORM" == x86 ]]; then
+  # Old DONE markers must not reuse a tracker built against the 4.1.3 baseline.
+  STACK_STATE+=" VPI_VERSION=4.1.4"
+fi
 printf -v _provider_value '%q' "$_triton_build_client_root"
 STACK_STATE+=" TRITON_BUILD_CLIENT_ROOT=$_provider_value"
 for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT PROTOC_ROOT DS_DEPS_WORK_ROOT DS_PACKAGE_OUTPUT_DIR DS_PACKAGE_STAGE_DIR; do
@@ -589,19 +599,20 @@ stage_had_failures() {
 }
 
 # GitHub Release *tag* the proprietary-libs / sample-data assets are attached to.
-# Hardcoded (not derived from NVDS_VERSION) — this is the release page's tag name,
-# which does not necessarily match the assets' own filename version (see
-# GITHUB_ASSET_VERSION below): new patch-release assets are uploaded onto the
-# existing tag rather than cutting a new tag each patch, so older branches whose
-# build.sh still points at this same tag keep resolving.
-GITHUB_RELEASE_TAG="9.2.0"
+# Default only (not derived from NVDS_VERSION). The tag does not necessarily
+# match the assets' own filename version (see GITHUB_ASSET_VERSION below): new
+# patch-release assets are uploaded onto the existing tag rather than cutting a
+# new tag each patch. GITHUB_RELEASE_BASE overrides the download directory.
+GITHUB_RELEASE_TAG="${GITHUB_RELEASE_TAG:-9.2.0}"
 
 # Version embedded in the release asset filenames themselves (deepstream-binaries-*,
 # deepstream-sample-data_*, …). Bump by hand once newer-patch assets are uploaded.
-GITHUB_ASSET_VERSION="9.2.0"
+GITHUB_ASSET_VERSION="${GITHUB_ASSET_VERSION:-9.2.0}"
 
-# Release assets are fetched from the DeepStream GitHub release into ARTIFACTS_DIR.
-GITHUB_RELEASE_BASE="https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}"
+# Directory containing the release assets. The default keeps the GitHub tag
+# path as v9.2.0. An explicit base is used unchanged, without another tag.
+GITHUB_RELEASE_BASE="${GITHUB_RELEASE_BASE:-https://github.com/NVIDIA/DeepStream/releases/download/v${GITHUB_RELEASE_TAG}}"
+GITHUB_RELEASE_BASE="${GITHUB_RELEASE_BASE%/}"
 # Track what we downloaded so it can be cleaned up after a successful build.
 DOWNLOADED_ASSETS=()
 ARTIFACTS_DIR_CREATED=0
@@ -766,7 +777,7 @@ if [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
   fi
 else
   echo "==> Artifact install method: $INSTALL_METHOD (override with --install-method=deb|tar)"
-  echo "==> Artifact version pinned to $GITHUB_ASSET_VERSION (release tag: v$GITHUB_RELEASE_TAG)"
+  echo "==> Artifact version pinned to $GITHUB_ASSET_VERSION (source: $GITHUB_RELEASE_BASE)"
 fi
 if [[ "$RESUME" -eq 1 ]]; then
   echo "==> Resume enabled: skipping stages already complete in $STAGE_STATE_FILE"
@@ -832,6 +843,9 @@ if [[ "$SKIP_ARTIFACTS" -eq 0 ]] && begin_stage "$ARTIFACTS_STAGE"; then
     ARTIFACTS_DIR="$ARTIFACTS_DIR" \
     ARTIFACTS_STAGE_STATE_FILE="$ARTIFACTS_STAGE_STATE_FILE" \
     RESUME="$RESUME" \
+    GITHUB_RELEASE_TAG="$GITHUB_RELEASE_TAG" \
+    GITHUB_ASSET_VERSION="$GITHUB_ASSET_VERSION" \
+    GITHUB_RELEASE_BASE="$GITHUB_RELEASE_BASE" \
     bash "$SCRIPT_DIR/../scripts/install_artifacts.sh"
 
   finish_stage "$ARTIFACTS_STAGE"
@@ -848,13 +862,12 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
   # Preserve explicit providers through sudo without converting an unset
   # variable into an explicit empty value (the helpers reject the latter).
   _deps_provider_env=()
-  for _provider in TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
+  for _provider in VPI_DIR TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
     [[ ! -v "$_provider" ]] || _deps_provider_env+=("$_provider=${!_provider}")
   done
   run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
     TRITON_CLIENT_SDK_ROOT="${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}" \
-    VPI_DIR="${VPI_DIR-/opt/nvidia/vpi4}" \
     RESUME="$RESUME" \
     "${_deps_provider_env[@]}" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
@@ -906,6 +919,13 @@ fi
 # ---------------------------------------------------------------------------
 # Stage: utils
 # ---------------------------------------------------------------------------
+if [[ "$PLATFORM" == x86 ]] && want_stage utils; then
+  # This also covers --skip-deps and --resume. Merely installing new headers
+  # does not replace the older VPI runtime supplied by binary artifacts.
+  source "$SCRIPT_DIR/../scripts/lib_vpi_runtime.sh"
+  ds_vpi_validate_x86_headers "${VPI_DIR-/opt/nvidia/vpi4}"
+  ds_vpi_validate_x86_bundle "$DS_ROOT/lib" >/dev/null
+fi
 if begin_stage utils; then
   _fb_before=${#FAILED_BUILDS[@]}
   if [[ "$PLATFORM" == "x86" ]]; then

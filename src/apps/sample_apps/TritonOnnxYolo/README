@@ -72,6 +72,8 @@ Pre-requisites:
    First set both URL variables to reviewed JetPack7.2.2/CUDA13.2.2/TRT11.4.1-
    compatible Triton2.74.0 ZIP URLs containing /v2.74.0/. There is no default
    provider; stock SBSA binaries are not a Jetson substitute.
+   Provision matching native dependencies and stop DeepStream/Triton before
+   applying; see ./triton_backend_setup.sh --help.
    $ sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
        TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \
        ./triton_backend_setup.sh
