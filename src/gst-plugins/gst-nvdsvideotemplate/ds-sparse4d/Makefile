@@ -60,7 +60,7 @@ TORCH_CXX11_ABI ?= $(_SPARSE4D_TORCH_DETECTED_ABI)
 # Recent LibTorch providers publish their minimum standard as a CMake feature.
 # Preserve the C++17 baseline for older providers and explicit caller overrides.
 _SPARSE4D_TORCH_DETECTED_CXX_STANDARD := $(shell sed -n 's/.*cxx_std_\([0-9][0-9]*\).*/\1/p' "$(TORCH_PATH)/share/cmake/Torch/TorchConfig.cmake" 2>/dev/null | sort -nu | tail -1)
-_SPARSE4D_TORCH_MIN_CXX_STANDARD := $(if $(_SPARSE4D_TORCH_DETECTED_CXX_STANDARD),$(_SPARSE4D_TORCH_DETECTED_CXX_STANDARD),17)
+_SPARSE4D_TORCH_MIN_CXX_STANDARD := $(or $(filter-out 11 14,$(_SPARSE4D_TORCH_DETECTED_CXX_STANDARD)),17)
 TORCH_CXX_STANDARD ?= $(_SPARSE4D_TORCH_MIN_CXX_STANDARD)
 EIGEN_INCLUDE_DIR ?= /usr/include/eigen3
 JSON_INCLUDE_DIR ?= /usr/include

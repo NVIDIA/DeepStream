@@ -39,7 +39,7 @@
 #                 libprotobuf-dev, libglm-dev (prefer 0.9.9.8), libglfw3-dev
 #                 (prefer 3.3.10), openucx/libucx-dev (prefer 1.13.1), etc.
 #   mosquitto (from Ubuntu packages)
-#   vpi4-dev (from NVIDIA's VPI apt repository, required by nvmultiobjecttracker)
+#   libnvvpi4 + vpi4-dev 4.1.4 (x86, required by nvmultiobjecttracker)
 #   Sparse4D: ds-sparse4d/configs/install_dependencies.sh (PyTorch 2.9.0+cu130,
 #             nlohmann-json, Eigen, OpenCV)
 #
@@ -64,7 +64,10 @@
 #   PROTOC_ROOT              Optional protoc distribution matching the selected
 #                            Triton SDK protobuf headers; copied to /opt/proto.
 #                            Must contain bin/protoc and include/. No image pull.
-#   VPI_DIR                  ARM vendor VPI4.1.6 installation (default: /opt/nvidia/vpi4).
+#   VPI_DIR                  Explicit preprovisioned vendor VPI installation:
+#                            x86 4.1.4, ARM 4.1.6 (default: /opt/nvidia/vpi4).
+#                            An explicit x86 provider is validated, not installed
+#                            or replaced through APT.
 #   TORCH_PATH               Optional preprovisioned CUDA ABI1 LibTorch provider;
 #                            preserved by the Sparse4D helper, never replaced by pip.
 
@@ -744,6 +747,101 @@ fi
 # ---------------------------------------------------------------------------
 # VPI4 development headers (ARM must retain the target vendor4.1.6 provider)
 # ---------------------------------------------------------------------------
+
+ds_vpi_installed_package() {
+  local package=$1 state version error_flag query_status
+  if state=$(dpkg-query -W -f='${db:Status-Status}\t${db:Status-Eflag}\t${Version}\n' "$package" 2>/dev/null); then
+    query_status=0
+  else
+    query_status=$?
+    if [[ "$query_status" -ne 1 || -n "$state" ]]; then
+      echo "error: could not reliably query dpkg state for $package (status $query_status)." >&2
+      return 1
+    fi
+    printf '\n'
+    return 0
+  fi
+  IFS=$'\t' read -r state error_flag version <<<"$state"
+  if [[ "$error_flag" != ok ]]; then
+    echo "error: $package has dpkg error flag '$error_flag'; repair it before building." >&2
+    return 1
+  fi
+  case "$state" in
+    installed)
+      [[ -n "$version" ]] || { echo "error: missing installed version for $package." >&2; return 1; }
+      printf '%s\n' "$version" ;;
+    ''|not-installed|config-files) printf '\n' ;;
+    *) echo "error: $package has partial dpkg state '$state'; repair it before building." >&2; return 1 ;;
+  esac
+}
+
+ds_vpi_is_x86_package_version() {
+  [[ "$1" =~ ^([0-9]+:)?4\.1\.4([+-]|$) ]]
+}
+
+ds_vpi_install_x86() {
+  local provider=$1 destination=$2 explicit_provider=$3
+  local runtime_version dev_version selected= candidate package installed holds
+  local runtime_versions dev_versions
+  # shellcheck source=lib_vpi_runtime.sh
+  source "$SCRIPT_DIR/lib_vpi_runtime.sh"
+  if [[ "$explicit_provider" -eq 0 ]]; then
+    runtime_version=$(ds_vpi_installed_package libnvvpi4) || return 1
+    dev_version=$(ds_vpi_installed_package vpi4-dev) || return 1
+    if [[ -n "$runtime_version" && "$runtime_version" == "$dev_version" ]] &&
+       ds_vpi_is_x86_package_version "$runtime_version"; then
+      echo "--- VPI4.1.4 (healthy installed runtime/development pair; no APT changes) ---"
+    else
+      apt-get install -y gnupg software-properties-common || return 1
+      apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc || return 1
+      if [[ "$(lsb_release -cs)" == noble ]]; then
+        add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main' || return 1
+      else
+        add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main' || return 1
+      fi
+      apt-get update || return 1
+      runtime_versions=$(apt-cache madison libnvvpi4 | awk '{print $3}') || return 1
+      dev_versions=$(apt-cache madison vpi4-dev | awk '{print $3}') || return 1
+      while IFS= read -r candidate; do
+        if ds_vpi_is_x86_package_version "$candidate" && grep -Fxq -- "$candidate" <<<"$dev_versions"; then
+          selected=$candidate
+          break
+        fi
+      done <<<"$runtime_versions"
+      if [[ -z "$selected" ]]; then
+        echo "error: the x86 repository has no matching libnvvpi4/vpi4-dev VPI4.1.4 package pair." >&2
+        return 1
+      fi
+      holds=$(apt-mark showhold) || return 1
+      for package in libnvvpi4 vpi4-dev; do
+        installed=$runtime_version
+        [[ "$package" != vpi4-dev ]] || installed=$dev_version
+        if [[ -n "$installed" ]] && dpkg --compare-versions "$installed" gt "$selected"; then
+          echo "error: refusing to downgrade $package from $installed to $selected; review the VPI provider separately." >&2
+          return 1
+        fi
+        if grep -Fxq -- "$package" <<<"$holds" && [[ "$installed" != "$selected" ]]; then
+          echo "error: $package is held at $installed; the build will not override the hold for $selected." >&2
+          return 1
+        fi
+      done
+      apt-get install -y --no-remove "libnvvpi4=$selected" "vpi4-dev=$selected" || return 1
+      runtime_version=$(ds_vpi_installed_package libnvvpi4) || return 1
+      dev_version=$(ds_vpi_installed_package vpi4-dev) || return 1
+      if [[ "$runtime_version" != "$selected" || "$dev_version" != "$selected" ]]; then
+        echo "error: VPI installation did not produce the matching $selected runtime/development pair." >&2
+        return 1
+      fi
+    fi
+  else
+    echo "--- VPI4.1.4 (validating explicit preprovisioned x86 provider $provider; no APT changes) ---"
+  fi
+  ds_vpi_validate_x86_headers "$provider" || return 1
+  ds_vpi_stage_x86_runtime "$provider/lib/x86_64-linux-gnu" "$destination" || return 1
+  mark_stage_done deps-vpi4
+  echo "    Stage deps-vpi4: DONE (x86 VPI4.1.4 headers and SDK runtime verified)"
+}
+
 echo ""
 if [[ "$PLATFORM" == aarch64 && -r /proc/device-tree/model ]] &&
     [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]; then
@@ -765,28 +863,11 @@ elif [[ "$PLATFORM" == aarch64 || "$PLATFORM" == sbsa ]]; then
   fi
   echo "--- VPI4.1.6 (using existing ARM vendor headers; no x86 repository added) ---"
   mark_stage_done deps-vpi4
-elif stage_is_done deps-vpi4; then
-  echo "--- VPI4 (skipped, already DONE) ---"
 else
-  echo "--- VPI4 ---"
-  apt-get install -y gnupg software-properties-common
-  apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
-  if [[ "$(lsb_release -cs)" == "noble" ]]; then
-    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
-  else
-    add-apt-repository -y 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r39.2 main'
-  fi
-  apt-get update
-  # Keep the existing x86 VPI4.1.3 baseline instead of selecting a newer
-  # repository candidate merely because ARM uses VPI4.1.6.
-  VPI_PACKAGE_VERSION=$(apt-cache madison vpi4-dev | awk '$3 ~ /^4\.1\.3(-|$)/ {print $3; exit}')
-  if [[ -z "$VPI_PACKAGE_VERSION" ]]; then
-    echo "error: the configured x86 repository has no VPI4.1.3 development package; provision the reviewed matching vendor package." >&2
-    exit 1
-  fi
-  apt-get install -y "vpi4-dev=$VPI_PACKAGE_VERSION"
-  mark_stage_done deps-vpi4
-  echo "    Stage deps-vpi4: DONE"
+  # A previous DONE marker must not mask a 4.1.3 bundle restored by artifacts.
+  VPI_EXPLICIT_PROVIDER=0
+  [[ ! -v VPI_DIR ]] || VPI_EXPLICIT_PROVIDER=1
+  ds_vpi_install_x86 "${VPI_DIR-/opt/nvidia/vpi4}" "$INSTALL_DIR" "$VPI_EXPLICIT_PROVIDER"
 fi
 
 # ---------------------------------------------------------------------------

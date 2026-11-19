@@ -80,11 +80,15 @@ The published baseline below is not qualification of the upgrade branch.
 
 The local upgrade branch selects these separate compute-stack targets:
 
-| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | ARM VPI |
+| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | VPI |
 |---|---|---|---|---|
-| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | Unchanged x86 input |
+| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.4 |
 | Generic SBSA | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.6 |
 | Jetson, JetPack 7.2.2 | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+
+The x86/SBSA host-driver target is **620.70.06**. Its `nvidia-smi` CUDA UMD
+**13.5** reading describes driver capability, not the selected **13.4.3** toolkit.
+Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
 
 These are build targets, not completed platform qualification. IGX's existing
 stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
@@ -193,12 +197,13 @@ cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app-triton
 deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 ```
 
-> **Explicit provider required for the upgrade.** Set reviewed matching
-> `TRITON_PKG_PATH` and `TRITON_CLIENT_SDK_PKG_PATH` before using this installer.
-> Both Jetson and SBSA refuse missing or empty archive selections before any
-> installation; legacy26.04 is not an automatic fallback. For remote Triton inference
-> over gRPC, use `samples/configs/deepstream-app-triton-grpc/` and start
-> `tritonserver` separately.
+> **Explicit provider required for native Jetson.** Set reviewed matching
+> `TRITON_PKG_PATH` and `TRITON_CLIENT_SDK_PKG_PATH`; legacy26.04 is not a fallback.
+> Provision matching native dependencies and stop DeepStream/Triton before applying;
+> the helper does not install platform dependencies. `--check-only` checks URL
+> selection without downloading or installing; it does not qualify compatibility.
+> SBSA remains container-only. For remote inference over gRPC, use
+> `samples/configs/deepstream-app-triton-grpc/` and start `tritonserver` separately.
 
 # Documentation
 

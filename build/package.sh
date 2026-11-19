@@ -233,6 +233,10 @@ DS_ROOT="$STAGE_DIR/$DS_REL"
 
 log() { printf '==> %s\n' "$*"; }
 
+# Load from the original checkout before REPO_ROOT can become a source mirror.
+# shellcheck source=../scripts/lib_vpi_runtime.sh
+source "$SCRIPT_DIR/../scripts/lib_vpi_runtime.sh"
+
 require() {
   local p=$1 what=$2
   [[ -e "$p" ]] || { echo "error: missing $what: $p" >&2; exit 1; }
@@ -354,6 +358,13 @@ if ! grep -q "Machine:.*${_elf_machine}" <<< "$_infer_header" ||
   exit 1
 fi
 
+# x86 deliberately bundles its VPI provider. Do not emit an apparently current
+# package around an old/missing runtime or an alias into the packaging host.
+# This also covers build.sh --package-from without modifying that input SDK.
+if [[ "$PLATFORM" = x86 ]]; then
+  ds_vpi_validate_x86_bundle "$DS_INSTALL_ROOT/lib" >/dev/null
+fi
+
 # Only discard scratch owned by this packager. Ancestor checks alone would
 # still allow a tracked source subtree or an unrelated populated directory.
 case "$STAGE_DIR" in
@@ -457,6 +468,18 @@ log "Staging runtime (bin, lib, samples, service-maker, LicenseAgreement.pdf)"
 for item in bin lib samples service-maker LicenseAgreement.pdf; do
   copy_into "$DS_INSTALL_ROOT/$item" "$DS_ROOT"
 done
+if [[ "$PLATFORM" = x86 ]]; then
+  # Older genuine VPI files may remain installed for recovery. Exclude every
+  # unselected VPI4 provider only from this owned, disposable package stage;
+  # never delete or retarget anything in DS_INSTALL_ROOT or another VPI major.
+  for _vpi_provider in "$DS_ROOT"/lib/libnvvpi.so.4.*; do
+    [[ "$_vpi_provider" != "$DS_ROOT/lib/libnvvpi.so.4.1.4" ]] || continue
+    if [[ -f "$_vpi_provider" || -L "$_vpi_provider" ]]; then
+      rm -f -- "$_vpi_provider"
+    fi
+  done
+  ds_vpi_validate_x86_bundle "$DS_ROOT/lib" >/dev/null
+fi
 # Canonical relative aliases point only into the copied samples tree, even when
 # the original traversed other aliases. Never rewrite a link in the input SDK.
 for _sample_index in "${!_sample_dir_links[@]}"; do
@@ -699,9 +722,12 @@ done
 if [[ "$IS_AARCH64" -eq 1 ]]; then
   log "aarch64 packaging: including triton_backend_setup.sh in samples/"
   copy_into "$REPO_ROOT/scripts/triton_backend_setup.sh" "$DS_ROOT/samples"
-  patch_staged_file "samples/triton_backend_setup.sh" 'set -e' \
-    "set -e
-DEEPSTREAM_VARIANT=\${DEEPSTREAM_VARIANT:-$PLATFORM}"
+  # Match the command line, not mentions of it inside comments or strings.
+  patch_staged_file "samples/triton_backend_setup.sh" $'\nset -e\n' \
+    "
+set -e
+DEEPSTREAM_VARIANT=\${DEEPSTREAM_VARIANT:-$PLATFORM}
+"
 fi
 
 # 4b. Patch staged Makefiles so paths resolve against the installed sources/

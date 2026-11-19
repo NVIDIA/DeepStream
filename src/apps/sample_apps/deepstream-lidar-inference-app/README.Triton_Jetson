@@ -34,6 +34,8 @@ Notes:
    First set both URL variables to reviewed Triton2.74.0 ZIP URLs containing
    /v2.74.0/, qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1. No default provider
    is selected; stock SBSA binaries are not a Jetson substitute.
+   Provision matching native dependencies and stop DeepStream/Triton before
+   applying; see ./triton_backend_setup.sh --help.
 
 
 ## Triton CAPI deployment

@@ -27,9 +27,9 @@ existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop
 The x86 and generic-SBSA upgrade candidate follows Triton26.10's core versions:
 CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**. Jetson retains
 JetPack **7.2.2+**, CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
-**9.20.0.46**. ARM uses VPI **4.1.6**; x86 retains VPI **4.1.3**. These are
+**9.20.0.46**. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
 declared build targets, not completed build/runtime qualification. IGX's separate
-legacy stack is not upgraded here. See the [official26.10 contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
 `CUDA_VER` selects the toolkit **family directory** (`13.4` x86/SBSA, `13.2`
 Jetson), not the full release. Install the full matching toolkit separately;
@@ -94,6 +94,10 @@ its supported container. Current upgrade targets are:
 | Jetson (aarch64) | JetPack7.2.2+ matching BSP | — (bundled) | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
 | SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
+
+The x86/SBSA host-driver target is **620.70.06**, separate from the minimum above.
+Its `nvidia-smi` CUDA UMD **13.5** reading describes driver capability; the toolkit
+remains **13.4.3**. Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
@@ -188,8 +192,14 @@ ARM must already have genuine matching **VPI4.1.6** development headers at
 `/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
 adding an x86 repository or guessing a vendor download. Provision the target
 vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
-The x86 installer keeps the **4.1.3** package family; if that version is absent
-from the configured repository, supply the reviewed vendor package explicitly.
+The x86 installer selects matching **4.1.4** `libnvvpi4` and `vpi4-dev` packages,
+or an explicit matching `VPI_DIR`; it respects holds and refuses silent downgrades.
+It stages `libnvvpi.so.4.1.4` with relative aliases in the SDK, whose library path
+takes precedence over system VPI. Package assembly excludes older VPI4 providers
+from its staging tree only; the input SDK is not pruned. `--skip-deps` requires
+matching headers and an SDK-bundled runtime. Refresh affected outputs and rerun
+without `--resume` after changing the baseline. `--package-from` also requires a
+self-contained matching VPI bundle; GPU/runtime qualification remains separate.
 
 ### Installation integration and existing installations
 
@@ -261,12 +271,15 @@ the [DeepStream GitHub release](https://github.com/NVIDIA/DeepStream/releases) i
    sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
    sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/noble r39.2 main'
    sudo apt update
-   # Select the reviewed4.1.3 package revision from this repository.
-   apt-cache madison vpi4-dev
-   sudo apt install 'vpi4-dev=<reviewed-4.1.3-package-revision>'
+   # Select matching reviewed 4.1.4 runtime and development revisions.
+   apt-cache policy libnvvpi4 vpi4-dev
+   sudo apt install 'libnvvpi4=4.1.4' 'vpi4-dev=4.1.4'
    ```
    The headers install to `/opt/nvidia/vpi4/include`. Override the location with
    `VPI_DIR=<path>` when running `make` in `src/utils/nvmultiobjecttracker`.
+   A source build also needs the matching runtime staged in the SDK library
+   directory; the normal dependency stage performs this step. Do not use
+   `--skip-deps` merely because the two APT packages are installed.
 
 ### aarch64 (Jetson)
 

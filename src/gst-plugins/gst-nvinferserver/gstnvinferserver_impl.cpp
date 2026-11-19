@@ -98,8 +98,7 @@ bool parseInferenceConfigForPlugin(const std::string& text, ic::InferenceConfig&
 bool formatInferenceConfigForPlugin(const ic::InferenceConfig& config, std::string& text)
 {
 #if defined(__aarch64__) && GOOGLE_PROTOBUF_VERSION < 6000000
-    text = config.DebugString();
-    return true;
+    return google::protobuf::TextFormat::PrintToString(config, &text);
 #else
     return nvdsinferserver::formatInferenceConfig(config, text);
 #endif

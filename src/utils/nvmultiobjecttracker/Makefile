@@ -52,7 +52,23 @@ OBJ_DIR?=$(CURDIR)/.build
 ifeq ($(wildcard $(VPI_DIR)/include/vpi/algo/DCFTracker.h),)
   $(error "VPI headers not found in $(VPI_DIR)/include. Install the vpi4-dev package or set VPI_DIR")
 endif
-# The ARM upgrade baseline is VPI4.1.6, not the native x86 VPI4.1.3 bundle.
+# The x86 and ARM upgrade baselines use different matching vendor providers.
+# Do not compile 4.1.4 headers while linking the old SDK-bundled 4.1.3 runtime.
+ifeq ($(TARGET_DEVICE),x86_64)
+ifeq ($(wildcard $(VPI_DIR)/include/vpi/VersionDef.h),)
+  $(error "VPI4.1.4 x86 VersionDef.h missing in $(VPI_DIR)/include; install matching vendor headers")
+endif
+_tracker_x86_empty :=
+_tracker_x86_space := $(_tracker_x86_empty) $(_tracker_x86_empty)
+_tracker_x86_vpi_version := $(subst $(_tracker_x86_space),.,$(strip $(shell version=$$(printf '%s\n' 'NV_VPI_VERSION_MAJOR NV_VPI_VERSION_MINOR NV_VPI_VERSION_PATCH' | $(CC) -E -P -x c -include "$(VPI_DIR)/include/vpi/VersionDef.h" - 2>/dev/null) && printf '%s\n' "$$version")))
+ifneq ($(_tracker_x86_vpi_version),4.1.4)
+  $(error "x86 tracker requires VPI4.1.4 headers; selected version '$(_tracker_x86_vpi_version)' at $(VPI_DIR)/include")
+endif
+ifneq ($(notdir $(realpath $(LIB_INSTALL_DIR)/libnvvpi.so.4)),libnvvpi.so.4.1.4)
+  $(error "x86 tracker requires the matching libnvvpi.so.4.1.4 bundle in $(LIB_INSTALL_DIR); rerun dependency preparation")
+endif
+endif
+# The ARM upgrade baseline remains VPI4.1.6.
 # Inspect authentic target development headers; do not vendor or synthesize them.
 ifeq ($(TARGET_DEVICE),aarch64)
 DEEPSTREAM_VARIANT ?= $(if $(shell test -r /proc/device-tree/model && tr -d '\000' </proc/device-tree/model | grep -F IGX),igx,$(if $(wildcard /etc/nv_tegra_release),tegra,sbsa))

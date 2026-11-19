@@ -543,6 +543,10 @@ if [[ "$SKIP_DEPS" -eq 1 && -v TRITON_CLIENT_SDK_ROOT && ! -v TRITON_GRPC_CLIENT
   _triton_build_client_root="$TRITON_CLIENT_SDK_ROOT"
 fi
 STACK_STATE="STACK platform=$STACK_PLATFORM CUDA_VER=$CUDA_VER TRT_VER=${TRT_VER:-system} CUDNN_VERSION=$CUDNN_VERSION NVDS_VERSION=$NVDS_FULL_VERSION"
+if [[ "$PLATFORM" == x86 ]]; then
+  # Old DONE markers must not reuse a tracker built against the 4.1.3 baseline.
+  STACK_STATE+=" VPI_VERSION=4.1.4"
+fi
 printf -v _provider_value '%q' "$_triton_build_client_root"
 STACK_STATE+=" TRITON_BUILD_CLIENT_ROOT=$_provider_value"
 for _provider in VPI_DIR TORCH_PATH TRT_INCLUDE_DIR TRT_LIB_DIR EIGEN_INCLUDE_DIR JSON_INCLUDE_DIR DEEPSTREAM_VARIANT TRITON_CLIENT_SDK_ROOT TRITON_GRPC_CLIENT PROTOC_ROOT DS_DEPS_WORK_ROOT DS_PACKAGE_OUTPUT_DIR DS_PACKAGE_STAGE_DIR; do
@@ -858,13 +862,12 @@ if [[ "$SKIP_DEPS" -eq 0 ]] && begin_stage "$DEPS_STAGE"; then
   # Preserve explicit providers through sudo without converting an unset
   # variable into an explicit empty value (the helpers reject the latter).
   _deps_provider_env=()
-  for _provider in TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
+  for _provider in VPI_DIR TORCH_PATH PROTOC_ROOT DS_DEPS_WORK_ROOT; do
     [[ ! -v "$_provider" ]] || _deps_provider_env+=("$_provider=${!_provider}")
   done
   run_as_root env NVDS_VERSION="$NVDS_FULL_VERSION" PLATFORM="$PLATFORM" \
     DEPS_STAGE_STATE_FILE="$DEPS_STAGE_STATE_FILE" \
     TRITON_CLIENT_SDK_ROOT="${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}" \
-    VPI_DIR="${VPI_DIR-/opt/nvidia/vpi4}" \
     RESUME="$RESUME" \
     "${_deps_provider_env[@]}" \
     bash "$SCRIPT_DIR/../scripts/install_opensource_deps.sh"
@@ -916,6 +919,13 @@ fi
 # ---------------------------------------------------------------------------
 # Stage: utils
 # ---------------------------------------------------------------------------
+if [[ "$PLATFORM" == x86 ]] && want_stage utils; then
+  # This also covers --skip-deps and --resume. Merely installing new headers
+  # does not replace the older VPI runtime supplied by binary artifacts.
+  source "$SCRIPT_DIR/../scripts/lib_vpi_runtime.sh"
+  ds_vpi_validate_x86_headers "${VPI_DIR-/opt/nvidia/vpi4}"
+  ds_vpi_validate_x86_bundle "$DS_ROOT/lib" >/dev/null
+fi
 if begin_stage utils; then
   _fb_before=${#FAILED_BUILDS[@]}
   if [[ "$PLATFORM" == "x86" ]]; then

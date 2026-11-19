@@ -20,8 +20,8 @@ These are candidate build inputs, not completed image or runtime qualification:
 
 | Platform | Runtime/client base | CUDA | TensorRT | cuDNN | VPI |
 | --- | --- | --- | --- | --- | --- |
-| x86 Triton | matching26.10 `py3` / `py3-sdk`, AMD64 | 13.4.3 | 11.4.0.106 | 9.27.0.42 | existing x86 bundle |
-| x86 samples | CUDA13.4.3 runtime; pinned public TRT/cuDNN packages | 13.4.3 | 11.4.0.106 | 9.27.0.42 | existing x86 bundle |
+| x86 Triton | matching26.10 `py3` / `py3-sdk`, AMD64 | 13.4.3 | 11.4.0.106 | 9.27.0.42 | SDK-bundled4.1.4 |
+| x86 samples | CUDA13.4.3 runtime; pinned public TRT/cuDNN packages | 13.4.3 | 11.4.0.106 | 9.27.0.42 | SDK-bundled4.1.4 |
 | Generic SBSA | matching26.10 `py3` / `py3-sdk`, ARM64 | 13.4.3 | 11.4.0.106 | 9.27.0.42 | genuine SBSA4.1.6 inputs required |
 | Jetson | explicitly supplied matching JetPack7.2.2-compatible image(s) | 13.2.2 | 11.4.1.31 | 9.20.0.46 | JetPack4.1.6 |
 
