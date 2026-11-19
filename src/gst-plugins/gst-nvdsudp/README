@@ -30,8 +30,11 @@ Rivermax SDK:
    1. Go to https://developer.nvidia.com/networking/rivermax-getting-started and
       log in or sign up for an NVIDIA Developer account.
    2. Download the Rivermax SDK installation package for your Ubuntu version.
-      For example, on Ubuntu 24.04:
-         https://developer.nvidia.com/downloads/networking/secure/Rivermax-Linux-SDK/Installation-Package/Version-1.80.x/rivermax_ubuntu2404_1.80.24.tar.gz
+      The plugin is tested with Rivermax 1.91.21. For example, on Ubuntu 24.04,
+      rivermax_ubuntu2404_1.91.21.tar.gz.
+      Rivermax 1.91 needs ibverbs-providers 63 or newer, which Ubuntu does not
+      provide. Install the RDMA userspace from DOCA, matching the host ConnectX
+      driver.
    3. Extract the downloaded tarball:
          tar -xvf rivermax_ubuntu2404_<rivermax version>.tar.gz
    4. Install the Rivermax SDK .deb package from the extracted directory:
