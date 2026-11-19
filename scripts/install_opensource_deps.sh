@@ -26,7 +26,7 @@
 # Additional prerequisites installed:
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
-#                      x86, Jetson, and SBSA: published v2.74.0 nv26.10 SDK zip
+#                      x86, Jetson, and SBSA: complete v2.74.0 nv26.10 SDK
 #                      for that architecture when the default tree is absent
 #   protobuf compiler  explicit SDK-matched provider, or the published compiler
 #                      for protobuf 3.21.12 and 33.5 -> /opt/proto
@@ -58,9 +58,9 @@
 #   DS_DEPS_WORK_ROOT         Existing writable parent for dependency build
 #                             directories (default: /tmp).
 #   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
-#                            A missing default tree is filled from the published
-#                            Triton 2.74.0 nv26.10 SDK archive for x86, Jetson,
-#                            or SBSA. An explicit incomplete root is rejected.
+#                            An incomplete default tree is filled from the pinned
+#                            Triton 26.10 SDK payload, without a Docker daemon.
+#                            An explicit incomplete nondefault root is rejected.
 #   PROTOC_ROOT              Optional protoc distribution matching the selected
 #                            Triton SDK protobuf headers; copied to /opt/proto.
 #                            Must contain bin/protoc and include/. No image pull.
@@ -332,48 +332,49 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 TRITON_CLIENT_SDK_ROOT=${TRITON_CLIENT_SDK_ROOT-/opt/tritonclient}
+triton_client_library_dir_is_complete() {
+  local directory=$1 root=${2:-$TRITON_CLIENT_SDK_ROOT} library version
+  version=$(awk '$2 == "GOOGLE_PROTOBUF_VERSION" && $3 ~ /^[0-9]+$/ { print $3; exit }' \
+    "$root/include/google/protobuf/stubs/common.h" 2>/dev/null)
+  [[ "$version" =~ ^[0-9]+$ ]] || return 1
+  if (( version >= 6000000 )); then
+    # Keep aligned with NVDS_TRITON_STATIC_ARCHIVE_NAMES in nvds_protobuf.mk.
+    for library in libgrpcclient_static.a libgrpc++.a libgrpc.a libgpr.a \
+        libprotobuf.a libcares.a libre2.a libaddress_sorting.a \
+        libutf8_range.a libutf8_validity.a; do
+      [[ -r "$directory/$library" ]] || return 1
+    done
+    compgen -G "$directory/libabsl*.a" >/dev/null || return 1
+    compgen -G "$directory/libupb*.a" >/dev/null || return 1
+  else
+    for library in libprotobuf.a libcares.a; do
+      [[ -r "$directory/$library" ]] || return 1
+    done
+    [[ ! -r "$directory/libgrpcclient.so" ]] || return 0
+    for library in libgrpcclient.a libgrpcclient_static.a libgrpc++.a; do
+      [[ -r "$directory/$library" ]] || return 1
+    done
+  fi
+}
 install_published_triton_sdk() {
-  local zip_name zip_url zip_sha tmp_dir include_dir lib_dir actual_sha
-  case "$PLATFORM" in
-    x86)
-      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip
-      zip_sha=4e7c451dac46a1bbae243609c225f6547d74f386107bbe767065593d7682f2fd
-      ;;
-    aarch64|sbsa)
-      zip_name=tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip
-      zip_sha=27094abcc4e323400c1c58f60f5dae33b7bd8b9c29b25a65bc0ad34474dd44dd
-      ;;
-    *)
-      echo "error: no published Triton 2.74.0 client SDK is selected for PLATFORM=$PLATFORM." >&2
-      return 1
-      ;;
-  esac
-  zip_url=https://github.com/triton-inference-server/server/releases/download/v2.74.0/${zip_name}
-  tmp_dir=$(mktemp -d)
-  echo "--- Triton client SDK: downloading published $PLATFORM 2.74.0 / 26.10 archive ---"
-  if ! curl -fL --retry 2 -o "$tmp_dir/$zip_name" "$zip_url"; then
+  local tmp_dir include_dir lib_dir
+  tmp_dir=$(mktemp -d) || return 1
+  echo "--- Triton client SDK: downloading complete $PLATFORM 2.74.0 / 26.10 SDK ---"
+  # The manylinux ZIP omits gRPC archives needed by the private static core.
+  # Stage the complete SDK payload without pulling/running a container.
+  if ! mkdir "$tmp_dir/sdk" ||
+      ! python3 -I -B "$SCRIPT_DIR/download_triton_client_sdk.py" \
+          --platform "$PLATFORM" --destination "$tmp_dir/sdk"; then
     rm -rf "$tmp_dir"
-    echo "error: could not download the published Triton 2.74.0 $PLATFORM client SDK." >&2
     return 1
   fi
-  actual_sha=$(sha256sum "$tmp_dir/$zip_name" | awk '{print $1}')
-  if [[ "$actual_sha" != "$zip_sha" ]]; then
-    rm -rf "$tmp_dir"
-    echo "error: published Triton SDK checksum mismatch (got $actual_sha)." >&2
-    return 1
-  fi
-  if ! unzip -q -o "$tmp_dir/$zip_name" -d "$tmp_dir/sdk"; then
-    rm -rf "$tmp_dir"
-    echo "error: could not unpack the published Triton SDK archive." >&2
-    return 1
-  fi
-  include_dir=$tmp_dir/sdk/tritonserver_sdk/install/include
-  lib_dir=$tmp_dir/sdk/tritonserver_sdk/install/lib64
+  include_dir=$tmp_dir/sdk/include
+  lib_dir=$tmp_dir/sdk/lib
   if [[ ! -r "$include_dir/grpc_client.h" || ! -r "$include_dir/common.h" ||
-        ! -r "$lib_dir/libgrpcclient.so" || ! -r "$lib_dir/libprotobuf.a" ||
-        ! -r "$lib_dir/libcares.a" ]]; then
+        ! -r "$lib_dir/libgrpcclient.so" ]] ||
+      ! triton_client_library_dir_is_complete "$lib_dir" "$tmp_dir/sdk"; then
     rm -rf "$tmp_dir"
-    echo "error: published Triton SDK archive is missing include/ or lib64/ inputs." >&2
+    echo "error: staged Triton SDK lacks the inference-server static dependencies." >&2
     return 1
   fi
   mkdir -p /opt/tritonclient
@@ -390,30 +391,8 @@ for header in grpc_client.h common.h; do
     break
   fi
 done
-if [[ "$triton_headers_ready" -eq 0 ]]; then
-  if [[ "$TRITON_CLIENT_SDK_ROOT" == /opt/tritonclient ]]; then
-    install_published_triton_sdk || exit 1
-  else
-    echo "error: provide the matching vendor Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (missing include/grpc_client.h or include/common.h)." >&2
-    echo "The default /opt/tritonclient tree is downloaded from the published Triton 2.74.0 nv26.10 SDK for x86, Jetson, and SBSA. An explicit TRITON_CLIENT_SDK_ROOT must already be complete." >&2
-    exit 1
-  fi
-fi
-triton_client_library_dir_is_complete() {
-  local directory=$1 library
-  for library in libprotobuf.a libcares.a; do
-    [[ -r "$directory/$library" ]] || return 1
-  done
-  # The public ARM64 SDK bundles gRPC into libgrpcclient.so and does not ship
-  # libgrpc++.a. The source Makefiles link -lgrpcclient, not a separate gRPC
-  # archive. Static-only providers still need the complete static dependency set.
-  [[ ! -r "$directory/libgrpcclient.so" ]] || return 0
-  for library in libgrpcclient.a libgrpcclient_static.a libgrpc++.a; do
-    [[ -r "$directory/$library" ]] || return 1
-  done
-}
-# Some SDK layouts contain both directories. Prefer lib/ only when complete;
-# never combine dependencies from two incomplete provider directories.
+# Recheck libraries even on resume: the old manylinux provider has valid
+# headers/shared client but is missing the modern core's static gRPC archives.
 TRITON_CLIENT_SDK_LIB_DIR=
 for triton_client_candidate in "$TRITON_CLIENT_SDK_ROOT/lib" "$TRITON_CLIENT_SDK_ROOT/lib64"; do
   if triton_client_library_dir_is_complete "$triton_client_candidate"; then
@@ -421,10 +400,15 @@ for triton_client_candidate in "$TRITON_CLIENT_SDK_ROOT/lib" "$TRITON_CLIENT_SDK
     break
   fi
 done
-if [[ -z "$TRITON_CLIENT_SDK_LIB_DIR" ]]; then
-  echo "error: provide one complete matching Triton client SDK in $TRITON_CLIENT_SDK_ROOT/lib or lib64." >&2
-  echo 'Required: libprotobuf.a, libcares.a, and libgrpcclient.so; static-only providers also need libgrpcclient.a, libgrpcclient_static.a, and libgrpc++.a.' >&2
-  exit 1
+if [[ "$triton_headers_ready" -eq 0 || -z "$TRITON_CLIENT_SDK_LIB_DIR" ]]; then
+  if [[ "$TRITON_CLIENT_SDK_ROOT" == /opt/tritonclient ]]; then
+    install_published_triton_sdk || exit 1
+    TRITON_CLIENT_SDK_LIB_DIR=/opt/tritonclient/lib
+  else
+    echo "error: provide a complete matching Triton C++ SDK at TRITON_CLIENT_SDK_ROOT (C++ headers and one complete lib/ or lib64/ directory)." >&2
+    echo "For protobuf 6+, the core requires the SDK's static client, gRPC, protobuf, Abseil, upb and support archives; libgrpcclient.so alone is insufficient." >&2
+    exit 1
+  fi
 fi
 echo "--- Triton client SDK: caller/preinstalled provider $TRITON_CLIENT_SDK_ROOT ---"
 echo "    File checks do not prove provider release identity; use a reviewed matching SDK."
