@@ -20,6 +20,9 @@ ARG L4T_VERSION
 
 FROM nvcr.io/nvidia/tritonserver:26.04-py3
 
+ARG L4T_RELEASE=r39.2
+ARG L4T_DEB_VERSION=39.2.2-20261112230500
+
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
@@ -30,7 +33,36 @@ ENV DS_VERSION=9.2
 #
 RUN apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
 
-RUN echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" >> /etc/apt/sources.list
+RUN printf 'deb https://repo.download.nvidia.com/jetson/common %s main\ndeb https://repo.download.nvidia.com/jetson/som %s main\n' \
+        "$L4T_RELEASE" "$L4T_RELEASE" > /etc/apt/sources.list.d/nvidia-jetson.list
+
+RUN set -eu; \
+    test "$(dpkg --print-architecture)" = arm64; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libegl1 libgles2 libpcre3 libv4l-0 gstreamer1.0-plugins-bad; \
+    work_dir=$(mktemp -d); \
+    trap 'rm -rf -- "$work_dir"' EXIT; \
+    mkdir -p "$work_dir/root"; \
+    cd "$work_dir"; \
+    for package in core adaruntime nvsci multimedia-utils multimedia; do \
+        apt-get download "nvidia-l4t-$package:arm64=$L4T_DEB_VERSION"; \
+    done; \
+    for deb in ./*.deb; do dpkg-deb -x "$deb" "$work_dir/root"; done; \
+    lib_dir=/usr/lib/aarch64-linux-gnu; \
+    mkdir -p "$lib_dir/nvidia"; \
+    cp -a "$work_dir/root$lib_dir/nvidia/." "$lib_dir/nvidia/"; \
+    if [ -d "$work_dir/root/usr/share/doc" ]; then \
+        cp -a "$work_dir/root/usr/share/doc/." /usr/share/doc/; \
+    fi; \
+    if [ ! -e "$lib_dir/tegra" ] && [ ! -L "$lib_dir/tegra" ]; then \
+        ln -s nvidia "$lib_dir/tegra"; \
+    fi; \
+    for lib in libnvbufsurface.so libnvbufsurftransform.so libnvdsbufferpool.so; do \
+        test -f "$lib_dir/nvidia/$lib"; \
+    done; \
+    printf '%s\n' "$lib_dir/nvidia" > /etc/ld.so.conf.d/deepstream-jetson-media.conf; \
+    ldconfig
 
 
 # GStreamer + deepstream devel dependencies
@@ -234,8 +266,6 @@ RUN apt-get update && \
     ldconfig
 
 
-# workaround for directory rename from tegra to nvidia (symlink for jetson triton base docker)
-RUN ln -s /usr/lib/aarch64-linux-gnu/nvidia /usr/lib/aarch64-linux-gnu/tegra
 
 # for reference apps
 RUN ln -sfn "/opt/nvidia/deepstream/deepstream-9.2/includes" "/opt/nvidia/deepstream/deepstream-9.2/sources/includes"
