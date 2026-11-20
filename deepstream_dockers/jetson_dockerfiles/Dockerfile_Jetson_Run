@@ -20,6 +20,7 @@ FROM nvcr.io/nvidia/cuda:13.2.1-cudnn-runtime-ubuntu24.04
 
 ARG L4T_RELEASE=r39.2
 ARG L4T_DEB_VERSION=39.2.2-20261112230500
+ARG TENSORRT_VERSION=11.4.1.31-1+cuda13.4
 
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
@@ -70,6 +71,10 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         dpkg -i /tmp/temp_trt/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb && \
         ls -l /tmp/temp_trt/ && \
         cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4/nv-tensorrt-local-4702FBF0-keyring.gpg /usr/share/keyrings/ && \
+        printf 'Package: %s\nPin: version %s\nPin-Priority: 1001\n\nPackage: %s\nPin: version *\nPin-Priority: -1\n' \
+            'libnvinfer* libnvonnxparsers* python3-libnvinfer* tensorrt*' \
+            "${TENSORRT_VERSION}" \
+            'libnvinfer* libnvonnxparsers* python3-libnvinfer* tensorrt*' > /etc/apt/preferences.d/deepstream-tensorrt && \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         rsyslog git \
@@ -104,9 +109,12 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         python3-pip \
         gnupg2 \
         kmod \
-        tensorrt \
+        "tensorrt=${TENSORRT_VERSION}" \
         libnvvpi4 \
         vpi4-dev && \
+        dpkg-query -W -f='${Package} ${Version} ${db:Status-Status}\n' | \
+            awk -v expected="${TENSORRT_VERSION}" \
+            '$3 == "installed" && $1 ~ /^(libnvinfer|libnvonnxparsers|python3-libnvinfer|tensorrt)/ { print; found=1; if ($2 != expected) bad=1 } END { exit (!found || bad) }' && \
         cd /tmp && \
         dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4 && \
         apt-mark hold tensorrt-libs libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
