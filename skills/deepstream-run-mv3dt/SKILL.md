@@ -191,5 +191,8 @@ For every run, use this stage order:
 ## Related Skills
 
 - `amc-run-auto-calibration` - Launch AutoMagicCalib when needed and generate calibration from synchronized local MP4s before returning to MV3DT.
+- `deepstream-tune-mv3dt` - Sweep and tune MV3DT tracker parameters against ground truth once a sample or custom run works.
+
+Documentation: the [MV3DT](https://docs.nvidia.com/deepstream/9.2/text/DS_MV3DT) and [tracker](https://docs.nvidia.com/deepstream/9.2/text/DS_plugin_gst-nvtracker) pages, also in this repo as `docs/text/DS_MV3DT.mdx` and `docs/text/DS_plugin_gst-nvtracker.mdx`.
 
 <!-- signing marker -->

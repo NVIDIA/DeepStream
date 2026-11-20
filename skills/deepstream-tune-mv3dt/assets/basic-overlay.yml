@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Apply after adding the dataset's MV3DT geometry and communication settings.
+StateEstimator:
+  noiseWeightVar4Loc: -0.1
+  noiseWeightVar4Vel: -0.1
+TargetManagement:
+  outputVisibility: 1
+ObjectModelProjection:
+  outputFootLocation: 1
+VisualTracker:
+  visualTrackerType: 0
+PoseEstimator:
+  poseEstimatorType: 0
+ReID:
+  reidType: 0
+ReIDService:
+  reidServiceType: 0
+TrajectoryManagement:
+  enableReAssoc: 0
+  enable3DReAssoc: 0
+MultiViewAssociator:
+  multiViewAssociatorType: 1
+  enableLatePeerReAssoc: 0
+  enableIDCorrection: 0
+  enableSeeThrough: 0
+  enablePeerReidEmbedding: 0
+DataAssociator:
+  usePrediction4Assoc: 0
+  matchingScoreWeight4VisualSimilarity: 0.0
+  matchingScoreWeight4ReidSimilarity: 0.0
+  minMatchingScore4VisualSimilarity: 0.0
+  minMatchingScore4ReidSimilarity: 0.0

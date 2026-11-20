@@ -26,6 +26,12 @@ Full source-build, source4 and non-x86 runtime validation remain pending.
 - Reorganize the MV3DT configuration templates into per-detector profiles with a
   shared `common/` folder.
 
+## MV3DT tuning skill
+
+- Add the `deepstream-tune-mv3dt` agent skill and its campaign harness for tuning
+  MV3DT tracker parameters against ground truth or diagnostics, linked from the
+  MV3DT run skill and the skill indexes.
+
 # DeepStream 9.2.0 (19 October 2026)
 
 ## Source availability
