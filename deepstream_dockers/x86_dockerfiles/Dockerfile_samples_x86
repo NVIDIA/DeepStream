@@ -20,7 +20,6 @@ ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 # ARG CUDNN_VERSION
 
-
 ENV DS_VERSION=9.2
 
 # Add open GL libraries and other required components. Added new gstreamer components and additional components including CVE patches
