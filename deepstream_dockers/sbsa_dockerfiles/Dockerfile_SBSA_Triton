@@ -22,7 +22,7 @@
 # the SBSA section of ../README.md for the required build setup.
 
 # NGC container release used for both the Triton runtime and SDK images.
-ARG TRITON_NGC_VERSION=26.04
+ARG TRITON_NGC_VERSION=26.10
 ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3-sdk
 ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
 
@@ -330,35 +330,49 @@ RUN set -eux; \
 COPY --from=triton_client_sdk /workspace/install/lib/. /opt/tritonclient/lib/
 COPY --from=triton_client_sdk /workspace/install/include/. /opt/tritonclient/include/
 
-# Validate the SDK copy has the expected SBSA layout and AArch64 shared libraries.
+# Validate the complete 26.10 SDK and its AArch64 client library.
 RUN set -eux; \
-    test -d /opt/tritonclient/include; \
-    test -d /opt/tritonclient/lib; \
-    find /opt/tritonclient/include -type f -print -quit | grep -q .; \
-    first_so="$(find /opt/tritonclient/lib -type f -name '*.so*' -print -quit)"; \
-    test -n "${first_so}"; \
-    file "${first_so}"; \
-    readelf -h "${first_so}" | grep -E 'Machine:.*AArch64'; \
+    test "$(dpkg --print-architecture)" = arm64; \
+    test -r /opt/tritonclient/include/grpc_client.h; \
+    test -r /opt/tritonclient/include/common.h; \
+    test "$(awk '$2 == "GOOGLE_PROTOBUF_VERSION" { print $3; exit }' /opt/tritonclient/include/google/protobuf/stubs/common.h)" = 6033005; \
+    for library in libgrpcclient.so libgrpcclient_static.a libgrpc++.a libgrpc.a libgpr.a \
+        libprotobuf.a libcares.a libre2.a libaddress_sorting.a libutf8_range.a libutf8_validity.a; do \
+        test -r "/opt/tritonclient/lib/$library"; \
+    done; \
+    for pattern in '/opt/tritonclient/lib/libabsl*.a' '/opt/tritonclient/lib/libupb*.a'; do \
+        set -- $pattern; \
+        test -r "$1"; \
+    done; \
+    readelf -h /opt/tritonclient/lib/libgrpcclient.so | grep -E 'Machine:.*AArch64'; \
     test ! -d /opt/tritonclient/lib/lib64; \
     test ! -d /opt/tritonclient/lib/lib; \
     echo /opt/tritonclient/lib > /etc/ld.so.conf.d/tritonclient.conf; \
     ldconfig
 
 RUN set -eux; \
-    mkdir -p /opt/proto && \
     mkdir -p /opt/half && \
     mkdir -p /tmp/half99 && \
     apt-get update && \
     apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 && \
     apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.4 && \
-    mkdir -p /opt/proto/bin && \
-    ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
     rm -rf /var/lib/apt/lists/* && \
     cd /tmp/half99 && \
     wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
     /usr/bin/unzip -o /tmp/half99/half-2.1.0.zip -d /opt/half && \
     cd / && \
     rm -rf /tmp/half99
+
+# Keep system protobuf for OpenTelemetry; SDK consumers use matching protoc33.5.
+RUN set -eu; \
+    wget -nv https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-aarch_64.zip -O /tmp/protoc-33.5.zip; \
+    printf '%s\n' '2b0fcf9b2c32cbadccc0eb7a88b841fffecd4a06fc80acdba2b5be45e815c38a  /tmp/protoc-33.5.zip' | sha256sum -c -; \
+    rm -rf /opt/proto; \
+    mkdir -p /opt/proto; \
+    unzip -q /tmp/protoc-33.5.zip -d /opt/proto; \
+    test "$(/opt/proto/bin/protoc --version)" = 'libprotoc 33.5'; \
+    test -r /opt/proto/include/google/protobuf/descriptor.proto; \
+    rm -f /tmp/protoc-33.5.zip
 
 # =============================================================================
 # OPEN TELEMETRY

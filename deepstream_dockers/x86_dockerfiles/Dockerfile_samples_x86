@@ -160,7 +160,7 @@ RUN apt-get update && \
 
 
  RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
-       mkdir -p /tmp/temp_trt ; mkdir -p /root/tmp ; mkdir -p /tmp99 && \
+       mkdir -p /tmp/temp_trt && mkdir -p /root/tmp && mkdir -p /tmp99 && \
        cd /tmp/temp_trt && \
        cp /tmp/docker/rsyslog /etc/init.d/ && \
        ls -l /tmp/temp_trt/ && \
@@ -173,11 +173,18 @@ RUN apt-get update && \
        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
        cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4/nv-tensorrt-local-558FF61D-keyring.gpg /usr/share/keyrings/ && \
        cp /var/cudnn-local-repo-ubuntu2404-9.27.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
+       printf 'Package: %s\nPin: version %s\nPin-Priority: 1001\n\nPackage: %s\nPin: version *\nPin-Priority: -1\n' \
+           'libnvinfer* libnvonnxparsers* python3-libnvinfer* tensorrt*' \
+           "${TENSORRT_VERSION}" \
+           'libnvinfer* libnvonnxparsers* python3-libnvinfer* tensorrt*' > /etc/apt/preferences.d/deepstream-tensorrt && \
        apt-get update && \
        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-       tensorrt \
+       "tensorrt=${TENSORRT_VERSION}" \
        libcudnn9-cuda-13 && \
-       tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
+       dpkg-query -W -f='${Package} ${Version} ${db:Status-Status}\n' | \
+           awk -v expected="${TENSORRT_VERSION}" \
+           '$3 == "installed" && $1 ~ /^(libnvinfer|libnvonnxparsers|python3-libnvinfer|tensorrt)/ { print; found=1; if ($2 != expected) bad=1 } END { exit (!found || bad) }' && \
+       tar --version && tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / && /opt/nvidia/deepstream/deepstream/install.sh && \
        /tmp/docker/gRPC_installation.sh && \
        cp /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
        cp /tmp/docker/LicenseAgreementContainer.pdf /opt/nvidia/deepstream/deepstream/ && \
@@ -192,7 +199,7 @@ RUN apt-get update && \
        rm -rf /root/tmp && \
        rm -rf temp_trt && \
        rm -rf /var/lib/apt/lists/* && \
-       apt autoremove ; ldconfig
+       apt autoremove && ldconfig
 
 
 RUN apt-get update && \

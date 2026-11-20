@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG L4T_VERSION
+ARG TRITON_NGC_VERSION=26.10
+ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3-sdk
+# Override with the JetPack-qualified 26.10 runtime when qualifying Jetson.
+ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
 
-# Jetson Thor/Orin is SBSA based
+FROM ${TRITON_SDK_IMAGE} AS triton_client_sdk
 
-
-FROM nvcr.io/nvidia/tritonserver:26.04-py3
+FROM ${TRITON_RUNTIME_IMAGE}
 
 ARG L4T_RELEASE=r39.2
 ARG L4T_DEB_VERSION=39.2.2-20261112230500
@@ -168,30 +170,42 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         rm -rf /root/tmp && \
         apt autoremove
 
-RUN mkdir -p /opt/tritonclient/ && \
-        mkdir -p /tmp/temp_triton99 && \
-        mkdir -p /opt/proto && \
-        mkdir -p /tmp/temp_proto99 && \
-        mkdir -p /opt/half && \
+RUN test "$(dpkg --print-architecture)" = arm64 && \
+        rm -rf /opt/tritonclient && \
+        mkdir -p /opt/tritonclient/lib /opt/tritonclient/include
+
+COPY --from=triton_client_sdk /workspace/install/lib/. /opt/tritonclient/lib/
+COPY --from=triton_client_sdk /workspace/install/include/. /opt/tritonclient/include/
+
+RUN set -eu; \
+        test -f /opt/tritonclient/include/grpc_client.h; \
+        test -f /opt/tritonclient/include/common.h; \
+        grep -Eq '^#define[[:space:]]+GOOGLE_PROTOBUF_VERSION[[:space:]]+6033005([[:space:]]|$)' /opt/tritonclient/include/google/protobuf/stubs/common.h; \
+        for lib in libgrpcclient.so libgrpcclient_static.a libgrpc++.a libgrpc.a libgpr.a libprotobuf.a libcares.a libre2.a libaddress_sorting.a libutf8_range.a libutf8_validity.a libabsl_base.a; do \
+            test -f "/opt/tritonclient/lib/$lib"; \
+        done; \
+        test -n "$(find /opt/tritonclient/lib -name 'libupb*.a' -print -quit)"; \
+        readelf -h /opt/tritonclient/lib/libgrpcclient.so | grep -E 'Machine:.*AArch64'; \
+        printf '%s\n' /opt/tritonclient/lib > /etc/ld.so.conf.d/tritonclient.conf; \
+        ldconfig
+
+RUN mkdir -p /opt/half && \
         mkdir -p /tmp/half99 && \
-        cd /tmp/temp_triton99 && \
-        wget https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -nv && \
-        /usr/bin/unzip -q tritonserver_sdk-2.68.0+nv26.04-*.zip && \
-        mv tritonserver_sdk/install/lib64   /opt/tritonclient/lib && \
-        mv tritonserver_sdk/install/include /opt/tritonclient/include && \
-        rm -rf tritonserver_sdk && \
-        cd /tmp/temp_proto99 && \
         apt-get update && \
         apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 && \
         apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.4 && \
-        mkdir -p /opt/proto/bin && \
-        ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \    
+        wget -nv -O /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-aarch_64.zip && \
+        printf '%s\n' '2b0fcf9b2c32cbadccc0eb7a88b841fffecd4a06fc80acdba2b5be45e815c38a  /tmp/protoc.zip' | sha256sum -c - && \
+        rm -rf /opt/proto && \
+        mkdir -p /opt/proto && \
+        unzip -q /tmp/protoc.zip -d /opt/proto && \
+        test "$(/opt/proto/bin/protoc --version)" = 'libprotoc 33.5' && \
+        test -r /opt/proto/include/google/protobuf/descriptor.proto && \
+        rm /tmp/protoc.zip && \
         cd /tmp/half99 && \
         wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
         /usr/bin/unzip /tmp/half99/half-2.1.0.zip -d /opt/half && \
         cd / && \
-        rm -rf /tmp/temp_triton99 && \
-        rm -rf /tmp/temp_proto99 && \
         rm -rf /tmp/half99 
 
 RUN apt-get update && \
@@ -238,8 +252,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     ldconfig
 
-
-RUN rm -f /usr/local/cuda-13.2/lib64/libnvjpeg.so
 
 # Fix CVE for h11 - CVE-2025-43859
 RUN pip3 install httpcore==1.0.9
@@ -311,7 +323,7 @@ WORKDIR /opt/nvidia/deepstream/deepstream
 
 RUN ldconfig
 
-ENV LD_LIBRARY_PATH=/opt/tritonserver/lib:/opt/tritonclient/lib/:/usr/local/cuda-13.2/lib64
+ENV LD_LIBRARY_PATH=/opt/tritonserver/lib:/opt/tritonclient/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 
