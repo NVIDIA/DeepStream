@@ -26,13 +26,27 @@ ifneq ($(shell grep -E '^[[:space:]]*\#define[[:space:]]+ABSL_OPTION_USE_STD_ORD
 NVDS_PROTOBUF_MIN_CXX_STANDARD := 20
 endif
 
-# A partial lib/ must not hide a complete lib64/. Shared clients contain their
-# gRPC implementation; static-only providers still need the legacy archives.
-nvds_protobuf_library_dir_is_complete = $(and \
+# The modern inference-server core privately owns this entire static closure.
+# A shared client alone cannot satisfy it, even if other consumers can link it.
+NVDS_TRITON_STATIC_ARCHIVE_NAMES := libgrpcclient_static.a libgrpc++.a libgrpc.a \
+    libgpr.a libprotobuf.a libcares.a libre2.a libaddress_sorting.a \
+    libutf8_range.a libutf8_validity.a
+nvds_triton_static_library_dir_is_complete = $(and \
+    $(if $(filter-out $(wildcard $(addprefix $(1)/,$(NVDS_TRITON_STATIC_ARCHIVE_NAMES))),\
+        $(addprefix $(1)/,$(NVDS_TRITON_STATIC_ARCHIVE_NAMES))),,1),\
+    $(wildcard $(1)/libabsl*.a),$(wildcard $(1)/libupb*.a))
+
+# A partial lib/ must not hide a complete lib64/. Preserve the older shared
+# client contract; protobuf 6+ must satisfy the core's static contract instead.
+nvds_protobuf_legacy_library_dir_is_complete = $(and \
     $(wildcard $(1)/libprotobuf.a),$(wildcard $(1)/libcares.a),\
     $(or $(wildcard $(1)/libgrpcclient.so),\
         $(and $(wildcard $(1)/libgrpcclient.a),\
             $(wildcard $(1)/libgrpcclient_static.a),$(wildcard $(1)/libgrpc++.a))))
+nvds_protobuf_library_dir_is_complete = $(strip $(if \
+    $(shell test "$(NVDS_PROTOBUF_HEADER_VERSION)" -ge 6000000 2>/dev/null && echo 1),\
+    $(call nvds_triton_static_library_dir_is_complete,$(1)),\
+    $(call nvds_protobuf_legacy_library_dir_is_complete,$(1))))
 NVDS_PROTOBUF_LIB_DIR ?= $(strip $(or $(firstword \
     $(foreach dir,$(TRITON_GRPC_CLIENT)/lib $(TRITON_GRPC_CLIENT)/lib64,\
         $(if $(call nvds_protobuf_library_dir_is_complete,$(dir)),$(dir)))),\

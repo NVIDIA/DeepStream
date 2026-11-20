@@ -145,8 +145,7 @@ TRITON_CORE_VISIBILITY_MAP := .build/triton-client-visibility.map
 _TRITON_CORE_PRIVATE_STATIC_CLIENT := $(shell test "$(NVDS_PROTOBUF_HEADER_VERSION)" -ge 6000000 2>/dev/null && echo 1)
 ifeq ($(_TRITON_CORE_PRIVATE_STATIC_CLIENT),1)
 TRITON_CORE_REQUIRED_ARCHIVES := $(addprefix $(TRITON_GRPC_CLIENT_LIB_DIR)/, \
-    libgrpcclient_static.a libgrpc++.a libgrpc.a libgpr.a libprotobuf.a \
-    libcares.a libre2.a libaddress_sorting.a libutf8_range.a libutf8_validity.a)
+    $(NVDS_TRITON_STATIC_ARCHIVE_NAMES))
 TRITON_CORE_ABSL_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libabsl*.a))
 TRITON_CORE_UPB_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libupb*.a))
 TRITON_CORE_UTF8_ARCHIVES := $(sort $(wildcard $(TRITON_GRPC_CLIENT_LIB_DIR)/libutf8*.a))

@@ -110,52 +110,54 @@ For installation instructions, refer to the official [DeepStream SDK Installatio
 ### Matching Triton client SDK and VPI inputs
 
 The dependency script no longer downloads the old x8626.03/Jetson26.04 client
-SDKs. When `/opt/tritonclient` does not already contain `include/grpc_client.h`
-and `include/common.h`, and `TRITON_CLIENT_SDK_ROOT` is left at that default,
-`scripts/install_opensource_deps.sh` downloads the published Triton 2.74.0
-nv26.10 archive for the selected platform and checks its SHA-256 before
-installing `install/include` and `install/lib64`. x86 uses
-`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-x86_64.zip`. Jetson
-and SBSA use
-`tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip`.
-Those archives' protobuf headers are 6.33.5, so the same path then downloads
-protoc 33.5 for that architecture when `/opt/proto` does not already match.
-An explicit `TRITON_CLIENT_SDK_ROOT` that is missing headers is still rejected.
-The `26.10-py3-sdk` container's `/workspace/install` remains a valid explicit
-provider. No container is pulled by these scripts. See the
+SDKs. When the default `/opt/tritonclient` has missing headers or incomplete
+libraries, `scripts/install_opensource_deps.sh` stages the complete Triton 2.74.0
+SDK from the architecture-matched `26.10-py3-sdk` provider. The downloader pins
+and verifies the platform manifest and SDK payload SHA-256, then extracts only
+`/workspace/install/include` and its libraries. It does not pull a complete image,
+run a container, or require Docker. x86 selects AMD64; Jetson and SBSA select ARM64
+client libraries, not a server/backend image.
+The manylinux SDK ZIPs are not a substitute: they omit static gRPC archives
+required by the modern inference-server core. The complete SDK has protobuf
+6.33.5 headers; dependency setup selects protoc 33.5 for the same architecture.
+Library completeness is rechecked on resume, repairing an incomplete default
+provider left by an earlier build. An incomplete nondefault
+`TRITON_CLIENT_SDK_ROOT` is rejected without replacing it. The SDK container's
+complete `/workspace/install` remains a valid explicit provider. See the
 [Triton 2.74.0 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
 SBSA dependency installation still has to run inside the matching SBSA container.
 
-Provider checks require C++ headers, static client dependencies (including
-`libcares.a`), and `libgrpcclient.so` or `libgrpcclient.a` for the SDK's actual
-`-lgrpcclient` link. A differently named `libgrpcclient_static.a` alone is not
-sufficient. These checks do **not** verify every transitive static library,
-release provenance or runtime compatibility. Preserve the SDK
-image digest/release identity separately. A custom provider is copied into
+For protobuf 6+, provider checks require the static client, gRPC, protobuf,
+Abseil, upb and support archives used by the core's private runtime. A shared
+`libgrpcclient.so` alone is insufficient. Older providers retain their existing
+shared-client requirements. One complete `lib/` or `lib64/` directory must supply
+the dependencies; partial directories are never combined. These checks do not
+qualify runtime compatibility or establish an explicit provider's provenance.
+Preserve its image digest/release identity separately. A custom provider is copied into
 `/opt/tritonclient` only when the dependency installer is explicitly run.
 
 With `--skip-deps`, an explicit `TRITON_CLIENT_SDK_ROOT` is used directly for
 linking and runtime registration instead. `TRITON_GRPC_CLIENT` is an explicit
 consumer-root override and takes precedence. The build records the effective
 provider in resume state and passes it through privileged build/install calls;
-changing providers requires a fresh build state. A shared client remains an
+changing providers requires a fresh build state. A legacy shared client remains an
 external runtime dependency: creating an SDK tar does not copy `/opt/tritonclient`
 into it. Provision the matching provider on the runtime system or in the image.
 
-For a native Jetson experiment with the public October 2026 providers, the
-Triton 2.74.0 release also supplies an AArch64 CUDA 13.2 client SDK archive.
-Use that client SDK's own headers and complete `lib64/` directory together.
-It is distinct from the Triton server container and does not establish server
-or DeepStream inference qualification on JetPack. Modern SDK headers can require
+For a native Jetson experiment, the selected ARM64 SDK supplies client build
+inputs, not a JetPack-qualified Triton server or backend distribution. Matching
+the CPU architecture does not establish server or DeepStream inference
+qualification on JetPack. Modern SDK headers can require
 C++20 and a different Abseil archive set; the inference-server, message converter,
 Kafka, metadata serializer and Lidar filter Makefiles select those requirements
 from the chosen SDK rather than assuming the older layout.
 The SDK's protobuf headers must be paired with a matching `protoc` provider;
 set `PROTOC_ROOT` to its installation root before dependency preparation.
 The dependency installer reuses a matching compiler already in `/opt/proto`.
-For a modern SDK without a matching installed compiler, it requires an explicit
-`PROTOC_ROOT` rather than installing the legacy 21.12 compiler. The legacy
-download remains available for protobuf 3.21.12 headers.
+For protobuf 6.33.5, it downloads the pinned matching protoc 33.5 compiler when
+needed. Other modern versions require an explicit matching `PROTOC_ROOT`, never
+the legacy 21.12 compiler. The legacy download remains available for protobuf
+3.21.12 headers.
 For the October 2.74.0 SDK, use protoc 33.5 with its protobuf 6.33.5 runtime.
 The message Makefiles regenerate their protobuf sources with `/opt/proto/bin/protoc`
 (or `PROTOBUF_BIN_DIR`) and link the SDK's matching static runtime and support
