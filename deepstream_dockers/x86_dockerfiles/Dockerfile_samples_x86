@@ -13,15 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# FROM nvcr.io/nvidia/cuda:13.2.1-runtime-ubuntu24.04
 FROM nvcr.io/nvidia/cuda:13.4.3-cudnn-runtime-ubuntu24.04
 
-# ARG TENSORRT_VERSION=10.16.1.11-1+cuda13.2
 ARG TENSORRT_VERSION=11.4.0.106-1+cuda13.4
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 # ARG CUDNN_VERSION
-
 
 ENV DS_VERSION=9.2
 
@@ -133,32 +130,6 @@ RUN apt-get update && \
 
 # IP requirement for removal
 
-#  libnvinfer-bin=${TENSORRT_VERSION} \
-#       libnvinfer-dev=${TENSORRT_VERSION} \
-# libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
-#       libnvinfer-dispatch11=${TENSORRT_VERSION} \
-#       libnvinfer-headers-dev=${TENSORRT_VERSION} \
-#       libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
-#       libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
-#       libnvinfer-lean-dev=${TENSORRT_VERSION} \
-#       libnvinfer-lean11=${TENSORRT_VERSION} \
-#       libnvinfer-plugin-dev=${TENSORRT_VERSION} \
-#       libnvinfer-plugin11=${TENSORRT_VERSION} \
-#       libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
-#       libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
-#       libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
-#       libnvinfer-win-builder-resource10=${TENSORRT_VERSION} \
-#       libnvinfer11=${TENSORRT_VERSION} \
-#       libnvonnxparsers-dev=${TENSORRT_VERSION} \
-#       libnvonnxparsers11=${TENSORRT_VERSION} \
-#       python3-libnvinfer-dev=${TENSORRT_VERSION} \
-#       python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
-#       python3-libnvinfer-lean=${TENSORRT_VERSION} \
-#       python3-libnvinfer=${TENSORRT_VERSION} \
-#       tensorrt-dev=${TENSORRT_VERSION} \
-#       tensorrt-libs=${TENSORRT_VERSION} \
-
-
  RUN --mount=type=bind,src=x86_dockerfiles,target=/tmp/docker \
        mkdir -p /tmp/temp_trt ; mkdir -p /root/tmp ; mkdir -p /tmp99 && \
        cd /tmp/temp_trt && \
@@ -166,17 +137,39 @@ RUN apt-get update && \
        ls -l /tmp/temp_trt/ && \
        chmod +x /etc/init.d/rsyslog && \
        dpkg -i /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4_1.0-1_amd64.deb && \
-       dpkg -i /tmp/docker/cudnn-local-repo-ubuntu2404-9.27.0_1.0-1_amd64.deb && \
        ls -l /tmp/temp_trt/ && \
        cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
        cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
        cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
        cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4/nv-tensorrt-local-558FF61D-keyring.gpg /usr/share/keyrings/ && \
-       cp /var/cudnn-local-repo-ubuntu2404-9.27.0/cudnn-*-keyring.gpg /usr/share/keyrings/ && \
        apt-get update && \
-       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-       tensorrt \
-       libcudnn9-cuda-13 && \
+       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --allow-downgrades \
+       libnvinfer-bin=${TENSORRT_VERSION} \
+       libnvinfer-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch11=${TENSORRT_VERSION} \
+       libnvinfer-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean11=${TENSORRT_VERSION} \
+       libnvinfer-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-plugin11=${TENSORRT_VERSION} \
+       libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
+       libnvinfer-win-builder-resource11=${TENSORRT_VERSION} \
+       libnvinfer11=${TENSORRT_VERSION} \
+       libnvonnxparsers-dev=${TENSORRT_VERSION} \
+       libnvonnxparsers11=${TENSORRT_VERSION} \
+       python3-libnvinfer-dev=${TENSORRT_VERSION} \
+       python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
+       python3-libnvinfer-lean=${TENSORRT_VERSION} \
+       python3-libnvinfer=${TENSORRT_VERSION} \
+       libnvinfer-cmake-dev=${TENSORRT_VERSION} \
+       tensorrt-dev=${TENSORRT_VERSION} \
+       tensorrt-libs=${TENSORRT_VERSION} \
+       tensorrt=${TENSORRT_VERSION} && \
        tar --version ; tar -xvf /tmp/docker/deepstream_sdk_v*_x86_64.tbz2 -C / ;  /opt/nvidia/deepstream/deepstream/install.sh && \
        /tmp/docker/gRPC_installation.sh && \
        cp /tmp/docker/user_additional_install_runtime.sh /opt/nvidia/deepstream/deepstream/ && \
@@ -188,7 +181,6 @@ RUN apt-get update && \
        ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so && \
        cd /tmp && \
        dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4 && \
-       dpkg --purge cudnn-local-repo-ubuntu2404-9.27.0 && \
        rm -rf /root/tmp && \
        rm -rf temp_trt && \
        rm -rf /var/lib/apt/lists/* && \
