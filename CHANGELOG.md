@@ -17,6 +17,12 @@
 These changes are upgrade preparation, not completed release qualification.
 Full source-build, source4 and non-x86 runtime validation remain pending.
 
+## Video decoder fixes
+
+- `nvv4l2decoder` now restarts the decoder when a new H.264/H.265 sequence keeps
+  the resolution but needs a larger DPB, instead of decoding it with the smaller
+  buffers of the first sequence ([#133](https://github.com/NVIDIA/DeepStream/issues/133)).
+
 ## MV3DT SCOUT and WILDTRACK samples
 
 - Add SCOUT and WILDTRACK multi-view tracking samples to the MV3DT reference app.
