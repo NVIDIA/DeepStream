@@ -39,15 +39,20 @@ fi
 
 # echo 'copying gst files ...'
 
-cp $ADDVAR99/sbsa/gst/libgstrtpmanager.so ./sbsa_dockerfiles/
-cp $ADDVAR99/sbsa/gst/libgstrtsp.so ./sbsa_dockerfiles/
-cp $ADDVAR99/sbsa/gst/libgstvideoparsersbad.so ./sbsa_dockerfiles/
+cp "$ADDVAR99/sbsa/gst/libgstrtpmanager.so" ./sbsa_dockerfiles/
+cp "$ADDVAR99/sbsa/gst/libgstrtsp.so" ./sbsa_dockerfiles/
+cp "$ADDVAR99/sbsa/gst/libgstvideoparsersbad.so" ./sbsa_dockerfiles/
 
 # The Tegra multimedia stack is baked into the SBSA image, so the Jetson Linux
 # Driver Package (BSP) has to be in the build context. Stage it from
 # $ADDVAR99/sbsa/bsp/ if it is not already in ./sbsa_dockerfiles/.
 shopt -s nullglob
 staged_bsp=(./sbsa_dockerfiles/Jetson_Linux_R*_aarch64.tbz2)
+if [[ ${#staged_bsp[@]} -gt 1 ]]; then
+  echo "Error: multiple BSP tarballs in ./sbsa_dockerfiles/; keep only one." >&2
+  printf '       %s\n' "${staged_bsp[@]}" >&2
+  exit 1
+fi
 if [[ ${#staged_bsp[@]} -eq 0 ]]; then
   source_bsp=("$ADDVAR99"/sbsa/bsp/Jetson_Linux_R*_aarch64.tbz2)
   if [[ ${#source_bsp[@]} -eq 0 ]]; then
@@ -66,9 +71,9 @@ if [[ ${#staged_bsp[@]} -eq 0 ]]; then
   cp "${source_bsp[0]}" ./sbsa_dockerfiles/
 fi
 staged_sdk=(./sbsa_dockerfiles/deepstream_sdk_v*_sbsa.tbz2)
-if [[ ${#staged_sdk[@]} -eq 0 ]]; then
-  echo "Warning: no deepstream_sdk_v*_sbsa.tbz2 in ./sbsa_dockerfiles/" >&2
-  echo "         Copy the DeepStream SBSA SDK tarball there before building." >&2
+if [[ ${#staged_sdk[@]} -ne 1 ]]; then
+  echo "Error: exactly one deepstream_sdk_v*_sbsa.tbz2 is required in ./sbsa_dockerfiles/" >&2
+  exit 1
 fi
 shopt -u nullglob
 

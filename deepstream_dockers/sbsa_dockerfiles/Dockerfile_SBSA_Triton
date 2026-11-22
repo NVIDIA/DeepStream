@@ -21,14 +21,12 @@
 # baked into the image from the public Jetson Linux Driver Package (BSP). See
 # the SBSA section of ../README.md for the required build setup.
 
-# NGC container release used for both the Triton runtime and SDK images.
-ARG TRITON_NGC_VERSION=26.04
-ARG TRITON_SDK_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3-sdk
+# NGC runtime. 26.10-py3 is the multiarch image for SBSA and x86.
+# The client comes from the published aarch64 SDK zip, not the py3-sdk image.
+ARG TRITON_NGC_VERSION=26.10
 ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
 
 # This Dockerfile is SBSA-only; Docker uses linux/arm64 for aarch64 images.
-FROM --platform=linux/arm64 ${TRITON_SDK_IMAGE} AS triton_client_sdk
-
 FROM --platform=linux/arm64 ${TRITON_RUNTIME_IMAGE}
 
 # BuildKit populates TARGETARCH from docker build --platform.
@@ -125,6 +123,7 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
         openssl \
         git \
         wget \
+        unzip \
         kmod \
         gnutls-bin \
         sshfs \
@@ -302,7 +301,7 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     done; \
     cp --remove-destination "${ds_lib}/libnvcuvidv4l2.so" "${tegra_lib}/libnvcuvidv4l2.so"; \
     /opt/nvidia/deepstream/deepstream/install.sh; \
-    for lib in libnvbufsurface.so libnvbufsurftransform.so libnvdsbufferpool.so libgstnvcustomhelper.so; do \
+    for lib in libnvbufsurface.so libnvbufsurftransform.so; do \
         test -e "${tegra_lib}/${lib}"; \
         ln -sf "${tegra_lib}/${lib}" "${ds_lib}/${lib}"; \
     done; \
@@ -316,19 +315,22 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
 # TRITON CLIENT, PROTOBUF AND HALF
 # =============================================================================
 
-# Install Triton client SDK (aarch64), protobuf and half libs.
-# Copy client headers and libraries from the target-platform SDK image so SBSA
-# builds cannot accidentally receive host-architecture client binaries.
+# Install the published aarch64 Triton client so an SBSA build cannot receive
+# host-architecture client binaries.
 RUN set -eux; \
     if [ "${TARGETARCH:-}" != "arm64" ]; then \
         echo "This Dockerfile path expects SBSA/arm64 Triton client libraries; got TARGETARCH=${TARGETARCH:-unset}" >&2; \
         exit 1; \
     fi; \
-    rm -rf /opt/tritonclient; \
-    mkdir -p /opt/tritonclient/lib /opt/tritonclient/include
-
-COPY --from=triton_client_sdk /workspace/install/lib/. /opt/tritonclient/lib/
-COPY --from=triton_client_sdk /workspace/install/include/. /opt/tritonclient/include/
+    rm -rf /opt/tritonclient /tmp/temp_triton99; \
+    mkdir -p /opt/tritonclient /tmp/temp_triton99; \
+    cd /tmp/temp_triton99; \
+    wget https://github.com/triton-inference-server/server/releases/download/v2.74.0/tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip -nv; \
+    unzip -q tritonserver_sdk-2.74.0+nv26.10-*.zip; \
+    mv tritonserver_sdk/install/lib64 /opt/tritonclient/lib; \
+    mv tritonserver_sdk/install/include /opt/tritonclient/include; \
+    cd /; \
+    rm -rf /tmp/temp_triton99
 
 # Validate the SDK copy has the expected SBSA layout and AArch64 shared libraries.
 RUN set -eux; \
@@ -345,20 +347,24 @@ RUN set -eux; \
     ldconfig
 
 RUN set -eux; \
-    mkdir -p /opt/proto && \
     mkdir -p /opt/half && \
     mkdir -p /tmp/half99 && \
     apt-get update && \
     apt-get install --reinstall -y --allow-downgrades libprotobuf32t64=3.21.12-8.2ubuntu0.4 libprotoc32t64=3.21.12-8.2ubuntu0.4 && \
     apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev=3.21.12-8.2ubuntu0.4 && \
-    mkdir -p /opt/proto/bin && \
-    ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
     rm -rf /var/lib/apt/lists/* && \
     cd /tmp/half99 && \
     wget https://sourceforge.net/projects/half/files/half/2.1.0/half-2.1.0.zip -nv && \
     /usr/bin/unzip -o /tmp/half99/half-2.1.0.zip -d /opt/half && \
     cd / && \
     rm -rf /tmp/half99
+
+RUN set -eu; \
+    wget -nv https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-aarch_64.zip -O /tmp/protoc-33.5.zip; \
+    rm -rf /opt/proto; \
+    mkdir -p /opt/proto; \
+    unzip -q /tmp/protoc-33.5.zip -d /opt/proto; \
+    rm -f /tmp/protoc-33.5.zip
 
 # =============================================================================
 # OPEN TELEMETRY
