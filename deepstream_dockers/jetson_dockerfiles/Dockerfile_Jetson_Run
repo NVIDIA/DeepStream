@@ -21,6 +21,8 @@ FROM nvcr.io/nvidia/cuda:13.2.1-cudnn-runtime-ubuntu24.04
 ARG L4T_RELEASE=r39.2
 ARG L4T_DEB_VERSION=39.2.2-20261112230500
 
+ARG TENSORRT_VERSION=11.4.1.31-1+cuda13.4
+
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
@@ -71,7 +73,7 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         ls -l /tmp/temp_trt/ && \
         cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4/nv-tensorrt-local-4702FBF0-keyring.gpg /usr/share/keyrings/ && \
         apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --allow-downgrades \
         rsyslog git \
         tzdata \
         tar \
@@ -91,6 +93,8 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         libjpeg-dev \
         openssl \
         libssl3 \
+        python3.12 \
+        python3.12-venv \
         build-essential \
         libssl-dev \
         libcurl4-openssl-dev \
@@ -104,12 +108,37 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         python3-pip \
         gnupg2 \
         kmod \
-        tensorrt \
+        libnvinfer-bin=${TENSORRT_VERSION} \
+       libnvinfer-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch11=${TENSORRT_VERSION} \
+       libnvinfer-dla-compiler11=${TENSORRT_VERSION} \
+       libnvinfer-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean11=${TENSORRT_VERSION} \
+       libnvinfer-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-plugin11=${TENSORRT_VERSION} \
+       libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
+       libnvinfer11=${TENSORRT_VERSION} \
+       libnvonnxparsers-dev=${TENSORRT_VERSION} \
+       libnvonnxparsers11=${TENSORRT_VERSION} \
+       python3-libnvinfer-dev=${TENSORRT_VERSION} \
+       python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
+       python3-libnvinfer-lean=${TENSORRT_VERSION} \
+       python3-libnvinfer=${TENSORRT_VERSION} \
+       libnvinfer-cmake-dev=${TENSORRT_VERSION} \
+       tensorrt-dev=${TENSORRT_VERSION} \
+        tensorrt-libs=${TENSORRT_VERSION} \
+        tensorrt=${TENSORRT_VERSION} \
         libnvvpi4 \
         vpi4-dev && \
         cd /tmp && \
         dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4 && \
-        apt-mark hold tensorrt-libs libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
+        apt-mark hold tensorrt-libs tensorrt libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
         rm -rf /root/tmp && \
         rm -rf temp_trt && \
         rm -rf /var/lib/apt/lists/* && \
