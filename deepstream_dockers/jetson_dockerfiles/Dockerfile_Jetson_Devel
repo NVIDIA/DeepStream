@@ -23,6 +23,8 @@ FROM nvcr.io/nvidia/tritonserver:26.04-py3
 ARG L4T_RELEASE=r39.2
 ARG L4T_DEB_VERSION=39.2.2-20261112230500
 
+ARG TENSORRT_VERSION=11.4.1.31-1+cuda13.4
+
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
@@ -67,9 +69,14 @@ RUN set -eu; \
 
 # GStreamer + deepstream devel dependencies
 RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
-        mkdir -p /root/tmp ; mkdir -p /lib/firmware ; mkdir /tmp99 ; \
+        mkdir -p /root/tmp ; mkdir -p /lib/firmware ; mkdir -p /tmp/temp_trt ; mkdir /tmp99 ; \
+        cd /tmp/temp_trt && \
+        cp /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb /tmp/temp_trt && \
+        dpkg -i /tmp/temp_trt/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb && \
+        ls -l /tmp/temp_trt/ && \
+        cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4/nv-tensorrt-local-4702FBF0-keyring.gpg /usr/share/keyrings/ && \
         apt-get update && \
-        DEBIAN_FRONTEND=noninteractive 	apt-get install -y --no-install-recommends \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --allow-downgrades \
         linux-libc-dev \
         libglew2.2 libjpeg8 libjson-glib-1.0-0 \
         gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools \
@@ -128,6 +135,7 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         gpgv \
         python3.12-minimal \
         python3.12 \
+        python3.12-venv \
         libsqlite3-0 \
         libarchive13t64 \
         xz-utils \
@@ -149,6 +157,32 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         libglfw3 \
         libhiredis-dev \
         libcjson-dev \
+        libnvinfer-bin=${TENSORRT_VERSION} \
+       libnvinfer-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
+       libnvinfer-dispatch11=${TENSORRT_VERSION} \
+       libnvinfer-dla-compiler11=${TENSORRT_VERSION} \
+       libnvinfer-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean-dev=${TENSORRT_VERSION} \
+       libnvinfer-lean11=${TENSORRT_VERSION} \
+       libnvinfer-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-plugin11=${TENSORRT_VERSION} \
+       libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
+       libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
+       libnvinfer11=${TENSORRT_VERSION} \
+       libnvonnxparsers-dev=${TENSORRT_VERSION} \
+       libnvonnxparsers11=${TENSORRT_VERSION} \
+       python3-libnvinfer-dev=${TENSORRT_VERSION} \
+       python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
+       python3-libnvinfer-lean=${TENSORRT_VERSION} \
+       python3-libnvinfer=${TENSORRT_VERSION} \
+       libnvinfer-cmake-dev=${TENSORRT_VERSION} \
+       tensorrt-dev=${TENSORRT_VERSION} \
+        tensorrt-libs=${TENSORRT_VERSION} \
+        tensorrt=${TENSORRT_VERSION} \
         librdkafka1 && \
         tar --version ; ls -ltr /root ; tar -xvf /tmp/docker/deepstream_sdk_v*_jetson.tbz2 -C / ; /opt/nvidia/deepstream/deepstream/install.sh && \
         cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
@@ -163,9 +197,13 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         wget http://ports.ubuntu.com/ubuntu-ports/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_arm64.deb -O /root/tmp/libssl1.1_1.1.1f-1ubuntu2.24_arm64.deb && \
         chmod +x /opt/nvidia/deepstream/deepstream/entrypoint.sh && \
         dpkg -i  /root/tmp/libssl1.1_1.1.1f-1ubuntu2.24_arm64.deb && \
+        dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4 && \
+        dpkg --purge libnvinfer10 libnvinfer-dispatch10 libnvinfer-lean10 libnvinfer-plugin10 libnvinfer-vc-plugin10 libnvonnxparsers10 && \
+        apt-mark hold tensorrt-libs tensorrt libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
         mv  /opt/nvidia/deepstream/deepstream/user_additional_install_devel.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
         rm -rf /var/lib/apt/lists/* && \
         rm -rf /root/tmp && \
+        rm -rf /tmp/temp_trt && \
         apt autoremove
 
 RUN mkdir -p /opt/tritonclient/ && \
