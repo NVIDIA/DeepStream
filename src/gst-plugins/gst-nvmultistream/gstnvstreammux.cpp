@@ -4566,13 +4566,10 @@ mux->first_batch_aligned=TRUE;
           latency_metadata = (NvDsMetaCompLatency *)(l->data);
           latency_metadata->out_system_timestamp = nvds_get_current_system_timestamp();
         }
-        guint list_len = g_list_length(mux->latency_metadata_list);
-        guint len = 0;
-        for (len = 0; len < list_len; len++)
-        {
-          mux->latency_metadata_list  = g_list_remove_link(mux->latency_metadata_list,
-              g_list_first(mux->latency_metadata_list));
-        }
+        /* Only the list nodes are owned here; the latency meta itself is
+         * released with the batch meta via nvds_release_latency_meta. */
+        g_list_free (mux->latency_metadata_list);
+        mux->latency_metadata_list = NULL;
       }
 
       if (mux->buffer_cache) {
