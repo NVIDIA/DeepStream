@@ -149,8 +149,6 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         python3-setuptools \
         python3-pkg-resources \
         python3-pip \
-        python3.12 \
-        python3.12-venv \
         libgnutls30t64 \
         apparmor-utils \
         mosquitto \
@@ -200,6 +198,7 @@ RUN --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker \
         chmod +x /opt/nvidia/deepstream/deepstream/entrypoint.sh && \
         dpkg -i  /root/tmp/libssl1.1_1.1.1f-1ubuntu2.24_arm64.deb && \
         dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4 && \
+        dpkg --purge libnvinfer10 libnvinfer-dispatch10 libnvinfer-lean10 libnvinfer-plugin10 libnvinfer-vc-plugin10 libnvonnxparsers10 && \
         apt-mark hold tensorrt-libs tensorrt libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
         mv  /opt/nvidia/deepstream/deepstream/user_additional_install_devel.sh /opt/nvidia/deepstream/deepstream/user_additional_install.sh && \
         rm -rf /var/lib/apt/lists/* && \
