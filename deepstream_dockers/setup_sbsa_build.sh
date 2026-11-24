@@ -43,6 +43,14 @@ cp "$ADDVAR99/sbsa/gst/libgstrtpmanager.so" ./sbsa_dockerfiles/
 cp "$ADDVAR99/sbsa/gst/libgstrtsp.so" ./sbsa_dockerfiles/
 cp "$ADDVAR99/sbsa/gst/libgstvideoparsersbad.so" ./sbsa_dockerfiles/
 
+trt_repo=nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb
+if [[ ! -f "./sbsa_dockerfiles/$trt_repo" ]]; then
+  cp "$ADDVAR99/sbsa/$trt_repo" ./sbsa_dockerfiles/
+fi
+if [[ ! -d ./sbsa_dockerfiles/vpi ]]; then
+  cp -a "$ADDVAR99/sbsa/vpi" ./sbsa_dockerfiles/
+fi
+
 # The Tegra multimedia stack is baked into the SBSA image, so the Jetson Linux
 # Driver Package (BSP) has to be in the build context. Stage it from
 # $ADDVAR99/sbsa/bsp/ if it is not already in ./sbsa_dockerfiles/.

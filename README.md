@@ -83,20 +83,21 @@ The local upgrade branch selects these separate compute-stack targets:
 | Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | VPI |
 |---|---|---|---|---|
 | x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.4 |
-| Generic SBSA | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.6 |
+| SBSA | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
 | Jetson, JetPack 7.2.2 | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
 
 The x86/SBSA host-driver target is **620.70.06**. Its `nvidia-smi` CUDA UMD
-**13.5** reading describes driver capability, not the selected **13.4.3** toolkit.
+**13.5** reading describes driver capability, not the selected toolkits:
+**13.4.3** on x86 and **13.2.2** on SBSA.
 Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
 
 These are build targets, not completed platform qualification. IGX's existing
 stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
 matching development and runtime inputs. Provision the matching Triton client SDK
 as described in [the build guide](build/BUILD.md); the build does not pull Docker
-images automatically. For optional container creation, x86 and SBSA use matching
-Triton 26.10 runtime/client-SDK images; Jetson requires explicitly supplied
-JetPack-qualified base images, not the stock SBSA image. See
+images automatically. For optional container creation, x86 uses matching
+Triton 26.10 runtime/client-SDK images. SBSA follows the Jetson Docker recipe
+with Triton 26.04 and the local TensorRT 11.4.1.31 repository package. See
 [Docker build instructions](deepstream_dockers/README.md).
 
 The published `9.2.0` artifact pins below remain unchanged until reviewed matching
@@ -174,7 +175,7 @@ deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 
 Prepare Triton dependencies and sample models on Jetson.
 
-> **Building `gst-nvinferserver`?** The dependency stage downloads the published Triton 2.74.0 client SDK when `/opt/tritonclient` has no `include/grpc_client.h`. x86 uses the x86_64 archive. Jetson and SBSA use the aarch64 archive. An explicit `TRITON_CLIENT_SDK_ROOT` must already be complete. The DeepStream package does not bundle that SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
+> **Building `gst-nvinferserver`?** The dependency stage provisions Triton 2.74.0 client SDK inputs for x86/Jetson when `/opt/tritonclient` is incomplete. SBSA uses the Triton 2.68.0 (26.04) aarch64 client archive. An explicit `TRITON_CLIENT_SDK_ROOT` must already be complete. The DeepStream package does not bundle that SDK. See [the build guide](build/BUILD.md#matching-triton-client-sdk-and-vpi-inputs) and the "Other dependencies" section in [`src/gst-plugins/gst-nvinferserver/README`](src/gst-plugins/gst-nvinferserver/README).
 
 ```bash
 # Run from the cloned repository root after the DeepStream build has completed.

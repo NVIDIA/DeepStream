@@ -21,12 +21,9 @@
 # baked into the image from the public Jetson Linux Driver Package (BSP). See
 # the SBSA section of ../README.md for the required build setup.
 
-# NGC runtime. 26.10-py3 is the multiarch image for SBSA and x86.
-# The client comes from the published aarch64 SDK zip, not the py3-sdk image.
-ARG TRITON_NGC_VERSION=26.10
+ARG TRITON_NGC_VERSION=26.04
 ARG TRITON_RUNTIME_IMAGE=nvcr.io/nvidia/tritonserver:${TRITON_NGC_VERSION}-py3
 
-# This Dockerfile is SBSA-only; Docker uses linux/arm64 for aarch64 images.
 FROM --platform=linux/arm64 ${TRITON_RUNTIME_IMAGE}
 
 # BuildKit populates TARGETARCH from docker build --platform.
@@ -35,14 +32,10 @@ ARG TARGETARCH
 # Jetson Linux release that supplies the Tegra BSP and the GStreamer plugins.
 # Keep this in step with the BSP tarball staged by setup_sbsa_build.sh.
 ARG L4T_RELEASE=r39.2
+ARG L4T_DEB_VERSION=39.2.2-20261112230500
+ARG TENSORRT_VERSION=11.4.1.31-1+cuda13.4
 
-# VPI 4 built for discrete GPUs on SBSA, publicly rehosted by Isaac ROS. The
-# Jetson builds of the same packages link the Tegra multimedia stack and fail
-# to load on a dGPU.
-ARG VPI_VERSION=4.1.3
-ARG VPI_BASE_URL=https://isaac.download.nvidia.com/isaac-ros/release-4.6/pool/main
-ARG VPI_LIB_SHA256=a4cdf30f91c6c2a46e736c5dab69fc4e85cbe97c1bd4ec3965811d22482a1d95
-ARG VPI_DEV_SHA256=f4c6513aec46e0bd7d88b6f48582bbe0c1d90b9f2e198049b213f589fb27c502
+ARG VPI_VERSION=4.1.6
 
 ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
@@ -82,11 +75,14 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
 # add libc-bin for CVE fix 3/22/2024
 RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     mkdir -p /tmp99 && \
+    dpkg -i /tmp/docker/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb && \
+    cp /var/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4/nv-tensorrt-local-4702FBF0-keyring.gpg /usr/share/keyrings/ && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --allow-downgrades \
         linux-libc-dev \
         libglew2.2 libssl3 libjpeg8 libjson-glib-1.0-0 \
         libglfw3 \
+        libopencv-dev=4.6.0+dfsg-13.1ubuntu1 \
         gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-tools \
         gstreamer1.0-alsa \
         libglib2.0-0t64 \
@@ -106,7 +102,7 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
         libssl-dev \
         freeglut3-dev \
         libjpeg-dev \
-        libcurl4-gnutls-dev \
+        libcurl4-openssl-dev \
         libjson-glib-dev \
         libboost-dev \
         librabbitmq-dev \
@@ -164,7 +160,36 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
         libhiredis-dev \
         librdkafka1 \
         curl \
+        libnvinfer-bin=${TENSORRT_VERSION} \
+        libnvinfer-dev=${TENSORRT_VERSION} \
+        libnvinfer-dispatch-dev=${TENSORRT_VERSION} \
+        libnvinfer-dispatch11=${TENSORRT_VERSION} \
+        libnvinfer-dla-compiler11=${TENSORRT_VERSION} \
+        libnvinfer-headers-dev=${TENSORRT_VERSION} \
+        libnvinfer-headers-plugin-dev=${TENSORRT_VERSION} \
+        libnvinfer-headers-python-plugin-dev=${TENSORRT_VERSION} \
+        libnvinfer-lean-dev=${TENSORRT_VERSION} \
+        libnvinfer-lean11=${TENSORRT_VERSION} \
+        libnvinfer-plugin-dev=${TENSORRT_VERSION} \
+        libnvinfer-plugin11=${TENSORRT_VERSION} \
+        libnvinfer-safe-headers-dev=${TENSORRT_VERSION} \
+        libnvinfer-vc-plugin-dev=${TENSORRT_VERSION} \
+        libnvinfer-vc-plugin11=${TENSORRT_VERSION} \
+        libnvinfer11=${TENSORRT_VERSION} \
+        libnvonnxparsers-dev=${TENSORRT_VERSION} \
+        libnvonnxparsers11=${TENSORRT_VERSION} \
+        python3-libnvinfer-dev=${TENSORRT_VERSION} \
+        python3-libnvinfer-dispatch=${TENSORRT_VERSION} \
+        python3-libnvinfer-lean=${TENSORRT_VERSION} \
+        python3-libnvinfer=${TENSORRT_VERSION} \
+        libnvinfer-cmake-dev=${TENSORRT_VERSION} \
+        tensorrt-dev=${TENSORRT_VERSION} \
+        tensorrt-libs=${TENSORRT_VERSION} \
+        tensorrt=${TENSORRT_VERSION} \
         software-properties-common && \
+    dpkg --purge nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4 && \
+    dpkg --purge libnvinfer10 libnvinfer-dispatch10 libnvinfer-lean10 libnvinfer-plugin10 libnvinfer-vc-plugin10 libnvonnxparsers10 && \
+    apt-mark hold tensorrt-libs tensorrt libnvinfer-dispatch11 libnvinfer-lean11 libnvinfer-plugin11 libnvinfer-vc-plugin11 libnvinfer11 libnvonnxparsers11 && \
     cp /tmp/docker/libgstrtpmanager.so /tmp99/libgstrtpmanager.so && \
     cp /tmp/docker/libgstrtsp.so /tmp99/libgstrtsp.so && \
     cp /tmp/docker/libgstvideoparsersbad.so /tmp99/libgstvideoparsersbad.so && \
@@ -188,22 +213,13 @@ RUN apt-get update && \
 # Fix CVE-2025-47273
 # Fix CVE-2025-62727 starlette
 RUN pip3 install httpcore==1.0.9 && \
-    pip3 install setuptools==78.1.1 && \
-    pip3 install starlette==0.49.3 fastapi==0.120.1
+    pip3 install setuptools==78.1.1 jaraco.context==6.1.0 && \
+    pip3 install starlette==0.52.1 fastapi
 
 # =============================================================================
 # VPI AND L4T GSTREAMER INSTALLATION
 # =============================================================================
 
-# VPI 4 comes from the SBSA packages rehosted by Isaac ROS (see VPI_BASE_URL).
-# They are pinned by checksum and installed with apt; their only dependency is
-# libc6, and the maintainer script registers /opt/nvidia/vpi4 with the loader.
-# Any VPI the base image already carries is purged and its files removed first,
-# so apt does not trip over another package's files and no older libnvvpi stays
-# on the loader path. The tracker dlopen()s its library with RTLD_NOW, so a VPI
-# build that links Tegra libraries breaks every tracker pipeline -- the build
-# fails below if libnvvpi.so.4 links anything beyond libc.
-#
 # The NVIDIA GStreamer plugins (nvidia-l4t-gstreamer) come from the public
 # Jetson apt repository, the same source the Jetson dockerfiles use; the public
 # BSP does not ship the package. It is downloaded and unpacked rather than
@@ -213,20 +229,28 @@ RUN pip3 install httpcore==1.0.9 && \
 # match the Tegra libraries they load, and is unpacked next to the BSP output
 # for the library setup step below. The Jetson apt list is removed afterwards
 # so it cannot shadow Ubuntu packages in any later layer.
-RUN set -eux; \
-    mkdir -p /tmp/temp_vpi /tmp/temp_l4t_gst; \
-    cd /tmp/temp_vpi; \
-    wget -nv "${VPI_BASE_URL}/libn/libnvvpi4/libnvvpi4_${VPI_VERSION}_arm64.deb"; \
-    wget -nv "${VPI_BASE_URL}/v/vpi4-dev/vpi4-dev_${VPI_VERSION}_arm64.deb"; \
-    printf '%s  %s\n' \
-        "${VPI_LIB_SHA256}" "libnvvpi4_${VPI_VERSION}_arm64.deb" \
-        "${VPI_DEV_SHA256}" "vpi4-dev_${VPI_VERSION}_arm64.deb" | sha256sum -c -; \
+RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
+    set -eux; \
+    mkdir -p /tmp/temp_l4t_gst; \
+    for deb in /tmp/docker/vpi/*.deb; do \
+        case "$(dpkg-deb -f "$deb" Package)" in libnvvpi4|vpi4-dev) ;; *) exit 1 ;; esac; \
+        test "$(dpkg-deb -f "$deb" Architecture)" = arm64; \
+        version="$(dpkg-deb -f "$deb" Version)"; \
+        test "${version%%-*}" = "${VPI_VERSION}"; \
+    done; \
     old_vpi_pkgs="$(dpkg-query -W -f '${Package} ${Provides}\n' 2>/dev/null | awk '$1 ~ /^(libnvvpi[0-9]+|vpi[0-9]*-(lib|dev))/ || /libnvvpi\.so/ {print $1}')"; \
     if [ -n "${old_vpi_pkgs}" ]; then apt-get purge -y ${old_vpi_pkgs}; fi; \
     rm -rf /opt/nvidia/vpi4 /etc/ld.so.conf.d/nvidia-vpi.conf /etc/ld.so.conf.d/vpi4.conf; \
+    apt-get update; \
     apt-get install -y --no-install-recommends \
-        "./libnvvpi4_${VPI_VERSION}_arm64.deb" "./vpi4-dev_${VPI_VERSION}_arm64.deb"; \
+        /tmp/docker/vpi/*.deb; \
+    for package in libnvvpi4:arm64 vpi4-dev:arm64; do \
+        test "$(dpkg-query -W -f '${db:Status-Status}' "$package")" = installed; \
+        version="$(dpkg-query -W -f '${Version}' "$package")"; \
+        test "${version%%-*}" = "${VPI_VERSION}"; \
+    done; \
     l4t_deb_version="$(cat /tmp/output_extract/l4t_deb_version)"; \
+    test "${l4t_deb_version}" = "${L4T_DEB_VERSION}"; \
     apt-key adv --fetch-keys https://repo.download.nvidia.com/jetson/jetson-ota-public.asc; \
     echo "deb https://repo.download.nvidia.com/jetson/common ${L4T_RELEASE} main" > /etc/apt/sources.list.d/nvidia-l4t.list; \
     apt-get update; \
@@ -237,7 +261,6 @@ RUN set -eux; \
     rm -rf /tmp/temp_l4t_gst; \
     rm -f /etc/apt/sources.list.d/nvidia-l4t.list; \
     rm -rf /var/lib/apt/lists/*; \
-    rm -rf /tmp/temp_vpi; \
     ldconfig; \
     vpi_so="$(ldconfig -p | awk '/libnvvpi\.so\.4 /{print $NF; exit}')"; \
     test -n "${vpi_so}"; \
@@ -325,8 +348,8 @@ RUN set -eux; \
     rm -rf /opt/tritonclient /tmp/temp_triton99; \
     mkdir -p /opt/tritonclient /tmp/temp_triton99; \
     cd /tmp/temp_triton99; \
-    wget https://github.com/triton-inference-server/server/releases/download/v2.74.0/tritonserver_sdk-2.74.0+nv26.10-cu132-cp312-manylinux_2_34-aarch64.zip -nv; \
-    unzip -q tritonserver_sdk-2.74.0+nv26.10-*.zip; \
+    wget https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip -nv; \
+    unzip -q tritonserver_sdk-2.68.0+nv26.04-*.zip; \
     mv tritonserver_sdk/install/lib64 /opt/tritonclient/lib; \
     mv tritonserver_sdk/install/include /opt/tritonclient/include; \
     cd /; \
@@ -359,12 +382,10 @@ RUN set -eux; \
     cd / && \
     rm -rf /tmp/half99
 
-RUN set -eu; \
-    wget -nv https://github.com/protocolbuffers/protobuf/releases/download/v33.5/protoc-33.5-linux-aarch_64.zip -O /tmp/protoc-33.5.zip; \
-    rm -rf /opt/proto; \
-    mkdir -p /opt/proto; \
-    unzip -q /tmp/protoc-33.5.zip -d /opt/proto; \
-    rm -f /tmp/protoc-33.5.zip
+RUN rm -rf /opt/proto && \
+    mkdir -p /opt/proto/bin && \
+    ln -s /usr/bin/protoc /opt/proto/bin/protoc && \
+    ln -s /usr/include /opt/proto/include
 
 # =============================================================================
 # OPEN TELEMETRY
@@ -376,8 +397,6 @@ RUN set -eu; \
 # the image ships. Default OTELCPP_VERSIONED_LIBS=OFF and WITH_STL=OFF are required:
 # prebuilt DeepStream libraries expect unversioned SONAMEs
 # (libopentelemetry_metrics.so) and the nostd ABI used by includes/opentelemetry.
-# Do not add libcurl4-openssl-dev here: it conflicts with the libcurl4-gnutls-dev
-# installed above, which already satisfies the exporter's CURL dependency.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       cmake \
@@ -447,7 +466,8 @@ RUN rm -f /usr/lib/aarch64-linux-gnu/libavresample* /usr/lib/aarch64-linux-gnu/l
     /opt/tritonserver/backends/dali/wheel/dali/nvidia/dali/.libs/libavcodec-*.so* \
     /opt/tritonserver/backends/dali/wheel/dali/nvidia/dali/.libs/libavutil-*.so* \
     /opt/tritonserver/backends/dali/wheel/dali/nvidia/dali/.libs/libavfilter-*.so* \
-    /opt/tritonserver/backends/dali/wheel/dali/nvidia/dali/.libs/libswscale-*.so*
+    /opt/tritonserver/backends/dali/wheel/dali/nvidia/dali/.libs/libswscale-*.so* && \
+    rm -rf /opt/tritonserver/backends/dali
 
 # =============================================================================
 # ENVIRONMENT SETUP AND FINAL CONFIGURATION

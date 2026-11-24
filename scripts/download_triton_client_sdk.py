@@ -122,13 +122,13 @@ def extract_sdk(archive, destination):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--platform", choices=("x86", "aarch64", "sbsa"), required=True)
+    parser.add_argument("--platform", choices=("x86", "aarch64"), required=True)
     parser.add_argument("--destination", type=pathlib.Path, required=True)
     args = parser.parse_args()
     destination = args.destination.absolute()
     if destination.is_symlink() or not destination.is_dir() or any(destination.iterdir()):
         parser.error("destination must be an existing empty, non-symlink staging directory")
-    platform = "aarch64" if args.platform == "sbsa" else args.platform
+    platform = args.platform
     try:
         with tempfile.TemporaryDirectory(prefix="ds-triton-sdk-") as temporary:
             archive = pathlib.Path(temporary) / "sdk-layer.tar.gz"

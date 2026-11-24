@@ -398,7 +398,7 @@ class PackageFlowTests(unittest.TestCase):
     def test_upgraded_arm_setup_pins_274_before_mutation(self):
         setup = BUILD_DIR.parent / "scripts/triton_backend_setup.sh"
         command = self.setup_preflight_command(setup)
-        for variant in ("jetson", "tegra", "aarch64", "sbsa"):
+        for variant in ("jetson", "tegra", "aarch64"):
             for version in ("2.68.0", "2.73.0", "2.74.1", "2.75.0"):
                 with self.subTest(variant=variant, version=version):
                     self.env.update(DEEPSTREAM_VARIANT=variant,
@@ -773,7 +773,8 @@ class PackageFlowTests(unittest.TestCase):
                     self.assertEqual(archive.extractfile(f"{SDK_PATH}/lib/libnvds_infer.so").read(), bytes(elf))
         self.assert_no_build_or_install()
 
-    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb"), "requires rsync and dpkg-deb")
+    @unittest.skipUnless(shutil.which("rsync") and shutil.which("dpkg-deb") and shutil.which("dpkg"),
+                         "requires rsync, dpkg-deb and dpkg")
     def test_platform_debian_stack_defaults(self):
         self.env.pop("CUDA_VER", None)
         self.env.pop("TRT_VER", None)
@@ -783,7 +784,7 @@ class PackageFlowTests(unittest.TestCase):
         for target, arch, cuda, trt, upper in (
             ("x86", "amd64", "13-4", "11.4.0.106", "11.4.0.107"),
             ("jetson", "arm64", "13-2", "11.4.1.31", "11.4.1.32"),
-            ("sbsa", "arm64", "13-4", "11.4.0.106", "11.4.0.107"),
+            ("sbsa", "arm64", "13-2", "11.4.1.31", "11.4.1.32"),
         ):
             with self.subTest(target=target):
                 metadata = bytearray(native)
@@ -799,6 +800,20 @@ class PackageFlowTests(unittest.TestCase):
                                 "libnvonnxparsers-dev", "libnvinfer-plugin11", "libnvinfer-plugin-dev"):
                     self.assertIn(f"{library} (>= {trt})", dependencies)
                     self.assertIn(f"{library} (<< {upper})", dependencies)
+                vpi_bounds = re.findall(r"libnvvpi4 \((>=|<<) ([^)]+)\)", dependencies)
+                if arch == "arm64":
+                    self.assertEqual(len(vpi_bounds), 2)
+                    for version, expected in (("4.1.5-1", False), ("4.1.6-1", True),
+                                              ("4.1.6-99", True), ("4.1.7~rc1", False),
+                                              ("4.1.7-1", False)):
+                        with self.subTest(target=target, vpi_version=version):
+                            accepted = all(subprocess.run(
+                                [shutil.which("dpkg"), "--compare-versions", version, relation, bound],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5).returncode == 0
+                                for relation, bound in vpi_bounds)
+                            self.assertEqual(accepted, expected)
+                else:
+                    self.assertFalse(vpi_bounds)
         self.assert_no_build_or_install()
 
     def test_invalid_stack_selection_preserves_existing_stage(self):
@@ -831,6 +846,14 @@ class PackageFlowTests(unittest.TestCase):
         self.run_command(["bash", "-n", str(setup)])
         self.assertEqual(setup.read_text().count(
             'DEEPSTREAM_VARIANT=${DEEPSTREAM_VARIANT:-sbsa}'), 1)
+        self.env.update(TRITON_PKG_PATH="https://example.invalid/v2.68.0/server.zip",
+                        TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.68.0/client.zip")
+        selected = self.run_command(self.setup_preflight_command(setup))
+        self.assertIn("Selected Triton 2.68.0 for sbsa", selected.stdout)
+        self.env.update(TRITON_PKG_PATH="https://example.invalid/v2.74.0/server.zip",
+                        TRITON_CLIENT_SDK_PKG_PATH="https://example.invalid/v2.74.0/client.zip")
+        rejected = self.run_command(self.setup_preflight_command(setup), expected=1)
+        self.assertIn("2.68.0, not 2.74.0", rejected.stdout)
         # Intercept the first possible mutation if the early guard regresses.
         command = self.setup_preflight_command(setup, check_only=False)
         result = self.run_command(command, expected=None)

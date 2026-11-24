@@ -26,7 +26,7 @@
 # Additional prerequisites installed:
 #   half               v2.1.0             -> /opt/half
 #   triton client SDK  reviewed matching vendor SDK -> /opt/tritonclient
-#                      x86, Jetson, and SBSA: complete v2.74.0 nv26.10 SDK
+#                      x86 and Jetson: v2.74.0 nv26.10; SBSA: v2.68.0 nv26.04
 #                      for that architecture when the default tree is absent
 #   protobuf compiler  explicit SDK-matched provider, or the published compiler
 #                      for protobuf 3.21.12 and 33.5 -> /opt/proto
@@ -59,7 +59,7 @@
 #                             directories (default: /tmp).
 #   TRITON_CLIENT_SDK_ROOT   Preprovisioned matching C++ SDK (default: /opt/tritonclient).
 #                            An incomplete default tree is filled from the pinned
-#                            Triton 26.10 SDK payload, without a Docker daemon.
+#                            platform-pinned Triton SDK payload, without a Docker daemon.
 #                            An explicit incomplete nondefault root is rejected.
 #   PROTOC_ROOT              Optional protoc distribution matching the selected
 #                            Triton SDK protobuf headers; copied to /opt/proto.
@@ -359,14 +359,25 @@ triton_client_library_dir_is_complete() {
 install_published_triton_sdk() {
   local tmp_dir include_dir lib_dir
   tmp_dir=$(mktemp -d) || return 1
-  echo "--- Triton client SDK: downloading complete $PLATFORM 2.74.0 / 26.10 SDK ---"
-  # The manylinux ZIP omits gRPC archives needed by the private static core.
-  # Stage the complete SDK payload without pulling/running a container.
-  if ! mkdir "$tmp_dir/sdk" ||
-      ! python3 -I -B "$SCRIPT_DIR/download_triton_client_sdk.py" \
-          --platform "$PLATFORM" --destination "$tmp_dir/sdk"; then
-    rm -rf "$tmp_dir"
-    return 1
+  if [[ "$PLATFORM" = sbsa ]]; then
+    echo "--- Triton client SDK: downloading SBSA 2.68.0 / 26.04 SDK ---"
+    if ! wget -q -O "$tmp_dir/sdk.zip" \
+        https://github.com/triton-inference-server/server/releases/download/v2.68.0/tritonserver_sdk-2.68.0+nv26.04-49346681-cu132-cp312-manylinux_2_28-aarch64.zip ||
+        ! unzip -q "$tmp_dir/sdk.zip" -d "$tmp_dir" ||
+        ! mkdir "$tmp_dir/sdk" ||
+        ! mv "$tmp_dir/tritonserver_sdk/install/include" "$tmp_dir/sdk/include" ||
+        ! mv "$tmp_dir/tritonserver_sdk/install/lib64" "$tmp_dir/sdk/lib"; then
+      rm -rf "$tmp_dir"
+      return 1
+    fi
+  else
+    echo "--- Triton client SDK: downloading complete $PLATFORM 2.74.0 / 26.10 SDK ---"
+    if ! mkdir "$tmp_dir/sdk" ||
+        ! python3 -I -B "$SCRIPT_DIR/download_triton_client_sdk.py" \
+            --platform "$PLATFORM" --destination "$tmp_dir/sdk"; then
+      rm -rf "$tmp_dir"
+      return 1
+    fi
   fi
   include_dir=$tmp_dir/sdk/include
   lib_dir=$tmp_dir/sdk/lib

@@ -28,10 +28,10 @@ Refer to the DeepStream SDK documentation for more details.
 --------------------------------------------------------------------------------
 Pre-requisites:
 - NVIDIA DeepStream SDK 9.2 (helpers, meta, nvbufsurface, nvdspreprocess)
-- CUDA runtime (`CUDA_VER=13.4` for x86/SBSA CUDA13.4.3;
-  `CUDA_VER=13.2` for Jetson CUDA13.2.2)
-- TensorRT development headers/libraries: 11.4.0.106 on x86 and generic SBSA,
-  11.4.1.31 on JetPack7.2.2 Jetson; these are separate candidate stacks
+- CUDA runtime (`CUDA_VER=13.4` for x86 CUDA13.4.3;
+  `CUDA_VER=13.2` for Jetson/SBSA CUDA13.2.2)
+- TensorRT development headers/libraries: 11.4.0.106 on x86,
+  11.4.1.31 on JetPack7.2.2 Jetson and SBSA; these are separate candidate stacks
 - PyTorch 2.9.0+cu130 at `/usr/local/lib/python3/dist-packages/torch`
   (override with `TORCH_PATH` if installed elsewhere). It must independently
   identify as ABI1 and contain genuine CUDA libraries for the target architecture.
@@ -47,7 +47,7 @@ running `configs/install_dependencies.sh`. To install those deps only:
 --------------------------------------------------------------------------------
 Compiling and installing the library:
 
-  $ export CUDA_VER=13.4 # x86 and SBSA. Jetson uses CUDA_VER=13.2
+  $ export CUDA_VER=13.4 # x86. Jetson and SBSA use CUDA_VER=13.2
   $ make && sudo -E make install
 
 Skip sudo when already root (for example inside a container).

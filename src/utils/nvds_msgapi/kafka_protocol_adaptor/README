@@ -60,12 +60,14 @@ NOTE: To compile the sources, run make with "sudo" or root permission.
 
 Triton C++ client SDK:
   Provision a complete reviewed SDK matching the selected server and platform:
-  - x86 and generic SBSA use the matching architecture of
+  - x86 uses the matching architecture of
     nvcr.io/nvidia/tritonserver:26.10-py3-sdk. Its /workspace/install/include
     and /workspace/install/lib provide the SDK headers and libraries.
   - Jetson needs an explicitly qualified JetPack 7.2.2 / TensorRT 11.4.1
     client SDK matching its server. Do not substitute the stock SBSA SDK
     merely because both platforms are ARM64, or use an older 26.04 archive.
+  - SBSA uses the Triton2.68.0 (26.04) aarch64 client archive and matching
+    system protobuf headers/compiler.
 
   These component Makefiles read /opt/tritonclient/include and
   /opt/tritonclient/lib directly. Use the SDK already provisioned there,

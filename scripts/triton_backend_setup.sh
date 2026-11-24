@@ -36,7 +36,7 @@ case "${1:-}" in
         echo "Set TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH to reviewed matching HTTPS ZIP URLs."
         echo "Jetson URLs must contain /v${TRITON_REQUIRED_VERSION}/; no default or older fallback is selected."
         echo "DEEPSTREAM_VARIANT=igx retains explicit matching older releases for its separate TRT10/CUDA13 stack."
-        echo "SBSA/DGX Spark is container-only: native apply is refused; --check-only may inspect selections."
+        echo "SBSA/DGX Spark uses Triton26.04/2.68.0 in containers; native apply is refused."
         echo "--check-only checks URL selection only, without downloads or system changes."
         echo "Provision the matching platform dependencies and stop DeepStream/Triton before installation."
         exit 0 ;;
@@ -62,14 +62,19 @@ if [[ "$TRITON_SETUP_VARIANT" == sbsa && "${1:-}" != --check-only ]]; then
     fail 'SBSA/DGX Spark is container-only; native Triton setup is not supported. Use --check-only for selection inspection.'
 fi
 
+TRITON_SELECTION_VERSION=$TRITON_REQUIRED_VERSION
+if [[ "$TRITON_SETUP_VARIANT" == sbsa ]]; then
+    TRITON_SELECTION_VERSION=2.68.0
+fi
+
 for selection in TRITON_PKG_PATH TRITON_CLIENT_SDK_PKG_PATH; do
     value=${!selection}
     [[ -n "$value" ]] || fail "An explicit matching ${selection} is required; no default archive is selected."
     [[ "$value" =~ ^https://[^?#[:space:]]+/v([0-9]+\.[0-9]+\.[0-9]+)/[[:alnum:]_.+-]+\.zip(\?[^#[:space:]]*)?$ ]] ||
         fail "${selection} must select a reviewed /vMAJOR.MINOR.PATCH/ HTTPS ZIP."
     selected_version=${BASH_REMATCH[1]}
-    if [[ "$TRITON_SETUP_VARIANT" != igx && "$selected_version" != "$TRITON_REQUIRED_VERSION" ]]; then
-        fail "Jetson/SBSA selection targets Triton26.10/${TRITON_REQUIRED_VERSION}, not ${selected_version}."
+    if [[ "$TRITON_SETUP_VARIANT" != igx && "$selected_version" != "$TRITON_SELECTION_VERSION" ]]; then
+        fail "${TRITON_SETUP_VARIANT} selection targets Triton ${TRITON_SELECTION_VERSION}, not ${selected_version}."
     fi
     if [[ "$selection" == TRITON_PKG_PATH ]]; then
         TRITON_VERSION=$selected_version

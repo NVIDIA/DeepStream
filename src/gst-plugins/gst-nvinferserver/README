@@ -20,23 +20,24 @@ plugin and "nvdsinferserver" API.
 Pre-requisites:
 - GStreamer-1.0 Development package
 - GStreamer-1.0 Base Plugins Development package
-- CUDA Runtime13.4.3 (CUDA_VER=13.4) for x86/SBSA, or13.2.2
-  (CUDA_VER=13.2) for the JetPack7.2.2 Jetson upgrade target
+- CUDA Runtime13.4.3 (CUDA_VER=13.4) for x86, or13.2.2
+  (CUDA_VER=13.2) for the JetPack7.2.2 Jetson/SBSA upgrade target
 
 Install gstreamer developement packages using:
    sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev
 
 Other dependencies:
-- Matching Triton26.10 C++ client SDK for x86/genericSBSA
+- Matching Triton26.10 C++ client SDK for x86
 - Separately qualified JetPack7.2.2/TRT11.4.1-compatible SDK for Jetson
+- Triton2.68.0 (26.04) aarch64 client SDK for SBSA
 - Google Protobuf compiler matching the selected Triton client SDK's headers
   and protobuf libraries
 
 Install other dependencies (writing /opt requires root privileges):
 1. Preprovision the complete matching client SDK at /opt/tritonclient, containing
 include/grpc_client.h, include/common.h and the C++ libraries under lib/.
-A missing /opt/tritonclient is filled from the published v2.74.0 nv26.10
-client SDK archive: x86_64 on x86, aarch64 on Jetson and SBSA. The
+A missing /opt/tritonclient uses v2.74.0 nv26.10 client inputs on x86/Jetson,
+or the v2.68.0 nv26.04 aarch64 client archive on SBSA. The
 26.10-py3-sdk container's /workspace/install remains a valid explicit provider.
 The build driver never pulls that image. See build/BUILD.md and
 https://github.com/triton-inference-server/server/releases/tag/v2.74.0.

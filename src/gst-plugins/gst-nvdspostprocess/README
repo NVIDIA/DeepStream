@@ -47,8 +47,8 @@ NOTE:
 How to test :
 
 Single Stream and Rendering: set CUDA_VER to the target stack's CUDA Toolkit
-version: 13.4 for x86/SBSA and 13.2 for Jetson. Use the same CUDA_VER when building
-and installing. The example below uses x86/SBSA.
+version: 13.4 for x86 and 13.2 for Jetson/SBSA. Use the same CUDA_VER when building
+and installing. The example below uses x86.
    $ export CUDA_VER=13.4
    $ make
    $ sudo -E make install

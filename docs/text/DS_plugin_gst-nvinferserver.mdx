@@ -10,18 +10,20 @@ These are upgrade targets, not a claim of completed DeepStream runtime qualifica
 | Platform | Triton server and client SDK inputs |
 | --- | --- |
 | x86 dGPU | Triton 26.10 (server 2.74.0): `nvcr.io/nvidia/tritonserver:26.10-py3` and the matching `26.10-py3-sdk` image, AMD64 |
-| Generic SBSA / DGX Spark | The same matching 26.10 server/client SDK image pair, ARM64 |
-| Jetson | Explicit, separately qualified JetPack 7.2.2+/CUDA 13.2.2/TensorRT 11.4.1.31 server and client SDK providers; no default 26.04 fallback |
+| Generic SBSA / DGX Spark | ARM64 Triton 26.04 base, matching 2.68.0 client ZIP and Jetson TensorRT 11.4.1.31 repository overlay |
+| Jetson | Devel recipe: Triton 26.04 base, 2.68.0 client ZIP and TensorRT 11.4.1.31 repository overlay; native setup has a separate reviewed 26.10 provider policy |
 
-The x86/SBSA target uses CUDA 13.4.3, TensorRT 11.4.0.106 and cuDNN 9.27.0.42.
-Jetson retains cuDNN 9.20.0.46 and VPI 4.1.6 from its selected JetPack stack.
-Do not use the stock SBSA 26.10 image on Jetson, or replace TensorRT underneath
-an older Triton backend. Matching TensorRT versions alone do not establish
-server, backend and client SDK compatibility.
+The x86 target uses CUDA 13.4.3, TensorRT 11.4.0.106 and cuDNN 9.27.0.42.
+SBSA follows Jetson's declared CUDA 13.2.2, TensorRT 11.4.1.31 and cuDNN 9.20.0.46
+build targets with VPI 4.1.6. CUDA and cuDNN are inherited from the Docker base;
+the recipe does not verify those exact installed patch versions. The retained
+Triton backends require target validation with the TensorRT overlay. Matching
+TensorRT versions alone do not establish server, backend and client SDK
+compatibility. SBSA native backend installation is unsupported.
 
-For the explicit Jetson image arguments and provider checks, see the
+For the Docker inputs and platform provider checks, see the
 [monorepo Dockerfiles guide](https://github.com/NVIDIA/DeepStream/tree/develop/deepstream_dockers).
-No new DeepStream image tag or matching Jetson provider is implied by these
+No new DeepStream image tag or completed runtime qualification is implied by these
 recipe targets. Published 9.2.0 assets are not evidence of this upgraded stack.
 
 The plugin accepts batched `NV12/RGBA` buffers from upstream. The NvDsBatchMeta structure must already be attached to the Gst Buffers.
@@ -63,8 +65,10 @@ The Gst-nvinferserver plugin can work in three process modes:
 
       When operating in preprocessed tensor input mode, the pre-processing inside Gst-nvinferserver is completely skipped. The plugin looks for `GstNvDsPreProcessBatchMeta` attached to the input buffer and passes the tensor as is to the Triton Inference Server without any modifications. This mode currently supports processing on full-frame and ROI. The GstNvDsPreProcessBatchMeta is attached by the Gst-nvdspreprocess plugin. This mode is enabled by adding the input_tensor_from_meta configuration message in the InferenceConfig message.
 
-For x86/SBSA, consult the [Triton 26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
-For Jetson, use the documentation of the explicitly selected server/backend provider.
+For x86, consult the [Triton 26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0).
+For the SBSA and Jetson Docker base, consult the
+[Triton 26.04 release](https://github.com/triton-inference-server/server/releases/tag/v2.68.0).
+Native Jetson setup uses its separately reviewed server/backend provider.
 
 Framework availability depends on the backends shipped and qualified with that
 provider, including TensorRT, ONNX Runtime and PyTorch where available. TensorFlow
@@ -514,11 +518,13 @@ The low level `nvds_infer_server` library could deliver specified media-format (
 
 <Note>
 Build custom backends against the same Triton codebase as the selected server:
-26.10 for the x86/SBSA target, and the exact provider-specific version for Jetson.
-Use the matching client SDK as well. See the
-[26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0)
-and the release documentation of the selected Jetson provider. The old x86 26.03
-and Jetson 26.04 references are not the current upgrade targets.
+26.10 for x86, 26.04 for SBSA and Jetson Docker recipes, and the reviewed provider
+version for native Jetson. Use the matching client SDK as well. See the
+[26.10 release](https://github.com/triton-inference-server/server/releases/tag/v2.74.0),
+the [26.04 release](https://github.com/triton-inference-server/server/releases/tag/v2.68.0)
+and the release documentation of the selected native Jetson provider. The old
+x86 26.03 references are not the current upgrade target. A custom backend build
+needs validation with the selected TensorRT stack.
 </Note>
 
 To learn details how to implement Triton custom-backend, refer to [Triton custom-backend](https://github.com/triton-inference-server/backend/tree/main#how-can-i-develop-my-own-triton-backend).

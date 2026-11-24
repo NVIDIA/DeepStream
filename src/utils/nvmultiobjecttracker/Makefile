@@ -16,7 +16,7 @@
 # Builds libnvds_nvmultiobjecttracker.so, the low-level multi-object tracker
 # that gst-nvtracker loads through its "ll-lib-file" property.
 #
-#   make CUDA_VER=13.4            x86/SBSA; use 13.2 for Jetson
+#   make CUDA_VER=13.4            x86; use 13.2 for Jetson/SBSA
 #   make CUDA_VER=13.4 install    copy it to $(LIB_INSTALL_DIR)
 #   make clean                    remove the build tree
 #

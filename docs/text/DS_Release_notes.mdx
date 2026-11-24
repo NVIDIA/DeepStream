@@ -44,22 +44,26 @@ This monorepo checkout targets SDK 9.2.1 with the following platform split:
 
 | Item | x86 dGPU | Generic SBSA / DGX Spark | Jetson |
 | --- | --- | --- | --- |
-| Triton inputs | Matching `26.10-py3` / `26.10-py3-sdk` images, AMD64 | Matching `26.10-py3` / `26.10-py3-sdk` images, ARM64 | Explicit matching JetPack-compatible runtime, server and client SDK providers; not stock SBSA 26.10 |
-| CUDA toolkit | 13.4.3 (`CUDA_VER=13.4`) | 13.4.3 (`CUDA_VER=13.4`) | 13.2.2 (`CUDA_VER=13.2`) |
-| TensorRT | 11.4.0.106 | 11.4.0.106 | 11.4.1.31 |
-| cuDNN | 9.27.0.42 | 9.27.0.42 | 9.20.0.46 |
+| Triton inputs | Matching `26.10-py3` / `26.10-py3-sdk` images, AMD64 | ARM64 `26.04-py3`, 2.68.0 client ZIP and Jetson TensorRT repository overlay | Devel recipe: `26.04-py3`, 2.68.0 client ZIP and TensorRT repository overlay; native helper has a separate reviewed 26.10 policy |
+| CUDA toolkit | 13.4.3 (`CUDA_VER=13.4`) | 13.2.2 (`CUDA_VER=13.2`) | 13.2.2 (`CUDA_VER=13.2`) |
+| TensorRT | 11.4.0.106 | 11.4.1.31 | 11.4.1.31 |
+| cuDNN | 9.27.0.42 | 9.20.0.46 | 9.20.0.46 |
 | VPI | Existing x86 4.1.3 provider | Genuine matching SBSA 4.1.6 provider required | JetPack 4.1.6 |
 | OS / Python | Ubuntu 24.04 / Python 3.12 | Ubuntu 24.04 / Python 3.12 | JetPack 7.2.2+ / Python 3.12 |
 
-The x86/SBSA core versions align with the
+The x86 core versions align with the
 [CUDA DL 26.10 contents](https://docs.nvidia.com/deeplearning/frameworks/cuda-dl-release-notes/rel-26-10.html).
+SBSA source/package defaults follow the Jetson compute targets and its Docker
+recipe follows Jetson's Triton 26.04 base and pinned TensorRT 11.4.1.31 packages.
 Jetson uses the distinct
 [TensorRT 11.4.1 JetPack support path](https://docs.nvidia.com/deeplearning/tensorrt/11.4.1/getting-started/release-notes-11/11.4.1.html).
-Do not replace TensorRT beneath an older Triton backend or treat all ARM64
-providers as interchangeable.
+The SBSA and Jetson devel recipes inherit CUDA and cuDNN from their base: the
+table does not establish the exact installed patch versions. Their retained
+Triton backends require target validation with the TensorRT overlay. Platform
+media and VPI providers remain distinct.
 
-These are configured build targets. Matching source/runtime assets, explicit
-Jetson providers, SBSA VPI inputs, full image builds and target runtime validation
+These are configured build targets. Matching source/runtime assets, platform
+providers, SBSA VPI inputs, full image builds and target runtime validation
 are required before claiming qualification. See
 [Quickstart](/text/DS_Quickstart) and the
 [monorepo Dockerfiles guide](https://github.com/NVIDIA/DeepStream/tree/develop/deepstream_dockers)

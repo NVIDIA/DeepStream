@@ -134,13 +134,19 @@ Pull `deepstream-triton` docker image and start the container. Retry `deepstream
 
 **Solution 3:**
 
-* For x86 and generic SBSA: use the matching Triton 26.10 server/backends and
+* For x86: use the matching Triton 26.10 server/backends and
   client SDK selected by this checkout's Docker recipes. Do not replace only
   TensorRT beneath an older Triton backend. A source build of Triton must match
   that selected release and stack, not the historical 2.67.0 default.
 
-* For Jetson: use an explicitly reviewed JetPack 7.2.2+ / TensorRT 11.4.1-compatible
-  server/client provider. Stock SBSA 26.10 is not the Jetson provider. See
+* For SBSA: use the image assembled from the Jetson-aligned Triton 26.04 base,
+  TensorRT 11.4.1.31 repository packages and 2.68.0 client ZIP. Validate the
+  retained backends with the TensorRT overlay on the target. Native SBSA backend
+  installation is unsupported.
+
+* For Jetson: the Docker devel recipe uses the same 26.04 base, 2.68.0 client ZIP
+  and TensorRT repository overlay. Optional native setup separately requires an
+  explicitly reviewed JetPack 7.2.2+ / TensorRT 11.4.1-compatible 26.10 provider. See
   [Triton usage guidelines](/text/DS_Quickstart#deepstream-triton-inference-server-usage-guidelines)
   for the Docker path and optional monorepo archive installer requirements.
 

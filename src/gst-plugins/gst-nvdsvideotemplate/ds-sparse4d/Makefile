@@ -82,7 +82,7 @@ endif
 else ifeq ($(DEEPSTREAM_VARIANT),tegra)
 TRT_VER ?= 11.4.1.31
 else ifeq ($(DEEPSTREAM_VARIANT),sbsa)
-TRT_VER ?= 11.4.0.106
+TRT_VER ?= 11.4.1.31
 else
 $(error DEEPSTREAM_VARIANT must be tegra, sbsa or igx for an AArch64 Sparse4D build)
 endif
