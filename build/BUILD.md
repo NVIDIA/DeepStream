@@ -24,15 +24,15 @@ install directory remains `deepstream-9.2`. Published release-asset pins remain
 independent of this source version. A version bump does not rebuild or relabel
 existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
 
-The x86 and generic-SBSA upgrade candidate follows Triton26.10's core versions:
+The x86 upgrade candidate follows Triton26.10's core versions:
 CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**. Jetson retains
-JetPack **7.2.2+**, CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
+JetPack **7.2.2+**; Jetson and SBSA select CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
 **9.20.0.46**. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
 declared build targets, not completed build/runtime qualification. IGX's separate
 legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
-`CUDA_VER` selects the toolkit **family directory** (`13.4` x86/SBSA, `13.2`
-Jetson), not the full release. Install the full matching toolkit separately;
+`CUDA_VER` selects the toolkit **family directory** (`13.4` x86, `13.2`
+Jetson/SBSA), not the full release. Install the full matching toolkit separately;
 setting `CUDA_VER=13.4` does not prove that CUDA13.4.3 is installed. Explicit
 environment or command-line `CUDA_VER` overrides are retained. TensorRT selection
 is passed as `TRT_VER`; `CUDNN_VERSION` records the declared baseline only, not a
@@ -93,32 +93,35 @@ its supported container. Current upgrade targets are:
 | x86 dGPU | Ubuntu 24.04 | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
 | Jetson (aarch64) | JetPack7.2.2+ matching BSP | — (bundled) | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
-| SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
+| SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
 
 The x86/SBSA host-driver target is **620.70.06**, separate from the minimum above.
-Its `nvidia-smi` CUDA UMD **13.5** reading describes driver capability; the toolkit
-remains **13.4.3**. Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
+Its `nvidia-smi` CUDA UMD **13.5** reading describes driver capability; the toolkits
+are **13.4.3** on x86 and **13.2.2** on SBSA. Jetson retains its JetPack-supplied
+driver and **13.2.2** toolkit.
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
 > **Docker users:** use a reviewed image matching the selected upgrade stack and
 > SDK binaries. An older DeepStream9.2 image is not automatically compatible
 > merely because the install directory still ends in `9.2`. Stock Triton26.10 is
-> an x86/SBSA candidate, not a Jetson JP7.2.2/TRT11.4.1 provider. Containers still
+> an x86 candidate, not a Jetson/SBSA JP7.2.2/TRT11.4.1 provider. Containers still
 > require a supported host driver/BSP.
 
 ### Matching Triton client SDK and VPI inputs
 
-The dependency script no longer downloads the old x8626.03/Jetson26.04 client
-SDKs. When the default `/opt/tritonclient` has missing headers or incomplete
-libraries, `scripts/install_opensource_deps.sh` stages the complete Triton 2.74.0
-SDK from the architecture-matched `26.10-py3-sdk` provider. The downloader pins
+For x86 and Jetson, the dependency script no longer downloads the old
+x8626.03/Jetson26.04 client SDKs. When the default `/opt/tritonclient` has missing
+headers or incomplete libraries, `scripts/install_opensource_deps.sh` stages the
+complete Triton 2.74.0 SDK from the architecture-matched `26.10-py3-sdk` provider. The downloader pins
 and verifies the platform manifest and SDK payload SHA-256, then extracts only
 `/workspace/install/include` and its libraries. It does not pull a complete image,
-run a container, or require Docker. x86 selects AMD64; Jetson and SBSA select ARM64
+run a container, or require Docker. x86 selects AMD64; Jetson selects ARM64
 client libraries, not a server/backend image.
-The manylinux SDK ZIPs are not a substitute: they omit static gRPC archives
-required by the modern inference-server core. The complete SDK has protobuf
+SBSA selects the Triton **2.68.0 / 26.04** aarch64 client ZIP used by the
+Jetson Docker recipe, with matching system protobuf headers and compiler.
+For the modern 2.74.0 core, the manylinux SDK ZIPs are not a substitute: they
+omit static gRPC archives required by that inference-server core. The complete SDK has protobuf
 6.33.5 headers; dependency setup selects protoc 33.5 for the same architecture.
 Library completeness is rechecked on resume, repairing an incomplete default
 provider left by an earlier build. An incomplete nondefault
@@ -548,7 +551,7 @@ bash build/build.sh --deepstream-libraries-wheel=artifacts
 bash build/build.sh --deepstream-libraries-wheel-version=1.4
 ```
 
-Default toolkit families are `13.4` for x86/SBSA, `13.2` for Jetson and unchanged
+Default toolkit families are `13.4` for x86, `13.2` for Jetson/SBSA and unchanged
 `13.0` for IGX Thor. Set `CUDA_VER` explicitly when selecting another supported
 toolkit family; environment and CLI overrides are not overwritten:
 

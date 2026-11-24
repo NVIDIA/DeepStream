@@ -16,9 +16,11 @@ For NVAIE customers, only x86 platform is supported.
 
 <Note>
 This checkout's DeepStream 9.2.1 upgrade targets use the Triton 26.10 stack on
-x86 and generic SBSA. Jetson uses a separate JetPack 7.2.2+ stack with TensorRT
-11.4.1.31 on eligible Jetson AGX Orin and Jetson Thor devices, not the stock
-Triton 26.10 ARM64 image. See [Installation](/text/DS_Installation) for the exact
+x86. SBSA follows the Jetson Docker recipe's Triton 26.04 base and TensorRT
+11.4.1.31 overlay, with matching SBSA media and VPI providers. Its declared
+CUDA 13.2.2 and cuDNN 9.20.0.46 targets follow Jetson's JetPack 7.2.2+ stack;
+the container inherits CUDA/cuDNN from the base and still needs exact-version
+and backend validation. See [Installation](/text/DS_Installation) for the exact
 platform versions. These are source and container-recipe targets; release and
 runtime qualification must be completed before production deployment. The
 existing IGX stack is unchanged.

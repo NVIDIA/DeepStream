@@ -8,13 +8,17 @@ title: "Quickstart Guide"
 > see [Install from the GitHub Mono-repo](/text/DS_Installation#install-from-the-github-mono-repo-build-from-source).
 
 <Note>
-This checkout targets DeepStream **9.2.1**. The x86 and generic SBSA Docker recipes
-use Triton **26.10**, CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN
-**9.27.0.42**. Jetson has a separate JetPack **7.2.2+** target with CUDA
-**13.2.2**, TensorRT **11.4.1.31** and cuDNN **9.20.0.46** on eligible AGX Orin
-and Thor devices. See [Installation](/text/DS_Installation#deepstream-921-upgrade-targets)
-for the complete target matrix. These are configured upgrade targets, not a
-claim of completed platform qualification or newly published container tags.
+This checkout targets DeepStream **9.2.1**. The x86 Docker recipes use Triton
+**26.10**, CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**.
+SBSA follows Jetson's Triton **26.04** Docker base, **2.68.0** client ZIP and
+TensorRT **11.4.1.31** repository overlay. Its declared compute targets match
+Jetson's JetPack **7.2.2+** targets: CUDA **13.2.2** and cuDNN **9.20.0.46**.
+The Docker recipes inherit CUDA/cuDNN from their bases; those exact installed
+patch versions and backend compatibility still need validation. See
+[Installation](/text/DS_Installation#deepstream-921-upgrade-targets) for the complete
+target matrix and Jetson device eligibility. These are configured upgrade
+targets, not a claim of completed platform qualification or newly published
+container tags.
 
 For TensorRT 11 FP16 samples, follow the installed `samples/modelopt/README.md`
 to prepare the models before running inference. Rebuild engines for the selected
@@ -280,9 +284,12 @@ sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABI
 <Note>
 * `--privileged` is omitted above; add it only if the container needs access to all host devices or low-level driver operations. It grants near-root host access, so on shared or production systems prefer `--device` / `--cap-add` instead.
 
-* The SBSA recipe uses matching ARM64 `26.10-py3` server and `26.10-py3-sdk`
-  client stages (Triton 2.74.0, Ubuntu 24.04 / Python 3.12), plus genuine SBSA
-  VPI 4.1.6 inputs. It is not a Jetson image.
+* The SBSA recipe follows Jetson's ARM64 `26.04-py3` base, 2.68.0 client ZIP
+  and TensorRT 11.4.1.31 repository overlay, with genuine SBSA VPI 4.1.6 inputs
+  and its own OpenRM/media providers. CUDA and cuDNN are inherited from the base;
+  the declared CUDA 13.2.2/cuDNN 9.20.0.46 build targets are not verified installed
+  patch versions. Validate the retained Triton backends with the TensorRT overlay
+  on the target.
 
 * When the triton docker is launched for the first time, it might take a few minutes to start since it has to generate compute cache.
 
@@ -292,20 +299,20 @@ sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABI
 ### Jetson
 
 Build the Jetson Triton image using this checkout's
-`deepstream_dockers/jetson_dockerfiles/Dockerfile_Jetson_Devel`. Supply reviewed,
-matching `JETSON_TRITON_IMAGE` and `JETSON_TRITON_SDK_IMAGE` providers for the
-JetPack 7.2.2+ / TensorRT 11.4.1.31 stack. The runtime-only recipe instead takes
-`JETSON_RUNTIME_IMAGE`; it does not add Triton to a base that lacks it. See
+`deepstream_dockers/jetson_dockerfiles/Dockerfile_Jetson_Devel`. It selects
+`nvcr.io/nvidia/tritonserver:26.04-py3`, the matching 2.68.0 aarch64 client ZIP
+and pinned TensorRT `11.4.1.31-1+cuda13.4` repository packages. SBSA follows that
+compute recipe while retaining its own platform providers. The separate Jetson
+run recipe uses a CUDA 13.2.1 cuDNN runtime base and does not add Triton. See
 [Docker Containers](/text/DS_docker_containers#deepstream-921-upgrade-recipes).
 
-Stock SBSA Triton 26.10 and the old JetPack 26.04 archives are not substitutes
-for a matching Jetson provider. No new public Jetson image tag is assumed here.
-The resulting Triton image must already contain compatible server and backend
-libraries; no backend installer is needed for that Docker path.
+No new public Jetson image tag is assumed here. The Docker path does not run the
+native backend installer. Its retained Triton backends require validation with
+the TensorRT overlay on the target.
 
 For an optional native archive installation, the **monorepo**
 `scripts/triton_backend_setup.sh` requires explicit matching `TRITON_PKG_PATH`
-and `TRITON_CLIENT_SDK_PKG_PATH` ZIP URLs. Jetson and SBSA require release
+and `TRITON_CLIENT_SDK_PKG_PATH` ZIP URLs. Native Jetson requires release
 **2.74.0 (26.10)**, with `/v2.74.0/` in both URLs; older or mismatched pairs
 are rejected before installation. Jetson still needs a provider qualified for
 its JetPack7.2.2/CUDA13.2.2/TRT11.4.1 stack, not stock SBSA binaries. There is no
@@ -315,6 +322,9 @@ not qualify their compatibility. Forward both URL variables explicitly through
 `sudo env`, as shown in the repository README. Its backend directory is
 `/opt/tritonserver/backends`. Follow the selected provider's layout when setting
 `model_repo.backend_dir` in an inference configuration.
+
+SBSA remains container-only: the helper refuses native installation. Its
+`--check-only` selection uses 2.68.0 (26.04) rather than the native Jetson policy.
 
 ### Single process
 

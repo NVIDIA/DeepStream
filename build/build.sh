@@ -141,11 +141,11 @@ Packaging (--package / --package-format=):
   both  Both (default).
 
 Environment variables (alternative to CLI):
-  CUDA_VER                Toolkit family (13.4 x86/SBSA; 13.2 Jetson; 13.0 IGX)
-  TRT_VER                 Selected full TensorRT build (11.4.0.106 x86/SBSA;
-                          11.4.1.31 Jetson; IGX retains its installed legacy stack)
-  CUDNN_VERSION           Declared cuDNN baseline (9.27.0.42 x86/SBSA;
-                          9.20.0.46 Jetson); does not install/verify compute packages
+  CUDA_VER                Toolkit family (13.4 x86; 13.2 Jetson/SBSA; 13.0 IGX)
+  TRT_VER                 Selected full TensorRT build (11.4.0.106 x86;
+                          11.4.1.31 Jetson/SBSA; IGX retains its installed legacy stack)
+  CUDNN_VERSION           Declared cuDNN baseline (9.27.0.42 x86;
+                          9.20.0.46 Jetson/SBSA); does not install/verify compute packages
   NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.1); the install
                           tree uses MAJOR.MINOR only. It does not select the
                           proprietary-libs / sample-data asset names.
@@ -246,12 +246,12 @@ esac
 
 select_stack_defaults() {
   case "$1" in
-    x86|sbsa)
+    x86)
       CUDA_VER_DEFAULT=13.4
       TRT_VER_DEFAULT=11.4.0.106
       CUDNN_VERSION_DEFAULT=9.27.0.42
       ;;
-    jetson|aarch64)
+    jetson|aarch64|sbsa)
       CUDA_VER_DEFAULT=13.2
       TRT_VER_DEFAULT=11.4.1.31
       CUDNN_VERSION_DEFAULT=9.20.0.46

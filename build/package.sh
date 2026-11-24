@@ -40,7 +40,7 @@
 # Environment overrides (CLI flags take precedence):
 #   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
-#   CUDA_VER       Toolkit family override (default: 13.4 x86/SBSA, 13.2 Jetson)
+#   CUDA_VER       Toolkit family override (default: 13.4 x86, 13.2 Jetson/SBSA)
 #   TRT_VER        Full TensorRT build (11 on x86/Jetson/SBSA; 10 on legacy IGX)
 #   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 # ---------------------------------------------------------------------------
@@ -102,8 +102,8 @@ Options:
 Environment overrides (CLI flags take precedence):
   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
-  CUDA_VER       Toolkit family override (13.4 x86/SBSA, 13.2 Jetson)
-  TRT_VER        Full TensorRT version (11.4.0.106 x86/SBSA, 11.4.1.31 Jetson)
+  CUDA_VER       Toolkit family override (13.4 x86, 13.2 Jetson/SBSA)
+  TRT_VER        Full TensorRT version (11.4.0.106 x86, 11.4.1.31 Jetson/SBSA)
                  Legacy IGX requires a selected TRT10 build; native IGX can read
                  NvInferVersion.h using TRT_INCLUDE_DIR and CC (default: cc).
   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
@@ -197,8 +197,8 @@ esac
 # Match the source-build profiles. Explicit build overrides must also reach the
 # package metadata; a same-major SONAME is not exact TensorRT patch provenance.
 case "$PLATFORM" in
-  x86|sbsa) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
-  jetson) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
+  x86) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
+  jetson|sbsa) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
   igx) _cuda_default=13.0; _trt_default= ;;
 esac
 PACKAGE_CUDA_VER=${CUDA_VER-$_cuda_default}
@@ -1010,7 +1010,7 @@ build_deb() {
   trt_min=$PACKAGE_TRT_VER
   trt_upper="${trt_min%.*}.$((10#${trt_min##*.} + 1))"
   trt_dep="libnvinfer${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
-  local vpi_dep='libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7)'
+  local vpi_dep='libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7~)'
   # Preserve the legacy IGX dependency contract; do not pull the new Jetson VPI.
   [[ "$PLATFORM" != igx ]] || vpi_dep=libnvvpi4
   if [[ "$DEB_ARCH" = "arm64" ]]; then

@@ -227,8 +227,8 @@ Why do I get the error `Makefile:13: *** "CUDA_VER is not set".  Stop` when I co
 Export the CUDA toolkit family selected for your platform:
 
 ```bash
-export CUDA_VER=13.4  # x86 or generic SBSA (CUDA 13.4.3 toolkit)
-# For Jetson's JetPack 7.2.2+ stack, use CUDA_VER=13.2 (CUDA 13.2.2 toolkit).
+export CUDA_VER=13.4  # x86 (CUDA 13.4.3 toolkit)
+# For Jetson/SBSA, use CUDA_VER=13.2 (declared CUDA 13.2.2 toolkit target).
 ```
 
 Use the matching installed toolkit; changing `CUDA_VER` does not install or

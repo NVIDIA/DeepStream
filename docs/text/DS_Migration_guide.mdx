@@ -11,9 +11,10 @@ Make sure you understand how to migrate your older DeepStream custom models to D
 </Info>
 
 This checkout's DeepStream **9.2.1 upgrade target** uses TensorRT **11.4.0.106**
-on x86 and generic SBSA, and TensorRT **11.4.1.31** on eligible Jetson AGX Orin
-and Jetson Thor devices with JetPack **7.2.2 or later**. See the platform-specific
-stack in [Installation](/text/DS_Installation). The existing IGX stack is separate
+on x86, and TensorRT **11.4.1.31** on SBSA and eligible Jetson AGX Orin
+and Jetson Thor devices with JetPack **7.2.2 or later**. SBSA follows the
+Jetson-aligned compute target while retaining its dGPU media and VPI providers.
+See the platform-specific stack in [Installation](/text/DS_Installation). The existing IGX stack is separate
 and is not upgraded by these TensorRT 11 targets. A configured target does not
 establish completed platform or model qualification.
 

@@ -22,8 +22,6 @@
 # first and expect a long build: opentelemetry-cpp and gRPC compile from
 # source under emulation.
 
-cd sbsa_dockerfiles
+cd sbsa_dockerfiles || exit
 
 sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.1-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
-
-cd ..

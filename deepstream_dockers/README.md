@@ -10,7 +10,7 @@ Improvements from previous releases.
 (B) Build setup files to put all of the files in correct location for the various build x86 and x86 crosss-compile (for Jetson).  
 (C) SBSA / DGX Spark Dockerfile and build setup (see section 5).  
 
-NOTE: Jetson Thor/Orin support only. x86, Jetson Thor/Orin and SBSA all use CUDA 13.2.
+The Jetson recipes support Thor/Orin. Jetson and SBSA use the CUDA 13.2 family; x86 uses CUDA 13.4.
 
 
 ## 1 Additional Installation to use all DeepStreamSDK Features within the docker container.
@@ -301,10 +301,13 @@ N/A for DS 9.2.0
 SBSA covers ARM servers with a discrete GPU (GB200, Grace) and DGX Spark — the same image runs on all of them.
 
 There is one SBSA image type, the Triton devel image, built from ``sbsa_dockerfiles/Dockerfile_SBSA_Triton``.
+It follows the Jetson Triton 26.04 base, TensorRT ``11.4.1.31-1+cuda13.4``, and Triton client 2.68.0
+with protobuf/protoc 3.21.12. The TensorRT package suffix does not select the CUDA toolkit;
+CUDA and cuDNN are inherited from the same Triton base as Jetson.
 
-On Jetson the Tegra multimedia libraries are supplied by the host at run time through the NVIDIA container
-runtime. An SBSA host has no Jetson BSP, so those libraries have to be **baked into the image**. The build
-therefore needs the NVIDIA Jetson Linux Driver Package (BSP) in addition to the DeepStream SDK tarball.
+The Jetson Docker recipe provisions the L4T multimedia packages. SBSA instead needs the OpenRM
+multimedia variant and SBSA-specific SDK libraries **baked into the image**. Its build therefore needs
+the NVIDIA Jetson Linux Driver Package (BSP) in addition to the matching DeepStream SDK tarball.
 
 ### 5.1 Pre-requisites
 
@@ -317,35 +320,37 @@ is slow, because opentelemetry-cpp and gRPC are compiled from source under emula
 
 $ROOT is the ``deepstream_dockers`` directory of this repository. Run all commands below from it.
 
-The build needs three inputs staged by hand. Everything else (Triton base images, VPI, the NVIDIA
-GStreamer plugins, Ubuntu packages, opentelemetry-cpp, gRPC) is downloaded during the build, so the build
-host needs network access.
+Stage the inputs below before building. The Triton base/client, NVIDIA GStreamer plugins,
+Ubuntu packages, opentelemetry-cpp and gRPC are downloaded during the build, so the build host needs network access.
 
 | Input | Where to get it | Where it goes |
 | --- | --- | --- |
-| Jetson Linux R39.2 Driver Package (BSP) | [Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) (section 5.1.2) | ``$ADDVAR99/sbsa/bsp/`` |
+| Jetson Linux R39.2.2 Driver Package (BSP) | [Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) (section 5.1.2) | ``$ADDVAR99/sbsa/bsp/`` |
 | GStreamer prebuilts (3 files) | the DS 9.1 SBSA DeepStream NGC docker (section 5.1.3) | ``$ADDVAR99/sbsa/gst/`` |
-| ``deepstream_sdk_v9.2.0_sbsa.tbz2`` | [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0) (section 5.1.4) | ``$ROOT/sbsa_dockerfiles/`` |
+| TensorRT local repository ``nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb`` | The same NVIDIA TensorRT repository package used for the Jetson build | ``$ADDVAR99/sbsa/`` |
+| SBSA/dGPU VPI 4.1.6 runtime and development DEBs | Matching NVIDIA SBSA packages providing ``libnvvpi4`` and ``vpi4-dev`` | ``$ADDVAR99/sbsa/vpi/`` |
+| ``deepstream_sdk_v9.2.1_sbsa.tbz2`` | SBSA SDK built for the matching JetPack compute stack (section 5.1.4) | ``$ROOT/sbsa_dockerfiles/`` |
 
 ### 5.1.1 Create the SBSA content directories
 
 ```
 cd $ROOT/
 export ADDVAR99=<your x86, Jetson and SBSA content directory>
-mkdir -p $ADDVAR99/sbsa/gst $ADDVAR99/sbsa/bsp
+mkdir -p $ADDVAR99/sbsa/gst $ADDVAR99/sbsa/bsp $ADDVAR99/sbsa/vpi
 ```
 
 ### 5.1.2 Jetson Linux Driver Package (BSP)
 
-Download the **Driver Package (BSP)** for Jetson Linux 39.2 from
+Download the **Driver Package (BSP)** for Jetson Linux 39.2.2 from
 [Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) into ``$ADDVAR99/sbsa/bsp/``:
 
 ```
-wget -P $ADDVAR99/sbsa/bsp/ https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/Jetson_Linux_R39.2.0_aarch64.tbz2
+cp /path/to/Jetson_Linux_R39.2.2_aarch64.tbz2 $ADDVAR99/sbsa/bsp/
 ```
 
 Keep exactly one ``Jetson_Linux_R*_aarch64.tbz2`` in that directory; the setup script and the Dockerfile
-both stop if they find none or more than one.
+both stop if they find none or more than one. The BSP package version must match
+``39.2.2-20261112230500``, as in the Jetson Dockerfiles.
 
 ``setup_sbsa_build.sh`` copies the BSP into the build context, and the Dockerfile runs
 ``extract_packages.sh`` inside the container to unpack the Tegra libraries from it. The NVIDIA
@@ -381,11 +386,11 @@ file $ADDVAR99/sbsa/gst/*.so    # all three must report "ARM aarch64"
 
 ### 5.1.4 DeepStreamSDK package
 
-Download the SBSA tarball from the [DeepStreamSDK release](https://github.com/NVIDIA/DeepStream/releases/tag/v9.2.0)
-and place it in the build context:
+Place the matching SBSA SDK tarball in the build context. It must contain the SBSA builds of
+``libnvbufsurface.so``, ``libnvbufsurftransform.so`` and ``libnvcuvidv4l2.so`` under its SDK ``lib/`` directory:
 
 ```
-cp deepstream_sdk_v9.2.0_sbsa.tbz2 ./sbsa_dockerfiles/
+cp /path/to/deepstream_sdk_v9.2.1_sbsa.tbz2 ./sbsa_dockerfiles/
 ```
 
 ### 5.1.5 SBSA build setup command
@@ -394,20 +399,22 @@ Run without ``sudo``, so that ``ADDVAR99`` is kept:
 
 ```
 cd $ROOT/
-ls $ADDVAR99/sbsa/gst $ADDVAR99/sbsa/bsp #To verify $ADDVAR99 env variable is set correctly & required files are present.
+ls $ADDVAR99/sbsa/gst $ADDVAR99/sbsa/bsp $ADDVAR99/sbsa/vpi
+ls $ADDVAR99/sbsa/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb
 ./setup_sbsa_build.sh
 ls sbsa_dockerfiles/
 ```
 
 The script ends with ``SBSA build context staged in ./sbsa_dockerfiles/``, and ``sbsa_dockerfiles/`` then holds:
 
-- ``Dockerfile_SBSA_Triton``, ``deepstream_sdk_v9.2.0_sbsa.tbz2`` and ``Jetson_Linux_R39.2.0_aarch64.tbz2``
+- ``Dockerfile_SBSA_Triton``, ``deepstream_sdk_v9.2.1_sbsa.tbz2`` and ``Jetson_Linux_R39.2.2_aarch64.tbz2``
+- The TensorRT local repository DEB and ``vpi/`` containing both SBSA VPI 4.1.6 DEBs
 - ``libgstrtpmanager.so``, ``libgstrtsp.so`` and ``libgstvideoparsersbad.so``
 - ``extract_packages.sh``, ``gRPC_installation.sh``, ``entrypoint.sh`` and ``rsyslog``
 - ``user_additional_install_devel.sh`` and ``user_deepstream_python_apps_install.sh``
 - ``LicenseAgreement.pdf`` and ``LicenseAgreementContainer.pdf``
 
-> **NOTE:** ``setup_sbsa_build.sh`` stages the specific-files, licenses, GStreamer prebuilts and the BSP
+> **NOTE:** ``setup_sbsa_build.sh`` stages the specific-files, licenses, GStreamer prebuilts, TensorRT/VPI packages and the BSP
 > tarball into ``sbsa_dockerfiles/`` — the Docker build context.
 > The Dockerfile reads them through ``--mount=type=bind,src=sbsa_dockerfiles``, so **this step is
 > mandatory and must be run before ``docker build``**.
@@ -418,7 +425,7 @@ NOTE: Make sure you run the SBSA Build setup command first.
 
 ```
 cd $ROOT/sbsa_dockerfiles
-sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.0-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
+sudo docker build --platform linux/arm64 --network host --progress=plain -t deepstream:9.2.1-triton-arm-sbsa-local -f Dockerfile_SBSA_Triton ..
 
 ```
 NOTE: There is an example build script called $ROOT/buildsbsa.sh with the same contents.
@@ -426,7 +433,7 @@ NOTE: There is an example build script called $ROOT/buildsbsa.sh with the same c
 Check that the image exists:
 
 ```
-docker images deepstream:9.2.0-triton-arm-sbsa-local
+docker images deepstream:9.2.1-triton-arm-sbsa-local
 ```
 
 ### 5.3 Building the SBSA image on an x86 host
@@ -453,7 +460,7 @@ opentelemetry-cpp and gRPC are compiled from source and run under QEMU emulation
 These checks need no GPU, so they also run on an x86 build host:
 
 ```
-docker run --rm --platform linux/arm64 --entrypoint bash deepstream:9.2.0-triton-arm-sbsa-local -c '
+docker run --rm --platform linux/arm64 --entrypoint bash deepstream:9.2.1-triton-arm-sbsa-local -c '
   readlink -f lib/libnvbufsurface.so lib/libnvbufsurftransform.so
   dpkg -l libnvvpi4 vpi4-dev | tail -2
   ls /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstnvvideo4linux2.so
@@ -464,7 +471,7 @@ docker run --rm --platform linux/arm64 --entrypoint bash deepstream:9.2.0-triton
 Expected:
 
 - Both ``readlink`` lines resolve into ``/usr/lib/aarch64-linux-gnu/tegra/`` (``.so.1.0.0``), the SBSA builds.
-- ``libnvvpi4`` and ``vpi4-dev`` are version ``4.1.3``.
+- ``libnvvpi4`` and ``vpi4-dev`` are version ``4.1.6`` (allowing a Debian package revision).
 - ``libgstnvvideo4linux2.so`` (``nvv4l2decoder`` / ``nvv4l2encoder``) is present.
 - The only ``not found`` library is ``libcuda.so.1``, which the NVIDIA container runtime mounts from the
   host driver at run time.
@@ -475,7 +482,7 @@ Expected:
 On the SBSA host (GB200 / Grace / DGX Spark) with the NVIDIA Container Toolkit installed:
 
 ```
-sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all --privileged -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 deepstream:9.2.0-triton-arm-sbsa-local
+sudo docker run -it --rm --runtime=nvidia --network=host -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics --gpus all --privileged -e DISPLAY=:0 -v /tmp/.X11-unix:/tmp/.X11-unix -v /etc/X11:/etc/X11 deepstream:9.2.1-triton-arm-sbsa-local
 ```
 
 Inside the container, a quick sanity check:
@@ -485,7 +492,7 @@ deepstream-app --version-all
 gst-inspect-1.0 nvv4l2decoder
 ```
 
-To move an image built elsewhere onto the SBSA host, use ``docker save deepstream:9.2.0-triton-arm-sbsa-local | gzip > ds-sbsa.tar.gz``
+To move an image built elsewhere onto the SBSA host, use ``docker save deepstream:9.2.1-triton-arm-sbsa-local | gzip > ds-sbsa.tar.gz``
 and ``docker load < ds-sbsa.tar.gz``.
 
 ### 5.6 Notes on the SBSA image contents
@@ -495,9 +502,9 @@ The following differences from the x86 and Jetson images are deliberate:
 - ``AARCH64_DGPU=1`` is set, which is how DeepStream distinguishes SBSA from Jetson at run time.
 - The SBSA-aware ``libnvbufsurface``, ``libnvbufsurftransform`` and ``libnvcuvidv4l2`` shipped in the
   DeepStream SBSA SDK tarball replace the BSP copies, which do not understand SBSA context.
-- VPI 4 is the discrete-GPU SBSA build that Isaac ROS rehosts publicly (``VPI_BASE_URL`` build arg,
-  version and checksums pinned in the Dockerfile). The Jetson VPI packages link the Tegra multimedia
-  stack and break the tracker on SBSA, so the build fails if ``libnvvpi.so.4`` links anything beyond libc.
+- VPI 4.1.6 runtime and development DEBs are staged from ``$ADDVAR99/sbsa/vpi/``. They must be
+  ARM64 SBSA/dGPU packages providing ``libnvvpi4`` and ``vpi4-dev`` at the declared version.
+  The Dockerfile checks their package metadata and rejects a runtime with non-system shared-library dependencies.
 - ``nvidia-l4t-gstreamer`` is unpacked from the public Jetson apt repository rather than installed, so
   that apt does not pull in the Tegra platform packages an SBSA container has no use for.
 - ``libnvdsgst_udp.so`` (needs Rivermax) and the Tegra capture plugins ``libgstnvsiplsrc.so`` and
