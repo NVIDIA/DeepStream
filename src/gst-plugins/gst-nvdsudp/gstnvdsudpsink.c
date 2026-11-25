@@ -1589,12 +1589,12 @@ set_thread_affinity (gchar *coreList)
   int ret = 0;
   cpu_set_t *cpu_set;
   size_t cpu_alloc_size;
-  cpu_set = CPU_ALLOC (RMAX_CPU_SETSIZE);
+  cpu_set = CPU_ALLOC (CPU_SETSIZE);
   if (!cpu_set) {
     g_print ("failed to allocate cpu_set\n");
     return FALSE;
   }
-  cpu_alloc_size = CPU_ALLOC_SIZE (RMAX_CPU_SETSIZE);
+  cpu_alloc_size = CPU_ALLOC_SIZE (CPU_SETSIZE);
   CPU_ZERO_S (cpu_alloc_size, cpu_set);
 
   gchar **tokens = g_strsplit (g_strstrip (coreList), ",", 0);
@@ -1602,7 +1602,7 @@ set_thread_affinity (gchar *coreList)
   gint cpuCore = 0;
   while (*tmp) {
     cpuCore = atoi (*tmp);
-    if (cpuCore >= 0 && cpuCore < RMAX_CPU_SETSIZE) {
+    if (cpuCore >= 0 && cpuCore < CPU_SETSIZE) {
       CPU_SET_S (cpuCore, cpu_alloc_size, cpu_set);
     }
     tmp++;
@@ -1942,6 +1942,9 @@ gst_nvdsudpsink_render (GstBaseSink * bsink, GstBuffer * buffer)
     gst_buffer_list_unref (bList);
   } else {
     if (sink->rThread) {
+      if (sink->pass_rtp_timestamp && !sink->streamParams.firstPacketTime) {
+        init_first_packet_time (sink, buffer);
+      }
       gst_buffer_ref (buffer);
       g_mutex_lock (&sink->qLock);
       // Free flowing pipeline can cause buffer build up.
@@ -1977,9 +1980,11 @@ time_to_rtp_timestamp (gdouble time_ns, guint sample_rate)
     gdouble time_sec = time_ns / (gdouble) GST_SECOND;
     gdouble timestamp = time_sec * (gdouble) sample_rate;
     gdouble mask = 0x100000000;
-    // We decrease one tick from the timestamp to prevent cases where the timestamp
+    // We decrease the timestamp by a few ticks to prevent cases where the timestamp
     // lands up in the future due to calculation imprecision
-    timestamp = fmod(timestamp, mask) - 1;
+    // See https://github.com/NVIDIA/rivermax-dev-kit/blob/8b88d4b1f4949c4e6fcf8997cefcc443bca8cb74/source/services/legacy_util/rt_threads.cpp#L599-L609
+    timestamp -= 5;
+    timestamp = fmod(timestamp, mask);
     return timestamp;
 }
 
@@ -1987,9 +1992,10 @@ time_to_rtp_timestamp (gdouble time_ns, guint sample_rate)
  * @brief Initializes firstPacketTime, timestampTick and pass_rtp_ts_offset.
  *
  * Handles both pass-rtp-timestamp and the legacy PTP/system clock paths:
- *  - pass_rtp_timestamp: uses buffer PTS and GstRTPTimestampMeta (if present)
- *    and applies rtp_timestamp_offset.
- *  - otherwise: uses calculate_first_packet_time based on PTP/system clock.
+ *  - pass_rtp_timestamp: uses the running time of the buffer PTS and
+ *    GstRTPTimestampMeta (if present) and applies rtp_timestamp_offset.
+ *  - otherwise, or if the buffer has no valid running time: uses
+ *    calculate_first_packet_time based on PTP/system clock.
  *
  * @param sink    Sink instance holding the stream parameters.
  * @param buffer  Upstream buffer (used only when pass_rtp_timestamp is enabled).
@@ -2000,10 +2006,28 @@ static void
 init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
 {
   StreamParams *sParams = &sink->streamParams;
+  GstClockTime running_time = GST_CLOCK_TIME_NONE;
 
   if (sink->pass_rtp_timestamp && buffer) {
+    running_time = gst_segment_to_running_time (&GST_BASE_SINK (sink)->segment,
+        GST_FORMAT_TIME, GST_BUFFER_PTS (buffer));
+    if (!GST_CLOCK_TIME_IS_VALID (running_time)) {
+      GST_WARNING_OBJECT (sink, "First buffer has no valid running time, "
+          "generating RTP timestamps from the clock");
+    }
+  }
+
+  if (GST_CLOCK_TIME_IS_VALID (running_time)) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (sink));
-    sParams->firstPacketTime = base_time + GST_BUFFER_PTS (buffer);
+    GstClock *clock = gst_element_get_clock (GST_ELEMENT (sink));
+    if (clock) {
+      /* Shift to UTC: the pipeline clock need not be REALTIME. */
+      struct timespec ts;
+      clock_gettime (CLOCK_REALTIME, &ts);
+      base_time += GST_CLOCK_DIFF (gst_clock_get_time (clock), GST_TIMESPEC_TO_TIME (ts));
+      gst_object_unref (clock);
+    }
+    sParams->firstPacketTime = base_time + running_time;
     GST_DEBUG_OBJECT (sink, "firstPacketTime in HH:MM:SS.NS: %" GST_TIME_FORMAT,
         GST_TIME_ARGS ((GstClockTime) sParams->firstPacketTime));
 
@@ -2023,9 +2047,10 @@ init_first_packet_time (GstNvDsUdpSink *sink, GstBuffer *buffer)
     } else {
       GST_DEBUG_OBJECT (sink, "No RTP timestamp metadata found");
       /* Fall back to legacy method; may differ slightly from actual rtp_ticks. */
-      sParams->timestampTick = time_to_rtp_timestamp (sParams->firstPacketTime,
-          sParams->sampleRate);
       sParams->pass_rtp_ts_offset = (LEAP_SECONDS * GST_SECOND);
+      sParams->timestampTick = time_to_rtp_timestamp (
+          sParams->firstPacketTime + sParams->pass_rtp_ts_offset,
+          sParams->sampleRate);
     }
 
     if (sink->rtp_timestamp_offset > 0) {
@@ -2074,13 +2099,14 @@ parse_st2038_packet (BitReader *br, AncPacketInfo *info)
   info->horizontal_offset = bit_reader_read (br, 12);
   info->did = bit_reader_read (br, 10);
   info->sdid = bit_reader_read (br, 10);
-  info->data_count = (guint8)(bit_reader_read (br, 10) & 0xFF);
+  info->data_count = bit_reader_read (br, 10);
 
-  guint needed = (guint)info->data_count * 10 + 10;
+  guint num_udw = (guint)(info->data_count & 0xFF);
+  guint needed = num_udw * 10 + 10;
   if (!bit_reader_has_bits (br, needed))
     return FALSE;
 
-  for (guint i = 0; i < info->data_count; i++)
+  for (guint i = 0; i < num_udw; i++)
     info->user_data[i] = bit_reader_read (br, 10);
 
   info->checksum = bit_reader_read (br, 10);
@@ -2129,7 +2155,8 @@ write_rfc8331_anc_packet (BitWriter *bw, const AncPacketInfo *info)
   bit_writer_write (bw, 10, info->sdid);
   bit_writer_write (bw, 10, info->data_count);
 
-  for (guint i = 0; i < info->data_count; i++)
+  guint num_udw = (guint)(info->data_count & 0xFF);
+  for (guint i = 0; i < num_udw; i++)
     bit_writer_write (bw, 10, info->user_data[i]);
 
   bit_writer_write (bw, 10, info->checksum);
@@ -2223,7 +2250,7 @@ build_rtp_anc_payload (const guint8 *st2038_data, guint st2038_size,
       break;
     }
 
-    guint pkt_size = rfc8331_anc_packet_size (info.data_count);
+    guint pkt_size = rfc8331_anc_packet_size ((guint8)(info.data_count & 0xFF));
 
     if (anc_count > 0 &&
         (payload_pos + pkt_size > max_payload_size || anc_count >= 255)) {
@@ -2466,18 +2493,38 @@ gst_nvdsudpsink_render_raw_frame (GstBaseSink *bsink, GstBuffer *buffer)
       cudaError_t ret = cudaSuccess;
       if (sParams->streamType == VIDEO_2110_20_STREAM) {
         if (isNewBuffer) {
-          ret = cudaMemcpy2DAsync(
-            (void*)payload,   // dst: Destination pointer (GPU memory allocated for network packets)
-            bytesPerLine,     // dpitch: Destination pitch in bytes
-            inDataPtr,        // src: Source pointer
-            (sink->is_nvmm) ? surf->surfaceList[0].pitch : bytesPerLine, // spitch: Source pitch in bytes.
-            bytesPerLine,     // width: Width of the 2D memory copy in bytes (actual data per line)
-            sParams->height,  // height: Number of rows to copy
-            cudaMemcpyDefault, // kind: Type of transfer (device to device, host to device etc)
-            sink->cuda_stream // stream: CUDA stream for asynchronous operation
-          );
+          if (numFields == 2) {
+            size_t srcPitch = sink->is_nvmm
+                ? surf->surfaceList[0].pitch : bytesPerLine;
+            guint fieldHeight = sParams->height / numFields;
+
+            /* Pack alternating source rows into consecutive field payloads. */
+            for (guint field = 0; field < numFields; field++) {
+              ret = cudaMemcpy2DAsync(
+                  (guint8 *) payload + (size_t) field * fieldHeight * bytesPerLine,
+                  bytesPerLine,
+                  inDataPtr + (size_t) field * srcPitch,
+                  srcPitch * numFields,
+                  bytesPerLine,
+                  fieldHeight,
+                  cudaMemcpyDefault,
+                  sink->cuda_stream);
+              CHECK_CUDA(ret, "failed to copy interlaced field payload");
+            }
+          } else {
+            ret = cudaMemcpy2DAsync(
+              (void*)payload,   // dst: Destination pointer (GPU memory allocated for network packets)
+              bytesPerLine,     // dpitch: Destination pitch in bytes
+              inDataPtr,        // src: Source pointer
+              (sink->is_nvmm) ? surf->surfaceList[0].pitch : bytesPerLine, // spitch: Source pitch in bytes.
+              bytesPerLine,     // width: Width of the 2D memory copy in bytes (actual data per line)
+              sParams->height,  // height: Number of rows to copy
+              cudaMemcpyDefault, // kind: Type of transfer (device to device, host to device etc)
+              sink->cuda_stream // stream: CUDA stream for asynchronous operation
+            );
+            CHECK_CUDA(ret, "failed to copy chunk from device to device");
+          }
           isNewBuffer = false;
-          CHECK_CUDA(ret, "failed to copy chunk from device to device");
         }
       } else {
         GST_ERROR_OBJECT(sink, "Unsupported stream type");
@@ -2711,7 +2758,9 @@ render_using_media_api (GstBaseSink * bsink, GstBufferList * bList)
            * To fix this we are calling to align_to_rmax_time function to convert
            * @time from TAI to UTC
            */
-          timeout = align_to_rmax_time (timeout);
+          if (!sink->ptpSrc) {
+            timeout = align_to_rmax_time (timeout);
+          }
         }
       }
 
