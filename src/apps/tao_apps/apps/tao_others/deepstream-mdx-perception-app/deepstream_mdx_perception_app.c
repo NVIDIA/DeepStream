@@ -542,6 +542,31 @@ static void generate_event_msg_meta(AppCtx *appCtx, gpointer data,
   bool embedding_on_device = TRUE;
   gchar dual_head_label[MAX_CHAR_LENGTH_PER_LINE];
   if (tensor_meta) {
+    /* Resolve outputs by name; their order is determined by the engine. */
+    int embedding_index = -1, probs_index = -1;
+    const char *embedding_name = model_used == APP_CONFIG_ANALYTICS_PEOPLE_REID
+        ? "fc_pred" : "embeddings";
+    if (!tensor_meta->output_layers_info)
+      return;
+    for (guint i = 0; i < tensor_meta->num_output_layers; ++i) {
+      const char *name = tensor_meta->output_layers_info[i].layerName;
+      if (name && !strcmp(name, embedding_name)) embedding_index = i;
+      if (name && !strcmp(name, "probs")) probs_index = i;
+    }
+    if (embedding_index < 0 ||
+        tensor_meta->output_layers_info[embedding_index].dataType != FLOAT ||
+        !tensor_meta->output_layers_info[embedding_index].inferDims.numElements ||
+        !tensor_meta->out_buf_ptrs_dev || !tensor_meta->out_buf_ptrs_dev[embedding_index]) {
+      g_warning("Missing or invalid embedding output '%s'", embedding_name);
+      return;
+    }
+    if (model_used == APP_CONFIG_ANALYTICS_RETAIL_DUAL_HEAD_SGIE &&
+        (probs_index < 0 || tensor_meta->output_layers_info[probs_index].dataType != FLOAT ||
+         !tensor_meta->output_layers_info[probs_index].inferDims.numElements ||
+         !tensor_meta->out_buf_ptrs_host || !tensor_meta->out_buf_ptrs_host[probs_index])) {
+      g_warning("Missing or invalid 'probs' output");
+      return;
+    }
     // Postprocess - embedding vector
     if (model_used == APP_CONFIG_ANALYTICS_RETAIL) {
       meta->type = NVDS_EVENT_MOVING;
@@ -555,12 +580,12 @@ static void generate_event_msg_meta(AppCtx *appCtx, gpointer data,
       meta->extMsgSize = sizeof(NvDsProductObject);
 #endif
       NvDsInferDims embedding_dims =
-          tensor_meta->output_layers_info[0].inferDims;
-      int numElements = embedding_dims.d[0];
+          tensor_meta->output_layers_info[embedding_index].inferDims;
+      int numElements = embedding_dims.numElements;
       meta->embedding.embedding_vector =
           (float *)g_malloc0(numElements * sizeof(float));
       cudaMemcpy(meta->embedding.embedding_vector,
-                 (float *)(tensor_meta->out_buf_ptrs_dev[0]),
+                 (float *)(tensor_meta->out_buf_ptrs_dev[embedding_index]),
                  numElements * sizeof(float), cudaMemcpyDeviceToHost);
       meta->embedding.embedding_length = numElements;
     }
@@ -578,12 +603,12 @@ static void generate_event_msg_meta(AppCtx *appCtx, gpointer data,
       // meta->extMsgSize = sizeof(NvDsPersonObject);
 #endif
       NvDsInferDims embedding_dims =
-          tensor_meta->output_layers_info[0].inferDims;
-      int numElements = embedding_dims.d[0];
+          tensor_meta->output_layers_info[embedding_index].inferDims;
+      int numElements = embedding_dims.numElements;
       meta->embedding.embedding_vector =
           (float *)g_malloc0(numElements * sizeof(float));
       cudaMemcpy(meta->embedding.embedding_vector,
-                 (float *)(tensor_meta->out_buf_ptrs_dev[0]),
+                 (float *)(tensor_meta->out_buf_ptrs_dev[embedding_index]),
                  numElements * sizeof(float), cudaMemcpyDeviceToHost);
       meta->embedding.embedding_length = numElements;
     } 
@@ -593,29 +618,25 @@ static void generate_event_msg_meta(AppCtx *appCtx, gpointer data,
       meta->objType = NVDS_OBJECT_TYPE_PRODUCT;
 
       NvDsInferDims embedding_dims =
-          tensor_meta->output_layers_info[0].inferDims;
-      int numElements = embedding_dims.d[0];
+          tensor_meta->output_layers_info[embedding_index].inferDims;
+      int numElements = embedding_dims.numElements;
       meta->embedding.embedding_vector =
           (float *)g_malloc0(numElements * sizeof(float));
       cudaMemcpy(meta->embedding.embedding_vector,
-                 (float *)(tensor_meta->out_buf_ptrs_dev[0]),
+                 (float *)(tensor_meta->out_buf_ptrs_dev[embedding_index]),
                  numElements * sizeof(float), cudaMemcpyDeviceToHost);
       meta->embedding.embedding_length = numElements;
       
-      NvDsInferDimsCHW dims;
-
-      /* Access the 1-indexed output layer to get probs */
-      getDimsCHWFromDims(dims, tensor_meta->output_layers_info[1].inferDims);
-      dual_head_classes = dims.c;
+      guint num_classes = tensor_meta->output_layers_info[probs_index].inferDims.numElements;
 
       float *outputCoverageBuffer =
-          (float *)tensor_meta->out_buf_ptrs_host[1];
+          (float *)tensor_meta->out_buf_ptrs_host[probs_index];
       float maxProbability = 0;
       bool attrFound = false;
       NvDsInferAttribute attr;
 
       /* Get the output with max probability */
-      for (unsigned int c = 0; c < dual_head_classes; c++) {
+      for (unsigned int c = 0; c < num_classes; c++) {
         float probability = outputCoverageBuffer[c];
         if (probability > 0 && probability > maxProbability) {
           maxProbability = probability;
@@ -644,7 +665,10 @@ static void generate_event_msg_meta(AppCtx *appCtx, gpointer data,
         label_info->result_class_id = attr.attributeValue;
         label_info->result_prob = attr.attributeConfidence;
 
-        strcpy(label_info->result_label, labels[label_info->result_class_id]);
+        /* Missing labels must not change the winning class or read out of bounds. */
+        const char *label = label_info->result_class_id < G_N_ELEMENTS(labels)
+            ? labels[label_info->result_class_id] : "";
+        g_strlcpy(label_info->result_label, label, sizeof(label_info->result_label));
 
         gchar *temp = obj_params->text_params.display_text;
         obj_params->text_params.display_text =
@@ -1434,6 +1458,9 @@ done:
  * Parse labels from label file and fill them in the global variable: `labels`
  */
 void get_labels_from_file(gchar *classifier_label_file) {
+  memset(labels, 0, sizeof(labels));
+  if (!classifier_label_file)
+    return;
   // Use file pointer
   FILE *file = fopen(classifier_label_file, "r");
 
@@ -1444,7 +1471,8 @@ void get_labels_from_file(gchar *classifier_label_file) {
   }
 
   guint line_count = 0;
-  while (fgets(labels[line_count], MAX_CHAR_LENGTH_PER_LINE, file) != NULL) {
+  while (line_count < MAX_LINES_IN_LABEL_FILE &&
+         fgets(labels[line_count], MAX_CHAR_LENGTH_PER_LINE, file) != NULL) {
     // Remove newline character from the end of the line
     labels[line_count][strcspn(labels[line_count], "\n")] = '\0';
     line_count++;
