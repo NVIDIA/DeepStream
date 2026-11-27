@@ -321,6 +321,8 @@ SBSA and DGX Spark share the same code path. **DeepStream bare-metal installatio
 is not supported on SBSA.** There is no standalone DS tar/deb package for this
 platform. Build and validation must be done **inside the NVIDIA SBSA Docker
 container**, which ships with the matching DeepStream runtime pre-installed.
+Build that image with the existing steps in
+[`deepstream_dockers/README.md`](../deepstream_dockers/README.md) section 5.
 The build/dependency drivers reject SBSA bare-metal installation. This does not
 prevent the offline `--package-from` assembly of an explicitly supplied runtime.
 

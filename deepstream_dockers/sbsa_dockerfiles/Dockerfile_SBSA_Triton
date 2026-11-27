@@ -34,6 +34,7 @@ ARG TARGETARCH
 ARG L4T_RELEASE=r39.2
 ARG L4T_DEB_VERSION=39.2.2-20261112230500
 ARG TENSORRT_VERSION=11.4.1.31-1+cuda13.4
+ARG CUDNN_VERSION=9.20.0.46-1
 
 ARG VPI_VERSION=4.1.6
 
@@ -41,6 +42,83 @@ ARG OPENTELEMETRY_CPP_VERSION=v1.23.0
 ARG OPENTELEMETRY_BUILD_JOBS
 
 ENV DS_VERSION=9.2
+
+# CUDA 13.2 Update 2 components are independently versioned. Do not install
+# cuda/cuda-runtime (driver dependencies) or the toolkit's Nsight/GUI tools.
+# These packages come from the image apt repositories during docker build.
+# There is no separate CUDA tarball to stage.
+RUN set -eu; \
+    cuda_packages="\
+        cuda-compiler-13-2=13.2.2-1 \
+        cuda-libraries-13-2=13.2.2-1 \
+        cuda-libraries-dev-13-2=13.2.2-1 \
+        cuda-cccl-13-2=13.2.86-1 \
+        cuda-crt-13-2=13.2.86-1 \
+        cuda-cudart-13-2=13.2.86-1 \
+        cuda-cudart-dev-13-2=13.2.86-1 \
+        cuda-culibos-13-2=13.2.86-1 \
+        cuda-culibos-dev-13-2=13.2.86-1 \
+        cuda-cuobjdump-13-2=13.2.86-1 \
+        cuda-cupti-13-2=13.2.86-1 \
+        cuda-cupti-dev-13-2=13.2.86-1 \
+        cuda-cuxxfilt-13-2=13.2.86-1 \
+        cuda-driver-dev-13-2=13.2.86-1 \
+        cuda-gdb-13-2=13.2.86-1 \
+        cuda-nvcc-13-2=13.2.86-1 \
+        cuda-nvdisasm-13-2=13.2.86-1 \
+        cuda-nvml-dev-13-2=13.2.86-1 \
+        cuda-nvprune-13-2=13.2.86-1 \
+        cuda-nvrtc-13-2=13.2.86-1 \
+        cuda-nvrtc-dev-13-2=13.2.86-1 \
+        cuda-nvtx-13-2=13.2.86-1 \
+        cuda-profiler-api-13-2=13.2.86-1 \
+        cuda-sanitizer-13-2=13.2.87-1 \
+        cuda-tileiras-13-2=13.2.86-1 \
+        cuda-toolkit-13-2-config-common=13.2.86-1 \
+        cuda-toolkit-13-config-common=13.2.86-1 \
+        cuda-toolkit-config-common=13.2.86-1 \
+        libcublas-13-2=13.4.1.3-1 \
+        libcublas-dev-13-2=13.4.1.3-1 \
+        libcudla-13-2=13.2.86-1 \
+        libcudla-dev-13-2=13.2.86-1 \
+        libcufft-13-2=12.2.0.57-1 \
+        libcufft-dev-13-2=12.2.0.57-1 \
+        libcufile-13-2=1.17.1.22-1 \
+        libcufile-dev-13-2=1.17.1.22-1 \
+        libcuobjclient-13-2=1.1.1.22-1 \
+        libcuobjclient-dev-13-2=1.1.1.22-1 \
+        libcurand-13-2=10.4.2.66-1 \
+        libcurand-dev-13-2=10.4.2.66-1 \
+        libcusolver-13-2=12.2.0.11-1 \
+        libcusolver-dev-13-2=12.2.0.11-1 \
+        libcusparse-13-2=12.7.10.12-1 \
+        libcusparse-dev-13-2=12.7.10.12-1 \
+        libnpp-13-2=13.1.0.59-1 \
+        libnpp-dev-13-2=13.1.0.59-1 \
+        libnvfatbin-13-2=13.2.86-1 \
+        libnvfatbin-dev-13-2=13.2.86-1 \
+        libnvjitlink-13-2=13.2.86-1 \
+        libnvjitlink-dev-13-2=13.2.86-1 \
+        libnvjpeg-13-2=13.1.0.59-1 \
+        libnvjpeg-dev-13-2=13.1.0.59-1 \
+        libnvptxcompiler-13-2=13.2.86-1 \
+        libnvvm-13-2=13.2.86-1"; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends --allow-downgrades ${cuda_packages}; \
+    set --; \
+    for specification in ${cuda_packages}; do \
+        package="${specification%%=*}"; \
+        test "$(dpkg-query -W -f '${db:Status-Status}=${Version}' "$package")" = "installed=${specification#*=}"; \
+        set -- "$@" "$package"; \
+    done; \
+    apt-mark hold "$@"; \
+    update-alternatives --set cuda /usr/local/cuda-13.2; \
+    /usr/local/cuda-13.2/bin/nvcc --version | grep -F 'V13.2.86'; \
+    rm -rf /var/lib/apt/lists/*; \
+    ldconfig
+
+ENV CUDA_VERSION=13.2.2
+ENV PATH="/usr/local/cuda-13.2/bin:${PATH}"
 
 # =============================================================================
 # INITIAL SETUP AND PACKAGE EXTRACTION
@@ -126,6 +204,7 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
         python3-apt \
         python3-full \
         python3-pip \
+        python3-yaml \
         libssh-4 \
         libbinutils \
         binutils \
@@ -220,6 +299,8 @@ RUN pip3 install httpcore==1.0.9 && \
 # VPI AND L4T GSTREAMER INSTALLATION
 # =============================================================================
 
+# VPI 4.1.6 comes from the debs staged in sbsa_dockerfiles/vpi. The SBSA runtime
+# links libcuda.so.1 in addition to the system loader libraries.
 # The NVIDIA GStreamer plugins (nvidia-l4t-gstreamer) come from the public
 # Jetson apt repository, the same source the Jetson dockerfiles use; the public
 # BSP does not ship the package. It is downloaded and unpacked rather than
@@ -227,8 +308,10 @@ RUN pip3 install httpcore==1.0.9 && \
 # in the Tegra platform stack that an SBSA container has no use for. It is
 # pinned to the version extract_packages.sh read from the BSP, so the plugins
 # match the Tegra libraries they load, and is unpacked next to the BSP output
-# for the library setup step below. The Jetson apt list is removed afterwards
-# so it cannot shadow Ubuntu packages in any later layer.
+# for the library setup step below. While that Jetson repository is configured,
+# cuDNN is downgraded from the Triton 9.21.0.82-1 packages to the JetPack 7.2.2
+# arm64 packages at 9.20.0.46-1 and held. The Jetson apt list is removed
+# afterwards so it cannot shadow Ubuntu packages in any later layer.
 RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     set -eux; \
     mkdir -p /tmp/temp_l4t_gst; \
@@ -259,14 +342,24 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     dpkg-deb -x nvidia-l4t-gstreamer_*_arm64.deb /tmp/output_extract/loc/; \
     cd /tmp; \
     rm -rf /tmp/temp_l4t_gst; \
+    apt-get install -y --no-install-recommends --allow-downgrades \
+        libcudnn9-cuda-13=${CUDNN_VERSION} \
+        libcudnn9-dev-cuda-13=${CUDNN_VERSION} \
+        libcudnn9-headers-cuda-13=${CUDNN_VERSION}; \
+    apt-mark hold libcudnn9-cuda-13 libcudnn9-dev-cuda-13 libcudnn9-headers-cuda-13; \
+    for package in libcudnn9-cuda-13 libcudnn9-dev-cuda-13 libcudnn9-headers-cuda-13; do \
+        test "$(dpkg-query -W -f '${Version}' "$package")" = "${CUDNN_VERSION}"; \
+    done; \
+    test -e /usr/lib/aarch64-linux-gnu/libcudnn.so.9.20.0; \
+    ln -sfn libcudnn.so.9.20.0 /usr/lib/aarch64-linux-gnu/libcudnn.so; \
     rm -f /etc/apt/sources.list.d/nvidia-l4t.list; \
     rm -rf /var/lib/apt/lists/*; \
     ldconfig; \
     vpi_so="$(ldconfig -p | awk '/libnvvpi\.so\.4 /{print $NF; exit}')"; \
     test -n "${vpi_so}"; \
-    vpi_needed="$(readelf -d "${vpi_so}" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | grep -vxE 'libc\.so\.6|libm\.so\.6|ld-linux-aarch64\.so\.1' || true)"; \
+    vpi_needed="$(readelf -d "${vpi_so}" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | grep -vxE 'libc\.so\.6|libm\.so\.6|ld-linux-aarch64\.so\.1|libcuda\.so\.1' || true)"; \
     if [ -n "${vpi_needed}" ]; then \
-        echo "error: ${vpi_so} links non-system libraries, so it is not the SBSA build:" >&2; \
+        echo "error: ${vpi_so} links Tegra or other non-SBSA libraries:" >&2; \
         echo "${vpi_needed}" >&2; \
         exit 1; \
     fi
@@ -303,26 +396,36 @@ RUN ln -s /usr/lib/aarch64-linux-gnu/libnvidia-encode.so.1 /usr/lib/aarch64-linu
 #
 # Fixing: libnvscibuf.so to be present in /usr/lib/aarch64-linux-gnu
 # The BSP copies of libnvbufsurface, libnvbufsurftransform and libnvcuvidv4l2
-# do not understand SBSA context. The DS SBSA
-# package ships SBSA-aware builds in its lib/ directory, and they replace the
-# BSP copies in tegra/ before install.sh runs: install.sh overwrites
-# lib/libnvbufsurface.so and lib/libnvbufsurftransform.so with symlinks into
-# the Tegra library directory, which would otherwise discard the SBSA builds.
-# The symlinks are then pinned to tegra/ (install.sh picks nvidia/ instead
-# whenever that directory exists) and checked, so a wrong resolution fails the
-# build instead of shipping the BSP libraries.
+# do not understand SBSA context. The published SDK tarball does not ship those
+# binaries, so the SBSA builds staged from sbsa_specific_files replace the BSP
+# copies in tegra/ before install.sh runs. install.sh then points
+# lib/libnvbufsurface.so and lib/libnvbufsurftransform.so at that Tegra
+# directory. The symlinks are pinned to tegra/ afterward and checked, so a
+# wrong resolution fails the build instead of shipping the BSP libraries.
 RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     set -eux; \
     ls -ltr /tmp/docker/; \
-    tar -xf /tmp/docker/deepstream_sdk_v*_sbsa.tbz2 -C /; \
+    tar -xf /tmp/docker/deepstream_sdk_v9.2.1_sbsa.tbz2 -C /; \
     ds_lib=/opt/nvidia/deepstream/deepstream/lib; \
     tegra_lib=/usr/lib/aarch64-linux-gnu/tegra; \
     for lib in libnvbufsurface libnvbufsurftransform; do \
+        test -s "/tmp/docker/${lib}.so.1.0.0"; \
+        magic=$(od -An -t x1 -N 4 "/tmp/docker/${lib}.so.1.0.0" | tr -d ' \n'); \
+        if [ "$magic" != 7f454c46 ]; then \
+            echo "Error: ${lib}.so.1.0.0 is not an ELF library. A Git LFS pointer was staged." >&2; \
+            exit 1; \
+        fi; \
         rm -f "${tegra_lib}/${lib}.so" "${tegra_lib}/${lib}.so.1.0.0"; \
-        cp "${ds_lib}/${lib}.so" "${tegra_lib}/${lib}.so.1.0.0"; \
+        cp "/tmp/docker/${lib}.so.1.0.0" "${tegra_lib}/${lib}.so.1.0.0"; \
         ln -s "${lib}.so.1.0.0" "${tegra_lib}/${lib}.so"; \
     done; \
-    cp --remove-destination "${ds_lib}/libnvcuvidv4l2.so" "${tegra_lib}/libnvcuvidv4l2.so"; \
+    test -s /tmp/docker/libnvcuvidv4l2.so; \
+    magic=$(od -An -t x1 -N 4 /tmp/docker/libnvcuvidv4l2.so | tr -d ' \n'); \
+    if [ "$magic" != 7f454c46 ]; then \
+        echo "Error: libnvcuvidv4l2.so is not an ELF library. A Git LFS pointer was staged." >&2; \
+        exit 1; \
+    fi; \
+    cp --remove-destination /tmp/docker/libnvcuvidv4l2.so "${tegra_lib}/libnvcuvidv4l2.so"; \
     /opt/nvidia/deepstream/deepstream/install.sh; \
     for lib in libnvbufsurface.so libnvbufsurftransform.so; do \
         test -e "${tegra_lib}/${lib}"; \
@@ -338,8 +441,7 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
 # TRITON CLIENT, PROTOBUF AND HALF
 # =============================================================================
 
-# Install the published aarch64 Triton client so an SBSA build cannot receive
-# host-architecture client binaries.
+# Install Triton client SDK (aarch64), protobuf and half libs.
 RUN set -eux; \
     if [ "${TARGETARCH:-}" != "arm64" ]; then \
         echo "This Dockerfile path expects SBSA/arm64 Triton client libraries; got TARGETARCH=${TARGETARCH:-unset}" >&2; \

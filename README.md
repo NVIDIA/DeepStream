@@ -54,7 +54,7 @@ Before building, ensure the following prerequisites are installed:
 
   > **Note:** After a successful build, `artifacts/` is removed automatically. Pass `--keep-assets` to retain them.
 
-> **SBSA / DGX Spark:** DeepStream bare-metal installation is not supported on SBSA. Build and validation must be done inside the NVIDIA SBSA Docker container, which ships with DeepStream pre-installed — `build/build.sh` is **not required** inside the container. If you modify an open-source component, run `make && make install` in that component's directory to deploy the updated binaries/libs. See [build/BUILD.md](build/BUILD.md).
+> **SBSA / DGX Spark:** DeepStream bare-metal installation is not supported on SBSA. Build and validation must be done inside the NVIDIA SBSA Docker container, which ships with DeepStream pre-installed — `build/build.sh` is **not required** inside the container. If you modify an open-source component, run `make && make install` in that component's directory to deploy the updated binaries/libs. Build that container with the existing `$ADDVAR99`, `setup_sbsa_build.sh`, and `buildsbsa.sh` steps in [deepstream_dockers/README.md](deepstream_dockers/README.md) section 5. See [build/BUILD.md](build/BUILD.md).
 
 # Getting Started
 
@@ -96,9 +96,13 @@ stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
 matching development and runtime inputs. Provision the matching Triton client SDK
 as described in [the build guide](build/BUILD.md); the build does not pull Docker
 images automatically. For optional container creation, x86 uses matching
-Triton 26.10 runtime/client-SDK images. SBSA follows the Jetson Docker recipe
-with Triton 26.04 and the local TensorRT 11.4.1.31 repository package. See
-[Docker build instructions](deepstream_dockers/README.md).
+Triton 26.10 runtime/client-SDK images. SBSA uses the same staging steps in
+[Docker build instructions](deepstream_dockers/README.md) section 5: place the
+BSP, GStreamer libraries, TensorRT repository package, and VPI 4.1.6 packages
+under `$ADDVAR99`, place the three SBSA media libraries in
+`deepstream_dockers/sbsa_specific_files/`, then run `setup_sbsa_build.sh` and
+`buildsbsa.sh`. That image is Triton 26.04, CUDA 13.2.2, TensorRT 11.4.1.31,
+cuDNN 9.20.0.46-1, and VPI 4.1.6.
 
 The published `9.2.0` artifact pins below remain unchanged until reviewed matching
 assets are available. Do not treat an older opaque binary bundle as rebuilt for
