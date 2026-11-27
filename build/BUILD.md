@@ -24,10 +24,11 @@ install directory remains `deepstream-9.2`. Published release-asset pins remain
 independent of this source version. A version bump does not rebuild or relabel
 existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
 
-The x86 upgrade candidate follows Triton26.10's core versions:
-CUDA **13.4.3**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**. Jetson retains
-JetPack **7.2.2+**; Jetson and SBSA select CUDA **13.2.2**, TensorRT **11.4.1.31** and cuDNN
-**9.20.0.46**. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
+The x86 upgrade candidate follows Triton 26.10's core versions:
+CUDA **13.4.3**, TensorRT **11.4.0.106-1+cuda13.4** and cuDNN **9.27.0.42-1**.
+Jetson uses CUDA **13.2**, TensorRT **11.4.1.31-1+cuda13.2** and cuDNN
+**9.20.0.46-1**. The SBSA container follows that Jetson BSP stack for the driver,
+CUDA, TensorRT and cuDNN. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
 declared build targets, not completed build/runtime qualification. IGX's separate
 legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
@@ -90,22 +91,20 @@ its supported container. Current upgrade targets are:
 
 | Platform | OS | Driver | CUDA | cuDNN | TensorRT |
 |---|---|---|---|---|---|
-| x86 dGPU | Ubuntu 24.04 | 615.71.09+; qualify target driver | 13.4.3 | 9.27.0.42 | 11.4.0.106 |
-| Jetson (aarch64) | JetPack7.2.2+ matching BSP | — (bundled) | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
+| x86 dGPU | Ubuntu 24.04 | 620.70.06 | 13.4.3 | 9.27.0.42-1 | 11.4.0.106-1+cuda13.4 |
+| Jetson (aarch64) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46-1 | 11.4.1.31-1+cuda13.2 |
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
-| SBSA / DGX Spark | Ubuntu24.04-based matching DS container | 615.71.09+; qualify target driver | 13.2.2 | 9.20.0.46 | 11.4.1.31 |
+| ARM SBSA / DGX Spark (container only) | Ubuntu 24.04 | Jetson BSP stack | Jetson BSP stack | Jetson BSP stack | Jetson BSP stack |
 
-The x86/SBSA host-driver target is **620.70.06**, separate from the minimum above.
-Its `nvidia-smi` CUDA UMD **13.5** reading describes driver capability; the toolkits
-are **13.4.3** on x86 and **13.2.2** on SBSA. Jetson retains its JetPack-supplied
-driver and **13.2.2** toolkit.
+The CUDA column is the toolkit/build version. x86 uses CUDA Toolkit **13.4.3**.
+With driver **620.70.06**, `nvidia-smi` may report CUDA UMD **13.5**. That reading
+is driver capability, not the installed toolkit. IGX Thor stays on IGX-SW 2.0 GA.
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
 > **Docker users:** use a reviewed image matching the selected upgrade stack and
-> SDK binaries. An older DeepStream9.2 image is not automatically compatible
-> merely because the install directory still ends in `9.2`. Stock Triton26.10 is
-> an x86 candidate, not a Jetson/SBSA JP7.2.2/TRT11.4.1 provider. Containers still
+> SDK binaries. An older DeepStream 9.2 image is not automatically compatible
+> merely because the install directory still ends in `9.2`. Containers still
 > require a supported host driver/BSP.
 
 ### Matching Triton client SDK and VPI inputs
@@ -597,12 +596,26 @@ Clean old component objects explicitly before a stack change, then run without
 `--resume`; recording new stage identity does not itself rebuild stale objects.
 
 To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
-the install tree uses the truncated `MAJOR.MINOR` form). Proprietary-library and
-sample-data filenames stay at `9.2.0` unless `GITHUB_ASSET_VERSION` is set. By
-default those files are downloaded from
-`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`. Set
-`GITHUB_RELEASE_BASE` to another directory to fetch the same filenames from
-there. The override is the directory itself; it does not append
+the install tree uses the truncated `MAJOR.MINOR` form).
+
+An x86 or Jetson build downloads the proprietary DeepStream binaries and the
+sample-data package before it compiles. Point `GITHUB_RELEASE_BASE` at the
+directory that contains those packages, and set `GITHUB_ASSET_VERSION` to the
+version in their filenames:
+
+```bash
+export GITHUB_RELEASE_BASE='https://<url where deepstream-binaries-aarch64_9.2.1_arm64.deb (required for Jetson), deepstream-binaries-x86_9.2.1_amd64.deb (required for x86), and deepstream-sample-data_9.2.1.deb (required for both x86 and Jetson) are available>'
+export GITHUB_ASSET_VERSION=9.2.1
+bash build/build.sh --package
+```
+
+This assumes the user can download from the URL in `GITHUB_RELEASE_BASE`.
+If `GITHUB_RELEASE_BASE` and `GITHUB_ASSET_VERSION` are not set, the build uses
+its default asset location,
+`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`, and filename
+version `9.2.0`. The asset location must contain the correct DeepStream binaries
+for the platform being built. Otherwise export both variables with the correct
+values. `GITHUB_RELEASE_BASE` is the directory itself; it does not append
 `GITHUB_RELEASE_TAG`.
 
 ```bash
@@ -704,7 +717,10 @@ repo sources (`includes/`, `sources/`, helper scripts).
 
 Add `--package` (or `--package-format=`) to `build/build.sh`. Packaging runs
 automatically at the very end, but **only** after a full build succeeds (it is
-skipped for `--only=` scoped builds and never runs if any stage failed):
+skipped for `--only=` scoped builds and never runs if any stage failed). For the
+x86 and Jetson proprietary binaries, set `GITHUB_RELEASE_BASE` and
+`GITHUB_ASSET_VERSION` as shown in [Build and Install](#build-and-install)
+before this command:
 
 ```bash
 # Full build, then emit both .deb and .tbz2 into build/
