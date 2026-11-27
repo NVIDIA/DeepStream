@@ -217,7 +217,7 @@ Both Jetson images install TensorRT ``11.4.1.31-1+cuda13.4`` from [nv-tensorrt-l
 
 ## 3.1.1 Jetson requires JetPack 7.2.2 to run the dockers on Jetson
 
-The Jetson Dockerfiles install L4T packages ``39.2.2-20261112230500`` and set ``L4T_RELEASE`` to ``r39.2``.
+The Jetson Dockerfiles use Jetson Linux 39.2.2 and set ``L4T_RELEASE`` to ``r39.2``.
 More information is at [JetPack](https://developer.nvidia.com/embedded/jetpack).
 
 ## 3.1.2 Jetson build setup for x86 cross compile
@@ -327,8 +327,8 @@ cp /path/to/Jetson_Linux_R39.2.2_aarch64.tbz2 $ADDVAR99/sbsa/bsp/
 ```
 
 Keep exactly one ``Jetson_Linux_R*_aarch64.tbz2`` in that directory; the setup script and the Dockerfile
-both stop if they find none or more than one. The BSP package version must match
-``39.2.2-20261112230500``, as in the Jetson Dockerfiles.
+both stop if they find none or more than one. Use the Jetson Linux 39.2.2 Driver Package, the same
+release as the Jetson Dockerfiles.
 
 ``setup_sbsa_build.sh`` copies the BSP into the build context, and the Dockerfile runs
 ``extract_packages.sh`` inside the container to unpack the Tegra libraries from it. The NVIDIA
