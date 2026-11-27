@@ -19,7 +19,7 @@ limitations under the License.
 
 ## Build
 ```bash
-  $ export CUDA_VER=13.2
+  $ export CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
 ```
 
 ### Release build

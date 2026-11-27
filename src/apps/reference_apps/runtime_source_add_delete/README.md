@@ -35,7 +35,7 @@ The app can be built by the [repository build](../../../../build/BUILD.md)
 The app can also be built separatedly by the following commands:
 ```
   $ Set CUDA_VER in the MakeFile as per platform.
-      CUDA_VER=13.2
+      CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
   $ sudo make
 ```
 The app run command may be different on different devices:

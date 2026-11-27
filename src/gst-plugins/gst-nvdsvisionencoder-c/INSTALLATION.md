@@ -46,7 +46,7 @@ The plugin follows DeepStream naming conventions:
 ```bash
 # from the repository root
 cd src/gst-plugins/gst-nvdsvisionencoder-c
-export CUDA_VER=13.2        # use 13.0 on IGX Thor; the Makefile fails if unset
+export CUDA_VER=13.4        # x86. Use 13.2 on Jetson, SBSA and IGX Thor. The Makefile fails if unset.
 make clean
 make -j$(nproc)
 ```

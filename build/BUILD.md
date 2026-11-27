@@ -25,16 +25,17 @@ independent of this source version. A version bump does not rebuild or relabel
 existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
 
 The x86 upgrade candidate follows Triton 26.10's core versions:
-CUDA **13.4.3**, TensorRT **11.4.0.106-1** and cuDNN **9.27.0.42**.
-Jetson uses CUDA **13.2**, TensorRT **11.4.1.31-1** and cuDNN
+CUDA **13.4**, TensorRT **11.4.0.106** and cuDNN **9.27.0.42**.
+Jetson uses CUDA **13.2**, TensorRT **11.4.1.31** and cuDNN
 **9.20.0.46**. The SBSA container uses the same driver, CUDA, TensorRT and
-cuDNN versions as Jetson. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
-declared build targets, not completed build/runtime qualification. IGX's separate
-legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
+cuDNN versions as Jetson. Jetson uses driver **595.113**. IGX uses driver
+**595.78** and the Jetson CUDA, TensorRT and cuDNN versions. ARM uses VPI **4.1.6**;
+x86 uses VPI **4.1.4**. These are declared build targets, not completed
+build/runtime qualification. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
 `CUDA_VER` selects the toolkit **family directory** (`13.4` x86, `13.2`
-Jetson/SBSA), not the full release. Install the full matching toolkit separately;
-setting `CUDA_VER=13.4` does not prove that CUDA13.4.3 is installed. Explicit
+Jetson/SBSA/IGX). Install the matching toolkit separately; setting `CUDA_VER=13.4`
+selects that family and does not by itself install the toolkit. Explicit
 environment or command-line `CUDA_VER` overrides are retained. TensorRT selection
 is passed as `TRT_VER`; `CUDNN_VERSION` records the declared baseline only, not a
 package installation or verification result. `pyservicemaker` remains **0.0.1**.
@@ -42,7 +43,8 @@ Explicit `VPI_DIR`, `TORCH_PATH`, `TRT_INCLUDE_DIR`, `TRT_LIB_DIR`,
 `EIGEN_INCLUDE_DIR`, `JSON_INCLUDE_DIR` and `DEEPSTREAM_VARIANT` environment
 overrides are forwarded as individual Make arguments for build and install,
 including when `sudo` filters the invoking environment. ARM builds otherwise
-pass the detected `tegra`, `sbsa` or unchanged legacy `igx` variant explicitly.
+pass the detected `tegra`, `sbsa` or `igx` variant explicitly. IGX uses the
+Jetson CUDA, TensorRT and cuDNN versions. Its driver is **595.78**.
 
 Use matching runtime binaries for the selected upgrade stack. Do not combine
 these sources with opaque binaries from an older TensorRT stack merely because
@@ -91,14 +93,15 @@ its supported container. Current upgrade targets are:
 
 | Platform | OS | Driver | CUDA | cuDNN | TensorRT |
 |---|---|---|---|---|---|
-| x86 dGPU | Ubuntu 24.04 | 620.70.06 | 13.4.3 | 9.27.0.42 | 11.4.0.106-1 |
-| Jetson (aarch64) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31-1 |
-| IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
-| ARM SBSA / DGX Spark (container only) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31-1 |
+| x86 dGPU | Ubuntu 24.04 | 620.70.06 | 13.4 | 9.27.0.42 | 11.4.0.106 |
+| Jetson (aarch64) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31 |
+| IGX Thor (aarch64) | Ubuntu 24.04 | 595.78 | 13.2 | 9.20.0.46 | 11.4.1.31 |
+| ARM SBSA / DGX Spark (container only) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31 |
 
-The CUDA column is the toolkit/build version. x86 uses CUDA Toolkit **13.4.3**.
+The CUDA column is the toolkit/build version. x86 uses CUDA Toolkit **13.4**.
 With driver **620.70.06**, `nvidia-smi` may report CUDA UMD **13.5**. That reading
-is driver capability, not the installed toolkit. IGX Thor stays on IGX-SW 2.0 GA.
+is driver capability, not the installed toolkit. Jetson uses driver **595.113**.
+IGX uses driver **595.78** and the Jetson CUDA, cuDNN and TensorRT versions.
 
 For installation instructions, refer to the official [DeepStream SDK Installation Guide](https://docs.nvidia.com/deepstream/9.2/text/DS_Installation).
 
@@ -195,7 +198,7 @@ When `TORCH_PATH` is unset, the existing default PyTorch installation is retaine
 ARM must already have genuine matching **VPI4.1.6** development headers at
 `/opt/nvidia/vpi4` (or `VPI_DIR`). Missing/mismatched headers fail rather than
 adding an x86 repository or guessing a vendor download. Provision the target
-vendor VPI runtime independently. IGX keeps its separate legacy VPI stack.
+vendor VPI runtime independently. IGX uses the same VPI 4.1.6 stack as Jetson.
 The x86 installer selects matching **4.1.4** `libnvvpi4` and `vpi4-dev` packages,
 or an explicit matching `VPI_DIR`; it respects holds and refuses silent downgrades.
 It stages `libnvvpi.so.4.1.4` with relative aliases in the SDK, whose library path
@@ -552,8 +555,8 @@ bash build/build.sh --deepstream-libraries-wheel=artifacts
 bash build/build.sh --deepstream-libraries-wheel-version=1.4
 ```
 
-Default toolkit families are `13.4` for x86, `13.2` for Jetson/SBSA and unchanged
-`13.0` for IGX Thor. Set `CUDA_VER` explicitly when selecting another supported
+Default toolkit families are `13.4` for x86 and `13.2` for Jetson, SBSA and IGX.
+Set `CUDA_VER` explicitly when selecting another supported
 toolkit family; environment and CLI overrides are not overwritten:
 
 ```bash
@@ -563,16 +566,14 @@ CUDA_VER=13.4 bash build/build.sh
 Offline `--package-from --package-platform=jetson|sbsa|x86|igx` uses the selected
 package target's defaults, not the packaging host's defaults. It still bypasses
 dependency installation, compilation, stage state and system integration.
-The legacy `igx` target retains CUDA 13.0 and requires an explicit full TensorRT10
-`TRT_VER` for offline packaging. Native IGX packaging can instead read the selected
-`NvInferVersion.h` (`TRT_INCLUDE_DIR`, default `/usr/include/aarch64-linux-gnu`;
-preprocessed with `CC`, default `cc`). Its inference runtime must be ARM64/TRT10;
-the other three targets still require TRT11. The ELF check does not prove the
-declared full TensorRT patch/build provenance. IGX tarballs use the `_igx` suffix,
-not `_jetson`; the existing ARM reduced OCR/Sparse4D payload default is unchanged.
-The packaged IGX Triton helper also requires an explicit matching server/client
-archive pair qualified separately for the legacy IGX stack; it guesses no URL
-and does not establish compatibility merely from matching release numbers.
+IGX uses the Jetson CUDA, TensorRT and cuDNN versions: CUDA 13.2, TensorRT
+11.4.1.31 and cuDNN 9.20.0.46. Its driver is 595.78. Jetson's driver is 595.113.
+Its inference runtime must be ARM64 and TensorRT 11, the same requirement as
+Jetson. The ELF check does not prove the declared full TensorRT patch/build
+provenance. IGX tarballs use the `_igx` suffix, not `_jetson`; the existing ARM
+reduced OCR/Sparse4D payload default is unchanged. The packaged IGX Triton helper
+uses the Jetson Triton selection. It guesses no URL and does not establish
+compatibility merely from matching release numbers.
 
 Supply materialized runtime directories (`bin`, `lib`, `samples`, `service-maker`
 and optional `sources/sparse4d`). Top-level directory aliases and nested directory

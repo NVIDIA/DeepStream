@@ -114,12 +114,12 @@ version and `--arch aarch64` to cross-compile. Override `PYBIND11_ROOT` or
 
 ### Building the core library or engine alone
 
-`sources/core` and `sources/engine` use Makefiles rather than CMake:
+`sources/core` and `sources/engine` use Makefiles rather than CMake. x86 uses `CUDA_VER=13.4`. Jetson, SBSA and IGX use `CUDA_VER=13.2`.
 
 ```bash
-make -C sources/core/src/gst/utils CUDA_VER=13.2
-make -C sources/core CUDA_VER=13.2
-make -C sources/engine CUDA_VER=13.2
+make -C sources/core/src/gst/utils CUDA_VER=13.4
+make -C sources/core CUDA_VER=13.4
+make -C sources/engine CUDA_VER=13.4
 sudo make -C sources/core install     # and likewise for the others
 ```
 

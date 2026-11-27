@@ -140,7 +140,7 @@ And then run the app with the command:
 ```
 export CUDA_MODULE_LOADING=LAZY
 $ export CUDA_VER=<cuda_version>
-    CUDA_VER=13.2
+    CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
 make
 ```
 ## Run

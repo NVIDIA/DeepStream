@@ -46,18 +46,18 @@ sudo apt-get install libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev libjso
 
 ## Build and install
 
-The repo's build discovers the plug-in automatically:
+The repo's build discovers the plug-in automatically. x86 uses `CUDA_VER=13.4`. Jetson, SBSA and IGX use `CUDA_VER=13.2`.
 
 ```bash
-CUDA_VER=13.2 bash build/build.sh --only=gst-plugins
+CUDA_VER=13.4 bash build/build.sh --only=gst-plugins
 ```
 
 To build only this plug-in, first build the REST server and custom-helper dependencies, then run:
 
 ```bash
-CUDA_VER=13.2 make -C src/utils/nvds_rest_server
-CUDA_VER=13.2 make -C src/gst-utils/gstnvdscustomhelper
-CUDA_VER=13.2 make -C src/gst-plugins/gst-nvmodelmux
+CUDA_VER=13.4 make -C src/utils/nvds_rest_server
+CUDA_VER=13.4 make -C src/gst-utils/gstnvdscustomhelper
+CUDA_VER=13.4 make -C src/gst-plugins/gst-nvmodelmux
 ```
 
 The plug-in target is `libnvdsgst_modelmux.so`. To inspect a locally built plug-in:

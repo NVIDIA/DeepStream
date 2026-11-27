@@ -40,8 +40,8 @@
 # Environment overrides (CLI flags take precedence):
 #   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
 #   PKG_VERSION    Package version recorded in control  (default: NVDS_VERSION)
-#   CUDA_VER       Toolkit family override (default: 13.4 x86, 13.2 Jetson/SBSA)
-#   TRT_VER        Full TensorRT build (11 on x86/Jetson/SBSA; 10 on legacy IGX)
+#   CUDA_VER       Toolkit family override (default: 13.4 x86, 13.2 Jetson/SBSA/IGX)
+#   TRT_VER        Full TensorRT build (11.4.0.106 x86; 11.4.1.31 Jetson/SBSA/IGX)
 #   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -102,10 +102,8 @@ Options:
 Environment overrides (CLI flags take precedence):
   NVDS_VERSION   MAJOR.MINOR.PATCH (default: 9.2.1)
   PKG_VERSION    Package version recorded in control   (default: NVDS_VERSION)
-  CUDA_VER       Toolkit family override (13.4 x86, 13.2 Jetson/SBSA)
-  TRT_VER        Full TensorRT version (11.4.0.106 x86, 11.4.1.31 Jetson/SBSA)
-                 Legacy IGX requires a selected TRT10 build; native IGX can read
-                 NvInferVersion.h using TRT_INCLUDE_DIR and CC (default: cc).
+  CUDA_VER       Toolkit family override (13.4 x86, 13.2 Jetson/SBSA/IGX)
+  TRT_VER        Full TensorRT version (11.4.0.106 x86, 11.4.1.31 Jetson/SBSA/IGX)
   SKIP_SPARSE4D_OCR  0|1 (default: 1 ARM engineering payload, 0 x86)
 EOF
 }
@@ -157,31 +155,6 @@ is_native_igx_system() {
   [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]
 }
 
-# The legacy IGX profile intentionally has no guessed full TensorRT default.
-# Only its native header can supply an omitted build; offline repackaging must
-# declare TRT_VER rather than accidentally inspecting the packaging host.
-read_trt_header_version() {
-  local header="${TRT_INCLUDE_DIR-/usr/include/aarch64-linux-gnu}/NvInferVersion.h"
-  local definitions part value version=
-  [[ -r "$header" ]] || {
-    echo "error: cannot read $header; select the full IGX TensorRT10 build with TRT_VER" >&2
-    return 1
-  }
-  definitions=$("${CC-cc}" -dM -E -x c -include "$header" /dev/null) || {
-    echo 'error: cannot preprocess the selected IGX TensorRT version header' >&2
-    return 1
-  }
-  for part in MAJOR MINOR PATCH BUILD; do
-    value=$(awk -v key="NV_TENSORRT_$part" '$1 == "#define" && $2 == key { if (NF == 3) print $3; else print "invalid" }' <<< "$definitions")
-    [[ "$value" =~ ^[0-9]{1,6}$ ]] || {
-      echo "error: invalid or missing NV_TENSORRT_$part in $header" >&2
-      return 1
-    }
-    version+="${version:+.}$value"
-  done
-  printf '%s\n' "$version"
-}
-
 DS_INSTALL_ROOT=/opt/nvidia/deepstream/deepstream-${NVDS_VERSION}
 [[ -z "$RUNTIME_ROOT" ]] || DS_INSTALL_ROOT="$RUNTIME_ROOT"
 if [[ -z "$PLATFORM" ]]; then
@@ -198,23 +171,11 @@ esac
 # package metadata; a same-major SONAME is not exact TensorRT patch provenance.
 case "$PLATFORM" in
   x86) _cuda_default=13.4; _trt_default=11.4.0.106 ;;
-  jetson|sbsa) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
-  igx) _cuda_default=13.0; _trt_default= ;;
+  jetson|sbsa|igx) _cuda_default=13.2; _trt_default=11.4.1.31 ;;
 esac
 PACKAGE_CUDA_VER=${CUDA_VER-$_cuda_default}
 PACKAGE_TRT_VER=${TRT_VER-$_trt_default}
 PACKAGE_TRT_MAJOR=11
-if [[ "$PLATFORM" = igx ]]; then
-  PACKAGE_TRT_MAJOR=10
-  if [[ -z "$PACKAGE_TRT_VER" ]]; then
-    if is_native_igx_system; then
-      PACKAGE_TRT_VER=$(read_trt_header_version)
-    else
-      echo 'error: offline IGX packaging requires an explicit full TensorRT10 TRT_VER' >&2
-      exit 1
-    fi
-  fi
-fi
 if [[ ! "$PACKAGE_CUDA_VER" =~ ^[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
   echo "error: invalid CUDA_VER='$PACKAGE_CUDA_VER' (expected toolkit family, e.g. 13.4)" >&2
   exit 1
@@ -1011,8 +972,6 @@ build_deb() {
   trt_upper="${trt_min%.*}.$((10#${trt_min##*.} + 1))"
   trt_dep="libnvinfer${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-dev (>= ${trt_min}), libnvinfer-dev (<< ${trt_upper}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvonnxparsers${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvonnxparsers-dev (>= ${trt_min}), libnvonnxparsers-dev (<< ${trt_upper}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (>= ${trt_min}), libnvinfer-plugin${PACKAGE_TRT_MAJOR} (<< ${trt_upper}), libnvinfer-plugin-dev (>= ${trt_min}), libnvinfer-plugin-dev (<< ${trt_upper})"
   local vpi_dep='libnvvpi4 (>= 4.1.6), libnvvpi4 (<< 4.1.7~)'
-  # Preserve the legacy IGX dependency contract; do not pull the new Jetson VPI.
-  [[ "$PLATFORM" != igx ]] || vpi_dep=libnvvpi4
   if [[ "$DEB_ARCH" = "arm64" ]]; then
     depends="cuda-cudart-${cuda_deb}, cuda-cudart-dev-${cuda_deb}, libnpp-${cuda_deb}, libnpp-dev-${cuda_deb}, libcufft-${cuda_deb}, libcairo2 (>= 1.16.0), libglib2.0-0 (>= 2.72.4), libgstreamer1.0-0 (>= 1.20.3), libgstreamer1.0-dev (>= 1.20.3), libgstreamer-plugins-base1.0-0 (>= 1.20.1), libgstreamer-plugins-base1.0-dev (>= 1.20.1), ${trt_dep}, libpangocairo-1.0-0 (>= 1.40.14), libx11-6, ${vpi_dep}, libyaml-cpp-dev (>=0.6.2), python3-pip (>=24.0+dfsg-1ubuntu1.1), libpython3.12t64"
     conflicts="deepstream-binaries-aarch64, deepstream-sample-data"

@@ -132,7 +132,7 @@ RUN echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" >> /etc
 
 This might be required to be installed if not already installed on the machine.
 
-See [Cuda Install Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/). Jetson and SBSA use CUDA 13.2.2. The x86 samples image uses CUDA 13.4.3.  
+See [Cuda Install Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/). Jetson and SBSA use CUDA 13.2. The x86 samples image uses CUDA 13.4.  
 
 
 ## 2 Building x86 DS docker images
@@ -158,7 +158,7 @@ The x86 Triton image is ``nvcr.io/nvidia/tritonserver:26.10-py3``. Its TensorRT 
 
 The samples image is ``nvcr.io/nvidia/cuda:13.4.3-cudnn-runtime-ubuntu24.04``. cuDNN comes from that base image, so do not stage a separate cuDNN local-repository package.
 
-Place the TensorRT local repository package in ``./x86_dockerfiles/``. The Dockerfile installs TensorRT ``11.4.0.106-1+cuda13.4`` from it. The ``+cuda13.4`` suffix is the package revision.
+Place the TensorRT local repository package in ``./x86_dockerfiles/``. The Dockerfile installs TensorRT ``11.4.0.106`` from it.
 
 ``cp nv-tensorrt-local-repo-ubuntu2404-11.4.0-cuda-13.4_1.0-1_amd64.deb ./x86_dockerfiles/``
 
@@ -211,7 +211,7 @@ Place the DeepStream 9.2.1 Jetson tarball in ``./jetson_dockerfiles/``:
 
 ``cp deepstream_sdk_v9.2.1_jetson.tbz2 ./jetson_dockerfiles/ ``
 
-Both Jetson images install TensorRT ``11.4.1.31-1+cuda13.4`` from [nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb](https://developer.download.nvidia.com/compute/tensorrt/11.4.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb). The ``+cuda13.4`` suffix is the package revision. The Jetson CUDA toolkit is 13.2.2.
+Both Jetson images install TensorRT ``11.4.1.31`` from [nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb](https://developer.download.nvidia.com/compute/tensorrt/11.4.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb). The Jetson CUDA toolkit is 13.2.
 
 ``cp nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb ./jetson_dockerfiles/``
 
@@ -274,13 +274,13 @@ N/A for DS 9.2.1
 SBSA covers ARM servers with a discrete GPU (GB200, Grace) and DGX Spark — the same image runs on all of them.
 
 There is one SBSA image type, the Triton devel image, built from ``sbsa_dockerfiles/Dockerfile_SBSA_Triton``.
-It follows the Jetson Triton 26.04 base, TensorRT ``11.4.1.31-1+cuda13.4``, and Triton client 2.68.0
-with protobuf/protoc 3.21.12. The TensorRT package suffix does not select the CUDA toolkit.
-The image build installs and holds the Ubuntu 24.04 CUDA 13.2.2 packages (``nvcc`` 13.2.86)
+It follows the Jetson Triton 26.04 base, TensorRT ``11.4.1.31``, and Triton client 2.68.0
+with protobuf/protoc 3.21.12.
+The image build installs and holds the Ubuntu 24.04 CUDA 13.2 packages (``nvcc`` 13.2.86)
 from the image apt repositories. That step does not add a CUDA file to stage, and it does
 not install a host driver or Nsight. cuDNN is pinned to the JetPack 7.2.2 arm64
 packages ``libcudnn9-cuda-13``, ``libcudnn9-dev-cuda-13``, and ``libcudnn9-headers-cuda-13``
-at ``9.20.0.46-1``, because the Triton base ships ``9.21.0.82-1``.
+at ``9.20.0.46``, because the Triton base ships ``9.21.0.82``.
 
 The Jetson Docker recipe provisions the L4T multimedia packages. SBSA instead needs the OpenRM
 multimedia variant and SBSA-specific SDK libraries **baked into the image**. Its build therefore needs
@@ -456,7 +456,7 @@ Expected:
 
 - ``nvcc --version`` reports release 13.2, ``V13.2.86``.
 - Both ``readlink`` lines resolve into ``/usr/lib/aarch64-linux-gnu/tegra/`` (``.so.1.0.0``), the SBSA builds.
-- The three cuDNN packages are version ``9.20.0.46-1``. ``libnvvpi4`` and ``vpi4-dev`` are version ``4.1.6``.
+- The three cuDNN packages are version ``9.20.0.46``. ``libnvvpi4`` and ``vpi4-dev`` are version ``4.1.6``.
 - ``libgstnvvideo4linux2.so`` (``nvv4l2decoder`` / ``nvv4l2encoder``) is present.
 - The only ``not found`` library is ``libcuda.so.1``, which the NVIDIA container runtime mounts from the
   host driver at run time.
@@ -486,7 +486,7 @@ and ``docker load < ds-sbsa.tar.gz``.
 
 The following differences from the x86 and Jetson images are deliberate:
 
-- CUDA 13.2.2 is installed and held during the image build. ``nvcc`` is 13.2.86.
+- CUDA 13.2 is installed and held during the image build. ``nvcc`` is 13.2.86.
 - ``python3-yaml`` is installed so Service Maker can ``import yaml``.
 - ``AARCH64_DGPU=1`` is set, which is how DeepStream distinguishes SBSA from Jetson at run time.
 - The SBSA-aware ``libnvbufsurface``, ``libnvbufsurftransform`` and ``libnvcuvidv4l2`` from

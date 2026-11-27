@@ -70,7 +70,7 @@ This plugin generates ReID (Re-Identification) embeddings for tracked objects us
 Run from this directory (`src/gst-plugins/gst-nvdsvisionencoder-c` in the repository):
 
 ```bash
-export CUDA_VER=13.2        # use 13.0 on IGX Thor
+export CUDA_VER=13.4        # x86. Use 13.2 on Jetson, SBSA and IGX Thor.
 
 # Build the plugin
 make

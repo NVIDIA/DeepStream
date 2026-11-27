@@ -41,6 +41,7 @@ W=$(echo "$INSPECT_OUT"          | grep -oP 'width:\s*\K[0-9]+')
 
 # Detect installed CUDA version for parser compilation
 CUDA_VER=$(ls /usr/local/ 2>/dev/null | grep -oP '^cuda-\K[0-9]+\.[0-9]+$' | sort -V | tail -1)
+# Fallback when no toolkit directory is found: 13.4 on x86, 13.2 on Jetson, SBSA and IGX.
 [ -z "$CUDA_VER" ] && CUDA_VER=13.2
 echo "CUDA_VER=$CUDA_VER"
 

@@ -141,11 +141,11 @@ Packaging (--package / --package-format=):
   both  Both (default).
 
 Environment variables (alternative to CLI):
-  CUDA_VER                Toolkit family (13.4 x86; 13.2 Jetson/SBSA; 13.0 IGX)
+  CUDA_VER                Toolkit family (13.4 x86; 13.2 Jetson/SBSA/IGX)
   TRT_VER                 Selected full TensorRT build (11.4.0.106 x86;
-                          11.4.1.31 Jetson/SBSA; IGX retains its installed legacy stack)
+                          11.4.1.31 Jetson/SBSA/IGX)
   CUDNN_VERSION           Declared cuDNN baseline (9.27.0.42 x86;
-                          9.20.0.46 Jetson/SBSA); does not install/verify compute packages
+                          9.20.0.46 Jetson/SBSA/IGX); does not install/verify compute packages
   NVDS_VERSION            MAJOR.MINOR.PATCH (default: 9.2.1); the install
                           tree uses MAJOR.MINOR only. It does not select the
                           proprietary-libs / sample-data asset names.
@@ -251,15 +251,10 @@ select_stack_defaults() {
       TRT_VER_DEFAULT=11.4.0.106
       CUDNN_VERSION_DEFAULT=9.27.0.42
       ;;
-    jetson|aarch64|sbsa)
+    jetson|aarch64|sbsa|igx)
       CUDA_VER_DEFAULT=13.2
       TRT_VER_DEFAULT=11.4.1.31
       CUDNN_VERSION_DEFAULT=9.20.0.46
-      ;;
-    igx)
-      CUDA_VER_DEFAULT=13.0
-      TRT_VER_DEFAULT=
-      CUDNN_VERSION_DEFAULT=9.12.0.46
       ;;
     *) echo "error: unsupported stack platform '$1'" >&2; exit 1 ;;
   esac
@@ -423,7 +418,7 @@ if [[ ! "$CUDA_VER" =~ ^[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 if [[ -n "$TRT_VER" && ! "$TRT_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
-    [[ -z "$TRT_VER" && "$STACK_PLATFORM" != igx ]]; then
+    [[ -z "$TRT_VER" ]]; then
   echo "error: invalid TRT_VER='$TRT_VER' (expected full upstream major.minor.patch.build)" >&2
   exit 1
 fi

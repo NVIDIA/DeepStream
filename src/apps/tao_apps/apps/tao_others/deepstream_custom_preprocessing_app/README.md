@@ -55,7 +55,7 @@ $ cd deepstream_custom_preprocessing_app
 $ git submodule update --init --recursive
 $ cd nvdspreprocess_lib
 $ export CUDA_VER=<cuda_version>
-    CUDA_VER=13.2
+    CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
 $ make
 ```
 

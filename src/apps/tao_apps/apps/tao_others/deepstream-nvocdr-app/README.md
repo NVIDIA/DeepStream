@@ -39,7 +39,7 @@ Refer to [NVIDIA-Optical-Character-Detection-and-Recognition-Solution](https://g
 # git clone https://github.com/NVIDIA-AI-IOT/NVIDIA-Optical-Character-Detection-and-Recognition-Solution.git nvocdr
 $ git submodule update --init --recursive
 $ export CUDA_VER=<cuda_version>
-    CUDA_VER=13.2
+    CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
 # If building from the DeepStream repository, copy the repository makefile into the nvocdr folder
 $ sudo cp Makefile.nvocdr nvocdr/deepstream/Makefile
 
