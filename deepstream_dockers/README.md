@@ -302,7 +302,7 @@ Ubuntu packages, opentelemetry-cpp and gRPC are downloaded during the build, so 
 
 | Input | Where to get it | Where it goes |
 | --- | --- | --- |
-| Jetson Linux R39.2.2 Driver Package (BSP) | [Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) (section 5.1.2) | ``$ADDVAR99/sbsa/bsp/`` |
+| [Jetson Linux](https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.2/release/Jetson_Linux_R39.2.2_aarch64.tbz2) R39.2.2 Driver Package (BSP) | section 5.1.2 | ``$ADDVAR99/sbsa/bsp/`` |
 | GStreamer prebuilts (3 files) | the DS 9.1 SBSA DeepStream NGC docker (section 5.1.3) | ``$ADDVAR99/sbsa/gst/`` |
 | [nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb](https://developer.download.nvidia.com/compute/tensorrt/11.4.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb) | The same NVIDIA TensorRT repository package used for the Jetson build | ``$ADDVAR99/sbsa/`` |
 | SBSA/dGPU VPI 4.1.6 runtime and development DEBs | Matching NVIDIA SBSA packages providing ``libnvvpi4`` and ``vpi4-dev`` | ``$ADDVAR99/sbsa/vpi/`` |
@@ -319,15 +319,14 @@ mkdir -p $ADDVAR99/sbsa/gst $ADDVAR99/sbsa/bsp $ADDVAR99/sbsa/vpi
 
 ### 5.1.2 Jetson Linux Driver Package (BSP)
 
-Download the **Driver Package (BSP)** for Jetson Linux 39.2.2 from
-[Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) into ``$ADDVAR99/sbsa/bsp/``:
+Download the **Driver Package (BSP)** for [Jetson Linux](https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.2/release/Jetson_Linux_R39.2.2_aarch64.tbz2) 39.2.2 into ``$ADDVAR99/sbsa/bsp/``:
 
 ```
 cp /path/to/Jetson_Linux_R39.2.2_aarch64.tbz2 $ADDVAR99/sbsa/bsp/
 ```
 
 Keep exactly one ``Jetson_Linux_R*_aarch64.tbz2`` in that directory; the setup script and the Dockerfile
-both stop if they find none or more than one. Use the Jetson Linux 39.2.2 Driver Package, the same
+both stop if they find none or more than one. Use the [Jetson Linux](https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.2/release/Jetson_Linux_R39.2.2_aarch64.tbz2) 39.2.2 Driver Package, the same
 release as the Jetson Dockerfiles.
 
 ``setup_sbsa_build.sh`` copies the BSP into the build context, and the Dockerfile runs
