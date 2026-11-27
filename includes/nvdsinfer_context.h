@@ -488,6 +488,16 @@ typedef struct _NvDsInferContextInitParams
      */
     int warmupEngine;
 
+    /** Boolean flag indicating whether to capture TensorRT enqueueV3() in a
+     *  CUDA graph and replay it with cudaGraphLaunch(). Graphs are cached by
+     *  binding device pointers and input shapes, because DeepStream rotates
+     *  output buffers and may supply external input tensors. DLA inference
+     *  ignores this flag. When an engine is built with this flag set, TensorRT
+     *  auxiliary streams are disabled so the captured stream contains the
+     *  whole inference.
+     */
+    int enableCudaGraph;
+
 } NvDsInferContextInitParams;
 
 /**

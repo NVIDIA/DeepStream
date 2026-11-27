@@ -258,6 +258,7 @@ DsNvInferImpl::initNewInferModelParams (NvDsInferContextInitParams & newParams,
       newParams.networkInputFormat = oldParams.networkInputFormat;
       newParams.numOffsets = oldParams.numOffsets;
       memcpy (newParams.offsets, oldParams.offsets, sizeof (newParams.offsets));
+      newParams.enableCudaGraph = oldParams.enableCudaGraph;
       break;
 
     default:
