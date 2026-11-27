@@ -211,7 +211,7 @@ Place the DeepStream 9.2.1 Jetson tarball in ``./jetson_dockerfiles/``:
 
 ``cp deepstream_sdk_v9.2.1_jetson.tbz2 ./jetson_dockerfiles/ ``
 
-Both Jetson images install TensorRT ``11.4.1.31-1+cuda13.4`` from this local repository package. The ``+cuda13.4`` suffix is the package revision. The Jetson CUDA toolkit is 13.2.2.
+Both Jetson images install TensorRT ``11.4.1.31-1+cuda13.4`` from [nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb](https://developer.download.nvidia.com/compute/tensorrt/11.4.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb). The ``+cuda13.4`` suffix is the package revision. The Jetson CUDA toolkit is 13.2.2.
 
 ``cp nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb ./jetson_dockerfiles/``
 
@@ -304,7 +304,7 @@ Ubuntu packages, opentelemetry-cpp and gRPC are downloaded during the build, so 
 | --- | --- | --- |
 | Jetson Linux R39.2.2 Driver Package (BSP) | [Jetson Linux](https://developer.nvidia.com/embedded/jetson-linux) (section 5.1.2) | ``$ADDVAR99/sbsa/bsp/`` |
 | GStreamer prebuilts (3 files) | the DS 9.1 SBSA DeepStream NGC docker (section 5.1.3) | ``$ADDVAR99/sbsa/gst/`` |
-| TensorRT local repository ``nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb`` | The same NVIDIA TensorRT repository package used for the Jetson build | ``$ADDVAR99/sbsa/`` |
+| [nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb](https://developer.download.nvidia.com/compute/tensorrt/11.4.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-11.4.1-cuda-13.4_1.0-1_arm64.deb) | The same NVIDIA TensorRT repository package used for the Jetson build | ``$ADDVAR99/sbsa/`` |
 | SBSA/dGPU VPI 4.1.6 runtime and development DEBs | Matching NVIDIA SBSA packages providing ``libnvvpi4`` and ``vpi4-dev`` | ``$ADDVAR99/sbsa/vpi/`` |
 | ``libnvbufsurface.so.1.0.0``, ``libnvbufsurftransform.so.1.0.0``, ``libnvcuvidv4l2.so`` | Place the SBSA ELF builds in ``sbsa_specific_files/`` before setup (section 5.1.4). They are not in the git checkout. | staged by ``setup_sbsa_build.sh`` |
 | ``deepstream_sdk_v9.2.1_sbsa.tbz2`` | SBSA SDK built for the matching JetPack compute stack (section 5.1.4) | ``$ROOT/sbsa_dockerfiles/`` |
