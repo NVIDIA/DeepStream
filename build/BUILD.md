@@ -25,10 +25,10 @@ independent of this source version. A version bump does not rebuild or relabel
 existing runtime binaries; supply a matching rebuilt runtime for an upgrade drop.
 
 The x86 upgrade candidate follows Triton 26.10's core versions:
-CUDA **13.4.3**, TensorRT **11.4.0.106-1+cuda13.4** and cuDNN **9.27.0.42-1**.
-Jetson uses CUDA **13.2**, TensorRT **11.4.1.31-1+cuda13.2** and cuDNN
-**9.20.0.46-1**. The SBSA container follows that Jetson BSP stack for the driver,
-CUDA, TensorRT and cuDNN. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
+CUDA **13.4.3**, TensorRT **11.4.0.106-1** and cuDNN **9.27.0.42**.
+Jetson uses CUDA **13.2**, TensorRT **11.4.1.31-1** and cuDNN
+**9.20.0.46**. The SBSA container uses the same driver, CUDA, TensorRT and
+cuDNN versions as Jetson. ARM uses VPI **4.1.6**; x86 uses VPI **4.1.4**. These are
 declared build targets, not completed build/runtime qualification. IGX's separate
 legacy stack is not upgraded here. See the [official Triton 26.10 contents](https://docs.nvidia.com/deeplearning/triton-inference-server/release-notes/rel-26-10.html).
 
@@ -91,10 +91,10 @@ its supported container. Current upgrade targets are:
 
 | Platform | OS | Driver | CUDA | cuDNN | TensorRT |
 |---|---|---|---|---|---|
-| x86 dGPU | Ubuntu 24.04 | 620.70.06 | 13.4.3 | 9.27.0.42-1 | 11.4.0.106-1+cuda13.4 |
-| Jetson (aarch64) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46-1 | 11.4.1.31-1+cuda13.2 |
+| x86 dGPU | Ubuntu 24.04 | 620.70.06 | 13.4.3 | 9.27.0.42 | 11.4.0.106-1 |
+| Jetson (aarch64) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31-1 |
 | IGX Thor (aarch64) | IGX-SW 2.0 GA | — (bundled) | 13.0 | 9.12.0.46 | 10.13.x |
-| ARM SBSA / DGX Spark (container only) | Ubuntu 24.04 | Jetson BSP stack | Jetson BSP stack | Jetson BSP stack | Jetson BSP stack |
+| ARM SBSA / DGX Spark (container only) | Ubuntu 24.04 | 595.113 | 13.2 | 9.20.0.46 | 11.4.1.31-1 |
 
 The CUDA column is the toolkit/build version. x86 uses CUDA Toolkit **13.4.3**.
 With driver **620.70.06**, `nvidia-smi` may report CUDA UMD **13.5**. That reading
@@ -805,12 +805,10 @@ Start with CPU-only checks from the repository root:
 python3.12 build/validate_pr.py
 ```
 
-These execute shell syntax checks and the existing `build/test_*.py` and
-`tools/modelopt/test_*.py` unit tests. Use an existing Python environment with
-`numpy` and `onnx` via `--test-python /path/to/venv/bin/python` if needed. This
-keeps CPU test dependencies separate from `--python`, the SDK runtime Python.
-Packaging
-fixtures also need `cc`, `git`, `readelf`, `rsync`, `dpkg-deb`, `tar` and `bzip2`.
+These execute shell syntax checks and the existing `tools/modelopt/test_*.py`
+unit tests. Use an existing Python environment with `numpy` and `onnx` via
+`--test-python /path/to/venv/bin/python` if needed. This keeps CPU test
+dependencies separate from `--python`, the SDK runtime Python.
 Missing dependencies or skipped tests are not a complete pass. No GPU, dependency
 installation or SDK installation is attempted by the default mode.
 
