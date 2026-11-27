@@ -173,7 +173,7 @@ TrtBackendContext::canSupportBatchDims(int bindingIdx,
 }
 
 std::unique_ptr<TrtBackendContext>
-createBackendContext(const std::shared_ptr<TrtEngine>& engine)
+createBackendContext(const std::shared_ptr<TrtEngine>& engine, bool enableCudaGraph)
 {
     if (!engine)
     {
@@ -197,13 +197,18 @@ createBackendContext(const std::shared_ptr<TrtEngine>& engine)
 
     if (engine->hasDla())
     {
+        if (enableCudaGraph)
+        {
+            dsInferWarning("CUDA graph is ignored for a DLA engine");
+        }
         backend = std::make_unique<DlaFullDimTrtBackendContext>(
             std::move(cudaCtx), engine, DEFAULT_CONTEXT_PROFILE_IDX);
     }
     else
     {
         backend = std::make_unique<FullDimTrtBackendContext>(
-            std::move(cudaCtx), engine, DEFAULT_CONTEXT_PROFILE_IDX);
+            std::move(cudaCtx), engine, DEFAULT_CONTEXT_PROFILE_IDX,
+            enableCudaGraph);
     }
 
     if (!backend)
@@ -222,8 +227,9 @@ std::mutex TrtBackendContext::sDLAExecutionMutex;
 
 FullDimTrtBackendContext::FullDimTrtBackendContext(
     std::unique_ptr<nvinfer1::IExecutionContext>&& ctx,
-    std::shared_ptr<TrtEngine> engine, int profile)
-    : TrtBackendContext(std::move(ctx), engine), m_ProfileIndex(profile) {}
+    std::shared_ptr<TrtEngine> engine, int profile, bool enableCudaGraph)
+    : TrtBackendContext(std::move(ctx), engine), m_ProfileIndex(profile),
+      m_EnableCudaGraph(enableCudaGraph) {}
 
 NvDsInferStatus
 FullDimTrtBackendContext::initialize()
@@ -242,6 +248,14 @@ FullDimTrtBackendContext::initialize()
     RETURN_NVINFER_ERROR(
         m_CudaEngine->getFullDimsLayersInfo(m_ProfileIndex, m_AllLayers),
         "Failed to get fullDimLayersInfo of profile idx:%d ", m_ProfileIndex);
+
+    if (m_EnableCudaGraph && (*m_CudaEngine)->getNbAuxStreams() > 0)
+    {
+        dsInferWarning(
+            "Engine uses %d auxiliary streams. CUDA graph capture can fail "
+            "until the engine is rebuilt with cuda-graph=1",
+            (*m_CudaEngine)->getNbAuxStreams());
+    }
 
     /* Set optimal dims as binding dims for all input layers. */
     for (int i = 0; i < (int)(*m_CudaEngine)->getNbIOTensors(); i++)
@@ -345,13 +359,147 @@ FullDimTrtBackendContext::enqueueBuffer(
         return NVDSINFER_TENSORRT_ERROR;
     }
 
-    if (!m_Context->enqueueV3(stream))
+    NvDsInferStatus status = NVDSINFER_SUCCESS;
+    if (m_EnableCudaGraph && !m_CudaGraphDisabled)
+    {
+        status = enqueueCudaGraph(bindingBuffers, stream);
+    }
+    else if (!m_Context->enqueueV3(stream))
     {
         dsInferError("Failed to enqueue trt inference batch");
-        return NVDSINFER_TENSORRT_ERROR;
+        status = NVDSINFER_TENSORRT_ERROR;
     }
+    if (status != NVDSINFER_SUCCESS)
+        return status;
+
     cudaEventRecord(consumeEvent->ptr(), stream);
 
+    return NVDSINFER_SUCCESS;
+}
+
+FullDimTrtBackendContext::CudaGraphKey
+FullDimTrtBackendContext::makeCudaGraphKey(
+    const std::vector<void*>& bindings) const
+{
+    CudaGraphKey key;
+    key.addresses = bindings;
+    for (const auto& layer : m_AllLayers)
+    {
+        if (!layer.isInput)
+            continue;
+        nvinfer1::Dims dims = m_Context->getTensorShape(layer.layerName);
+        key.shapeWords.push_back(dims.nbDims);
+        for (int i = 0; i < dims.nbDims; ++i)
+            key.shapeWords.push_back(static_cast<int32_t>(dims.d[i]));
+    }
+    return key;
+}
+
+NvDsInferStatus
+FullDimTrtBackendContext::enqueueCudaGraph(
+    const std::vector<void*>& bindings, CudaStream& stream)
+{
+    auto fallback = [this, &stream]() -> NvDsInferStatus {
+        m_CudaGraphDisabled = true;
+        cudaGetLastError();
+        if (!m_Context->enqueueV3(stream))
+        {
+            dsInferError("Failed to enqueue trt inference batch");
+            return NVDSINFER_TENSORRT_ERROR;
+        }
+        return NVDSINFER_SUCCESS;
+    };
+
+    /* The first enqueue allocates TensorRT runtime state and is not capturable. */
+    if (!m_CudaGraphWarmed)
+    {
+        if (!m_Context->enqueueV3(stream))
+        {
+            dsInferError("Failed to enqueue trt inference batch");
+            return NVDSINFER_TENSORRT_ERROR;
+        }
+        cudaError_t syncErr = cudaStreamSynchronize(stream);
+        if (syncErr != cudaSuccess)
+        {
+            dsInferError("CUDA graph warmup synchronize failed: %s",
+                cudaGetErrorName(syncErr));
+            return NVDSINFER_CUDA_ERROR;
+        }
+        m_CudaGraphWarmed = true;
+        return NVDSINFER_SUCCESS;
+    }
+
+    const CudaGraphKey key = makeCudaGraphKey(bindings);
+    auto found = m_CudaGraphs.find(key);
+    if (found != m_CudaGraphs.end())
+    {
+        cudaError_t launchErr = cudaGraphLaunch(found->second->exec, stream);
+        if (launchErr != cudaSuccess)
+        {
+            dsInferError("cudaGraphLaunch failed: %s",
+                cudaGetErrorName(launchErr));
+            return NVDSINFER_CUDA_ERROR;
+        }
+        return NVDSINFER_SUCCESS;
+    }
+
+    cudaError_t err = cudaStreamBeginCapture(
+        stream, cudaStreamCaptureModeThreadLocal);
+    if (err != cudaSuccess)
+    {
+        dsInferWarning(
+            "cudaStreamBeginCapture failed (%s). Disabling CUDA graph.",
+            cudaGetErrorName(err));
+        return fallback();
+    }
+
+    if (!m_Context->enqueueV3(stream))
+    {
+        cudaGraph_t discarded = nullptr;
+        cudaStreamEndCapture(stream, &discarded);
+        if (discarded)
+            cudaGraphDestroy(discarded);
+        dsInferWarning(
+            "enqueueV3 during CUDA graph capture failed. Disabling CUDA graph.");
+        return fallback();
+    }
+
+    cudaGraph_t graph = nullptr;
+    err = cudaStreamEndCapture(stream, &graph);
+    if (err != cudaSuccess || graph == nullptr)
+    {
+        if (graph)
+            cudaGraphDestroy(graph);
+        dsInferWarning(
+            "cudaStreamEndCapture failed (%s). Disabling CUDA graph.",
+            cudaGetErrorName(err));
+        return fallback();
+    }
+
+    cudaGraphExec_t exec = nullptr;
+    err = cudaGraphInstantiate(&exec, graph, 0);
+    if (err != cudaSuccess || exec == nullptr)
+    {
+        cudaGraphDestroy(graph);
+        dsInferWarning(
+            "cudaGraphInstantiate failed (%s). Disabling CUDA graph.",
+            cudaGetErrorName(err));
+        return fallback();
+    }
+
+    auto stored = std::make_unique<CudaGraphExec>();
+    stored->graph = graph;
+    stored->exec = exec;
+    cudaGraphExec_t launched = stored->exec;
+    m_CudaGraphs.emplace(key, std::move(stored));
+    dsInferInfo("Captured CUDA graph (%zu cached)", m_CudaGraphs.size());
+
+    err = cudaGraphLaunch(launched, stream);
+    if (err != cudaSuccess)
+    {
+        dsInferError("cudaGraphLaunch failed: %s", cudaGetErrorName(err));
+        return NVDSINFER_CUDA_ERROR;
+    }
     return NVDSINFER_SUCCESS;
 }
 
