@@ -206,7 +206,8 @@ class Pipeline:
 
     def stop(self):
         """
-        Stop the pipeline
+        Send EOS to stop the pipeline, releasing the GIL while the call runs.
+        Use wait() to wait for completion. This call can block on a stalled pipeline.
 
         Returns:
             Pipeline instance
