@@ -40,6 +40,7 @@ RUN apt-get update && \
         python3-pip \
         wget \
         libyaml-cpp-dev \
+        python3-yaml \
         libssl-dev \
         openssl \
         libssl3 \

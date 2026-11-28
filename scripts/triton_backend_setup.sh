@@ -35,7 +35,7 @@ case "${1:-}" in
         echo "Jetson Triton26.10/${TRITON_REQUIRED_VERSION} native setup; exact JetPack qualification is pending."
         echo "Set TRITON_PKG_PATH and TRITON_CLIENT_SDK_PKG_PATH to reviewed matching HTTPS ZIP URLs."
         echo "Jetson URLs must contain /v${TRITON_REQUIRED_VERSION}/; no default or older fallback is selected."
-        echo "DEEPSTREAM_VARIANT=igx retains explicit matching older releases for its separate TRT10/CUDA13 stack."
+        echo "DEEPSTREAM_VARIANT=igx uses the Jetson Triton and TensorRT 11 selection."
         echo "SBSA/DGX Spark uses Triton26.04/2.68.0 in containers; native apply is refused."
         echo "--check-only checks URL selection only, without downloads or system changes."
         echo "Provision the matching platform dependencies and stop DeepStream/Triton before installation."
@@ -45,11 +45,11 @@ case "${1:-}" in
 esac
 [[ $# -le 1 ]] || fail 'Expected at most one option.'
 
-# Preserve the separate legacy IGX stack; do not infer Jetson from ARM64 alone.
+# Keep IGX as its own variant. Its compute stack matches Jetson.
 TRITON_SETUP_VARIANT=${DEEPSTREAM_VARIANT:-${PLATFORM:-}}
 case "$TRITON_SETUP_VARIANT" in
     jetson|tegra|aarch64) TRITON_SETUP_VARIANT=jetson ;;
-    igx) TRITON_EXPECTED_TRT=10 ;;
+    igx) ;;
     sbsa) ;;
     '')
         TRITON_SETUP_VARIANT=jetson
@@ -73,7 +73,7 @@ for selection in TRITON_PKG_PATH TRITON_CLIENT_SDK_PKG_PATH; do
     [[ "$value" =~ ^https://[^?#[:space:]]+/v([0-9]+\.[0-9]+\.[0-9]+)/[[:alnum:]_.+-]+\.zip(\?[^#[:space:]]*)?$ ]] ||
         fail "${selection} must select a reviewed /vMAJOR.MINOR.PATCH/ HTTPS ZIP."
     selected_version=${BASH_REMATCH[1]}
-    if [[ "$TRITON_SETUP_VARIANT" != igx && "$selected_version" != "$TRITON_SELECTION_VERSION" ]]; then
+    if [[ "$selected_version" != "$TRITON_SELECTION_VERSION" ]]; then
         fail "${TRITON_SETUP_VARIANT} selection targets Triton ${TRITON_SELECTION_VERSION}, not ${selected_version}."
     fi
     if [[ "$selection" == TRITON_PKG_PATH ]]; then

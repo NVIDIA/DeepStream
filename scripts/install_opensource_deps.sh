@@ -838,11 +838,7 @@ ds_vpi_install_x86() {
 }
 
 echo ""
-if [[ "$PLATFORM" == aarch64 && -r /proc/device-tree/model ]] &&
-    [[ "$(tr -d '\0' < /proc/device-tree/model)" == *IGX* ]]; then
-  echo "--- VPI (IGX keeps its existing platform stack; this upgrade does not install a replacement) ---"
-  mark_stage_done deps-vpi4
-elif [[ "$PLATFORM" == aarch64 || "$PLATFORM" == sbsa ]]; then
+if [[ "$PLATFORM" == aarch64 || "$PLATFORM" == sbsa ]]; then
   VPI_DIR=${VPI_DIR-/opt/nvidia/vpi4}
   VPI_HEADER="$VPI_DIR/include/vpi/VersionDef.h"
   if [[ ! -r "$VPI_HEADER" ]]; then

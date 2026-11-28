@@ -137,7 +137,7 @@ ds3d/
 The top-level [`Makefile`](Makefile) walks every subdirectory in dependency order — `common`, `glprocess`, and the RealSense stub first, since everything else links against them.
 
 ```bash
-export CUDA_VER=13.2        # x86, Jetson and SBSA. For IGX Thor, CUDA_VER=13.0
+export CUDA_VER=13.4        # x86. Jetson, SBSA and IGX Thor use CUDA_VER=13.2.
 make && sudo -E make install
 ```
 

@@ -54,7 +54,7 @@ Before building, ensure the following prerequisites are installed:
 
   > **Note:** After a successful build, `artifacts/` is removed automatically. Pass `--keep-assets` to retain them.
 
-> **SBSA / DGX Spark:** DeepStream bare-metal installation is not supported on SBSA. Build and validation must be done inside the NVIDIA SBSA Docker container, which ships with DeepStream pre-installed — `build/build.sh` is **not required** inside the container. If you modify an open-source component, run `make && make install` in that component's directory to deploy the updated binaries/libs. See [build/BUILD.md](build/BUILD.md).
+> **SBSA / DGX Spark:** DeepStream bare-metal installation is not supported on SBSA. Build and validation must be done inside the NVIDIA SBSA Docker container, which ships with DeepStream pre-installed — `build/build.sh` is **not required** inside the container. If you modify an open-source component, run `make && make install` in that component's directory to deploy the updated binaries/libs. Build that container with the existing `$ADDVAR99`, `setup_sbsa_build.sh`, and `buildsbsa.sh` steps in [deepstream_dockers/README.md](deepstream_dockers/README.md) section 5. See [build/BUILD.md](build/BUILD.md).
 
 # Getting Started
 
@@ -80,25 +80,28 @@ The published baseline below is not qualification of the upgrade branch.
 
 The local upgrade branch selects these separate compute-stack targets:
 
-| Target | CUDA toolkit / `CUDA_VER` | TensorRT | cuDNN | VPI |
+| Target | CUDA | TensorRT | cuDNN | VPI |
 |---|---|---|---|---|
-| x86 dGPU | 13.4.3 / `13.4` | 11.4.0.106 | 9.27.0.42 | 4.1.4 |
-| SBSA | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
-| Jetson, JetPack 7.2.2 | 13.2.2 / `13.2` | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+| x86 dGPU | 13.4 | 11.4.0.106 | 9.27.0.42 | 4.1.4 |
+| SBSA | 13.2 | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
+| Jetson, JetPack 7.2.2 | 13.2 | 11.4.1.31 | 9.20.0.46 | 4.1.6 |
 
-The x86/SBSA host-driver target is **620.70.06**. Its `nvidia-smi` CUDA UMD
-**13.5** reading describes driver capability, not the selected toolkits:
-**13.4.3** on x86 and **13.2.2** on SBSA.
-Jetson retains its JetPack-supplied driver and **13.2.2** toolkit.
+The x86 driver is **620.70.06**. Its `nvidia-smi` CUDA UMD **13.5** reading
+describes driver capability, not the CUDA **13.4** toolkit. Jetson and SBSA use
+driver **595.113** and CUDA **13.2**. IGX uses driver **595.78** and the Jetson
+CUDA, cuDNN and TensorRT versions.
 
-These are build targets, not completed platform qualification. IGX's existing
-stack is not upgraded by this work. Explicit CUDA/TensorRT overrides require
+These are build targets, not completed platform qualification. Explicit CUDA/TensorRT overrides require
 matching development and runtime inputs. Provision the matching Triton client SDK
 as described in [the build guide](build/BUILD.md); the build does not pull Docker
 images automatically. For optional container creation, x86 uses matching
-Triton 26.10 runtime/client-SDK images. SBSA follows the Jetson Docker recipe
-with Triton 26.04 and the local TensorRT 11.4.1.31 repository package. See
-[Docker build instructions](deepstream_dockers/README.md).
+Triton 26.10 runtime/client-SDK images. SBSA uses the same staging steps in
+[Docker build instructions](deepstream_dockers/README.md) section 5: place the
+BSP, GStreamer libraries, TensorRT repository package, and VPI 4.1.6 packages
+under `$ADDVAR99`, place the three SBSA media libraries in
+`deepstream_dockers/sbsa_specific_files/`, then run `setup_sbsa_build.sh` and
+`buildsbsa.sh`. That image is Triton 26.04, CUDA 13.2, TensorRT 11.4.1.31,
+cuDNN 9.20.0.46, and VPI 4.1.6.
 
 The published `9.2.0` artifact pins below remain unchanged until reviewed matching
 assets are available. Do not treat an older opaque binary bundle as rebuilt for
@@ -121,10 +124,10 @@ and `pyservicemaker` retains its independent `0.0.1` version.
 
 | Platform | Architecture | Notes |
 |---|---|---|
-| x86 dGPU | x86_64 | Ubuntu 24.04, CUDA 13.2, TensorRT 10.16.x, driver 595+ |
-| Jetson | aarch64 | JetPack 7.2.1 (CUDA 13.2, TensorRT 10.16.x) |
-| IGX Thor | aarch64 | IGX-SW 2.0 GA (CUDA 13.0, TensorRT 10.13.x, GPU driver 580.00) |
-| SBSA / DGX Spark | aarch64 | Bare-metal DS installation not supported; build and run inside the NVIDIA SBSA Docker container. Only open-source components are built — no artifacts installed. |
+| x86 dGPU | x86_64 | Ubuntu 24.04, CUDA 13.4, TensorRT 11.4.0.106, driver 620.70.06 |
+| Jetson | aarch64 | JetPack 7.2.1 (CUDA 13.2, TensorRT 10.16.x), driver 595.113 |
+| IGX Thor | aarch64 | Ubuntu 24.04, CUDA 13.2, TensorRT 11.4.1.31, driver 595.78 |
+| SBSA / DGX Spark | aarch64 | CUDA 13.2, driver 595.113. Bare-metal DS installation not supported; build and run inside the NVIDIA SBSA Docker container. Only open-source components are built — no artifacts installed. |
 
 ```bash
 # Build. The script prompts for sudo only when installing to system paths.
@@ -169,7 +172,7 @@ cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app-triton
 deepstream-app -c source30_1080p_dec_infer-resnet_tiled_display.txt
 ```
 
-**Prerequisites:** Docker (`docker-ce`), the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and NVIDIA driver 595+. Triton sample model repos ship under `/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/`. For gRPC-backed Triton, use `samples/configs/deepstream-app-triton-grpc/` instead.
+**Prerequisites:** Docker (`docker-ce`), the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and the platform driver: **620.70.06** on x86, **595.113** on Jetson and SBSA, **595.78** on IGX Thor. Triton sample model repos ship under `/opt/nvidia/deepstream/deepstream/samples/triton_model_repo/`. For gRPC-backed Triton, use `samples/configs/deepstream-app-triton-grpc/` instead.
 
 ## Running with Triton Inference Server on Jetson (bare metal)
 
@@ -181,7 +184,7 @@ Prepare Triton dependencies and sample models on Jetson.
 # Run from the cloned repository root after the DeepStream build has completed.
 
 # First set both URL variables to reviewed Triton2.74.0 (26.10) ZIP inputs
-# qualified for JetPack7.2.2/CUDA13.2.2/TRT11.4.1, not the stock SBSA build.
+# qualified for JetPack7.2.2/CUDA13.2/TRT11.4.1, not the stock SBSA build.
 # Each URL must contain /v2.74.0/; there is no legacy26.04 fallback.
 sudo env DEEPSTREAM_VARIANT=jetson TRITON_PKG_PATH="$TRITON_PKG_PATH" \
     TRITON_CLIENT_SDK_PKG_PATH="$TRITON_CLIENT_SDK_PKG_PATH" \

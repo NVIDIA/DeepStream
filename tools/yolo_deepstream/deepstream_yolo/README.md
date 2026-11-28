@@ -78,7 +78,7 @@ The output result will output to `yolo.mp4`
 
   * Install the required packages
 
-  Match `cuda-python` to the installed CUDA toolkit (for example **CUDA 13.2** → `cuda-python==13.2.0`):
+  Match `cuda-python` to the installed CUDA toolkit (x86 **CUDA 13.4** → `cuda-python==13.4.0`; Jetson, SBSA and IGX **CUDA 13.2** → `cuda-python==13.2.0`):
   ```bash
   python -m pip install \
     "onnx>=1.16" \

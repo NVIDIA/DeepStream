@@ -26,7 +26,7 @@ The following are required on the target execution environment:
 - **NVIDIA DeepStream SDK** — installed locally or available via [NVIDIA NGC container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/deepstream)
 - **Python 3.12+** with the `pyservicemaker` package
 - **NVIDIA GPU** with driver version 595 or later
-- **CUDA 13.2** and **TensorRT 10.16.0.72**
+- **CUDA 13.4** on x86, **CUDA 13.2** on Jetson, SBSA and IGX, and **TensorRT 10.16.0.72**
 - **Supported OS:** Ubuntu 24.04 (x86_64 or ARM64/Jetson)
 
 > Individual command-line skills may support an earlier Python version. Follow each skill's own prerequisites.

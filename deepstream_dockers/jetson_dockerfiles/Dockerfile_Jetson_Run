@@ -89,6 +89,7 @@ RUN  --mount=type=bind,src=jetson_dockerfiles,target=/tmp/docker  \
         libgstreamer1.0-0 \
         gstreamer1.0-tools \
         libyaml-cpp-dev \
+        python3-yaml \
         libjsoncpp-dev \
         libjpeg-dev \
         openssl \

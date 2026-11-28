@@ -44,7 +44,7 @@ If `nvidia-smi` reports GB10 / GB300 / GH200 / Grace and no Jetson device-tree â
 
 ### x86_64 (`Dockerfile`)
 - PyTorch installed via pip from `https://download.pytorch.org/whl/cu130`
-  (PyTorch wheel ABI; the DeepStream base image CUDA toolkit is 13.2)
+  (PyTorch wheel ABI; the DeepStream base image CUDA toolkit is 13.4)
 - TRT OSS GPU archs: `80;86;90;100` (Ampere, Ada, Hopper, Blackwell-x86)
 - CUDA headers at `/usr/local/cuda-<ver>/include`
 
@@ -94,9 +94,9 @@ cp libnvds_infercustomparser_tao.so /opt/nvidia/deepstream/deepstream/lib/
 ```
 
 CUDA version by platform:
-- x86_64 datacenter: `CUDA_VER=13.2`
-- Jetson / arm-sbsa server: `CUDA_VER=13.0`
+- x86_64 datacenter: `CUDA_VER=13.4`
+- Jetson / arm-sbsa server: `CUDA_VER=13.2`
 
 On arm-sbsa (GB10/GB300), if CUDA headers are not in the container, mount them
-from the host at `/usr/local/cuda-13.0` or pre-build the `.so` on the host and
+from the host at `/usr/local/cuda-13.2` or pre-build the `.so` on the host and
 `COPY` it into the Dockerfile.

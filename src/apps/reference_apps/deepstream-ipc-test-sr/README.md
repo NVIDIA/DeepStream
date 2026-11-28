@@ -40,7 +40,7 @@ To install these packages, execute the following command:
 
 ```bash
   $ Set CUDA_VER in the MakeFile as per platform.
-      CUDA_VER=13.2
+      CUDA_VER=13.4 on x86, CUDA_VER=13.2 on Jetson, SBSA and IGX
   $ sudo make
 ```
 
