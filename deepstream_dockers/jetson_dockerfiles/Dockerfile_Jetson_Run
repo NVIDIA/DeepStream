@@ -277,3 +277,9 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 #
 RUN ldconfig
 
+RUN set -eux; \
+    modelopt_cache=$(mktemp -d); \
+    trap 'rm -rf -- "$modelopt_cache"' EXIT; \
+    PIP_NO_CACHE_DIR=1 python3.12 \
+      /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py \
+      --prepare-only --cache-dir "$modelopt_cache"

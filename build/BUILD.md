@@ -597,27 +597,7 @@ Clean old component objects explicitly before a stack change, then run without
 `--resume`; recording new stage identity does not itself rebuild stale objects.
 
 To override the DeepStream version (default: `9.2.1`, must be `MAJOR.MINOR.PATCH`;
-the install tree uses the truncated `MAJOR.MINOR` form).
-
-An x86 or Jetson build downloads the proprietary DeepStream binaries and the
-sample-data package before it compiles. Point `GITHUB_RELEASE_BASE` at the
-directory that contains those packages, and set `GITHUB_ASSET_VERSION` to the
-version in their filenames:
-
-```bash
-export GITHUB_RELEASE_BASE='https://<url where deepstream-binaries-aarch64_9.2.1_arm64.deb (required for Jetson), deepstream-binaries-x86_9.2.1_amd64.deb (required for x86), and deepstream-sample-data_9.2.1.deb (required for both x86 and Jetson) are available>'
-export GITHUB_ASSET_VERSION=9.2.1
-bash build/build.sh --package
-```
-
-This assumes the user can download from the URL in `GITHUB_RELEASE_BASE`.
-If `GITHUB_RELEASE_BASE` and `GITHUB_ASSET_VERSION` are not set, the build uses
-its default asset location,
-`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`, and filename
-version `9.2.0`. The asset location must contain the correct DeepStream binaries
-for the platform being built. Otherwise export both variables with the correct
-values. `GITHUB_RELEASE_BASE` is the directory itself; it does not append
-`GITHUB_RELEASE_TAG`.
+the install tree uses the truncated `MAJOR.MINOR` form):
 
 ```bash
 NVDS_VERSION=9.2.1 bash build/build.sh
@@ -714,14 +694,34 @@ repo sources (`includes/`, `sources/`, helper scripts).
 > was partial, the resulting package will be incomplete or the script will error
 > out on the missing install tree.
 
+An x86 or Jetson build downloads the proprietary DeepStream binaries and the
+sample-data package before it compiles. Point `GITHUB_RELEASE_BASE` at the
+directory that contains those packages, and set `GITHUB_ASSET_VERSION` to the
+version in their filenames:
+
+```bash
+export GITHUB_RELEASE_BASE='https://<url where deepstream-binaries-aarch64_9.2.1_arm64.deb (required for Jetson), deepstream-binaries-x86_9.2.1_amd64.deb (required for x86), and deepstream-sample-data_9.2.1.deb (required for both x86 and Jetson) are available>'
+export GITHUB_ASSET_VERSION=9.2.1
+bash build/build.sh --package
+```
+
+This assumes the user can download from the URL in `GITHUB_RELEASE_BASE`.
+If `GITHUB_RELEASE_BASE` and `GITHUB_ASSET_VERSION` are not set, the build uses
+its default asset location,
+`https://github.com/NVIDIA/DeepStream/releases/download/v9.2.0`, and filename
+version `9.2.0`. The asset location must contain the correct DeepStream binaries
+for the platform being built. Otherwise export both variables with the correct
+values. `GITHUB_RELEASE_BASE` is the directory itself; it does not append
+`GITHUB_RELEASE_TAG`. Option 2 does not download these packages. It packages a
+tree that is already installed.
+
 ### Option 1 — package as part of the build (recommended)
 
 Add `--package` (or `--package-format=`) to `build/build.sh`. Packaging runs
 automatically at the very end, but **only** after a full build succeeds (it is
-skipped for `--only=` scoped builds and never runs if any stage failed). For the
-x86 and Jetson proprietary binaries, set `GITHUB_RELEASE_BASE` and
-`GITHUB_ASSET_VERSION` as shown in [Build and Install](#build-and-install)
-before this command:
+skipped for `--only=` scoped builds and never runs if any stage failed). Use the
+`GITHUB_RELEASE_BASE` exports above when the proprietary packages are not at the
+default location.
 
 ```bash
 # Full build, then emit both .deb and .tbz2 into build/

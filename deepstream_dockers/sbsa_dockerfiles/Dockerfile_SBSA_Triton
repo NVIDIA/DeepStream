@@ -277,6 +277,52 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
     rm -rf /var/lib/apt/lists/* && \
     apt autoremove
 
+# The 26.04 base ships libtriton_tensorrt.so linked to libnvinfer.so.10. The
+# TensorRT 11 install above removes those libraries, so rebuild the backend
+# against libnvinfer.so.11 before any tensorrt_plan model is loaded.
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      g++ \
+      make \
+      python3.12-venv \
+      rapidjson-dev; \
+    work_dir=$(mktemp -d); \
+    trap 'rm -rf -- "$work_dir"' EXIT; \
+    python3.12 -m venv "$work_dir/tools"; \
+    "$work_dir/tools/bin/pip" install --no-cache-dir cmake==3.31.10; \
+    git init -q "$work_dir/source"; \
+    git -C "$work_dir/source" remote add origin https://github.com/triton-inference-server/tensorrt_backend.git; \
+    git -C "$work_dir/source" fetch --depth=1 origin ca5d0693f2e11e7fa2cc41b325aaecd618499ebf; \
+    git -C "$work_dir/source" checkout -q --detach FETCH_HEAD; \
+    "$work_dir/tools/bin/cmake" -S "$work_dir/source" -B "$work_dir/build" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="$work_dir/install" \
+      -DTRITON_COMMON_REPO_TAG=b0b538731dfbd910af5b90027f811677526072d8 \
+      -DTRITON_CORE_REPO_TAG=ee0bc478f2889e41d02618f9f49e77ee0c278975 \
+      -DTRITON_BACKEND_REPO_TAG=3f57fb90bee16b86232ee79c45eb4ce69c9ad489 \
+      -DTRITON_CORE_HEADERS_ONLY=ON \
+      -DTRITON_TENSORRT_INCLUDE_PATHS=/usr/include/aarch64-linux-gnu \
+      -DNVINFER_LIBRARY=/usr/lib/aarch64-linux-gnu/libnvinfer.so.11 \
+      -DNVINFER_PLUGIN_LIBRARY=/usr/lib/aarch64-linux-gnu/libnvinfer_plugin.so.11 \
+      -DCUDAToolkit_ROOT=/usr/local/cuda-13.2 \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.2/bin/nvcc; \
+    "$work_dir/tools/bin/cmake" --build "$work_dir/build" --parallel 2; \
+    "$work_dir/tools/bin/cmake" --install "$work_dir/build"; \
+    backend="$work_dir/install/backends/tensorrt/libtriton_tensorrt.so"; \
+    readelf -h "$backend" | grep -E 'Machine:.*AArch64'; \
+    readelf -d "$backend" | grep -F 'Shared library: [libnvinfer.so.11]'; \
+    readelf -d "$backend" | grep -F 'Shared library: [libnvinfer_plugin.so.11]'; \
+    if readelf -d "$backend" | grep -E 'Shared library: \[libnvinfer[^]]*\.so\.10\]'; then exit 1; fi; \
+    LD_LIBRARY_PATH="/opt/tritonserver/lib:/usr/local/cuda-13.2/lib64:${LD_LIBRARY_PATH:-}" \
+      ldd "$backend" > "$work_dir/dependencies.txt"; \
+    cat "$work_dir/dependencies.txt"; \
+    if grep 'not found' "$work_dir/dependencies.txt" | \
+      grep -vE '^[[:space:]]*(libcuda\.so\.1|libnvidia-ml\.so\.1) => not found[[:space:]]*$'; then exit 1; fi; \
+    grep -F 'libtritonserver.so => /opt/tritonserver/lib/libtritonserver.so' "$work_dir/dependencies.txt"; \
+    install -m 755 "$backend" /opt/tritonserver/backends/tensorrt/libtriton_tensorrt.so; \
+    rm -rf /var/lib/apt/lists/*
+
 # copy rsyslog into /etc/init.d/ (service can run) above
 
 RUN apt-get update && \
@@ -614,3 +660,10 @@ RUN --mount=type=bind,src=sbsa_dockerfiles,target=/tmp/docker \
 
 # Set SBSA docker entrypoint. This prints DeepStream LICENSE and calls TritonServer Docker entrypoint afterwards
 ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
+
+RUN set -eux; \
+    modelopt_cache=$(mktemp -d); \
+    trap 'rm -rf -- "$modelopt_cache"' EXIT; \
+    PIP_NO_CACHE_DIR=1 python3.12 \
+      /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py \
+      --prepare-only --cache-dir "$modelopt_cache"

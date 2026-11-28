@@ -477,7 +477,7 @@ deepstream-app --version-all
 gst-inspect-1.0 nvv4l2decoder
 ```
 
-Sample model preparation is section 6. It is a separate step from this sanity check.
+The image build prepares the sample models as described in section 6.
 
 To move an image built elsewhere onto the SBSA host, use ``docker save deepstream:9.2.1-triton-arm-sbsa-local | gzip > ds-sbsa.tar.gz``
 and ``docker load < ds-sbsa.tar.gz``.
@@ -499,26 +499,28 @@ The following differences from the x86 and Jetson images are deliberate:
 - ``libnvdsgst_udp.so`` (needs Rivermax) and the Tegra capture plugins ``libgstnvsiplsrc.so`` and
   ``libgstnvarguscamerasrc.so`` are removed, as they cannot work in an SBSA dGPU container.
 
-## 6 Prepare the sample models inside a running container
+## 6 Sample models prepared during image builds
 
-Run this after the x86, Jetson, or SBSA container is running. It is not part of
-``user_additional_install.sh`` and it is not a Docker build input. The installed
-SDK copies the script to:
+All x86, Jetson and SBSA image recipes run the installed helper during the build:
 
-```
-/opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py
+```sh
+python3.12 /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py --prepare-only
 ```
 
-``deepstream`` is the alias of ``deepstream-9.2``. Inside the container:
+This prepares TrafficCamNet, VehicleMakeNet and VehicleTypeNet at their canonical
+ONNX filenames, preserves the FP32 originals and provenance, and updates the
+sample configurations. Users do not need to run preparation again inside these
+images. No GPU engines are generated during the image build.
 
-```
-cd /opt/nvidia/deepstream/deepstream/samples/modelopt
-python3.12 prepare_samples.py --check
-python3.12 prepare_samples.py
-```
+The build downloads the pinned CPU conversion dependencies into a temporary
+environment and removes that environment and conversion cache in the same layer.
+Preparation failures stop the image build. ARM64 builds on x86 execute this CPU
+step under emulation.
 
-``--check`` only verifies the original ONNX files and the SDK engine builder.
-The following command prepares TrafficCamNet, VehicleMakeNet, and VehicleTypeNet
-and builds batch-1 GPU engines. The first run creates its own environment from
-``requirements.txt`` in that directory. Full options are in
-``tools/modelopt/README.md``.
+For `nvinfer` samples, engines are built on first inference. Triton
+`tensorrt_plan` samples require compatible engines in `samples/triton_model_repo`;
+run the SDK's `prepare_ds_triton_model_repo.sh` on the target GPU before using those
+samples. Model preparation does not generate Triton repository plans.
+
+Bare-metal SDK installations still use the post-install workflow in
+[`tools/modelopt/README.md`](../tools/modelopt/README.md).

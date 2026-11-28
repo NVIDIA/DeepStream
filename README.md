@@ -125,7 +125,7 @@ and `pyservicemaker` retains its independent `0.0.1` version.
 | Platform | Architecture | Notes |
 |---|---|---|
 | x86 dGPU | x86_64 | Ubuntu 24.04, CUDA 13.4, TensorRT 11.4.0.106, driver 620.70.06 |
-| Jetson | aarch64 | JetPack 7.2.1 (CUDA 13.2, TensorRT 10.16.x), driver 595.113 |
+| Jetson | aarch64 | JetPack 7.2.2 (CUDA 13.2, TensorRT 11.4.1.31), driver 595.113 |
 | IGX Thor | aarch64 | Ubuntu 24.04, CUDA 13.2, TensorRT 11.4.1.31, driver 595.78 |
 | SBSA / DGX Spark | aarch64 | CUDA 13.2, driver 595.113. Bare-metal DS installation not supported; build and run inside the NVIDIA SBSA Docker container. Only open-source components are built — no artifacts installed. |
 
@@ -136,7 +136,22 @@ bash build/build.sh
 
 # Usage
 
-After `bash build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.2/bin/`. Run the reference `deepstream-app` with one of the sample configs:
+After `bash build/build.sh`, binaries are installed to `/opt/nvidia/deepstream/deepstream-9.2/bin/`.
+
+**Required on bare metal (x86 and Jetson):** After installing the SDK, run
+`prepare_samples.py` once before running inference with the bundled TrafficCamNet,
+VehicleMakeNet or VehicleTypeNet sample models:
+
+```bash
+sudo python3.12 /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py --prepare-only
+```
+
+This prepares the models without generating engines; `nvinfer` builds engines on
+first inference. Images built from this repository's Dockerfiles already perform
+this preparation. See [sample model preparation](tools/modelopt/README.md) for
+prerequisites and options.
+
+Run the reference `deepstream-app` with one of the sample configs:
 
 ```bash
 cd /opt/nvidia/deepstream/deepstream-9.2/samples/configs/deepstream-app

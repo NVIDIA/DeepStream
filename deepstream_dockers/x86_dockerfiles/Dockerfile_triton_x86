@@ -251,9 +251,6 @@ ENV NVIDIA_DRIVER_CAPABILITIES $NVIDIA_DRIVER_CAPABILITIES,video,compute,graphic
 
 ENV LD_LIBRARY_PATH /opt/tritonserver/lib:/opt/tritonclient/lib:/usr/src/tensorrt/lib:/opt/riva/lib:/usr/local/cuda-13/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 
-# RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
-#    /usr/bin/python3.12 ./prepare_samples.py
-
 
 ENTRYPOINT ["/opt/nvidia/deepstream/deepstream/entrypoint.sh"]
 
@@ -314,4 +311,17 @@ RUN rm -f /usr/lib/*-linux-gnu/libdca.so* /usr/lib/*-linux-gnu/libdvdnav.so* /us
 
 ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libgomp.so.1:$LD_PRELOAD
 
-RUN rm -rf  /opt/tritonserver/backends/dali 
+RUN rm -rf  /opt/tritonserver/backends/dali
+
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      g++ \
+      make \
+      python3.12-dev; \
+    rm -rf /var/lib/apt/lists/*; \
+    modelopt_cache=$(mktemp -d); \
+    trap 'rm -rf -- "$modelopt_cache"' EXIT; \
+    PIP_NO_CACHE_DIR=1 python3.12 \
+      /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py \
+      --prepare-only --cache-dir "$modelopt_cache"
