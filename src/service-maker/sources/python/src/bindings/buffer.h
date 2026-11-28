@@ -128,7 +128,8 @@ void module_buffer_bind(py::module &m) {
             return self.chunkId(id);
         }, pydeepstreamdoc::buffer::BufferDoc::get_chunk_id)
         .def("extract", [](Buffer& self, unsigned int id) {
-            return make_unique<TensorWrapper>(self.extract(id));
+            auto* tensor = self.extract(id);
+            return tensor ? make_unique<TensorWrapper>(tensor) : nullptr;
         },
         py::call_guard<py::gil_scoped_release>(),
         pydeepstreamdoc::buffer::BufferDoc::extract, py::arg("batch_id")
