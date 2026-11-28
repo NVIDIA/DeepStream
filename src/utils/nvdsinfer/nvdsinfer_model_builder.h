@@ -148,6 +148,7 @@ struct BuildParams
     NvDsInferNetworkMode networkMode = NvDsInferNetworkMode_FP32;
     std::string int8CalibrationFilePath;
     int dlaCore = -1;
+    bool enableCudaGraph = false;
     std::vector<TensorIOFormat> inputFormats;
     std::unordered_map<std::string, TensorIOFormat> outputFormats;
     std::unordered_map<std::string, LayerDevicePrecision> layerDevicePrecisions;

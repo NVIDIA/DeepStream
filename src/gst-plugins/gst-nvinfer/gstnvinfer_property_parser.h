@@ -125,6 +125,7 @@
 #define CONFIG_GROUP_INFER_STRONGLY_TYPED "strongly-typed"
 #define CONFIG_GROUP_INFER_DYNAMIC_PROPERTIES "dynamic-properties"
 #define CONFIG_GROUP_INFER_WARMUP_ENGINE "warmup-engine"
+#define CONFIG_GROUP_INFER_CUDA_GRAPH "cuda-graph"
 #define CONFIG_GROUP_INFER_STABILIZE_BUFFER_COUNT "stabilize-buffer-count"
 
 /** Classifier specific parameters. */

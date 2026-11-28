@@ -443,7 +443,7 @@ private:
         NvDsInferContextInitParams& initParams);
     bool deserializeEngineAndBackend(const std::string enginePath, int dla,
         std::shared_ptr<TrtEngine>& engine,
-        std::unique_ptr<BackendContext>& backend);
+        std::unique_ptr<BackendContext>& backend, bool enableCudaGraph);
     NvDsInferStatus checkBackendParams(
         BackendContext& ctx, const NvDsInferContextInitParams& initParams);
 

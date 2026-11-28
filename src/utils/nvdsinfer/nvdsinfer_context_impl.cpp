@@ -2165,7 +2165,7 @@ NvDsInferContextImpl::checkBackendParams(BackendContext& ctx,
 bool
 NvDsInferContextImpl::deserializeEngineAndBackend(const std::string enginePath,
         int dla, std::shared_ptr<TrtEngine>& engine,
-        std::unique_ptr<BackendContext>& backend)
+        std::unique_ptr<BackendContext>& backend, bool enableCudaGraph)
 {
     auto builder = std::make_unique<TrtModelBuilder>(
         m_GpuID, *gTrtLogger, m_CustomLibHandle, true);
@@ -2179,7 +2179,7 @@ NvDsInferContextImpl::deserializeEngineAndBackend(const std::string enginePath,
             "deserialize engine from file :%s failed", safeStr(enginePath));
         return false;
     }
-    auto newBackend = createBackendContext(newEngine);
+    auto newBackend = createBackendContext(newEngine, enableCudaGraph);
     if (!newBackend)
     {
         printWarning("create backend context from engine from file :%s failed",
@@ -2250,7 +2250,7 @@ NvDsInferContextImpl::buildModel(NvDsInferContextInitParams& initParams)
     }
 
     std::unique_ptr<BackendContext> backend;
-    auto newBackend = createBackendContext(engine);
+    auto newBackend = createBackendContext(engine, initParams.enableCudaGraph);
     if (!newBackend)
     {
         printWarning("create backend context from engine failed");
@@ -2319,7 +2319,8 @@ NvDsInferContextImpl::generateBackendContext(NvDsInferContextInitParams& initPar
     if (!string_empty(initParams.modelEngineFilePath))
     {
         if (!deserializeEngineAndBackend(
-                initParams.modelEngineFilePath, dla, engine, backend))
+                initParams.modelEngineFilePath, dla, engine, backend,
+                initParams.enableCudaGraph))
         {
             printWarning(
                 "deserialize backend context from engine from file :%s failed, "

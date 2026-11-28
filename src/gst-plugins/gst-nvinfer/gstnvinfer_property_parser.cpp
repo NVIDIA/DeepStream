@@ -1262,6 +1262,11 @@ gst_nvinfer_parse_props (GstNvInfer * nvinfer,
             CONFIG_GROUP_INFER_WARMUP_ENGINE, &error))
       init_params->warmupEngine = TRUE;
     CHECK_ERROR (error);
+  } else if (!g_strcmp0 (*key, CONFIG_GROUP_INFER_CUDA_GRAPH)) {
+    if (g_key_file_get_boolean (key_file, CONFIG_GROUP_PROPERTY,
+            CONFIG_GROUP_INFER_CUDA_GRAPH, &error))
+      init_params->enableCudaGraph = TRUE;
+    CHECK_ERROR (error);
   } else if (!g_strcmp0 (*key, CONFIG_GROUP_INFER_STABILIZE_BUFFER_COUNT)) {
     guint val = (guint) g_key_file_get_integer (key_file, CONFIG_GROUP_PROPERTY,
         CONFIG_GROUP_INFER_STABILIZE_BUFFER_COUNT, &error);

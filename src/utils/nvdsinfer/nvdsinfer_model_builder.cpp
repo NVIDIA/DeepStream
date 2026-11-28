@@ -1098,6 +1098,8 @@ TrtModelBuilder::initCommonParams(BuildParams& params,
     else
         params.dlaCore = -1;
 
+    params.enableCudaGraph = initParams.enableCudaGraph;
+
     for(unsigned int i=0; i < initParams.numOutputIOFormats; ++i)
     {
         assert(initParams.outputIOFormats[i]);
@@ -1303,6 +1305,13 @@ TrtModelBuilder::configCommonOptions(BuildParams& params)
 
     /* Set workspace size. */
     //builderConfig.setMaxWorkspaceSize(params.workspaceSize);
+
+    /* A single stream is required so enqueueV3() can be captured in one CUDA graph. */
+    if (params.enableCudaGraph)
+    {
+        builderConfig.setMaxAuxStreams(0);
+        dsInferInfo("CUDA graph enabled: max auxiliary streams set to 0");
+    }
 
     /* Set the network data type */
     if ((params.networkMode == NvDsInferNetworkMode_INT8) || (params.networkMode == NvDsInferNetworkMode_BEST))

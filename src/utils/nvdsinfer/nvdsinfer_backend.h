@@ -20,9 +20,11 @@
 
 #include <stdarg.h>
 #include <condition_variable>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <vector>
 
 #include <cuda_runtime_api.h>
 
@@ -265,7 +267,8 @@ class FullDimTrtBackendContext : public TrtBackendContext
 public:
     FullDimTrtBackendContext(
         std::unique_ptr<nvinfer1::IExecutionContext>&& ctx,
-        std::shared_ptr<TrtEngine> engine, int profile = 0);
+        std::shared_ptr<TrtEngine> engine, int profile = 0,
+        bool enableCudaGraph = false);
 
 private:
     NvDsInferStatus initialize() override;
@@ -274,9 +277,47 @@ private:
         const std::shared_ptr<InferBatchBuffer>& buffer, CudaStream& stream,
         CudaEvent* consumeEvent) override;
 
+    struct CudaGraphKey
+    {
+        std::vector<void*> addresses;
+        std::vector<int32_t> shapeWords;
+        bool operator<(const CudaGraphKey& other) const
+        {
+            if (addresses < other.addresses)
+                return true;
+            if (other.addresses < addresses)
+                return false;
+            return shapeWords < other.shapeWords;
+        }
+    };
+
+    struct CudaGraphExec
+    {
+        cudaGraph_t graph = nullptr;
+        cudaGraphExec_t exec = nullptr;
+        CudaGraphExec() = default;
+        CudaGraphExec(const CudaGraphExec&) = delete;
+        CudaGraphExec& operator=(const CudaGraphExec&) = delete;
+        ~CudaGraphExec()
+        {
+            if (exec)
+                cudaGraphExecDestroy(exec);
+            if (graph)
+                cudaGraphDestroy(graph);
+        }
+    };
+
+    CudaGraphKey makeCudaGraphKey(const std::vector<void*>& bindings) const;
+    NvDsInferStatus enqueueCudaGraph(
+        const std::vector<void*>& bindings, CudaStream& stream);
+
 protected:
     // Only idx 0 profile supported.
     const int m_ProfileIndex = 0;
+    const bool m_EnableCudaGraph = false;
+    bool m_CudaGraphWarmed = false;
+    bool m_CudaGraphDisabled = false;
+    std::map<CudaGraphKey, std::unique_ptr<CudaGraphExec>> m_CudaGraphs;
 };
 
 /**
@@ -306,7 +347,7 @@ private:
  * DlaTrtBackendContext - created when TRT CudaEngine is built for DLA
  */
 std::unique_ptr<TrtBackendContext> createBackendContext(
-    const std::shared_ptr<TrtEngine>& engine);
+    const std::shared_ptr<TrtEngine>& engine, bool enableCudaGraph = false);
 
 } // end of namespace nvdsinfer
 

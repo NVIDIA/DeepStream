@@ -910,6 +910,8 @@ gst_nvinfer_parse_props_yaml (GstNvInfer * nvinfer,
       init_params->useStronglyTyped = itr->second.as<gboolean>();
     } else if (paramKey == "warmup-engine") {
       init_params->warmupEngine = itr->second.as<gboolean>();
+    } else if (paramKey == "cuda-graph") {
+      init_params->enableCudaGraph = itr->second.as<gboolean>();
     } else if (paramKey == "stabilize-buffer-count") {
       if (nvinfer)
         nvinfer->stabilize_buffer_count = itr->second.as<unsigned int>();
