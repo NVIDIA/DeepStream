@@ -195,9 +195,6 @@ RUN apt-get update && \
     ln -sf /usr/bin/protoc /opt/proto/bin/protoc && \
     rm -rf /var/lib/apt/lists/*
 
-# RUN cd /opt/nvidia/deepstream/deepstream-9.2/samples/modelopt/ && \
-#    /usr/bin/python3.12 ./prepare_samples.py
-
 # open telemetry
 # Built from source instead of prebuilt .deb packages: the Debian/Ubuntu archives
 # rotate opentelemetry-cpp binaries out of the pool, which breaks the docker build.
@@ -261,4 +258,9 @@ ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libgomp.so.1:/usr/lib/x86_64-linux-gnu/
 
 RUN ldconfig
 
-
+RUN set -eux; \
+    modelopt_cache=$(mktemp -d); \
+    trap 'rm -rf -- "$modelopt_cache"' EXIT; \
+    PIP_NO_CACHE_DIR=1 python3.12 \
+      /opt/nvidia/deepstream/deepstream/samples/modelopt/prepare_samples.py \
+      --prepare-only --cache-dir "$modelopt_cache"

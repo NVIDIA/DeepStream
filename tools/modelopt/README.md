@@ -14,7 +14,19 @@ Packaging copies these scripts only. Packaging does not invoke ModelOpt,
 install conversion dependencies, convert ONNX or build target engines. Original sample models are packaged normally, unchanged. ModelOpt is
 not an inference-plugin or Debian runtime dependency.
 
+The Docker image recipes run the installed helper with `--prepare-only` during
+image creation. Those images include the prepared models, FP32 backups and
+provenance without prebuilt engines. Their temporary CPU conversion environment
+and cache are removed during the build, so users do not need to repeat model
+preparation. The post-install steps below apply to bare-metal SDK installations
+or deliberate model re-preparation.
+
 ## Run after installation
+
+**Required on bare metal:** On x86 and Jetson, run this setup once after SDK
+installation and before inference with the bundled TrafficCamNet, VehicleMakeNet
+or VehicleTypeNet models. Use `--prepare-only` to prepare models without building
+engines; `nvinfer` generates engines on first use.
 
 Stop sample pipelines before setup. Sample model/configuration and source
 directories must be writable by the account running setup; do not change system
@@ -23,11 +35,11 @@ Python or broadly relax permissions as a shortcut.
 ```sh
 cd /opt/nvidia/deepstream/deepstream/samples/modelopt
 
-# Read-only preflight: missing original files or SDK engine builder.
-python3.12 prepare_samples.py --check
+# Read-only preflight for model-only preparation.
+python3.12 prepare_samples.py --check --prepare-only
 
-# Prepare three models and prebuild batch-1 GPU engines.
-python3.12 prepare_samples.py
+# Prepare three models without generating GPU engines.
+python3.12 prepare_samples.py --prepare-only
 ```
 
 `--sdk-root /path/to/deepstream-X.Y` selects another installation, including a
@@ -47,8 +59,9 @@ The script:
 3. Calls unmodified NVIDIA ModelOpt AutoCast privately for mixed FP16/FP32 graphs.
    Cached conversion reuse verifies model/external weights, calibration, complete
    environment/tool identity and output bytes, not just file existence.
-4. Uses installed `bin/nvdsinfer-engine-builder` with target TensorRT/CUDA to
-   build fresh GPU engines for the requested batch size. Existing plans alone
+4. Unless `--prepare-only` is selected, uses installed
+   `bin/nvdsinfer-engine-builder` with target TensorRT/CUDA to build fresh GPU
+   engines for the requested batch size. Existing plans alone
    are not trusted; no engine from a different platform is shipped/downloaded.
 5. Only after all requested conversions/builds succeed, preserves each original
    ONNX as `fp32_<original-name>.onnx` and publishes its mixed graph at the
